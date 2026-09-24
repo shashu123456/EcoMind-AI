@@ -22,6 +22,26 @@ export async function request<T>(path: string, options?: RequestInit): Promise<T
   return res.json()
 }
 
+/** Download a file with the auth token attached (plain <a> links cannot send the Bearer header). */
+export async function downloadFile(path: string, fallbackName?: string): Promise<void> {
+  const token = localStorage.getItem('ecomind_token')
+  const res = await fetch(`${API_BASE}${path}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  })
+  if (!res.ok) throw new Error(`download failed (${res.status})`)
+  const blob = await res.blob()
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  const cd = res.headers.get('content-disposition') || ''
+  const m = cd.match(/filename="?([^";]+)"?/i)
+  a.href = url
+  a.download = m?.[1] || fallbackName || 'report'
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 4000)
+}
+
 // ── Contract types (API_CONTRACT.md §3 — verbatim field names) ──
 
 export interface Provenance {
@@ -598,8 +618,7 @@ export const reports = {
   generate: (body: any) =>
     request<GenerateResult>('/reports/generate', { method: 'POST', body: JSON.stringify(body) }),
   get: (id: string) => request<Report>(`/reports/${id}`),
-  download: (id: string) => `${API_BASE}/reports/${id}/download`,
-  downloadUrl: (id: string) => `${API_BASE}/reports/${id}/download`,
+  download: (id: string, name?: string) => downloadFile(`/reports/${id}/download`, name),
 }
 
 // ── Workflows ──

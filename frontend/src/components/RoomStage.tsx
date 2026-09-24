@@ -16,6 +16,26 @@ const ACCENT: Record<Accent, { text: string; border: string; bg: string; dot: st
 }
 
 /* ── Terminal shell ─────────────────────────────────── */
+/** Underlines/glows the MAJOR points inside a terminal line: whole line when
+    it starts with ✓ ✔ → (a result line), otherwise metric tokens (decimals,
+    percentages, big integers) get the glowing underline treatment. */
+function TermHighlight({ text }: { text: string }) {
+  if (/^[✓✔→>]/.test(text.trim())) {
+    return <span className="term-key">{text}</span>
+  }
+  const re = /(\d[\d,]*\.\d+\s?%?|\d[\d,]*\s?%|(?<![0-9-])\d[\d,]{2,}(?![\d.]))/g
+  const nodes: ReactNode[] = []
+  let last = 0
+  let m: RegExpExecArray | null
+  while ((m = re.exec(text))) {
+    if (m.index > last) nodes.push(<span key={nodes.length}>{text.slice(last, m.index)}</span>)
+    nodes.push(<span key={nodes.length} className="term-num">{m[0]}</span>)
+    last = m.index + m[0].length
+  }
+  if (last < text.length) nodes.push(<span key={nodes.length}>{text.slice(last)}</span>)
+  return <>{nodes}</>
+}
+
 export interface TermProps {
   title: string
   tag: string
@@ -50,22 +70,22 @@ export function Terminal({ title, tag, accent = 'jade', lines, statRows, statusC
         </div>
       </div>
 
-      <div className="relative min-h-0 flex-1 overflow-hidden p-4 font-mono text-[12px] leading-6">
+      <div className="term-scroll relative min-h-0 flex-1 overflow-y-auto p-4 pr-3 font-mono text-[13px] leading-[1.75]">
         {scan && <span className={clsx('pointer-events-none absolute inset-x-0 top-0 h-14 bg-gradient-to-b from-transparent via-white/[0.03] to-transparent', 'terminal-scan')} />}
         {children}
         {lines && (
-          <div className="space-y-1 text-gray-400">
+          <div className="space-y-1 text-slate-300 term-glow">
             {lines.map((l, i) => (
               <motion.p key={i} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.08 }} className="truncate">
-                <span className="text-gray-600">[{String(i + 1).padStart(2, '0')}]</span> <span className={a.text}>›</span>{' '}
-                <TypeText text={l} delay={i * 160} speed={13} caretClass={a.text} />
+                <span className="text-slate-600">[{String(i + 1).padStart(2, '0')}]</span> <span className={a.text}>›</span>{' '}
+                <TypeText text={l} delay={i * 160} speed={13} caretClass={a.text} render={t => <TermHighlight text={t} />} />
               </motion.p>
             ))}
             <motion.p animate={{ opacity: [0.4, 1, 0.4] }} transition={{ duration: 1.1, repeat: Infinity }} className={a.text}>▌</motion.p>
           </div>
         )}
         {statRows && (
-          <div className="flex h-full flex-col justify-center gap-3">
+          <div className="flex min-h-full w-full flex-col justify-center gap-3">
             {statRows.map((r, i) => (
               <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.15, ease: B }}
                 className="rounded-card border border-white/[0.06] bg-white/[0.03] px-4 py-3">
@@ -352,7 +372,7 @@ export function ExplainStrip({ title, what, why, evidence, chips }: {
       <button onClick={() => setOpen(o => !o)}
         className="flex w-full items-center justify-between gap-3 px-4 py-2">
         <span className="flex items-center gap-2 font-mono text-xs uppercase tracking-[0.2em] text-primary-300">
-          <Info className="h-3.5 w-3.5" /> {title}
+          <Info className="h-3.5 w-3.5" /> <span className="term-key">{title}</span>
         </span>
         <span className="flex items-center gap-3">
           {chips && (
@@ -417,7 +437,9 @@ export function FullscreenBlock({
   useEffect(() => {
     if (!open) return
     const id = window.setTimeout(() => setEnter(1), 420)
-    return () => window.clearTimeout(id)
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false) }
+    window.addEventListener('keydown', onKey)
+    return () => { window.clearTimeout(id); window.removeEventListener('keydown', onKey) }
   }, [open])
 
   return (
@@ -482,13 +504,14 @@ export function FullscreenBlock({
                     <span className="h-3 w-3 rounded-full bg-accent-emerald/80" />
                   </span>
                   <span className={clsx('truncate font-mono text-sm uppercase tracking-[0.18em]', a.text)}>{label} · full screen</span>
-                  <span className="hidden rounded-full border border-white/[0.1] bg-white/[0.04] px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-gray-500 sm:inline">
-                    {left === 'left' ? 'raw left → processed right' : 'processed left → raw right'}
-                  </span>
-                </div>
+<span className="hidden rounded-full border border-white/[0.1] bg-white/[0.04] px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-gray-500 sm:inline">
+                  {left === 'left' ? 'raw left → processed right' : 'processed left → raw right'}
+                </span>
+              </div>
                 <button onClick={() => setOpen(false)}
-                  className="flex h-8 w-8 items-center justify-center rounded-button border border-white/[0.1] bg-white/[0.05] text-gray-300 transition-colors hover:bg-white/[0.1] hover:text-white">
-                  <X className="h-4 w-4" />
+                  className="flex h-8 items-center gap-2 rounded-button border border-white/[0.12] bg-white/[0.05] px-3 font-mono text-[11px] uppercase tracking-widest text-gray-200 transition-colors hover:bg-white/[0.1] hover:text-white">
+                  <X className="h-3.5 w-3.5" />
+                  cancel <span className="text-gray-500">esc</span>
                 </button>
               </div>
               <div key={enter} className="min-h-0 flex-1 p-4 opacity-0"

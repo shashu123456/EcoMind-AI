@@ -1,20 +1,22 @@
 import { useRef, useState } from 'react'
-import { Link } from '@tanstack/react-router'
+import { Link, useNavigate } from '@tanstack/react-router'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Upload, Database, FileSpreadsheet, BadgeCheck, Loader2, Trash2, ArrowRight, Sparkles } from 'lucide-react'
 import { datasets, workflows } from '../lib/api'
 import { useApi } from '../lib/hooks'
-import { useJourney } from '../lib/journey'
-import { AnimatedNumber, Particles, Reveal, StageBanner, FlowStat, B } from '../lib/kit'
+import { useJourney, WORKFLOW, stagePath, runJourneyToCompletion } from '../lib/journey'
+import { AnimatedNumber, Particles, Reveal, StageBanner, FlowStat, B, firePageRipple } from '../lib/kit'
 import { EmptyBox, ErrorBox, fmt } from '../lib/pagekit'
-import { ExecutionModeToggle } from '../components/ExecutionMode'
+
 import { Zap, Footprints } from 'lucide-react'
 
 export function LibraryPage() {
   const { data, loading, error, refetch } = useApi<any>(() => datasets.list() as any, [])
   const { setActive, mode } = useJourney()
+  const navigate = useNavigate()
   const [uploading, setUploading] = useState(false)
   const [launching, setLaunching] = useState<string | null>(null)
+  const [runningJourney, setRunningJourney] = useState<string | null>(null)
   const [uploadMsg, setUploadMsg] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
@@ -44,7 +46,23 @@ export function LibraryPage() {
     setLaunching(id)
     try {
       const r: any = await workflows.start({ dataset_id: id })
-      setActive(id, r?.run?.id)
+      const rid: string | undefined = r?.run?.id
+      setActive(id, rid)
+      if (!rid) return
+      if (useJourney.getState().mode === 'manual') {
+        const firstStage = (WORKFLOW.find(s => s.requires === 'dataset') || WORKFLOW[0])
+        navigate({ to: stagePath(firstStage, { datasetId: id, runId: rid }) } as any)
+        return
+      }
+      firePageRipple()
+      setRunningJourney(id)
+      void runJourneyToCompletion(rid, {
+        onDone: () => {
+          setRunningJourney(null)
+          navigate({ to: '/journey-complete' } as any)
+        },
+        onError: () => setRunningJourney(null),
+      }).finally(() => setRunningJourney(null))
     } finally { setLaunching(null) }
   }
 
@@ -64,20 +82,11 @@ export function LibraryPage() {
       />
 
       <Reveal delay={0.05}>
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
-          <div className="glass-panel p-5">
-            <p className="font-mono text-xs uppercase tracking-[0.22em] text-primary-400">how should the journey run?</p>
-            <h3 className="mt-1 font-display text-lg font-semibold text-gray-100">Pick your execution mode</h3>
-            <div className="mt-3">
-              <ExecutionModeToggle />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <FlowStat label="Datasets" value={list.length} accent hint="in the library" />
-            <FlowStat label="Total Rows" value={list.reduce((n, d) => n + (d.row_count || 0), 0)} hint="streamed in" />
-            <FlowStat label="Ready" value={list.filter(d => d.status === 'ready').length} hint="schema discovered" />
-            <FlowStat label="Types" value={new Set(list.map(d => d.source_type)).size} hint="sample + upload" />
-          </div>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <FlowStat label="Datasets" value={list.length} accent hint="in the library" />
+          <FlowStat label="Total Rows" value={list.reduce((n, d) => n + (d.row_count || 0), 0)} hint="streamed in" />
+          <FlowStat label="Ready" value={list.filter(d => d.status === 'ready').length} hint="schema discovered" />
+          <FlowStat label="Types" value={new Set(list.map(d => d.source_type)).size} hint="sample + upload" />
         </div>
       </Reveal>
 
@@ -142,12 +151,12 @@ export function LibraryPage() {
               <div className="flex items-center gap-2 pt-1">
                 <button
                   onClick={() => launch(d.id)}
-                  disabled={launching === d.id}
+                  disabled={launching === d.id || runningJourney === d.id}
                   className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-button bg-gradient-to-r from-primary-500 to-accent-cyan text-white font-medium transition-all hover:shadow-[0_0_14px_rgba(76,95,213,0.4)] disabled:opacity-60"
                 >
-                  {launching === d.id ? <Loader2 className="w-3 h-3 animate-spin" /> :
+                  {launching === d.id || runningJourney === d.id ? <Loader2 className="w-3 h-3 animate-spin" /> :
                     mode === 'auto' ? <Zap className="w-3 h-3" /> : <Footprints className="w-3 h-3" />}
-                  {launching === d.id ? 'Starting journey…' : mode === 'auto' ? 'Run full journey' : 'Start step-by-step'}
+                  {launching === d.id ? 'Starting journey…' : runningJourney === d.id ? 'Running journey…' : mode === 'auto' ? 'Run full journey' : 'Start step-by-step'}
                 </button>
                 <Link to="/preview/$datasetId" params={{ datasetId: d.id }} onClick={() => setActive(d.id)}
                   className="text-xs px-3 py-1.5 rounded-button bg-primary-500/10 text-primary-400 hover:bg-primary-500/20 font-medium">

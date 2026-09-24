@@ -8,8 +8,9 @@ import {
 import clsx from 'clsx'
 import { WORKFLOW, useJourney, stagePath } from '../lib/journey'
 import { B } from '../lib/kit'
+import { EcoMindLockup } from '../lib/logo'
 import { useState } from 'react'
-import { ExecutionModeToggle } from './ExecutionMode'
+
 
 const ICONS: Record<string, React.ComponentType<any>> = {
   library: Database, import: Upload, raw_preview: Eye, schema_discovery: ScanSearch,
@@ -41,18 +42,7 @@ export function PipelineRail() {
     <aside className="relative flex h-screen w-64 shrink-0 flex-col border-r border-white/[0.06] bg-surface-dark/90">
       {/* Logo */}
       <div className="relative overflow-hidden border-b border-white/[0.06] p-4">
-        <div className="flex items-center gap-2.5">
-          <motion.div
-            whileHover={{ rotate: 8, scale: 1.05 }}
-            className="relative flex h-9 w-9 items-center justify-center rounded-glass bg-gradient-to-br from-primary-500 to-accent-cyan shadow-[0_0_20px_rgba(76,95,213,0.4)]"
-          >
-            <Leaf className="h-4.5 w-4.5 text-white" style={{ width: 18, height: 18 }} />
-          </motion.div>
-          <div>
-            <p className="font-display text-base font-bold leading-tight tracking-tight">EcoMind AI</p>
-            <p className="text-[9px] font-mono uppercase tracking-[0.2em] text-gray-500">adaptive · explainable · energy</p>
-          </div>
-        </div>
+        <EcoMindLockup size={26} />
 
         {/* Journey progress */}
         <div className="mt-3">
@@ -156,9 +146,6 @@ export function PipelineRail() {
 
       {/* Footer */}
       <div className="border-t border-white/[0.06] p-3 space-y-2">
-        <div className="glass-card p-3">
-          <ExecutionModeToggle compact />
-        </div>
         <AnimatePresence mode="wait">
           {statusFor('history_registry') === 'done' ? (
             <motion.div key="done" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}

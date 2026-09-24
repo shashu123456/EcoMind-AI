@@ -19,7 +19,8 @@ export function BenchmarkingPage() {
   const { setActive, markCompleted } = useJourney()
   const res = useApi<any>(() => (datasetId ? benchmarks.list(datasetId) as any : null), [datasetId])
   const bench = (res.data || {}) as any
-  const leaderboard: any[] = Array.isArray(bench?.leaderboard) ? bench.leaderboard : []
+  const [local, setLocal] = useState<any[]>([])
+  const leaderboard: any[] = local.length ? local : (Array.isArray(bench?.leaderboard) ? bench.leaderboard : [])
   const [busy, setBusy] = useState(false)
   const [done, setDone] = useState(false)
   const [revealed, setRevealed] = useState(0)
@@ -29,14 +30,21 @@ export function BenchmarkingPage() {
     setBusy(true)
     setRevealed(0)
     try {
-      await benchmarks.run(datasetId, {})
+      const resp = await benchmarks.run(datasetId, {}) as any
+      if (resp && Array.isArray(resp.leaderboard) && resp.leaderboard.length) {
+        setLocal(resp.leaderboard)
+        setDone(true)
+        markCompleted('benchmarking')
+        setActive(datasetId)
+        const nRows = resp.leaderboard.length
+        let i = 0
+        const t = setInterval(() => { i += 1; setRevealed(i); if (i >= nRows) clearInterval(t) }, 400)
+        return
+      }
       await res.refetch()
       setDone(true)
       markCompleted('benchmarking')
       setActive(datasetId)
-      const nRows = (Array.isArray(res.data?.leaderboard) ? res.data.leaderboard : []).length
-      let i = 0
-      const t = setInterval(() => { i += 1; setRevealed(i); if (i >= nRows) clearInterval(t) }, 400)
     } catch { } finally { setBusy(false) }
   }
 

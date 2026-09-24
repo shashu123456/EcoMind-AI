@@ -130,11 +130,44 @@ def _dataset_name(db, dataset_id):
     return ds.name if ds else "dataset"
 
 
+def _leaderboard_from_results(results: dict) -> list[dict]:
+    rows = []
+    for algo, scores in (results or {}).items():
+        if not isinstance(scores, dict) or "r2" not in scores:
+            continue
+        rows.append({"name": algo, "algorithm": algo,
+                     "scores": {k: v for k, v in scores.items() if k in COMPARE_METRICS}})
+    for lb in rows:
+        tot = 0.0
+        for metric in COMPARE_METRICS:
+            v = lb["scores"].get(metric)
+            if v is None:
+                continue
+            col = [r["scores"].get(metric) for r in rows if r["scores"].get(metric) is not None]
+            best = min(col)
+            worst = max(col)
+            if metric in ("rmse", "mae", "mape"):
+                norm = (worst - v) / ((worst - best) or 1.0)
+            else:
+                norm = (v - worst) / ((best - worst) or 1.0)
+            tot += max(0.0, min(1.0, norm)) * 25.0
+        lb["total_score"] = round(tot, 1)
+    rows.sort(key=lambda r: r.get("total_score", -1), reverse=True)
+    for i, r in enumerate(rows):
+        r["rank"] = i + 1
+    return rows
+
+
 def list_benchmarks(db: Session, dataset_id: str | None = None):
     q = db.query(Benchmark).order_by(Benchmark.created_at.desc())
     if dataset_id:
         q = q.filter(Benchmark.dataset_id == dataset_id)
-    return {"benchmarks": json_safe([_benchmark_payload(b) for b in q.limit(50).all()])}
+    benches = q.limit(50).all()
+    latest = benches[0] if benches else None
+    return {
+        "benchmarks": json_safe([_benchmark_payload(b) for b in benches]),
+        "leaderboard": _leaderboard_from_results(latest.results or {}) if latest else [],
+    }
 
 
 def benchmark_stage(run, db: Session, params: dict):

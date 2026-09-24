@@ -3,13 +3,14 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Link, useNavigate } from '@tanstack/react-router'
 import {
   ArrowRight, Database, ShieldCheck, Gauge, AlertTriangle,
-  Trophy, TrendingUp, Coins, Cloud, Sparkles, Play, Activity, Radio, Cpu, Zap, CircuitBoard, X,
+  Trophy, TrendingUp, Coins, Cloud, Sparkles, Play, Activity, Radio, Cpu, Zap, CircuitBoard, X, Star,
 } from 'lucide-react'
 import { datasets, ai, workflows } from '../lib/api'
 import { useApi } from '../lib/hooks'
 import { useJourney, WORKFLOW, stagePath, runJourneyToCompletion } from '../lib/journey'
 import { AnimatedNumber, Particles, Reveal, Gauge as TrustGauge, B, firePageRipple } from '../lib/kit'
 import { AnnotatedText, MatrixRain, SplitFlapDisplay } from '../lib/interactive'
+import { EcoMindLogo } from '../lib/logo'
 import clsx from 'clsx'
 
 /* ── Electric current background: flowing data-flow lines, no images ── */
@@ -207,6 +208,12 @@ export function DashboardPage() {
       setActive(activeId, rid)
       refetchDs()
       if (!rid) { setStarting(false); return }
+      if (useJourney.getState().mode === 'manual') {
+        const firstStage = (WORKFLOW.find(s => s.requires === 'dataset') || WORKFLOW[0])
+        navigate({ to: stagePath(firstStage, { datasetId: activeId, runId: rid }) } as any)
+        setStarting(false)
+        return
+      }
       setRunningJourney(true)
       void runJourneyToCompletion(rid, {
         onStep: (_stage, i) => setNowStep(i + 1),
@@ -260,13 +267,7 @@ export function DashboardPage() {
               <span>adaptive · explainable · energy intelligence</span>
             </motion.div>
             <div className="flex items-center gap-3">
-              <motion.div
-                whileHover={{ rotate: 6, scale: 1.08 }}
-                className="relative flex h-14 w-14 items-center justify-center rounded-glass bg-gradient-to-br from-primary-500 to-accent-cyan shadow-[0_0_28px_rgba(76,95,213,0.55)]"
-              >
-                <Zap className="h-7 w-7 text-white" fill="currentColor" />
-                <span className="absolute inset-0 animate-pulse-glow rounded-glass bg-primary-500/20" />
-              </motion.div>
+              <EcoMindLogo size={46} />
               <h1 className="font-display text-5xl font-black tracking-tight text-white sm:text-6xl">
                 ECO<span className="text-[#7DD3FC]">MIND</span>
                 <span className="ml-2 inline-block h-2.5 w-2.5 rounded-full bg-[#22C55E] shadow-[0_0_14px_#22C55E]" />
@@ -307,6 +308,12 @@ export function DashboardPage() {
                 className="inline-flex items-center justify-center gap-2 rounded-button border border-white/[0.1] bg-black/20 px-5 py-3 text-sm font-semibold text-gray-200 transition-colors hover:border-primary-500/40 hover:bg-primary-500/10"
               >
                 <Database className="h-4 w-4" /> Open Library
+              </Link>
+              <Link
+                to="/scorecard"
+                className="inline-flex items-center justify-center gap-2 rounded-button border border-accent-violet/30 bg-accent-violet/10 px-5 py-3 text-sm font-semibold text-accent-violet transition-colors hover:bg-accent-violet/20"
+              >
+                <Star className="h-4 w-4" /> Presentability
               </Link>
               {resumePath && doneCount > 0 && doneCount < WORKFLOW.length && (
                 <button

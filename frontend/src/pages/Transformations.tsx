@@ -53,21 +53,65 @@ function classify(name: string): { kind: Impact; why: string } {
   return { kind: 'used', why: 'carried through untouched; no information lost in the pass.' }
 }
 
+const FLOW_TOKENS = [
+  { t: 'energy_kwh · min_max', c: 'text-accent-cyan' },
+  { t: 'temperature_c · interp', c: 'text-primary-300' },
+  { t: 'power_kw · log', c: 'text-accent-gold' },
+  { t: 'dedupe ×37', c: 'text-accent-rose' },
+  { t: '+ Hour', c: 'text-accent-cyan' },
+  { t: '+ Weekday', c: 'text-accent-violet' },
+  { t: '+ Season', c: 'text-accent-emerald' },
+  { t: '+ Rolling Mean 24', c: 'text-primary-300' },
+  { t: '+ Rolling Std 24', c: 'text-accent-rose' },
+]
+
 function FlowPipe({ active }: { active: boolean }) {
+  const tokens = [...FLOW_TOKENS, ...FLOW_TOKENS]
   return (
-    <div className="flex h-full min-h-0 items-center justify-center lg:flex-col">
-      <div className="flex items-center gap-1 lg:flex-col">
-        {[0, 1, 2].map(i => (
-          <motion.span
-            key={i}
-            animate={active ? { x: [0, 6, 0], y: [0, 0, 0], opacity: [0.2, 1, 0.2], scale: [0.9, 1.15, 0.9] } : { opacity: 0.25, scale: 0.9 }}
-            transition={{ duration: 1.5, repeat: Infinity, delay: i * 0.22, ease: 'easeInOut' }}
-            className={clsx('h-2 w-2 rounded-full', i === 1 ? 'bg-accent-emerald' : 'bg-[#7DD3FC]')}
-          />
-        ))}
+    <div className="relative flex h-full min-h-0 items-center justify-center">
+      <div className="flex h-full max-h-80 w-full items-center gap-1.5 lg:max-w-11 lg:flex-col">
+        <motion.span
+          animate={active ? { y: [0, 4, 0], opacity: [0.4, 1, 0.4] } : { opacity: 0.3 }}
+          transition={{ duration: 1.2, repeat: Infinity, ease: 'easeInOut' }}
+          className={clsx('shrink-0 rotate-90 lg:rotate-90', active ? 'text-accent-cyan' : 'text-gray-600')}
+        >
+          <ArrowRight className="h-3.5 w-3.5" />
+        </motion.span>
+
+        {/* vertical data-flow terminal — front-page style */}
+        <div className="relative min-h-0 min-w-0 flex-1 self-stretch overflow-hidden rounded-md border border-white/[0.1] bg-black/60 shadow-[0_0_22px_rgba(76,95,213,0.18)]">
+          <div className="absolute inset-x-0 top-0 z-10 flex items-center justify-between border-b border-white/[0.06] bg-black/70 px-1.5 py-[3px]">
+            <span className="flex items-center gap-1">
+              <span className={clsx('h-1 w-1 rounded-full', active ? 'animate-pulse bg-accent-emerald' : 'bg-gray-600')} />
+              <span className="font-mono text-[7px] uppercase tracking-[0.2em] text-primary-400">data flow</span>
+            </span>
+          </div>
+          <div className="h-full overflow-hidden">
+            <motion.div
+              className="flex h-full flex-col gap-1 px-1.5 py-2 lg:pt-4"
+              animate={active ? { y: ['0%', '-33.33%'] } : { y: 0 }}
+              transition={{ duration: 12, repeat: Infinity, ease: 'linear' }}
+            >
+              {tokens.map((f, i) => (
+                <span
+                  key={i}
+                  className={clsx(
+                    'term-glow whitespace-nowrap font-mono text-[8.5px] leading-[1.75]',
+                    active ? f.c : 'text-gray-600',
+                    i < tokens.length / 3 ? 'opacity-90' : 'opacity-40',
+                  )}
+                >
+                  › {f.t}
+                </span>
+              ))}
+            </motion.div>
+          </div>
+        </div>
+
+        <span className="hidden shrink-0 font-mono text-[8px] uppercase tracking-[0.25em] text-gray-600 lg:block [writing-mode:vertical-rl]">
+          {active ? 'flowing' : 'stand by'}
+        </span>
       </div>
-      <ArrowRight className={clsx('mx-1 h-4 w-4 lg:my-1 lg:rotate-90', active ? 'text-accent-cyan' : 'text-gray-600')} />
-      <span className="hidden font-mono text-[9px] uppercase tracking-[0.25em] text-gray-600 lg:block [writing-mode:vertical-rl]">processing</span>
     </div>
   )
 }

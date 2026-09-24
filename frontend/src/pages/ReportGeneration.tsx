@@ -34,6 +34,18 @@ export function ReportGenerationPage() {
   const [busy, setBusy] = useState(false)
   const [genned, setGenned] = useState(false)
   const [log, setLog] = useState<string[]>([])
+  const [busyId, setBusyId] = useState<string | null>(null)
+
+  async function dl(r: any) {
+    setBusyId(r.id)
+    try {
+      await reports.download(r.id, `${r.title || 'report'}.${r.format || 'pdf'}`)
+    } catch (e: any) {
+      setLog((l) => [...l, `✖ ${e?.message || 'download failed'}`])
+    } finally {
+      setBusyId(null)
+    }
+  }
 
   async function generate() {
     if (!activeDs || busy) return
@@ -169,10 +181,10 @@ export function ReportGenerationPage() {
                     </p>
                   </div>
                   <span className="hidden sm:block text-xs font-mono text-gray-400">{dsName(r.dataset_id)}</span>
-                  <a href={reports.downloadUrl(r.id)} target="_blank" rel="noreferrer"
-                    className="inline-flex items-center gap-1.5 rounded-button bg-white/[0.06] px-3 py-1.5 text-xs text-gray-300 hover:bg-white/[0.12]">
-                    <Download className="h-3.5 w-3.5" /> Open
-                  </a>
+                  <button onClick={() => dl(r)} disabled={busyId === r.id}
+                    className="inline-flex items-center gap-1.5 rounded-button bg-white/[0.06] px-3 py-1.5 text-xs text-gray-300 hover:bg-white/[0.12] disabled:opacity-50">
+                    <Download className="h-3.5 w-3.5" /> {busyId === r.id ? 'Saving…' : 'Download'}
+                  </button>
                 </motion.div>
               ))}
             </AnimatePresence>

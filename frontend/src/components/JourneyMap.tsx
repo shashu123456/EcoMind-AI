@@ -10,8 +10,6 @@ import clsx from 'clsx'
 import { useEffect, useState } from 'react'
 import { WORKFLOW, useJourney, stagePath, MILESTONES, PASSTHROUGH_KEYS, milestoneProgress } from '../lib/journey'
 import { B } from '../lib/kit'
-import { Footprints } from 'lucide-react'
-import { ExecutionModeToggle } from './ExecutionMode'
 
 export const STAGE_ICONS: Record<string, React.ComponentType<any>> = {
   library: Database, import: Upload, raw_preview: Eye, schema_discovery: ScanSearch,
@@ -53,8 +51,7 @@ function isActiveRoute(pathname: string, stageKey: string): boolean {
 
 export function JourneyMap() {
   const location = useLocation()
-  const { datasetId, runId, modelId, stageStatuses, mode } = useJourney()
-  const manual = mode === 'manual'
+  const { datasetId, runId, modelId, stageStatuses } = useJourney()
   const [open, setOpen] = useState<string | null>(null)
 
   useEffect(() => { setOpen(null) }, [location.pathname])
@@ -65,22 +62,7 @@ export function JourneyMap() {
 
   return (
     <div className="relative flex h-16 shrink-0 items-center gap-3 border-b border-white/[0.06] bg-surface/40 px-4 backdrop-blur-sm">
-      {/* Left: brand */}
-      <div className="flex w-52 shrink-0 items-center gap-2.5 pr-3">
-        <motion.div
-          whileHover={{ rotate: 8, scale: 1.05 }}
-          className="relative flex h-9 w-9 items-center justify-center rounded-glass bg-gradient-to-br from-primary-500 to-accent-cyan shadow-[0_0_20px_rgba(76,95,213,0.4)]"
-        >
-          <Zap className="text-white" style={{ width: 18, height: 18 }} fill="currentColor" />
-          <span className="absolute inset-0 animate-ping rounded-glass bg-primary-500/10 [animation-duration:2.4s]" />
-        </motion.div>
-        <div>
-          <p className="font-display text-base font-bold leading-tight tracking-tight">EcoMind AI</p>
-          <p className="text-[11px] font-mono uppercase tracking-[0.2em] text-gray-400">adaptive · explainable · energy</p>
-        </div>
-      </div>
-
-      {/* Center: 6-milestone rail */}
+      {/* Center: 6-milestone rail (full width) */}
       <div className="relative mx-auto flex min-w-0 flex-1 items-stretch">
         {MILESTONES.map((m, i) => {
           const state = milestoneState(stageStatuses, m.stages, routeKey)
@@ -103,13 +85,22 @@ export function JourneyMap() {
                 )}
               >
                 <span className="flex w-full items-center justify-center gap-1.5">
-                  {state === 'done' ? (
-                    <span className="led led-online" />
-                  ) : state === 'active' ? (
-                    <span className="led led-alert" />
-                  ) : (
-                    <span className="led led-idle" />
-                  )}
+                  <span className={clsx(
+                    'relative flex h-[18px] w-[20px] items-end justify-center rounded-t-full rounded-b-[3px] transition-all',
+                    state === 'active'
+                      ? 'bg-gradient-to-b from-[#D3ECFF] via-accent-cyan to-primary-500 shadow-[0_0_14px_rgba(99,125,255,0.95)]'
+                      : state === 'done'
+                        ? 'bg-accent-emerald/85 shadow-[0_0_8px_rgba(74,194,154,0.75)]'
+                        : 'bg-white/[0.10]',
+                  )}>
+                    <span className="mb-[3px] h-1 w-1 rounded-full bg-white/90" />
+                    {state === 'active' && (
+                      <>
+                        <span className="absolute -bottom-2 left-1/2 h-3 w-9 -translate-x-1/2 rounded-full bg-primary-400/80 blur-[4px]" />
+                        <span className="absolute -bottom-[10px] left-1/2 h-4 w-12 -translate-x-1/2 rounded-[50%] border border-primary-300/60" />
+                      </>
+                    )}
+                  </span>
                   <span className={clsx(
                     'truncate font-mono text-[10px] font-bold uppercase tracking-[0.14em] lg:text-[11px]',
                     state === 'done' ? 'text-gray-100' : state === 'active' ? 'text-gray-100' : 'text-gray-400',
@@ -218,17 +209,6 @@ export function JourneyMap() {
 
       {/* Right: progress + mode */}
       <div className="flex w-56 shrink-0 items-center justify-end gap-3 pr-1">
-        {manual ? (
-          <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
-            className="flex items-center gap-1.5 rounded-button border border-accent-gold/30 bg-accent-gold/10 px-2 py-1 font-mono text-[11px] uppercase tracking-widest text-accent-gold">
-            <Footprints className="h-3 w-3" /> step-by-step
-          </motion.div>
-        ) : (
-          <div className="flex items-center gap-1.5 rounded-button border border-primary-500/25 bg-primary-500/10 px-2 py-1 font-mono text-[11px] uppercase tracking-widest text-primary-300">
-            <Zap className="h-3 w-3" /> automated run
-          </div>
-        )}
-        <div className="hidden xl:block"><ExecutionModeToggle compact /></div>
         <Link
           to="/reports"
           title="Generate & download a PDF audit report"

@@ -5,6 +5,7 @@ import { Cpu, Loader2, LogIn, ShieldCheck } from 'lucide-react'
 import { auth } from '../lib/api'
 import { cn } from '../lib/interactive'
 import { RippleTransition } from '../lib/interactive'
+import { EcoMindLogo } from '../lib/logo'
 
 const DEFAULT_EMAIL = 'admin@ecomind.ai'
 const DEFAULT_PASSWORD = 'admin123'
@@ -54,7 +55,7 @@ export function LoginPage() {
   }, [])
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-dark p-4">
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden p-4">
       <div className="absolute inset-0">
         <RippleTransition
           images={LOGIN_BACKDROP}
@@ -75,9 +76,7 @@ export function LoginPage() {
       >
         <div className="mb-6 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary-500/15 border border-primary-500/30">
-              <Cpu className="h-5 w-5 text-primary-400" />
-            </div>
+            <EcoMindLogo size={44} />
             <div>
               <h1 className="text-lg font-semibold tracking-tight">EcoMind AI</h1>
               <p className="text-xs text-gray-400">Adaptive Explainable Energy Intelligence</p>

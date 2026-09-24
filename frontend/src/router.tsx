@@ -56,6 +56,7 @@ const routeTree = rootRoute.addChildren([
     stageRoute('/executive', () => import('./pages/ExecutiveCenter')),
     stageRoute('/reports', () => import('./pages/ReportGeneration')),
     stageRoute('/history', () => import('./pages/History')),
+    stageRoute('/scorecard', () => import('./pages/Scorecard')),
   ]),
 ])
 

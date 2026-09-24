@@ -81,18 +81,61 @@
     scrollbar-color: var(--color-surface-lighter) transparent;
   }
 
+  .term-glow {
+    text-shadow: 0 0 8px currentColor, 0 0 16px rgba(125, 211, 252, 0.18);
+  }
+
+  .term-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(94, 118, 168, 0.4) transparent;
+  }
+
+  /* Highlighted "major point" terminal line: brighter, underlined, glowing. */
+  .term-key {
+    color: #E9F8FF;
+    text-decoration: underline;
+    text-decoration-color: rgba(125, 211, 252, 0.45);
+    text-underline-offset: 3px;
+    text-shadow: 0 0 10px rgba(125, 211, 252, 0.4), 0 0 22px rgba(125, 211, 252, 0.18);
+  }
+
+  /* Glowing metric tokens (decimals, percentages, large integers) inside terminals. */
+  .term-num {
+    color: #AEE9FF;
+    font-weight: 600;
+    text-decoration: underline;
+    text-decoration-color: rgba(125, 211, 252, 0.3);
+    text-underline-offset: 2px;
+    text-shadow: 0 0 9px rgba(125, 211, 252, 0.5);
+  }
+
   body {
     background:
-      radial-gradient(1100px 520px at 50% -10%, rgba(76, 95, 213, 0.13), transparent 65%),
-      radial-gradient(760px 460px at 102% -4%, rgba(74, 159, 216, 0.10), transparent 62%),
-      radial-gradient(680px 500px at -6% 108%, rgba(52, 211, 153, 0.07), transparent 62%),
-      radial-gradient(760px 520px at 104% 108%, rgba(141, 123, 216, 0.08), transparent 62%),
+      radial-gradient(48% 40% at 12% 8%, rgba(76, 95, 213, 0.22), transparent 68%),
+      radial-gradient(40% 34% at 88% 6%, rgba(74, 159, 216, 0.18), transparent 70%),
+      radial-gradient(42% 36% at 78% 92%, rgba(141, 123, 216, 0.16), transparent 70%),
+      radial-gradient(36% 32% at 8% 88%, rgba(52, 211, 153, 0.12), transparent 70%),
+      repeating-linear-gradient(115deg, rgba(74, 159, 216, 0.035) 0 2px, transparent 2px 26px),
       var(--color-dark);
+    background-size: 220% 220%, 190% 190%, 210% 210%, 180% 180%, 100% 100%, 100% 100%;
+    animation: eco-flow 32s ease-in-out infinite alternate;
     color: var(--color-text-primary);
     font-family: 'Inter', sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
+  }
+
+  /* Colourful DATA-FLOW canvas: colour clouds drift slowly while thin
+     diagonal stream-lines sweep across, like energy flowing through the
+     system. Subtle on purpose — panels stay readable, no white flashes. */
+  @keyframes eco-flow {
+    0%   { background-position: 0% 0%, 100% 0%, 100% 100%, 0% 100%, 0 0, 0 0; }
+    100% { background-position: 34% 22%, 72% 14%, 62% 86%, 24% 68%, 90px 170px, 0 0; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    body { animation: none; }
   }
 
   :focus-visible {

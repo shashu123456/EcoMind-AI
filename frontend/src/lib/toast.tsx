@@ -42,7 +42,7 @@ export function ToastPane() {
   }, [toasts])
 
   return (
-    <div className="pointer-events-none fixed bottom-4 right-4 z-[95] flex w-80 flex-col gap-2">
+    <div className="pointer-events-none fixed bottom-4 right-4 z-[110] flex w-80 flex-col gap-2">
       <AnimatePresence>
         {toasts.map(t => (
           <motion.div

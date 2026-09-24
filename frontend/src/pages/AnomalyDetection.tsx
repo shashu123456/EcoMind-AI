@@ -23,10 +23,37 @@ function MiniCurve({ near, peak, expected }: { near?: number[] | null; peak?: nu
   const pts = (near && near.length >= 2 ? near.slice(0, 12) : [])
   if (!pts.length && peak == null && expected == null) return null
   const all = [...pts, ...(peak != null ? [peak] : []), ...(expected != null ? [expected] : [])]
+  const x = (i: number, n: number) => (n <= 1 ? 50 : (i / (n - 1)) * 100)
+  const base = expected != null && expected > 0 ? expected : (pts.length ? pts.reduce((a, b) => a + b, 0) / pts.length : 1)
+  const devOf = (v: number) => (base > 0 ? (v - base) / base : 0)
+  if (!expected || expected > 0) {
+    const devs = all.map(devOf)
+    const floor = Math.max(0.5, ...devs.map(d => Math.abs(d)))
+    const pMax = Math.max(floor * 1.18, 0.5)
+    const yMid = 17
+    const y = (v: number) => yMid - (devOf(v) / pMax) * 12
+    const line = pts.map((v, i) => `${x(i, pts.length).toFixed(1)},${y(v).toFixed(1)}`).join(' ')
+    const peakX = pts.length ? x(pts.length, pts.length + 1) : 50
+    return (
+      <svg viewBox="0 0 100 34" preserveAspectRatio="none" className="h-9 w-full">
+        <line x1="0" y1={yMid - (0 / pMax) * 12} x2="100" y2={yMid - (0 / pMax) * 12}
+          stroke="rgba(217,166,72,0.45)" strokeWidth="0.8" strokeDasharray="3 2" vectorEffect="non-scaling-stroke" />
+        {pts.length > 1 && (
+          <>
+            <polygon points={`0,34 ${line} 100,34`} fill="rgba(74,159,216,0.12)" vectorEffect="non-scaling-stroke" />
+            <polyline points={line} fill="none" stroke="#5AB6E8" strokeWidth="1.5"
+              strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+          </>
+        )}
+        {peak != null && (
+          <circle cx={peakX} cy={y(peak)} r="3" fill="#F43F5E" stroke="#0B0E13" strokeWidth="0.8" vectorEffect="non-scaling-stroke" />
+        )}
+      </svg>
+    )
+  }
   const lo = Math.min(...all)
   const hi = Math.max(...all)
   const span = Math.max(hi - lo, 1e-6)
-  const x = (i: number, n: number) => (n <= 1 ? 50 : (i / (n - 1)) * 100)
   const y = (v: number) => 30 - ((v - lo) / span) * 26
   const line = pts.map((v, i) => `${x(i, pts.length).toFixed(1)},${y(v).toFixed(1)}`).join(' ')
   const peakX = pts.length ? x(pts.length, pts.length + 1) : 50

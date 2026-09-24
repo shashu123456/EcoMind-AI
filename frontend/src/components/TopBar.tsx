@@ -4,9 +4,10 @@ import { useEffect, useRef, useState } from 'react'
 import clsx from 'clsx'
 import { WORKFLOW, useJourney } from '../lib/journey'
 import { useTheme } from '../lib/theme'
-import { ExecutionModeToggle } from './ExecutionMode'
+
 import { health, type HealthPayload } from '../lib/api'
 import { firePageRipple } from '../lib/kit'
+import { EcoMindLockup } from '../lib/logo'
 
 function stageForPath(pathname: string) {
   const base = '/' + (pathname.split('/')[1] || '')
@@ -111,9 +112,11 @@ export function TopBar() {
   ].filter(c => c.value)
 
   return (
-    <header className="relative flex h-12 shrink-0 items-center justify-between gap-4 border-b border-white/[0.06] bg-surface/50 px-4 backdrop-blur-sm">
-      {/* active-stage light follows the rail */}
+    <header className="relative flex h-14 shrink-0 items-center justify-between gap-4 border-b border-white/[0.06] bg-surface/60 px-4 backdrop-blur-md">
+      {/* brand + active-stage light follows the rail */}
       <div className="flex min-w-0 items-center gap-3">
+        <EcoMindLockup size={24} sub={''} className="shrink-0" />
+        <span className="h-6 w-px bg-white/[0.08]" />
         <button
           onClick={() => goHome(true)}
           title="Back to the front page"
@@ -156,26 +159,6 @@ export function TopBar() {
       </div>
 
       <div className="flex shrink-0 items-center gap-2">
-        {/* properly aligned execution-mode toggle */}
-        <div className="hidden rounded-button border border-white/[0.08] bg-white/[0.03] p-0.5 lg:block">
-          <div className="flex items-center gap-0.5">
-            <button
-              onClick={() => useJourney.getState().setMode('auto')}
-              className={clsx('inline-flex items-center gap-1.5 rounded-button px-2.5 py-1 font-mono text-[11px] font-semibold uppercase tracking-widest transition-all',
-                mode === 'auto' ? 'bg-gradient-to-r from-primary-500 to-accent-cyan text-white shadow-[0_0_12px_rgba(76,95,213,0.4)]' : 'text-gray-400 hover:text-gray-200')}
-            >
-              <Zap className="h-3 w-3" /> auto
-            </button>
-            <button
-              onClick={() => useJourney.getState().setMode('manual')}
-              className={clsx('inline-flex items-center gap-1.5 rounded-button px-2.5 py-1 font-mono text-[11px] font-semibold uppercase tracking-widest transition-all',
-                mode === 'manual' ? 'bg-gradient-to-r from-accent-amber to-primary-500 text-white shadow-[0_0_12px_rgba(216,166,72,0.4)]' : 'text-gray-400 hover:text-gray-200')}
-            >
-              <Footprints className="h-3 w-3" /> step-by-step
-            </button>
-          </div>
-        </div>
-
         <button
           onClick={() => {
             setBackend(null)
@@ -209,6 +192,24 @@ export function TopBar() {
         <button onClick={toggleTheme} title="Toggle theme" className="p-1.5 text-gray-400 hover:text-gray-200 transition-colors rounded-lg hover:bg-white/[0.03]">
           {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
         </button>
+
+        {/* execution mode — sits beside dark mode, the only place it lives */}
+        <div className="hidden items-center gap-0.5 rounded-full border border-white/[0.08] bg-white/[0.03] p-0.5 md:flex">
+          <button
+            onClick={() => useJourney.getState().setMode('auto')}
+            className={clsx('inline-flex items-center gap-1 rounded-full px-2.5 py-1 font-mono text-[11px] font-semibold uppercase tracking-widest transition-all',
+              mode === 'auto' ? 'bg-gradient-to-r from-primary-500 to-accent-cyan text-white shadow-[0_0_10px_rgba(76,95,213,0.45)]' : 'text-gray-400 hover:text-gray-200')}
+          >
+            <Zap className="h-3 w-3" /> auto
+          </button>
+          <button
+            onClick={() => useJourney.getState().setMode('manual')}
+            className={clsx('inline-flex items-center gap-1 rounded-full px-2.5 py-1 font-mono text-[11px] font-semibold uppercase tracking-widest transition-all',
+              mode === 'manual' ? 'bg-gradient-to-r from-accent-amber to-primary-500 text-white shadow-[0_0_10px_rgba(216,166,72,0.45)]' : 'text-gray-400 hover:text-gray-200')}
+          >
+            <Footprints className="h-3 w-3" /> step
+          </button>
+        </div>
 
         {/* notifications */}
         <div ref={bellRef} className="relative">
@@ -289,13 +290,10 @@ export function TopBar() {
 
               <div className="space-y-1.5">
                 <div className="flex items-center gap-2">
-                  {mode === 'auto' ? <Zap className="h-3.5 w-3.5 text-primary-400" /> : <Footprints className="h-3.5 w-3.5 text-accent-gold" />}
-                  <p className="text-xs text-gray-300">Execution mode</p>
+                  <Zap className="h-3.5 w-3.5 text-primary-400" />
+                  <p className="text-xs text-gray-300">Pipeline run</p>
                 </div>
-                <ExecutionModeToggle compact />
-                <p className="text-xs leading-3 text-gray-400">
-                  Automated runs the pipeline end-to-end; step-by-step walks each stage with your confirmation.
-                </p>
+                <p className="text-xs leading-3 text-gray-400">Use the toggle next to dark mode to switch between automated and step-by-step runs.</p>
               </div>
 
               <div className="mt-4 border-t border-white/[0.06] pt-3">
