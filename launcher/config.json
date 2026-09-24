@@ -1,0 +1,65 @@
+{
+  "$comment": "Central configuration for the EcoMind AI desktop launcher. Edit ONLY this file to change ports, commands, titles, URLs or timeouts.",
+  "app": {
+    "name": "EcoMind AI",
+    "home_url": "http://127.0.0.1:5173",
+    "open_browser": true
+  },
+  "paths": {
+    "project_root": "",
+    "data_dir": "backend/data",
+    "pid_dir": "backend/data/launcher",
+    "logs_dir": "logs",
+    "seed_script": "backend/seed.py",
+    "database_file": "backend/data/ecomind.db"
+  },
+  "python": {
+    "use_venv": true,
+    "venv_dir": ".venv",
+    "min_version": "3.10"
+  },
+  "node": {
+    "min_version": "18"
+  },
+  "startup": {
+    "wait_timeout_seconds": 240,
+    "poll_interval_seconds": 2,
+    "monitor_interval_seconds": 15
+  },
+  "services": [
+    {
+      "id": "backend",
+      "enabled": true,
+      "title": "EcoMind Backend",
+      "port": 8000,
+      "health_url": "http://127.0.0.1:8000/api/v1/health",
+      "command": ["python", "-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", "8000"],
+      "cwd": "backend",
+      "env": {},
+      "log": "backend.log"
+    },
+    {
+      "id": "ai_engine",
+      "enabled": false,
+      "title": "EcoMind AI Engine",
+      "port": 8001,
+      "health_url": "http://127.0.0.1:8001/api/v1/ai/health",
+      "command": [],
+      "cwd": "",
+      "env": {},
+      "log": "ai_engine.log",
+      "note": "AI workloads are served by the unified EcoMind Backend (port 8000) in this build. Keep enabled set to false."
+    },
+    {
+      "id": "frontend",
+      "enabled": true,
+      "title": "EcoMind Frontend",
+      "port": 5173,
+      "health_url": "http://127.0.0.1:5173",
+      "command": ["npm.cmd", "run", "dev"],
+      "cwd": "frontend",
+      "env": {},
+      "log": "frontend.log"
+    }
+  ]
+}

@@ -1,0 +1,37 @@
+flowchart LR
+  subgraph Client["Client (browser)"]
+    UI["React / Vite\nport 5173"]
+  end
+  subgraph Service["FastAPI service · port 8000"]
+    API["REST /api/v1\n+ SSE /stream"]
+    DQ["Data Quality Engine"]
+    WF["Workflow Orchestrator\n17 stages"]
+    PRED["Prediction & Benchmark"]
+    SHAP["SHAP & Trust Gate"]
+    CMP["Raw-vs-Processed"]
+    REP["Reporting & Registry"]
+  end
+  subgraph Store["Storage"]
+    DB[("SQLite\n21 tables · WAL")]
+    FS[("Dataset files\nhost-only")]
+  end
+  UI -->|"JWT + /api/v1"| API
+  UI <-->|"SSE events"| API
+  API --> DQ
+  API --> WF
+  API --> PRED
+  API --> SHAP
+  API --> CMP
+  API --> REP
+  DQ --> DB
+  WF --> DB
+  PRED --> DB
+  SHAP --> DB
+  CMP --> DB
+  REP --> DB
+  DQ --> FS
+  PRED --> FS
+  classDef svc fill:#12343b,stroke:#50e3c2,color:#e8f6f2,stroke-width:1.5px;
+  classDef store fill:#232323,stroke:#888,color:#fff;
+  class DQ,WF,PRED,SHAP,CMP,REP svc;
+  class DB,FS store;

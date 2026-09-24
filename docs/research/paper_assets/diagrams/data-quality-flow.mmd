@@ -1,0 +1,23 @@
+graph TD
+    RAW[("Raw dataset<br/>3,600 rows x 43,200 cells")]
+
+    RAW --> C["Completeness"]
+    RAW --> V["Validity"]
+    RAW --> K["Consistency"]
+    RAW --> A["Accuracy"]
+    RAW --> T["Timeliness"]
+
+    C --> RC["completeness = 100<br/>0 null cells"]
+    A --> RA["accuracy_outliers_iqr = 98.4<br/>394 IQR outliers"]
+    T --> RT["timeliness_temporal_gaps = 100<br/>0 missed intervals"]
+    V -.-> MORE["+5 more rules<br/>8 rules total"]
+    K -.-> MORE
+
+    RC --> SCR["Per-rule score /100"]
+    RA --> SCR
+    RT --> SCR
+    MORE --> SCR
+
+    SCR --> AGG["Dimension aggregation<br/>mean per dimension"]
+    AGG --> OVR["Overall DQ<br/>8 passed / 0 failed"]
+    OVR -->|"dq_score = 100"| TG["Trust gate<br/>dq weight 0.25"]

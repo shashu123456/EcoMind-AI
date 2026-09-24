@@ -1,0 +1,43 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Node / frontend build
+frontend/node_modules/
+frontend/dist/
+*.tsbuildinfo
+frontend/build*.log
+frontend/build.log
+
+# LaTeX aux
+*.aux
+*.out
+*.toc
+*.log
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+
+# Runtime data (created by the app)
+backend/data/ecomind.db
+backend/data/models/
+backend/data/processed/
+backend/data/uploads/
+backend/data/reports/
+backend/data/launcher/
+
+# Logs
+logs/
+build_final.log
+
+# Editor / OS
+.opencode/
+.kilo/
+.vscode/
+*.swp
+
+# Stray files
+422
+royal

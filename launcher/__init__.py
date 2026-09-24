@@ -1,0 +1,1 @@
+"""EcoMind AI launcher - one-click startup automation, checks, monitoring, shutdown."""

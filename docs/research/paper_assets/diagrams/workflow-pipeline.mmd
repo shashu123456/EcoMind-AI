@@ -1,0 +1,33 @@
+flowchart LR
+  subgraph INT["Intake"]
+    L["Library"]
+    IM["Import"]
+    PV["Raw Preview"]
+  end
+  subgraph UND["Understand"]
+    SC["Schema Discovery"]
+    DQ["DQ Engine"]
+  end
+  subgraph REB["Rebuild"]
+    TR["Transformations"]
+    FE["Feature Engineering"]
+  end
+  subgraph MOD["Model"]
+    PD["Prediction"]
+    CG["Confidence Gate"]
+  end
+  INT --> UND --> REB --> MOD --> PRO --> DEC
+  subgraph PRO["Prove"]
+    RP["Raw vs Processed"]
+    SH["SHAP"]
+    AN["Anomaly"]
+  end
+  subgraph DEC["Decide"]
+    BM["Benchmarking"]
+    RC["Recommendations"]
+    EX["Executive Center"]
+    RP2["Report"]
+    RG["Registry"]
+  end
+  SH --"unstable"--> DQ
+  DQ --"pass"--> TR

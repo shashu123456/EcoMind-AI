@@ -1,0 +1,96 @@
+erDiagram
+    users ||--o{ datasets : "owns"
+    users ||--o{ workflow_runs : "starts"
+    datasets ||--o{ dq_results : "audited by"
+    datasets ||--o{ models : "trained on"
+    datasets ||--o{ benchmarks : "evaluated by"
+    workflow_runs ||--o{ models : "produces"
+    workflow_runs ||--o{ raw_processed_comparisons : "produces"
+    workflow_runs ||--o{ reports : "generates"
+    models ||--|| model_registry : "registered as"
+    models ||--o{ predictions : "generates"
+    raw_processed_comparisons ||--o{ comparison_charts : "visualized as"
+
+    users {
+        uuid id PK
+        string email
+        string role
+        datetime created_at
+    }
+    datasets {
+        uuid id PK
+        uuid user_id FK
+        string name
+        int rows_count
+        int columns_count
+        string status
+    }
+    workflow_runs {
+        uuid id PK
+        uuid dataset_id FK
+        uuid user_id FK
+        string status
+        int stages_completed
+    }
+    dq_results {
+        uuid id PK
+        uuid dataset_id FK
+        string rule
+        string dimension
+        float score
+        bool passed
+    }
+    models {
+        uuid id PK
+        uuid run_id FK
+        uuid dataset_id FK
+        string algorithm
+        string status
+        float r2
+        float rmse
+    }
+    benchmarks {
+        uuid id PK
+        uuid dataset_id FK
+        string algorithm
+        float r2
+        float rmse
+        float mae
+        float mape
+    }
+    model_registry {
+        uuid id PK
+        uuid model_id FK
+        int version
+        string status
+        bool is_current
+    }
+    raw_processed_comparisons {
+        uuid id PK
+        uuid run_id FK
+        string algorithm
+        float r2_raw
+        float r2_processed
+        float shap_divergence
+    }
+    comparison_charts {
+        uuid id PK
+        uuid comparison_id FK
+        string chart_type
+        text payload
+    }
+    reports {
+        uuid id PK
+        uuid run_id FK
+        string report_type
+        string status
+        datetime created_at
+    }
+    predictions {
+        uuid id PK
+        uuid model_id FK
+        float r2
+        float rmse
+        float mae
+        float mape
+    }
