@@ -135,7 +135,7 @@ export function RecommendationsPage() {
                   </p>
                 )}
                 <p className="mt-2 flex items-center gap-1 text-xs text-gray-400">
-                  <ArrowRight className="w-3 h-3" /> Recommended action · implementation difficulty: {r?.status || 'medium'}
+                  <ArrowRight className="w-3 h-3" /> Recommended action · implementation: {r?.implementation_difficulty || 'moderate · configuration + validation'}
                 </p>
               </div>
             </motion.article>

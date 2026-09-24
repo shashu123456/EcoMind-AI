@@ -44,10 +44,12 @@ export function SHAPExplainabilityPage() {
   }, [g])
 
   const names = (g?.feature_names || []) as string[]
-  const vals = (g?.global_importance || []) as number[]
+  const impObj = (g?.global_importance || {}) as Record<string, number>
   const stability = (g?.stability_index ?? 0) as number
 
-  const rows = useMemo(() => names.map((n, i) => ({ name: n, v: Number(vals[i] || 0) })).sort((a, b) => Math.abs(b.v) - Math.abs(a.v)), [names, vals])
+  const rows = useMemo(() => names
+    .map((n) => ({ name: n, v: Number(impObj[n] || 0) }))
+    .sort((a, b) => Math.abs(b.v) - Math.abs(a.v)), [names, impObj])
   const max = Math.max(0.0001, ...rows.map(r => Math.abs(r.v)))
 
   return (

@@ -7,6 +7,51 @@ import { useJourney } from './journey'
 
 export const B = [0.16, 1, 0.3, 1] as [number, number, number, number]
 
+/* ── Whole-page ripple: a global ring that expands across the viewport ── */
+type RippleRing = { id: number; x: number; y: number }
+let rippleSubscribers: ((r: RippleRing) => void)[] = []
+let rippleId = 0
+
+/** Fire a full-page ripple from an origin point (defaults to viewport centre). */
+export function firePageRipple(origin?: { x: number; y: number }) {
+  const x = origin?.x ?? (typeof window !== 'undefined' ? window.innerWidth / 2 : 0)
+  const y = origin?.y ?? (typeof window !== 'undefined' ? window.innerHeight / 2 : 0)
+  const ring = { id: ++rippleId, x, y }
+  rippleSubscribers.forEach(fn => fn(ring))
+  return ring.id
+}
+
+/** Mount once near the app root. Renders expanding ripple rings over the whole page. */
+export function PageRipple() {
+  const [rings, setRings] = useState<RippleRing[]>([])
+  useEffect(() => {
+    const sub = (r: RippleRing) => {
+      setRings(p => [...p, r])
+      window.setTimeout(() => setRings(p => p.filter(x => x.id !== r.id)), 950)
+    }
+    rippleSubscribers.push(sub)
+    return () => { rippleSubscribers = rippleSubscribers.filter(f => f !== sub) }
+  }, [])
+
+  return (
+    <div className="pointer-events-none fixed inset-0 z-[90] overflow-hidden" aria-hidden>
+      <AnimatePresence>
+        {rings.map(r => (
+          <motion.span
+            key={r.id}
+            initial={{ left: r.x, top: r.y, width: 8, height: 8, opacity: 0.85, scale: 0.2 }}
+            animate={{ opacity: 0, scale: 90 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
+            className="absolute -ml-1 -mt-1 rounded-full border-2 border-primary-400/70"
+            style={{ boxShadow: '0 0 40px rgba(76,95,213,0.55), inset 0 0 40px rgba(74,159,216,0.35)' }}
+          />
+        ))}
+      </AnimatePresence>
+    </div>
+  )
+}
+
 function fmtNum(v: number, digits: number): string {
   return v.toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits })
 }
@@ -154,7 +199,7 @@ export function DiffStrip({ rows, accentBefore = 'bg-accent-gold', accentAfter =
 
 /* ── Semicircle gauge ─────────────────────────────────── */
 export function Gauge({
-  value, size = 190, color = '#4C5FD5', label, sublabel, decimals = 0,
+  value, size = 190, color = '#4C5FD5', label, sublabel, decimals = 0, threshold = 0.6,
 }: {
   value: number
   size?: number
@@ -162,6 +207,7 @@ export function Gauge({
   label?: string
   sublabel?: string
   decimals?: number
+  threshold?: number
 }) {
   const [display, setDisplay] = useState(0)
   useEffect(() => {
@@ -175,6 +221,12 @@ export function Gauge({
   const r = (size - stroke) / 2
   const c = Math.PI * r
   const frac = display / 100
+  const cx = size / 2
+  const hubY = size / 2 + 6
+  const pt = (f: number, rad: number) => {
+    const a = ((-90 + f * 180) * Math.PI) / 180
+    return [cx + rad * Math.cos(a), hubY + rad * Math.sin(a)]
+  }
 
   return (
     <div className="flex flex-col items-center" style={{ width: size }}>
@@ -185,10 +237,25 @@ export function Gauge({
             <stop offset="100%" stopColor="#5B6FE0" />
           </linearGradient>
         </defs>
-        <path d={`M ${stroke / 2} ${size / 2 + 6} A ${r} ${r} 0 0 1 ${size - stroke / 2} ${size / 2 + 6}`}
+        <path d={`M ${stroke / 2} ${hubY} A ${r} ${r} 0 0 1 ${size - stroke / 2} ${hubY}`}
           fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth={stroke} strokeLinecap="round" />
+        {[0.25, 0.5, 0.75, 1].map(f => {
+          const [x1, y1] = pt(f, r + stroke / 2 + 5)
+          const [x2, y2] = pt(f, r + stroke / 2 + 12)
+          return <line key={f} x1={x1} y1={y1} x2={x2} y2={y2} stroke="rgba(255,255,255,0.22)" strokeWidth={2} strokeLinecap="round" />
+        })}
+        {[0, 0.25, 0.5, 0.75, 1].map(f => {
+          const [x1, y1] = pt(f, stroke / 2 - 4)
+          const [x2, y2] = pt(f, stroke / 2 - 11)
+          return <line key={`i${f}`} x1={x1} y1={y1} x2={x2} y2={y2} stroke="rgba(255,255,255,0.12)" strokeWidth={1.5} strokeLinecap="round" />
+        })}
+        {threshold > 0 && threshold < 1 && (() => {
+          const [x1, y1] = pt(threshold, stroke / 2 - 12)
+          const [x2, y2] = pt(threshold, stroke / 2 + 7)
+          return <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="#F59E0B" strokeWidth={2.5} strokeLinecap="round" />
+        })()}
         <motion.path
-          d={`M ${stroke / 2} ${size / 2 + 6} A ${r} ${r} 0 0 1 ${size - stroke / 2} ${size / 2 + 6}`}
+          d={`M ${stroke / 2} ${hubY} A ${r} ${r} 0 0 1 ${size - stroke / 2} ${hubY}`}
           fill="none" stroke="url(#gaugeGrad)" strokeWidth={stroke} strokeLinecap="round"
           strokeDasharray={c}
           initial={{ strokeDashoffset: c }}
@@ -199,13 +266,16 @@ export function Gauge({
         {/* needle */}
         <motion.g
           initial={{ rotate: -90 }}
-          animate={{ rotate: -90 + frac * 180 }}
+          animate={{ rotate: -90 + Math.max(0.01, Math.min(1, frac)) * 180 }}
           transition={{ duration: 1.6, ease: B }}
-          style={{ transformOrigin: `${size / 2}px ${size / 2 + 6}px` }}
+          style={{ transformOrigin: `${cx}px ${hubY}px` }}
         >
-          <line x1={size / 2} y1={size / 2 + 6} x2={size / 2 + 4} y2={18} stroke={color} strokeWidth={3} strokeLinecap="round" />
+          <line x1={cx} y1={hubY} x2={cx} y2={hubY + 9} stroke="rgba(255,255,255,0.25)" strokeWidth={2} strokeLinecap="round" />
+          <line x1={cx} y1={hubY} x2={cx} y2={hubY - (r - 12)} stroke={color} strokeWidth={3} strokeLinecap="round" />
+          <polygon points={`${cx},${hubY - 6} ${cx - 5.5},${hubY + 5} ${cx + 5.5},${hubY + 5}`} fill={color} />
         </motion.g>
-        <circle cx={size / 2} cy={size / 2 + 6} r={5} fill={color} />
+        <circle cx={cx} cy={hubY} r={7.5} fill="#171A20" stroke={color} strokeWidth={2} />
+        <circle cx={cx} cy={hubY} r={2.8} fill={color} />
       </svg>
       <div className="-mt-1 text-center">
         <p className="font-display text-2xl font-bold text-gray-100">
@@ -437,6 +507,7 @@ export function AutoNext({
     const rect = e.currentTarget.getBoundingClientRect()
     const ring = { id: Date.now() + Math.random(), x: e.clientX - rect.left, y: e.clientY - rect.top }
     setRings(p => [...p, ring])
+    firePageRipple({ x: e.clientX, y: e.clientY })
     window.setTimeout(() => setRings(p => p.filter(r => r.id !== ring.id)), 850)
     window.setTimeout(() => navigate({ to }), 430)
   }
@@ -543,15 +614,15 @@ export function JourneyNav({
         <p className="truncate text-sm text-gray-300">{manual ? label : `${label} — nudging in ${left}s`}</p>
       </div>
       <div className="flex items-center gap-2">
-        <button onClick={() => navigate({ to: start })}
+        <button onClick={() => { firePageRipple(); navigate({ to: start }) }}
           className="inline-flex items-center gap-2 rounded-button border border-white/[0.08] px-4 py-2 text-sm font-medium text-gray-300 transition-colors hover:bg-white/[0.08]">
           <RotateCcw className="h-4 w-4" /> Start
         </button>
-        <button onClick={() => navigate({ to: next })}
+        <button onClick={() => { firePageRipple(); navigate({ to: next }) }}
           className="relative inline-flex items-center gap-2 rounded-button bg-primary-500 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary-400">
           {nextLabel} <ArrowRight className="h-4 w-4" />
         </button>
-        <button onClick={() => navigate({ to: '/dashboard' })}
+        <button onClick={() => { firePageRipple(); navigate({ to: '/dashboard' }) }}
           className="inline-flex items-center gap-2 rounded-button border border-accent-emerald/30 bg-accent-emerald/10 px-4 py-2 text-sm font-semibold text-accent-emerald transition-colors hover:bg-accent-emerald/20">
           <Flag className="h-4 w-4" /> {endLabel}
         </button>

@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { datasets, models, streamWorkflow, workflows } from './api'
+import { toast } from './toast'
 
 /* ── Workflow definition (single source of truth) ────── */
 export type StageStatus = 'done' | 'active' | 'todo' | 'locked'
@@ -316,6 +317,7 @@ export async function runJourneyToCompletion(
   runId: string,
   hooks?: {
     onStageDone?: (stage: WorkflowStage) => void
+    onStep?: (stage: WorkflowStage, index: number) => void
     onDone?: () => void
     onError?: (err: any) => void
   },
@@ -323,14 +325,23 @@ export async function runJourneyToCompletion(
   const state = useJourney.getState()
   state.setActive(undefined, runId)
   try { state.connectSse(runId) } catch { /* sse is best-effort */ }
-  for (const stage of WORKFLOW) {
+  const STAGE_GAP_MS = 650 // pace the run so the rail & notifications cascade visibly, like step-by-step
+  for (let i = 0; i < WORKFLOW.length; i++) {
+    const stage = WORKFLOW[i]
+    hooks?.onStep?.(stage, i)
     try {
       await workflows.advance(runId)
+      state.markCompleted(stage.key)
       hooks?.onStageDone?.(stage)
+      toast(`${i + 1}/${WORKFLOW.length} · ${stage.label}`, stage.requires ? `requires ${stage.requires}` : stage.index === WORKFLOW.length ? 'pipeline finished' : 'stage complete')
     } catch (err) {
       try { state.disconnect() } catch { /* noop */ }
+      toast(`${stage.label} failed`, String((err as any)?.message ?? err), 'error')
       hooks?.onError?.(err)
       return
+    }
+    if (i < WORKFLOW.length - 1) {
+      await new Promise(r => setTimeout(r, STAGE_GAP_MS))
     }
   }
   try { state.disconnect() } catch { /* noop */ }

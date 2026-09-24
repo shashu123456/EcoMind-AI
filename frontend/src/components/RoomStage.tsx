@@ -1,6 +1,6 @@
 import { ReactNode, useEffect, useMemo, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Check, ChevronDown, Info, Sparkles } from 'lucide-react'
+import { Check, ChevronDown, Info, Sparkles, Maximize2, Minimize2, X } from 'lucide-react'
 import clsx from 'clsx'
 import { B, AnimatedNumber, LiveBar, normRows, colLabel, TableColumn, TypeText } from '../lib/kit'
 
@@ -396,6 +396,111 @@ export function WordDrift({ words = DEFAULT_WORDS }: { words?: string[] }) {
         </motion.span>
       ))}
     </div>
+  )
+}
+
+/* ── Full-screen expandable block ───────────────────── */
+export function FullscreenBlock({
+  label, children, accent = 'jade', className, initial,
+}: {
+  label: string
+  children: ReactNode
+  accent?: Accent
+  className?: string
+  initial?: boolean
+}) {
+  const a = ACCENT[accent]
+  const [open, setOpen] = useState(!!initial)
+  const [enter, setEnter] = useState(0)
+  const [left, setLeft] = useState<'left' | 'right'>('left')
+
+  useEffect(() => {
+    if (!open) return
+    const id = window.setTimeout(() => setEnter(1), 420)
+    return () => window.clearTimeout(id)
+  }, [open])
+
+  return (
+    <>
+      <div className={clsx('relative flex min-h-0 flex-col overflow-hidden rounded-glass border border-white/[0.08] bg-black/30', className)}>
+        <div className="flex shrink-0 items-center justify-between gap-2 border-b border-white/[0.06] px-3 py-2">
+          <div className="flex items-center gap-3 min-w-0">
+            <span className="flex items-center gap-1.5">
+              <span className="h-2.5 w-2.5 rounded-full bg-accent-rose/70" />
+              <span className="h-2.5 w-2.5 rounded-full bg-accent-gold/70" />
+              <span className="h-2.5 w-2.5 rounded-full bg-accent-emerald/70" />
+            </span>
+            <span className={clsx('truncate font-mono text-xs uppercase tracking-[0.18em]', a.text)}>{label}</span>
+          </div>
+          <span className="flex items-center gap-2">
+            <button
+              onClick={() => setLeft(s => s === 'left' ? 'right' : 'left')}
+              disabled={!open}
+              title="swap side"
+              className="flex h-6 items-center gap-1 rounded-button border border-white/[0.08] px-2 font-mono text-[9px] uppercase tracking-widest text-gray-400 transition-colors hover:bg-white/[0.06] disabled:opacity-30"
+            >
+              <span className={clsx('inline-block h-1.5 w-1.5 rounded-full', a.dot)} /> → <span className={clsx('inline-block h-1.5 w-1.5 rounded-full border', a.border)} />
+            </button>
+            <button
+              onClick={() => setOpen(o => !o)}
+              title={open ? 'close fullscreen' : 'open fullscreen'}
+              className={clsx('flex h-6 w-6 items-center justify-center rounded-button border transition-colors',
+                open ? 'border-primary-500/40 bg-primary-500/15 text-primary-300' : 'border-white/[0.1] bg-white/[0.04] text-gray-400 hover:text-gray-200')}
+            >
+              {open ? <Minimize2 className="h-3 w-3" /> : <Maximize2 className="h-3 w-3" />}
+            </button>
+          </span>
+        </div>
+        <div className="min-h-0 flex-1 overflow-hidden">
+          {children}
+        </div>
+      </div>
+
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.25 }}
+            className="fixed inset-0 z-[80] flex flex-col bg-black/70 p-4 backdrop-blur-sm sm:p-8"
+            onClick={() => setOpen(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96, y: 14 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 8 }}
+              transition={{ duration: 0.35, ease: B }}
+              onClick={e => e.stopPropagation()}
+              className="relative mx-auto flex h-full w-full max-w-[1400px] flex-col overflow-hidden rounded-glass border border-white/[0.12] bg-[#0B0E13] shadow-[0_0_80px_rgba(76,95,213,0.25)]"
+            >
+              <div className="flex shrink-0 items-center justify-between gap-3 border-b border-white/[0.08] px-4 py-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <span className="flex items-center gap-1.5">
+                    <span className="h-3 w-3 rounded-full bg-accent-rose/80" />
+                    <span className="h-3 w-3 rounded-full bg-accent-gold/80" />
+                    <span className="h-3 w-3 rounded-full bg-accent-emerald/80" />
+                  </span>
+                  <span className={clsx('truncate font-mono text-sm uppercase tracking-[0.18em]', a.text)}>{label} · full screen</span>
+                  <span className="hidden rounded-full border border-white/[0.1] bg-white/[0.04] px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-gray-500 sm:inline">
+                    {left === 'left' ? 'raw left → processed right' : 'processed left → raw right'}
+                  </span>
+                </div>
+                <button onClick={() => setOpen(false)}
+                  className="flex h-8 w-8 items-center justify-center rounded-button border border-white/[0.1] bg-white/[0.05] text-gray-300 transition-colors hover:bg-white/[0.1] hover:text-white">
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <div key={enter} className="min-h-0 flex-1 p-4 opacity-0"
+                style={{ animation: 'fsIn .5s ease forwards' }}>
+                <style>{`@keyframes fsIn { from { opacity:0; transform:scale(.98) translateY(8px) } to { opacity:1; transform:none } }`}</style>
+                {children}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
   )
 }
 

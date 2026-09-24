@@ -80,6 +80,43 @@ export function FeatureEngineeringPage() {
         <FlowStat label="Methods" value={new Set(features.map((f: any) => f.feature_type || 'custom')).size} hint="generation types" />
       </div>
 
+      <Reveal delay={0.08}>
+        <div className="overflow-hidden rounded-card border border-accent-violet/25 bg-black/30">
+          <div className="flex items-center gap-2 border-b border-white/[0.06] bg-accent-violet/[0.06] px-4 py-2.5">
+            <span className="flex items-center gap-1.5">
+              <span className="h-2.5 w-2.5 rounded-full bg-accent-rose/70" />
+              <span className="h-2.5 w-2.5 rounded-full bg-accent-gold/70" />
+              <span className="h-2.5 w-2.5 rounded-full bg-accent-emerald/70" />
+            </span>
+            <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-accent-violet">why feature engineering?</p>
+            <span className="ml-auto font-mono text-[10px] uppercase tracking-widest text-gray-500">the question worth asking</span>
+          </div>
+          <div className="grid gap-x-6 gap-y-3 px-4 py-4 text-xs leading-relaxed md:grid-cols-3">
+            <div>
+              <p className="mb-1 font-mono text-[10px] uppercase tracking-[0.2em] text-accent-rose">what it is</p>
+              <p className="text-gray-400">
+                Feature engineering transforms raw readings into <span className="text-gray-200">derived columns a model can actually learn from</span> — time slices, lags, rolling statistics and scaled profiles computed from the original stream.
+              </p>
+            </div>
+            <div>
+              <p className="mb-1 font-mono text-[10px] uppercase tracking-[0.2em] text-accent-gold">why it matters</p>
+              <p className="text-gray-400">
+                A bare kWh number cannot tell a model <span className="text-gray-200">whether it is a cold winter night or a warm workday</span>. Forecast skill lives in structure — hourly rhythm, weekday split, &nbsp;autocorrelation — which only engineered features expose.
+              </p>
+            </div>
+            <div>
+              <p className="mb-1 font-mono text-[10px] uppercase tracking-[0.2em] text-accent-emerald">how it looks here</p>
+              <p className="font-mono text-gray-400">
+                <span className="text-accent-cyan">Hour</span> → tariff &amp; occupancy rhythm · <span className="text-accent-cyan">Weekday</span> → weekend split · <span className="text-accent-cyan">Lag</span> / <span className="text-accent-cyan">Rolling</span> → short-term continuity · <span className="text-accent-cyan">Normalized</span> → shared scale.
+              </p>
+            </div>
+          </div>
+          <div className="border-t border-white/[0.06] bg-[#07090C] px-4 py-2.5 font-mono text-[11px] text-gray-500">
+            <span className="text-gray-400">case_:</span> a <span className="text-gray-300">10.3&nbsp;kWh</span> spike at 09:00 on a Tuesday is unreadable raw — but with features it becomes <span className="text-[#7DD3FC]">Hour=9</span> + <span className="text-[#7DD3FC]">Weekday=2</span> + <span className="text-[#7DD3FC]">Lag=2.1</span> + <span className="text-[#7DD3FC]">RollingMean=1.8</span> → the model recognises a morning peak and predicts the next interval correctly.
+          </div>
+        </div>
+      </Reveal>
+
       {busy && (
         <div className="glass-card p-4">
           <div className="flex items-center gap-3">

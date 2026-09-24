@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Braces, Wand2, ArrowRight, Hash, Type, Sparkles } from 'lucide-react'
+import { Braces, Wand2, ArrowRight, Hash, Type, Sparkles, Info } from 'lucide-react'
 import { schema } from '../lib/api'
 import { useApi } from '../lib/hooks'
 import { useRouteParams, fmt, EmptyBox, ErrorBox } from '../lib/pagekit'
@@ -17,6 +17,60 @@ const TYPE_ICON: Record<string, React.ReactNode> = {
   text: <Type className="w-3 h-3 text-gray-400" />,
   category: <Type className="w-3 h-3 text-gray-400" />,
   boolean: <Type className="w-3 h-3 text-primary-400" />,
+}
+
+function explainField(c: any): { what: string; why: string; derived: string } {
+  const name = String(c?.name ?? '').toLowerCase()
+  const type = (c?.inferred_type || c?.data_type || 'text').toLowerCase()
+  const role = c?.semantic_type || c?.role || 'feature'
+
+  if (role === 'target' || /energy|consumption|demand|usage|kwh|killowatt|kw/.test(name)) {
+    return {
+      what: 'The value the whole pipeline is trying to predict — how much energy this site drew in each interval.',
+      why: 'Every engineered feature and every model below is built to explain this number as precisely as possible.',
+      derived: 'recorded by the meter / source system each interval, never invented by EcoMind.',
+    }
+  }
+  if (type === 'timestamp' || type === 'datetime' || /time|date|hour/.test(name)) {
+    return {
+      what: 'The clock each reading was captured on — a continuous axis shared across every row.',
+      why: 'It is the time axis all later stages slice on, so hourly / daily / weekly patterns can be learned.',
+      derived: 'taken directly from the source file timestamp column.',
+    }
+  }
+  if (role === 'identity' || /id|asset|site|meter|bin|building/.test(name)) {
+    return {
+      what: 'A stable label identifying which asset this row belongs to.',
+      why: 'Lets the pipeline group rows per asset and keeps records distinguishable end-to-end.',
+      derived: 'assigned at source as the row key; kept space-separated/untouched.',
+    }
+  }
+  if (type === 'boolean') {
+    return {
+      what: 'A yes / no flag carried in the raw file (e.g. holiday, override, occupancy).',
+      why: 'Boolean flags are clean inputs models can use without extra processing.',
+      derived: 'read as-is from the source file.',
+    }
+  }
+  if (type === 'category' || type === 'text' || /type|class|region|zone|season|weather|condition/.test(name)) {
+    return {
+      what: 'A category or label that describes the context of each row.',
+      why: 'We keep it verbatim so nothing is invented — categories may become group keys.',
+      derived: 'taken from the source file unchanged.',
+    }
+  }
+  if (type === 'numeric' || type === 'float' || type === 'integer') {
+    return {
+      what: 'A numeric input signal recorded in the same intervals as the target.',
+      why: 'It is a model driver — e.g. temperature, irradiance or occupancy shape how much energy is used.',
+      derived: 'digitized from the source file (units kept intact for now).',
+    }
+  }
+  return {
+    what: `A raw "${type}" column detected in the file with no special role assigned yet.`,
+    why: 'It is kept as-is so no information is silently dropped before quality checks run.',
+    derived: 'copied verbatim from the uploaded file.',
+  }
 }
 
 export function SchemaDiscoveryPage() {
@@ -120,28 +174,43 @@ export function SchemaDiscoveryPage() {
                       initial={{ opacity: 0, y: 8, scale: 0.99 }}
                       animate={{ opacity: 1, y: 0, scale: 1 }}
                       transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-                      className="px-4 py-3 grid sm:grid-cols-12 gap-2 items-center hover:bg-white/[0.02]"
+                      className="px-4 py-3"
                     >
-                      <p className="sm:col-span-3 font-display font-medium text-gray-200 truncate">{c.name}</p>
-                      <p className="sm:col-span-2 flex items-center gap-1.5 text-xs font-mono text-gray-400">
-                        {TYPE_ICON[type] || <Hash className="w-3 h-3 text-gray-500" />} {type}
-                      </p>
-                      <p className="sm:col-span-2 text-xs">
-                        <span className={clsx('px-2 py-0.5 rounded-button text-[10px]',
-                          role === 'target' ? 'bg-amber-500/10 text-amber-400'
-                            : role === 'identity' ? 'bg-gray-500/10 text-gray-400'
-                              : 'bg-primary-500/10 text-primary-400')}>
-                          {role}
-                        </span>
-                      </p>
-                      <div className="sm:col-span-3 flex items-center gap-2">
-                        <LiveBar value={confidence} max={100} barClassName={clsx(
-                          role === 'target' ? 'bg-gradient-to-r from-amber-500 to-accent-amber' : 'bg-gradient-to-r from-primary-500 to-accent-cyan')} />
-                        <span className="w-9 text-right font-mono text-[10px] text-gray-500">{confidence}%</span>
+                      <div className="grid sm:grid-cols-12 gap-2 items-center">
+                        <p className="sm:col-span-3 font-display font-medium text-gray-200 truncate">{c.name}</p>
+                        <p className="sm:col-span-2 flex items-center gap-1.5 text-xs font-mono text-gray-400">
+                          {TYPE_ICON[type] || <Hash className="w-3 h-3 text-gray-500" />} {type}
+                        </p>
+                        <p className="sm:col-span-2 text-xs">
+                          <span className={clsx('px-2 py-0.5 rounded-button text-[10px]',
+                            role === 'target' ? 'bg-amber-500/10 text-amber-400'
+                              : role === 'identity' ? 'bg-gray-500/10 text-gray-400'
+                                : 'bg-primary-500/10 text-primary-400')}>
+                            {role}
+                          </span>
+                        </p>
+                        <div className="sm:col-span-3 flex items-center gap-2">
+                          <LiveBar value={confidence} max={100} barClassName={clsx(
+                            role === 'target' ? 'bg-gradient-to-r from-amber-500 to-accent-amber' : 'bg-gradient-to-r from-primary-500 to-accent-cyan')} />
+                          <span className="w-9 text-right font-mono text-[10px] text-gray-500">{confidence}%</span>
+                        </div>
+                        <p className="sm:col-span-2 text-[10px] font-mono text-gray-600 truncate">
+                          {(c.sample_values || []).slice(0, 2).map((s: any) => String(s ?? '')).join(' · ')}
+                        </p>
                       </div>
-                      <p className="sm:col-span-2 text-[10px] font-mono text-gray-600 truncate">
-                        {(c.sample_values || []).slice(0, 2).map((s: any) => String(s ?? '')).join(' · ')}
-                      </p>
+                      {(() => {
+                        const ex = explainField(c)
+                        return (
+                          <div className="mt-2 flex items-start gap-2 rounded-button border border-white/[0.05] bg-white/[0.02] px-3 py-2 text-xs leading-relaxed">
+                            <Info className="mt-0.5 h-3 w-3 shrink-0 text-primary-400" />
+                            <div className="min-w-0 text-gray-400">
+                              <span className="text-gray-200">{ex.what}</span>
+                              <span className="block text-gray-500"><span className="text-accent-cyan">why → </span>{ex.why}</span>
+                              <span className="block font-mono text-[10px] text-gray-600"><span className="text-gray-500">how derived → </span>{ex.derived}</span>
+                            </div>
+                          </div>
+                        )
+                      })()}
                     </motion.div>
                   )
                 })}

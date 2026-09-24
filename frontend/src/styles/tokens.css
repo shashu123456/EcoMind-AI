@@ -17,19 +17,19 @@
 
   /* ── Semantic text (flips with theme) ─────────────── */
   --t-hi: #F5F6F8;
-  --t-mid: #AAAFB8;
-  --t-lo: #737A86;
+  --t-mid: #C2C8D2;
+  --t-lo: #8A91A0;
 
   /* ── Neutral ramp (dark = default) ─────────────────── */
   /* ── Neutral ramp (dark = default) ───────────────── */
   --gray-50: #F5F6F8;
   --gray-100: #E8EAEE;
-  --gray-200: #D3D6DC;
-  --gray-300: #B7BBC4;
-  --gray-400: #9AA0AB;
-  --gray-500: #7C8291;
-  --gray-600: #61677475;
-  --gray-700: #4A4F5B;
+  --gray-200: #D6D9E0;
+  --gray-300: #BEC4CF;
+  --gray-400: #A6ADBB;
+  --gray-500: #9098A8;
+  --gray-600: #6E7586;
+  --gray-700: #565D6B;
   --gray-800: #33373F;
   --gray-900: #1F2229;
 
@@ -49,27 +49,27 @@
   --chrome-panel2: var(--panel2);
   --chrome-panel3: var(--panel3);
   --chrome-hi: #F5F6F8;           /* headings / strong text   */
-  --chrome-mid: #AAAFB8;          /* body text                */
-  --chrome-lo: #737A86;           /* muted text               */
-  --chrome-line: rgba(255, 255, 255, 0.07);     /* hairlines */
-  --chrome-line-hi: rgba(255, 255, 255, 0.14);
+  --chrome-mid: #C2C8D2;          /* body text                */
+  --chrome-lo: #8A91A0;           /* muted text               */
+  --chrome-line: rgba(255, 255, 255, 0.08);     /* hairlines */
+  --chrome-line-hi: rgba(255, 255, 255, 0.16);
 
     --color-dark: #101317;
     --color-surface: #171A20;
     --color-surface-light: #1E222A;
     --color-surface-lighter: #2A2F39;
     --color-primary: #4C5FD5;
-    --color-primary-glow: rgba(76, 95, 213, 0.14);
-    --color-accent-emerald: #5B6FE0;
+    --color-primary-glow: rgba(76, 95, 213, 0.18);
+    --color-accent-emerald: #34D399;
     --color-accent-gold: #D8A648;
     --color-accent-rose: #C2335A;
     --color-accent-violet: #8D7BD8;
     --color-accent-cyan: #4A9FD8;
     --color-text-primary: #F5F6F8;
-    --color-text-secondary: #AAAfb8;
-    --color-text-muted: #737A86;
-    --color-border: rgba(255, 255, 255, 0.07);
-    --color-border-hover: rgba(255, 255, 255, 0.14);
+    --color-text-secondary: #C2C8D2;
+    --color-text-muted: #8A91A0;
+    --color-border: rgba(255, 255, 255, 0.08);
+    --color-border-hover: rgba(255, 255, 255, 0.16);
     --radius-glass: 18px;
     --radius-card: 14px;
     --radius-button: 9px;
@@ -82,7 +82,11 @@
   }
 
   body {
-    background: radial-gradient(1100px 520px at 50% -10%, rgba(76, 95, 213, 0.10), transparent 65%),
+    background:
+      radial-gradient(1100px 520px at 50% -10%, rgba(76, 95, 213, 0.13), transparent 65%),
+      radial-gradient(760px 460px at 102% -4%, rgba(74, 159, 216, 0.10), transparent 62%),
+      radial-gradient(680px 500px at -6% 108%, rgba(52, 211, 153, 0.07), transparent 62%),
+      radial-gradient(760px 520px at 104% 108%, rgba(141, 123, 216, 0.08), transparent 62%),
       var(--color-dark);
     color: var(--color-text-primary);
     font-family: 'Inter', sans-serif;
@@ -138,7 +142,8 @@
     left: 0;
     width: 100%;
     height: 2px;
-    background: linear-gradient(90deg, transparent, var(--color-primary), transparent);
+    background: linear-gradient(90deg, transparent, var(--color-primary), var(--color-accent-cyan), var(--color-accent-emerald), transparent);
+    filter: drop-shadow(0 0 4px rgba(74, 159, 216, 0.5));
     animation: pipeline-flow 2s linear infinite;
   }
   @keyframes pipeline-flow {

@@ -134,6 +134,26 @@ export function BenchmarkingPage() {
       )}
 
       {leaderboard.length > 0 && (
+        <Reveal delay={0.15}>
+          <div className="glass-panel overflow-hidden">
+            <div className="border-b border-white/[0.06] px-5 py-3 text-xs font-mono uppercase tracking-widest text-gray-400">
+              How the ranking is computed
+            </div>
+            <div className="space-y-1.5 px-5 py-4 font-mono text-[11px] leading-5">
+              <p className="text-gray-300">total_score <span className="text-gray-500">= Σ</span> norm(metric) × 25 <span className="text-gray-500">·</span> max = 100 pts</p>
+              <p className="text-gray-600">· r2<p className="text-gray-500"> (higher is better) → norm = (v − worst) / (best − worst)</p></p>
+              <p className="text-gray-600">· rmse · mae · mape <span className="text-gray-500">(lower is better) → norm = (worst − v) / (worst − best)</span></p>
+              <p className="mt-2 text-gray-500">every contender trains on identical features and the same chronological split —</p>
+              <p className="text-gray-500">the ranking only measures model skill, never dataset luck.</p>
+              <p className="mt-2 flex items-center gap-2 text-accent-cyan">
+                <PulseDot color="bg-accent-cyan" /> methodology: {bench?.benchmark?.methodology || 'time_series_split (chronological 70/30)'}
+              </p>
+            </div>
+          </div>
+        </Reveal>
+      )}
+
+      {leaderboard.length > 0 && (
         <div className="glass-panel flex flex-wrap items-center gap-3 rounded-2xl border border-accent-amber/30 px-5 py-4">
           <PulseDot color="bg-accent-amber" ping="bg-accent-amber/60" />
           <p className="text-sm text-gray-300">

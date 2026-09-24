@@ -14,6 +14,38 @@ const VERDICT: Record<string, { label: string; color: string; tip: string }> = {
   low: { label: 'Need More Data', color: 'text-accent-rose', tip: 'Improve data before deciding' },
 }
 
+const SIGNALS: { key: string; weight: number; symbol: string }[] = [
+  { key: 'prediction_confidence', weight: 0.4, symbol: 'pred' },
+  { key: 'dq_score', weight: 0.25, symbol: 'dq' },
+  { key: 'model_relevance', weight: 0.2, symbol: 'rel' },
+  { key: 'shap_stability', weight: 0.15, symbol: 'shap' },
+]
+
+function SignalMath({ name, value, last, total, verdict }: {
+  name: string; value: number; last: boolean; total: number; verdict: string
+}) {
+  const sig = SIGNALS.find(s => s.key.replace(/_/g, ' ') === name.toLowerCase() || s.key === name.toLowerCase().replace(/ /g, '_'))
+  if (!sig) return null
+  const w = sig.weight
+  const part = w * value
+  return (
+    <div className="ml-[10rem] mt-1.5 rounded border border-white/[0.06] bg-[#0B0E13] px-3 py-2 font-mono text-[10px] leading-4 text-gray-500">
+      <span className="text-gray-400">equation </span>
+      trust += {sig.symbol}·{w.toFixed(2)}
+      <span className="text-gray-400"> = </span>
+      {w.toFixed(2)}×{value.toFixed(1)} = <span className="text-gray-200">{part.toFixed(1)}</span> pts
+      {last && (
+        <div className="mt-1 border-t border-white/[0.06] pt-1">
+          <span className="text-gray-400">Σ = 0.40·pred + 0.25·dq + 0.20·rel + 0.15·shap = </span>
+          <span className="text-[#34D399]">{total.toFixed(1)}</span>
+          <span className="text-gray-400"> → </span>
+          <span className={verdict === 'high_trust' ? 'text-[#34D399]' : verdict === 'moderate' ? 'text-accent-amber' : 'text-[#F87171]'}>{verdict}</span>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function ConfidenceGatePage() {
   const { runId } = useRouteParams()
   const { setActive, markCompleted, datasetId: ctxDs } = useJourney()
@@ -144,7 +176,7 @@ export function ConfidenceGatePage() {
                   <div className="border-b border-white/[0.06] px-5 py-3 text-xs font-mono uppercase tracking-widest text-gray-400">
                     Contributing signals
                   </div>
-                  <div className="space-y-4 p-5">
+                  <div className="space-y-5 p-5">
                     {factors.map((f: any, i: number) => {
                       const v = Number(f.value ?? 0)
                       return (
@@ -158,6 +190,9 @@ export function ConfidenceGatePage() {
                                     : 'bg-gradient-to-r from-rose-500 to-accent-rose')} />
                             <span className="w-14 text-right font-mono text-sm text-gray-400">{fmt(v, 0)}%</span>
                           </div>
+                          <SignalMath name={f.name} value={v} last={i === factors.length - 1}
+                            total={factors.reduce((s: number, x: any) => s + Number(x.value ?? 0), 0) > 0 ? trustPct : 0}
+                            verdict={gate.verdict} />
                         </Reveal>
                       )
                     })}

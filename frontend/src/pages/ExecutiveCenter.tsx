@@ -91,7 +91,8 @@ export function ExecutiveCenterPage() {
             <FlowStat label="Data Quality" value={dq} decimals={1} suffix="%" accent />
             <FlowStat label="Trust Score" value={trust} decimals={1} suffix="%" />
             <FlowStat label="Anomalies" value={anomalyTotal} />
-            <FlowStat label="Best Model" value={0} hint={bestName} />
+            <FlowStat label="Best Model" value={n((sum?.best_model as any)?.r2) ?? 0}
+              decimals={n((sum?.best_model as any)?.r2) != null ? 3 : undefined} hint={bestName} />
           </div>
 
           <Reveal delay={0.1}>

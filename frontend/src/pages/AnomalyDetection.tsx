@@ -19,6 +19,34 @@ const SEV: Record<string, { color: string; dot: string; label: string }> = {
 
 const LEGEND = ['critical', 'high', 'warning', 'medium', 'low', 'info']
 
+function MiniCurve({ near, peak, expected }: { near?: number[] | null; peak?: number | null; expected?: number | null }) {
+  const pts = (near && near.length >= 2 ? near.slice(0, 12) : [])
+  if (!pts.length && peak == null && expected == null) return null
+  const all = [...pts, ...(peak != null ? [peak] : []), ...(expected != null ? [expected] : [])]
+  const lo = Math.min(...all)
+  const hi = Math.max(...all)
+  const span = Math.max(hi - lo, 1e-6)
+  const x = (i: number, n: number) => (n <= 1 ? 50 : (i / (n - 1)) * 100)
+  const y = (v: number) => 30 - ((v - lo) / span) * 26
+  const line = pts.map((v, i) => `${x(i, pts.length).toFixed(1)},${y(v).toFixed(1)}`).join(' ')
+  const peakX = pts.length ? x(pts.length, pts.length + 1) : 50
+  return (
+    <svg viewBox="0 0 100 34" preserveAspectRatio="none" className="h-9 w-full">
+      {expected != null && (
+        <line x1="0" y1={y(expected)} x2="100" y2={y(expected)}
+          stroke="rgba(217,166,72,0.45)" strokeWidth="0.8" strokeDasharray="3 2" vectorEffect="non-scaling-stroke" />
+      )}
+      {pts.length > 1 && (
+        <polyline points={line} fill="none" stroke="#4A9FD8" strokeWidth="1.4"
+          strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+      )}
+      {peak != null && (
+        <circle cx={peakX} cy={y(peak)} r="3" fill="#F43F5E" stroke="#0B0E13" strokeWidth="0.8" vectorEffect="non-scaling-stroke" />
+      )}
+    </svg>
+  )
+}
+
 export function AnomalyDetectionPage() {
   const { datasetId } = useRouteParams()
   const { setActive, markCompleted } = useJourney()
@@ -121,6 +149,15 @@ export function AnomalyDetectionPage() {
         <Reveal delay={0.1}>
           <div className="glass-panel mb-4 overflow-hidden px-5 pb-3 pt-4">
             <div className="relative h-12 select-none">
+              <svg className="pointer-events-none absolute inset-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none">
+                <polyline
+                  points={Array.from({ length: 14 }, (_, i) => {
+                    const wx = (i / 13) * 92 + 4
+                    const wy = 50 + Math.sin(i / 1.6) * 20 + Math.cos(i / 0.9) * 8
+                    return `${wx.toFixed(1)},${wy.toFixed(1)}`
+                  }).join(' ')}
+                  fill="none" stroke="rgba(148,163,184,0.16)" strokeWidth="0.9" />
+              </svg>
               <div className="absolute inset-x-4 top-1/2 h-1.5 -translate-y-1/2 rounded-full bg-gradient-to-r from-accent-rose/70 via-accent-amber/70 to-accent-cyan/70" />
               {items.map((a: any, i: number) => {
                 const sev = SEV[a.severity] || SEV.info
@@ -187,7 +224,16 @@ export function AnomalyDetectionPage() {
                   {expanded && (
                     <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="border-t border-white/[0.06] px-5 py-4">
                       <p className="mb-3 text-sm text-gray-300">{a.description}</p>
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="rounded-button bg-white/[0.03] p-3">
+                        <p className="mb-2 flex items-center gap-1 text-xs font-mono uppercase tracking-widest text-gray-400">
+                          <TrendingUp className="w-3.5 h-3.5 text-accent-rose" /> Curve · reading vs window
+                        </p>
+                        <MiniCurve near={c.nearby_readings} peak={c.reading_value} expected={c.expected_value} />
+                        <p className="mt-1 text-[11px] font-mono text-gray-500">
+                          {c.nearby_readings?.length ? `window: [${c.nearby_readings.slice(0, 5).map((n: number) => fmt(n, 1)).join(', ')}…]` : 'context sampled'} · centre dot is the reading, dashed line is expected
+                        </p>
+                      </div>
+                      <div className="mt-3 grid grid-cols-2 gap-3">
                         <div className="rounded-button bg-white/[0.03] p-3">
                           <p className="mb-1 flex items-center gap-1 text-xs font-mono uppercase tracking-widest text-gray-400">
                             <CheckCircle2 className="w-3 h-3 text-accent-emerald" /> Evidence

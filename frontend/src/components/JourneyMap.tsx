@@ -3,8 +3,8 @@ import { AnimatePresence, motion } from 'framer-motion'
 import {
   Database, Upload, Eye, ScanSearch, ShieldCheck, Wand2, Cpu,
   BrainCircuit, Gauge, GitCompare, Lightbulb, AlertTriangle, Trophy,
-  Target, Briefcase, FileText, History, Check, Leaf, Radio, FileDown,
-  ChevronDown, Zap, Lock,
+  Target, Briefcase, FileText, History, Check, Zap, Radio, FileDown,
+  ChevronDown, Lock,
 } from 'lucide-react'
 import clsx from 'clsx'
 import { useEffect, useState } from 'react'
@@ -33,9 +33,15 @@ function statusFor(stageStatuses: Record<string, string>, key: string): string {
   return stageStatuses[key] || 'todo'
 }
 
-function milestoneState(statuses: Record<string, string>, stages: string[]): 'done' | 'active' | 'todo' {
+function routeKeyFor(pathname: string): string | null {
+  const base = '/' + (pathname.split('/')[1] || '')
+  return WORKFLOW.find(s => s.path.split('$')[0] === base || s.path === base)?.key || null
+}
+
+function milestoneState(statuses: Record<string, string>, stages: string[], routeKey: string | null): 'done' | 'active' | 'todo' {
   const done = stages.filter(k => statuses[k] === 'done').length
   if (done === stages.length) return 'done'
+  if (stages.includes(routeKey || '')) return 'active'
   if (done > 0 || stages.some(k => statuses[k] === 'active')) return 'active'
   return 'todo'
 }
@@ -55,6 +61,7 @@ export function JourneyMap() {
 
   const doneCount = WORKFLOW.filter(s => statusFor(stageStatuses, s.key) === 'done').length
   const pct = (doneCount / WORKFLOW.length) * 100
+  const routeKey = routeKeyFor(location.pathname)
 
   return (
     <div className="relative flex h-16 shrink-0 items-center gap-3 border-b border-white/[0.06] bg-surface/40 px-4 backdrop-blur-sm">
@@ -64,7 +71,8 @@ export function JourneyMap() {
           whileHover={{ rotate: 8, scale: 1.05 }}
           className="relative flex h-9 w-9 items-center justify-center rounded-glass bg-gradient-to-br from-primary-500 to-accent-cyan shadow-[0_0_20px_rgba(76,95,213,0.4)]"
         >
-          <Leaf className="text-white" style={{ width: 18, height: 18 }} />
+          <Zap className="text-white" style={{ width: 18, height: 18 }} fill="currentColor" />
+          <span className="absolute inset-0 animate-ping rounded-glass bg-primary-500/10 [animation-duration:2.4s]" />
         </motion.div>
         <div>
           <p className="font-display text-base font-bold leading-tight tracking-tight">EcoMind AI</p>
@@ -75,7 +83,7 @@ export function JourneyMap() {
       {/* Center: 6-milestone rail */}
       <div className="relative mx-auto flex min-w-0 flex-1 items-stretch">
         {MILESTONES.map((m, i) => {
-          const state = milestoneState(stageStatuses, m.stages)
+          const state = milestoneState(stageStatuses, m.stages, routeKey)
           const prog = milestoneProgress(stageStatuses, m)
           const isOpen = open === m.key
 
@@ -116,11 +124,15 @@ export function JourneyMap() {
                   {m.stages.map(key => {
                     const st = statusFor(stageStatuses, key)
                     const c = STAGE_COLORS[key]
+                    const active = key === routeKey
                     return (
                       <span
                         key={key}
                         className="h-1 w-1.5 rounded-full"
-                        style={{ background: st === 'done' ? c : st === 'active' ? '#ff4757' : 'rgba(255,255,255,0.14)' }}
+                        style={{
+                          background: st === 'done' ? c : active ? '#ff4757' : st === 'active' ? '#ff4757' : 'rgba(255,255,255,0.14)',
+                          boxShadow: active || st === 'active' ? `0 0 8px ${c}` : undefined,
+                        }}
                       />
                     )
                   })}

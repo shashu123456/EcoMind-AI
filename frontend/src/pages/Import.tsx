@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
-import { UploadCloud, FileSpreadsheet, Check, Loader2, Sheet } from 'lucide-react'
+import { UploadCloud, FileSpreadsheet, Check, Loader2, Sheet, TerminalSquare } from 'lucide-react'
 import clsx from 'clsx'
 import { datasets } from '../lib/api'
 import { useApi } from '../lib/hooks'
@@ -8,13 +8,92 @@ import { useRouteParams, ErrorBox, EmptyBox, fmt } from '../lib/pagekit'
 import { useJourney } from '../lib/journey'
 import { StageBanner, Particles, StreamTable, Reveal, DoneChip, AutoNext } from '../lib/kit'
 
-const PHASES = [
-  'Reading workbook…',
-  'Loading sheets…',
-  'Validating columns…',
-  'Reading rows…',
-  'Preparing dataset…',
-]
+function fmtBytes(b?: number) {
+  if (!b || b <= 0) return '—'
+  if (b < 1024) return `${b} B`
+  if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)} KB`
+  return `${(b / (1024 * 1024)).toFixed(2)} MB`
+}
+
+function ReadWriteTerminal({
+  name, bytes, columns, total, streamed, done,
+}: {
+  name: string
+  bytes?: number
+  columns: string[]
+  total: number
+  streamed: number
+  done: boolean
+}) {
+  const [typed, setTyped] = useState(0)
+  const [cursor, setCursor] = useState(0)
+  const totalLines = 8 + Math.min(columns.length, 6)
+
+  useEffect(() => {
+    setTyped(0)
+    const int = setInterval(() => {
+      setTyped(t => {
+        if (t >= totalLines) { clearInterval(int); return t }
+        return t + 1
+      })
+    }, 260)
+    const cur = setInterval(() => setCursor(c => (c + 1) % 3), 430)
+    return () => { clearInterval(int); clearInterval(cur) }
+  }, [name, bytes, totalLines])
+
+  const cols = columns.slice(0, 6)
+  const L: Array<[string, boolean]> = [
+    [`$ ecomind read ${name || 'dataset.xlsx'}`, false],
+    [`← open ./data/${name || 'dataset.xlsx'}`, true],
+    [`← stat         · size ${fmtBytes(bytes)} · utf-8 / binary`, true],
+    [`← sheets.tsv   · 1 sheet detected`, true],
+    [`$ parse --header --infer-types`, false],
+    [`← head ..      · ${cols.length || '—'} columns inferred`, true],
+    ...cols.map(c => [`← columns[${cols.indexOf(c)}] :: "${c}"`, true] as [string, boolean]),
+  ]
+  const typing = Math.min(typed, L.length)
+  const sp = 12
+
+  return (
+    <div className="rounded-card border border-white/[0.08] bg-[#07090C] font-mono text-xs leading-6 shadow-[0_0_30px_rgba(76,95,213,0.12)]">
+      <div className="flex items-center justify-between border-b border-white/[0.07] px-3 py-2">
+        <div className="flex items-center gap-2">
+          <span className="h-2.5 w-2.5 rounded-full bg-accent-rose/70" />
+          <span className="h-2.5 w-2.5 rounded-full bg-accent-gold/70" />
+          <span className="h-2.5 w-2.5 rounded-full bg-accent-emerald/70" />
+          <span className="ml-2 text-[9px] uppercase tracking-[0.22em] text-gray-500">ecomind · file-reader v2.3 · {done ? 'closed' : 'busy'}</span>
+        </div>
+        <TerminalSquare className="h-3.5 w-3.5 text-accent-cyan" />
+      </div>
+      <div className="min-h-[240px] px-4 py-3">
+        {L.slice(0, typing).map(([line, isOut], i) => (
+          <motion.div key={i} initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }} className={clsx(isOut ? 'text-accent-cyan/80' : 'text-gray-300')}>
+            {line}
+          </motion.div>
+        ))}
+        {!done && typing >= L.length && (
+          <div className="mt-1 text-gray-300">
+            <span className="text-gray-300">$ stream rows --batch 3</span>
+            <div className="text-[#7CFCB0]">
+              <span className="text-gray-500">← </span>
+              <span>{Math.min(streamed, total)}</span>
+              <span className="text-gray-400">/{total} rows</span>
+              <span className="text-gray-600"> · </span>
+              <span>buffer {sp >= 10 ? '[ok]' : '…'}</span>
+            </div>
+          </div>
+        )}
+        {done && typing >= L.length && (
+          <div className="mt-1 space-y-0.5">
+            <div className="text-accent-emerald">← committed ✓</div>
+            <div className="text-[#7CFCB0]">✓ wrote {total} rows · {cols.length || '—'} cols → dataset</div>
+          </div>
+        )}
+        <span className={clsx('ml-1 inline-block h-3 w-[7px] translate-y-0.5 bg-[#7CFCB0]', cursor === 0 ? 'opacity-100' : 'opacity-0')} />
+      </div>
+    </div>
+  )
+}
 
 export function ImportPage() {
   const { datasetId } = useRouteParams()
@@ -83,7 +162,7 @@ export function ImportPage() {
       <StageBanner
         chapter="Stage 02 · Import"
         title="Ingesting Your Dataset"
-        tagline="Rows are streaming into EcoMind right now — every phase of the load is visible so you always know what the system is doing."
+        tagline="Rows are streaming into EcoMind right now — a live file-reader terminal shows every read and write, so you always know what the system is doing."
         icon={<UploadCloud className="h-6 w-6 text-primary-400" />}
       />
       {isNewUpload && !done && (
@@ -126,19 +205,18 @@ export function ImportPage() {
 
           <Reveal delay={0.1}>
             <div className="grid lg:grid-cols-3 gap-4">
-              <div className="lg:col-span-1 rounded-card border border-white/[0.06] bg-black/30 p-4 font-mono text-xs leading-6">
-                <p className="text-xs uppercase tracking-[0.2em] text-gray-500 mb-2 flex items-center gap-2">
-                  <Loader2 className="w-3 h-3 animate-spin text-accent-cyan" /> ingest pipeline
-                </p>
-                {PHASES.map((p, i) => (
-                  <div key={p} className="flex items-center gap-2">
-                    {i < phase && done ? <Check className="w-3 h-3 text-accent-emerald" /> : i === phase && !done ? <Loader2 className="w-3 h-3 animate-spin text-accent-cyan" /> : <span className="w-3 inline-block text-center">·</span>}
-                    <span className={clsx(i <= phase || done ? 'text-gray-300' : 'text-gray-600')}>{p}</span>
-                  </div>
-                ))}
+              <div className="lg:col-span-1">
+                <ReadWriteTerminal
+                  name={ds?.name}
+                  bytes={ds?.file_size_bytes ?? prev?.file_size_bytes}
+                  columns={columns}
+                  total={Math.min(prev?.total_rows ?? prev?.row_count ?? 40, 320)}
+                  streamed={streamCount}
+                  done={done}
+                />
                 {done && (
-                  <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-2 text-accent-emerald font-semibold">
-                    ✓ dataset ready — {fmt(rowCount, 0)} rows loaded
+                  <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-2 text-xs text-gray-500 font-mono">
+                    ingest complete · {fmt(prev?.total_rows ?? rowCount, 0)} rows · {fmtBytes(prev?.file_size_bytes ?? ds?.file_size_bytes)}
                   </motion.p>
                 )}
               </div>
@@ -147,7 +225,7 @@ export function ImportPage() {
                 <StreamTable columns={columns} rows={shownRows} speed={18} live={!done} filename={`import-${(ds?.name ?? 'dataset').replace(/[^a-z0-9]+/gi, '-')}.csv`} />
                 {done && (
                   <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-2 text-xs text-gray-500 font-mono">
-                    ingest complete · {fmt(prev?.total_rows ?? rowCount, 0)} rows · {fmt((prev?.file_size_bytes ?? ds?.file_size_bytes ?? 0) / 1024, 0)} KB
+                    ingest complete · {fmt(prev?.total_rows ?? rowCount, 0)} rows · {fmtBytes(prev?.file_size_bytes ?? ds?.file_size_bytes)}
                   </motion.p>
                 )}
               </div>

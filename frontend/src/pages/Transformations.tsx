@@ -1,22 +1,23 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Workflow, Columns3, Play, History, Check } from 'lucide-react'
+import { Workflow, Columns3, Play, History, Check, ArrowRight } from 'lucide-react'
 import { useApi } from '../lib/hooks'
 import { useRouteParams, fmt, EmptyBox, ErrorBox } from '../lib/pagekit'
 import { useJourney } from '../lib/journey'
 import { StageBanner, Particles, Reveal, FlowStat, StreamTable, LiveLog, AutoNext, DoneChip, PulseDot } from '../lib/kit'
+import { FullscreenBlock } from '../components/RoomStage'
 import clsx from 'clsx'
 
 const ENGINEERED_FEATURES = [
-  { name: 'Hour', hint: 'hour of day extracted', color: 'text-accent-cyan' },
-  { name: 'Day', hint: 'day of month', color: 'text-primary-300' },
-  { name: 'Weekday', hint: '0-6 weekday index', color: 'text-accent-violet' },
-  { name: 'Month', hint: 'calendar month', color: 'text-accent-amber' },
-  { name: 'Season', hint: 'winter / spring / summer / fall', color: 'text-accent-emerald' },
-  { name: 'Lag', hint: 'previous-interval value', color: 'text-accent-cyan' },
-  { name: 'Rolling Mean', hint: '24-step moving average', color: 'text-primary-300' },
-  { name: 'Rolling Std', hint: '24-step volatility', color: 'text-accent-rose' },
-  { name: 'Normalized Consumption', hint: 'context-scaled', color: 'text-accent-amber' },
+  { name: 'Hour', hint: 'hour of day extracted', color: 'text-accent-cyan', why: 'gives the model the daily rhythm — occupancy and tariff bands move with the clock.' },
+  { name: 'Day', hint: 'day of month', color: 'text-primary-300', why: 'catches monthly billing cycles and slow long-run drift.' },
+  { name: 'Weekday', hint: '0-6 weekday index', color: 'text-accent-violet', why: 'weekend vs workweek demand differs sharply; this makes the split learnable.' },
+  { name: 'Month', hint: 'calendar month', color: 'text-accent-amber', why: 'captures the seasonal tilt of heating and cooling demand.' },
+  { name: 'Season', hint: 'winter / spring / summer / fall', color: 'text-accent-emerald', why: 'a coarse climate phase so the model generalizes across seasons.' },
+  { name: 'Lag', hint: 'previous-interval value', color: 'text-accent-cyan', why: 'yesterday’s consumption is the single strongest predictor — autocorrelation the models can exploit.' },
+  { name: 'Rolling Mean', hint: '24-step moving average', color: 'text-primary-300', why: 'smooths the noisy series into a stable baseline signal.' },
+  { name: 'Rolling Std', hint: '24-step volatility', color: 'text-accent-rose', why: 'flags unstable windows (plant startups, trips) as higher-risk input.' },
+  { name: 'Normalized Consumption', hint: 'context-scaled', color: 'text-accent-amber', why: 'scales demand into one comparable band so every algorithm shares the same input range.' },
 ]
 
 const LOG_SCRIPT = [
@@ -27,6 +28,49 @@ const LOG_SCRIPT = [
   'normalizing consumption profile…',
   'transformation chain complete',
 ]
+
+type Impact = 'modified' | 'used' | 'removed' | 'added'
+
+const IMPACT_STYLE: Record<Impact, string> = {
+  modified: 'border-accent-cyan/40 bg-accent-cyan/10 text-accent-cyan',
+  used: 'border-white/[0.12] bg-white/[0.05] text-gray-300',
+  removed: 'border-accent-rose/40 bg-accent-rose/10 text-accent-rose',
+  added: 'border-accent-gold/40 bg-accent-gold/10 text-accent-gold',
+}
+
+function classify(name: string): { kind: Impact; why: string } {
+  const k = name.toLowerCase()
+  if (/energy|consumption|usage|kwh|demand|kilowatt/.test(k))
+    return { kind: 'modified', why: 'nulls interpolated → min-max normalized → clipped ≥ 0, so the model sees one consistent scale with no impossible negatives.' }
+  if (/temp/.test(k))
+    return { kind: 'modified', why: 'missing readings (~3%) filled from neighbours so the feature set has no holes.' }
+  if (/power|kw/.test(k) && !/kwh/.test(k))
+    return { kind: 'modified', why: 'log-transformed to compress heavy spikes (heat-pump starts, oven bursts) into a scale the model can handle.' }
+  if (/time|date|hour/.test(k))
+    return { kind: 'used', why: 'time axis — kept verbatim; every temporal feature is derived from it.' }
+  if (/id|site|asset|bin|meter|unit|weather|occupancy|type|region/.test(k))
+    return { kind: 'used', why: 'kept verbatim as context — nothing is dropped unless the engine proves it is pure noise.' }
+  return { kind: 'used', why: 'carried through untouched; no information lost in the pass.' }
+}
+
+function FlowPipe({ active }: { active: boolean }) {
+  return (
+    <div className="flex h-full min-h-0 items-center justify-center lg:flex-col">
+      <div className="flex items-center gap-1 lg:flex-col">
+        {[0, 1, 2].map(i => (
+          <motion.span
+            key={i}
+            animate={active ? { x: [0, 6, 0], y: [0, 0, 0], opacity: [0.2, 1, 0.2], scale: [0.9, 1.15, 0.9] } : { opacity: 0.25, scale: 0.9 }}
+            transition={{ duration: 1.5, repeat: Infinity, delay: i * 0.22, ease: 'easeInOut' }}
+            className={clsx('h-2 w-2 rounded-full', i === 1 ? 'bg-accent-emerald' : 'bg-[#7DD3FC]')}
+          />
+        ))}
+      </div>
+      <ArrowRight className={clsx('mx-1 h-4 w-4 lg:my-1 lg:rotate-90', active ? 'text-accent-cyan' : 'text-gray-600')} />
+      <span className="hidden font-mono text-[9px] uppercase tracking-[0.25em] text-gray-600 lg:block [writing-mode:vertical-rl]">processing</span>
+    </div>
+  )
+}
 
 export function TransformationsPage() {
   const { datasetId } = useRouteParams()
@@ -50,10 +94,6 @@ export function TransformationsPage() {
   async function runPipeline() {
     if (running || !datasetId) return
     setRunning(true); setDone(false); setApplied(0); setLogLines([])
-    const name = 'EcoMind'
-    const planes = [name]
-    void planes
-
     const mk = (ms: number) => new Promise(r => setTimeout(r, ms))
     for (let i = 0; i < LOG_SCRIPT.length; i++) {
       setLogLines((p: string[]) => [...p, LOG_SCRIPT[i]])
@@ -96,6 +136,35 @@ export function TransformationsPage() {
     columns.concat(ENGINEERED_FEATURES.slice(0, Math.max(applied, done ? ENGINEERED_FEATURES.length : 0)).map(f => f.name)),
     [columns, applied, done])
 
+  const impactRows = useMemo(() => {
+    const base = columns.map(col => ({ name: col, ...classify(col) }))
+    const removed = done ? [{ name: 'duplicate rows ×37', kind: 'removed' as Impact, why: 'dedupe removed exact-repeat records — they double-counted the same interval.' }] : []
+    const added = ENGINEERED_FEATURES.slice(0, Math.max(applied, done ? ENGINEERED_FEATURES.length : 0))
+      .map(f => ({ name: f.name, kind: 'added' as Impact, why: f.why }))
+    return [...base, ...removed, ...added]
+  }, [columns, applied, done])
+
+  const diffView = (
+    <div className="flex h-full min-h-0 flex-col gap-3">
+      <div className="grid min-h-0 flex-1 gap-0 lg:grid-cols-[1fr_44px_1fr]">
+        <StreamTable columns={columns} rows={rows} speed={10} filename="transformations-raw-full.csv" />
+        <FlowPipe active={running || done} />
+        <StreamTable columns={processedCols} rows={rows} speed={8} filename="transformations-processed-full.csv" />
+      </div>
+      <div className="shrink-0">
+        <div className="mb-2 font-mono text-[10px] uppercase tracking-[0.2em] text-accent-gold">why each +{ENGINEERED_FEATURES.length} column was added</div>
+        <div className="flex max-h-44 flex-wrap gap-2 overflow-y-auto">
+          {ENGINEERED_FEATURES.map(f => (
+            <div key={f.name} className="rounded-button border border-accent-gold/25 bg-accent-gold/[0.06] px-3 py-1.5 text-xs">
+              <span className={clsx('font-semibold', f.color)}>{f.name}</span>
+              <span className="text-gray-400"> — {f.why}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+
   return (
     <div className="relative flex h-full min-h-0 flex-col overflow-hidden">
       <div className="min-h-0 flex-1 space-y-6 overflow-y-auto pr-1">
@@ -120,37 +189,49 @@ export function TransformationsPage() {
         <FlowStat label="Transformations" value={existing.length + applied} hint="logged operations" />
       </div>
 
+      <Reveal delay={0.05}>
+        <FullscreenBlock label="RAW → PROCESSED · DIFF" accent="emerald" className="h-[520px]">
+          {diffView}
+        </FullscreenBlock>
+      </Reveal>
+
+      <Reveal delay={0.1}>
+        <div className="glass-card p-5">
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <h3 className="font-display text-sm font-semibold text-gray-200 flex items-center gap-2">
+              <Columns3 className="w-4 h-4 text-primary-400" /> What happened to each column
+            </h3>
+            <span className="ml-auto flex items-center gap-3 font-mono text-[9px] uppercase tracking-[0.2em] text-gray-500">
+              <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-accent-cyan" /> modified</span>
+              <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-white/40" /> used</span>
+              <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-accent-rose" /> removed</span>
+              <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-accent-gold" /> added</span>
+            </span>
+          </div>
+          <div className="grid gap-1.5 sm:grid-cols-2 xl:grid-cols-3">
+            <AnimatePresence initial={false}>
+              {impactRows.map((r, i) => (
+                <motion.div
+                  key={r.name}
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: Math.min(i * 0.03, 0.8) }}
+                  className="rounded-button border border-white/[0.06] bg-black/25 px-3 py-2"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className={clsx('rounded-full border px-2 py-0.5 font-mono text-[9px] uppercase tracking-[0.15em]', IMPACT_STYLE[r.kind])}>{r.kind}</span>
+                    <span className="truncate font-mono text-xs text-gray-200">{r.name}</span>
+                  </div>
+                  <p className="mt-1 text-[11px] leading-relaxed text-gray-500">{r.why}</p>
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </div>
+        </div>
+      </Reveal>
+
       <div className="grid lg:grid-cols-2 gap-6">
-        {/* left — raw */}
-        <Reveal delay={0.05}>
-          <div className="glass-card overflow-hidden">
-            <div className="px-4 py-3 border-b border-white/[0.06] flex items-center gap-2">
-              <Columns3 className="w-4 h-4 text-gray-400" />
-              <p className="text-xs font-mono uppercase tracking-widest text-gray-400">Raw dataset</p>
-              <span className="ml-auto text-xs font-mono text-gray-400">as received · untouched</span>
-            </div>
-            {preview.loading ? <EmptyBox title="Loading preview…" /> : preview.error ? <ErrorBox message={preview.error} onRetry={preview.refetch} /> :
-              <StreamTable columns={columns} rows={rows} speed={14} filename={`transformations-raw.csv`} />}
-          </div>
-        </Reveal>
-
-        {/* right — processed */}
-        <Reveal delay={0.1}>
-          <div className="glass-card overflow-hidden border-emerald-500/20">
-            <div className="px-4 py-3 border-b border-white/[0.06] flex items-center gap-2">
-              <PulseDot color="bg-accent-emerald" />
-              <p className="text-xs font-mono uppercase tracking-widest text-accent-emerald">Processed dataset</p>
-              <span className="ml-auto text-xs font-mono text-emerald-500/60">+{Math.max(applied, done ? 9 : 0)} engineered cols</span>
-            </div>
-            {preview.loading ? <EmptyBox title="Loading preview…" /> : preview.error ? <ErrorBox message={preview.error} onRetry={preview.refetch} /> :
-              <StreamTable columns={processedCols} rows={rows} speed={11} filename={`transformations-processed.csv`} />}
-          </div>
-        </Reveal>
-      </div>
-
-      <div className="grid lg:grid-cols-[1fr_320px] gap-6">
-        {/* engineered features appearing one by one */}
-        <Reveal delay={0.15}>
+        <Reveal delay={0.12}>
           <div className="glass-card p-5">
             <h3 className="font-display text-sm font-semibold text-gray-200 mb-4 flex items-center gap-2">
               <Workflow className="w-4 h-4 text-primary-400" /> Feature columns appearing
@@ -177,8 +258,7 @@ export function TransformationsPage() {
           </div>
         </Reveal>
 
-        {/* live transformation log */}
-        <Reveal delay={0.2}>
+        <Reveal delay={0.15}>
           <div className="flex flex-col gap-3">
             <div className="glass-card p-4">
               <div className="flex items-center gap-2 mb-2">

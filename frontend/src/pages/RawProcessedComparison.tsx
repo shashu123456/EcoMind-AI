@@ -54,6 +54,17 @@ export function RawProcessedComparisonPage() {
     if (r === null || r === undefined || !Number.isFinite(r) || !Number.isFinite(p) || r === 0) return null
     return ((p - r) / Math.abs(r)) * 100
   }
+  const sameValue = (m: string) => {
+    if (!raw || !processed) return false
+    const r = Number(raw[m]); const p = Number(processed[m])
+    if (!Number.isFinite(r) || !Number.isFinite(p)) return false
+    return Math.abs(p - r) < 1e-9
+  }
+  const metricIsGood = (m: string, pct: number | null) => {
+    if (pct == null) return false
+    const higher = METRICS.find(x => x.key === m)?.higher
+    return higher ? pct >= 0 : pct <= 0
+  }
 
   return (
     <div className="relative flex h-full min-h-0 flex-col overflow-hidden">
@@ -78,42 +89,55 @@ export function RawProcessedComparisonPage() {
         <>
           <div className="grid md:grid-cols-2 gap-6">
             {[
-              { label: 'Raw Dataset Prediction', data: raw, accent: 'text-accent-rose', border: 'border-rose-500/30', dot: 'bg-accent-rose' },
-              { label: 'Processed Dataset Prediction', data: processed, accent: 'text-accent-emerald', border: 'border-emerald-500/40', dot: 'bg-accent-emerald' },
-            ].map(({ label, data, accent, border, dot }, side) => (
-              <Reveal key={label} delay={side * 0.1}>
-                <div className={clsx('glass-panel overflow-hidden', border)}>
-                  <div className="flex items-center gap-2 border-b border-white/[0.06] px-5 py-3">
-                    <PulseDot color={dot} />
-                    <p className="font-display text-sm font-semibold text-gray-100">{label}</p>
-                    {side === 1 && <Trophy className="ml-auto w-4 h-4 text-accent-emerald" />}
-                  </div>
-                  <div className="space-y-5 p-5">
-                    {METRICS.map((m) => {
-                      const v = Number(data?.[m.key])
-                      const valid = v !== null && v !== undefined && Number.isFinite(v)
-                      const disp = valid ? (m.key === 'r2' || m.key === 'mape' ? fmt(v, 3) : fmt(v, 2)) : '—'
-                      const pct = metricPct(m.key)
-                      return (
-                        <div key={m.key}>
-                          <div className="mb-1 flex items-center justify-between text-xs">
-                            <span className="font-mono uppercase tracking-widest text-gray-400">{m.label}</span>
-                            <span className={clsx('font-mono text-sm', accent)}>{disp}{pct != null && (
-                              <span className={clsx('ml-2', pct >= 0 ? 'text-accent-emerald' : 'text-accent-rose')}>
-                                ({pct >= 0 ? '+' : ''}{fmt(pct, 0)}%)
-                              </span>)}</span>
+              { label: 'Raw Dataset Prediction', data: raw },
+              { label: 'Processed Dataset Prediction', data: processed },
+            ].map(({ label, data }, side) => {
+              const isProc = side === 1
+              return (
+                <Reveal key={label} delay={side * 0.1}>
+                  <div className={clsx('glass-panel overflow-hidden border',
+                    isProc ? 'border-emerald-500/40' : 'border-rose-500/30')}>
+                    <div className="flex items-center gap-2 border-b border-white/[0.06] px-5 py-3">
+                      <PulseDot color={isProc ? 'bg-accent-emerald' : 'bg-accent-rose'} />
+                      <p className="font-display text-sm font-semibold text-gray-100">{label}</p>
+                      {isProc && <Trophy className="ml-auto w-4 h-4 text-accent-emerald" />}
+                    </div>
+                    <div className="space-y-5 p-5">
+                      {METRICS.map((m) => {
+                        const v = Number(data?.[m.key])
+                        const valid = v !== null && v !== undefined && Number.isFinite(v)
+                        const disp = valid ? (m.key === 'r2' || m.key === 'mape' ? fmt(v, 3) : fmt(v, 2)) : '—'
+                        const s = sameValue(m.key)
+                        const pct = metricPct(m.key)
+                        const valColor = s ? 'text-gray-300' : isProc ? 'text-accent-emerald' : 'text-accent-rose'
+                        const barCls = s
+                          ? 'bg-gradient-to-r from-gray-500/60 to-gray-400/60'
+                          : isProc
+                            ? 'bg-gradient-to-r from-emerald-500 to-accent-emerald'
+                            : 'bg-gradient-to-r from-rose-500 to-accent-rose'
+                        return (
+                          <div key={m.key}>
+                            <div className="mb-1 flex items-center justify-between text-xs">
+                              <span className="font-mono uppercase tracking-widest text-gray-400">{m.label}</span>
+                              <span className={clsx('font-mono text-sm', valColor)}>
+                                {disp}
+                                {s && <span className="ml-2 text-gray-500">same</span>}
+                                {!s && pct != null && (
+                                  <span className={clsx('ml-2', metricIsGood(m.key, pct) ? 'text-accent-emerald' : 'text-accent-rose')}>
+                                    ({pct >= 0 ? '+' : ''}{fmt(pct, 0)}%)
+                                  </span>
+                                )}
+                              </span>
+                            </div>
+                            <LiveBar value={valid ? v : 0} max={m.higher ? 1 : 200} barClassName={barCls} />
                           </div>
-                          <LiveBar value={valid ? v : 0} max={m.higher ? 1 : 200}
-                            barClassName={side === 1
-                              ? 'bg-gradient-to-r from-emerald-500 to-accent-emerald'
-                              : 'bg-gradient-to-r from-rose-500 to-accent-rose'} />
-                        </div>
-                      )
-                    })}
+                        )
+                      })}
+                    </div>
                   </div>
-                </div>
-              </Reveal>
-            ))}
+                </Reveal>
+              )
+            })}
           </div>
 
           <Reveal delay={0.1}>

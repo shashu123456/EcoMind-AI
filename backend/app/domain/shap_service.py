@@ -16,12 +16,26 @@ from app.domain.feature_utils import build_ml_matrix
 from app.domain.model_service import get_model, load_artifact
 
 
+def _resolve_artifact(db: Session, model) -> dict:
+    """Load the persisted joblib, or rebuild the column contract from the DB row
+    when the artifact is missing (e.g. models dir was cleared)."""
+    try:
+        return load_artifact(model.id)
+    except ValueError:
+        target = "energy_kwh"
+        _, df = load_dataframe(db, model.dataset_id, use_processed=True)
+        X, y, feat_cols = build_ml_matrix(df, target, derive=True)
+        return {"feature_cols": feat_cols, "target": target,
+                "algorithm": model.algorithm or "xgboost",
+                "metrics": model.metrics or {}, "rebuilt": True}
+
+
 def compute_global(db: Session, model_id: str, top_n: int = 20, method: str = "tree") -> dict:
     import shap
     from app.domain.feature_utils import ALGORITHM_FACTORY
 
     model = get_model(db, model_id)
-    artifact = load_artifact(model_id)
+    artifact = _resolve_artifact(db, model)
     feat_cols = artifact["feature_cols"]
     target = artifact.get("target") or "energy_kwh"
     _, df = load_dataframe(db, model.dataset_id, use_processed=True)
@@ -140,7 +154,7 @@ def explain(db: Session, prediction_id: str, params: dict | None = None) -> dict
     if not pred:
         raise ValueError(f"Prediction '{prediction_id}' not found")
     model = get_model(db, pred.model_id)
-    artifact = load_artifact(model.id)
+    artifact = _resolve_artifact(db, model)
     feat_cols = artifact["feature_cols"]
     target = artifact.get("target") or "energy_kwh"
     method = (params or {}).get("method") or "tree"

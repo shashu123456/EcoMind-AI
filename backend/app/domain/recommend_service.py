@@ -13,6 +13,20 @@ from app.domain.dataset_service import audit
 CATEGORIES = ["hvac_optimization", "lighting", "equipment_scheduling",
               "load_shifting", "maintenance", "renewable"]
 
+DIFFICULTY = {
+    "hvac_optimization": ("moderate", "HVAC schedule + setpoint changes"),
+    "lighting": ("quick", "timer and sensor configuration"),
+    "equipment_scheduling": ("quick", "programmatic shutdown schedule"),
+    "load_shifting": ("quick", "shift schedules off peak windows"),
+    "maintenance": ("moderate", "scheduled maintenance intervention"),
+    "renewable": ("major", "capex: solar sized to load profile"),
+}
+
+
+def _difficulty(r: Recommendation) -> str:
+    grade, effort = DIFFICULTY.get(r.category, ("moderate", "configuration + validation"))
+    return f"{grade} · {effort}"
+
 
 def _rec_payload(r: Recommendation) -> dict:
     return {
@@ -21,6 +35,7 @@ def _rec_payload(r: Recommendation) -> dict:
         "priority": r.priority, "estimated_savings_kwh": r.estimated_savings_kwh or 0.0,
         "estimated_savings_percent": r.estimated_savings_percent or 0.0,
         "confidence": round(float(r.confidence or 0.0), 3), "status": r.status,
+        "implementation_difficulty": _difficulty(r),
         "supporting_evidence": r.supporting_evidence or {},
         "created_at": r.created_at.isoformat() if r.created_at else None,
     }
