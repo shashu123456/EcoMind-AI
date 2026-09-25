@@ -1,4 +1,4 @@
-"""Canonical 17-stage workflow + stage-runner registry.
+"""Canonical 15-stage workflow + stage-runner registry.
 
 THE single source of truth for stage order used by:
   - the workflow router (exec / advance / traces)
@@ -30,22 +30,20 @@ from typing import Callable, Dict, Optional
 
 STAGES = [
     {"number": 1, "key": "library",            "label": "Dataset Library",         "route": "/library"},
-    {"number": 2, "key": "import",             "label": "Import",                  "route": "/import"},
-    {"number": 3, "key": "raw_preview",        "label": "Raw Preview",             "route": "/preview"},
-    {"number": 4, "key": "schema_discovery",   "label": "Schema Discovery",        "route": "/schema"},
-    {"number": 5, "key": "dq_engine",          "label": "DQ Engine",               "route": "/dq"},
-    {"number": 6, "key": "transformation",     "label": "Transformation Viewer",   "route": "/transformations"},
-    {"number": 7, "key": "feature_engineering", "label": "Feature Engineering",    "route": "/features"},
-    {"number": 8, "key": "prediction",         "label": "Prediction",              "route": "/prediction"},
-    {"number": 9, "key": "confidence_gate",    "label": "AI Confidence Gate",      "route": "/confidence"},
-    {"number": 10, "key": "raw_vs_processed",  "label": "Raw vs Processed",        "route": "/comparison"},
-    {"number": 11, "key": "shap",              "label": "SHAP Explainability",     "route": "/shap"},
-    {"number": 12, "key": "anomaly",           "label": "Anomaly Detection",       "route": "/anomalies"},
-    {"number": 13, "key": "benchmarking",      "label": "Benchmarking",            "route": "/benchmarks"},
-    {"number": 14, "key": "recommendation",    "label": "Recommendation Engine",   "route": "/recommendations"},
-    {"number": 15, "key": "executive_center",  "label": "Executive Intelligence Center", "route": "/executive"},
-    {"number": 16, "key": "report",            "label": "Report Generation",       "route": "/reports"},
-    {"number": 17, "key": "history_registry",  "label": "History & Model Registry", "route": "/history"},
+    {"number": 2, "key": "import",             "label": "Import Dataset",          "route": "/import"},
+    {"number": 3, "key": "schema_discovery",   "label": "Schema Discovery",        "route": "/schema"},
+    {"number": 4, "key": "dq_engine",          "label": "Data Quality Engine",     "route": "/dq"},
+    {"number": 5, "key": "transformation",     "label": "Transformation Viewer",   "route": "/transformations"},
+    {"number": 6, "key": "feature_engineering", "label": "Feature Engineering",    "route": "/features"},
+    {"number": 7, "key": "prediction",         "label": "Prediction Engine",       "route": "/prediction"},
+    {"number": 8, "key": "confidence_gate",    "label": "AI Confidence Gate",      "route": "/confidence"},
+    {"number": 9, "key": "shap",               "label": "SHAP Explainability",     "route": "/shap"},
+    {"number": 10, "key": "anomaly",           "label": "Anomaly Detection",       "route": "/anomalies"},
+    {"number": 11, "key": "benchmarking",      "label": "Benchmarking",            "route": "/benchmarks"},
+    {"number": 12, "key": "recommendation",    "label": "Recommendation Engine",   "route": "/recommendations"},
+    {"number": 13, "key": "executive_center",  "label": "Executive Intelligence Center", "route": "/executive"},
+    {"number": 14, "key": "report",            "label": "Report Generation",       "route": "/reports"},
+    {"number": 15, "key": "history_registry",  "label": "History & Model Registry", "route": "/history"},
 ]
 
 STAGE_BY_KEY = {s["key"]: s for s in STAGES}

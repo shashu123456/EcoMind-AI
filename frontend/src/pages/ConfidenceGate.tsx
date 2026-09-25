@@ -48,7 +48,7 @@ function SignalMath({ name, value, last, total, verdict }: {
 
 export function ConfidenceGatePage() {
   const { runId } = useRouteParams()
-  const { setActive, markCompleted, datasetId: ctxDs } = useJourney()
+  const { setActive, markCompleted, datasetId: ctxDs, modelId } = useJourney()
   const run = useApi<any>(() => (runId ? workflows.get(runId) as any : null), [runId])
   const datasetId = (run.data?.run?.dataset_id as string) || ctxDs || ''
 
@@ -231,8 +231,8 @@ export function ConfidenceGatePage() {
 
           {done && (
             <AutoNext
-              to={runId ? `/comparison/${runId}` : '/library'}
-              label="Trust gate passed — proving data quality lifts raw-model performance"
+              to={modelId ? `/shap/${modelId}` : '/library'}
+              label="Trust gate passed — opening SHAP explanations of every prediction"
             />
           )}
         </>

@@ -1,4 +1,4 @@
-"""Dataset domain service + library/import/raw_preview stage runners.
+"""Dataset domain service + library/import stage runners.
 
 Ownership: S1. Contract: docs/API_CONTRACT.md §3.3, §4.
 """
@@ -228,13 +228,6 @@ def summary_payload(ds: Dataset) -> dict:
 # ─────────────────────────────────────────────
 # Stage runners
 # ─────────────────────────────────────────────
-def _read_for_dataset(db: Session, dataset_id: str) -> pd.DataFrame:
-    ds = db.query(Dataset).filter(Dataset.id == dataset_id).first()
-    if not ds:
-        raise HTTPException(404, "Dataset not found")
-    return read_csv(_dataset_path(ds))
-
-
 @register_stage_runner("library")
 def library_stage(run, db: Session, params: dict) -> dict:
     datasets = list_datasets(db)
@@ -257,11 +250,3 @@ def import_stage(run, db: Session, params: dict) -> dict:
     }
     return {"output": json_safe(output), "confidence": None,
             "decision": f"Dataset '{ds.name}' ({ds.row_count} rows, {ds.column_count} cols) is ready for the pipeline."}
-
-
-@register_stage_runner("raw_preview")
-def raw_preview_stage(run, db: Session, params: dict) -> dict:
-    df = _read_for_dataset(db, run.dataset_id)
-    output = preview_payload(df, limit=params.get("limit", 100), start=0)
-    return {"output": json_safe(output), "confidence": None,
-            "decision": f"Raw preview returned {min(100, len(df))} rows of {len(df)}."}

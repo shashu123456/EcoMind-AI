@@ -1,28 +1,29 @@
-import { Link, useLocation } from '@tanstack/react-router'
+import { Link, useLocation, useNavigate } from '@tanstack/react-router'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
-  Database, Upload, Eye, ScanSearch, ShieldCheck, Wand2, Cpu,
-  BrainCircuit, Gauge, GitCompare, Lightbulb, AlertTriangle, Trophy,
+  Database, Upload, ScanSearch, ShieldCheck, Wand2, Cpu,
+  BrainCircuit, Gauge, Lightbulb, AlertTriangle, Trophy,
   Target, Briefcase, FileText, History, Check, Zap, Radio, FileDown,
   ChevronDown, Lock,
 } from 'lucide-react'
 import clsx from 'clsx'
 import { useEffect, useState } from 'react'
 import { WORKFLOW, useJourney, stagePath, MILESTONES, PASSTHROUGH_KEYS, milestoneProgress } from '../lib/journey'
+import type { WorkflowStage } from '../lib/journey'
 import { B } from '../lib/kit'
 
 export const STAGE_ICONS: Record<string, React.ComponentType<any>> = {
-  library: Database, import: Upload, raw_preview: Eye, schema_discovery: ScanSearch,
+  library: Database, import: Upload, schema_discovery: ScanSearch,
   dq_engine: ShieldCheck, transformation: Wand2, feature_engineering: Cpu,
-  prediction: BrainCircuit, confidence_gate: Gauge, raw_vs_processed: GitCompare,
+  prediction: BrainCircuit, confidence_gate: Gauge,
   shap: Lightbulb, anomaly: AlertTriangle, benchmarking: Trophy,
   recommendation: Target, executive_center: Briefcase, report: FileText, history_registry: History,
 }
 
 export const STAGE_COLORS: Record<string, string> = {
-  library: '#4A9FD8', import: '#4A9FD8', raw_preview: '#8D7BD8', schema_discovery: '#8D7BD8',
+  library: '#4A9FD8', import: '#4A9FD8', schema_discovery: '#8D7BD8',
   dq_engine: '#4C5FD5', transformation: '#C2335A', feature_engineering: '#C2335A',
-  prediction: '#ff4757', confidence_gate: '#ff4757', raw_vs_processed: '#4AC29A',
+  prediction: '#ff4757', confidence_gate: '#ff4757',
   shap: '#4AC29A', anomaly: '#f5b04e', benchmarking: '#D8A648', recommendation: '#D8A648',
   executive_center: '#ff4757', report: '#5B6FE0', history_registry: '#5B6FE0',
 }
@@ -51,6 +52,7 @@ function isActiveRoute(pathname: string, stageKey: string): boolean {
 
 export function JourneyMap() {
   const location = useLocation()
+  const navigate = useNavigate()
   const { datasetId, runId, modelId, stageStatuses } = useJourney()
   const [open, setOpen] = useState<string | null>(null)
 
@@ -59,6 +61,28 @@ export function JourneyMap() {
   const doneCount = WORKFLOW.filter(s => statusFor(stageStatuses, s.key) === 'done').length
   const pct = (doneCount / WORKFLOW.length) * 100
   const routeKey = routeKeyFor(location.pathname)
+
+  const stageReady = (key: string): boolean => {
+    const stage = WORKFLOW.find(s => s.key === key)
+    if (!stage) return false
+    const reqName = stage.requires === 'dataset' ? 'dataset' : stage.requires === 'run' ? 'run' : stage.requires === 'model' ? 'model' : null
+    if (!reqName) return true
+    const missing = reqName === 'dataset' ? !datasetId : reqName === 'run' ? !runId : !modelId
+    return !(missing && statusFor(stageStatuses, key) !== 'done')
+  }
+
+  const pathFor = (stage: WorkflowStage): string =>
+    stagePath(stage, { datasetId: datasetId || '', runId: runId || '', modelId: modelId || '' })
+
+  const navigateToIn = (m: (typeof MILESTONES)[number]) => {
+    const ready = m.stages.find(stageReady)
+    if (ready) {
+      const stage = WORKFLOW.find(s => s.key === ready)!
+      navigate({ to: pathFor(stage) as any })
+    } else {
+      setOpen(m.key)
+    }
+  }
 
   return (
     <div className="relative flex h-16 shrink-0 items-center gap-3 border-b border-white/[0.06] bg-surface/40 px-4 backdrop-blur-sm">
@@ -76,11 +100,11 @@ export function JourneyMap() {
                 <div className="connector-pipe mx-0.5 hidden w-3 shrink-0 md:block" style={{ height: 8 }} />
               )}
               <button
-                onClick={() => setOpen(isOpen ? null : m.key)}
+                onClick={() => { if (isOpen) setOpen(null); else navigateToIn(m) }}
                 aria-expanded={isOpen}
-                title={`${m.label} — ${prog.done}/${prog.total} complete`}
+                title={m.stages.some(stageReady) ? `${m.label} — ${prog.done}/${prog.total} complete` : `${m.label} — open to see locked steps`}
                 className={clsx(
-                  'flex min-w-0 flex-1 flex-col items-center gap-1 rounded-button px-1 py-1.5 transition-all',
+                  'flex min-w-0 flex-1 cursor-pointer flex-col items-center gap-1 rounded-button px-1 py-1.5 transition-all',
                   isOpen ? 'bg-white/[0.06]' : 'hover:bg-white/[0.03]',
                 )}
               >
@@ -108,7 +132,14 @@ export function JourneyMap() {
                     {m.short}
                   </span>
                   <span className="hidden text-[10px] font-mono text-gray-500 sm:block">{prog.done}/{prog.total}</span>
-                  <ChevronDown className={clsx('h-3 w-3 text-gray-400 transition-transform', isOpen && 'rotate-180')} />
+                  <span
+                    role="button"
+                    aria-label={`${m.label} — list steps`}
+                    onClick={e => { e.stopPropagation(); setOpen(isOpen ? null : m.key) }}
+                    className="flex h-4 w-4 shrink-0 cursor-pointer items-center justify-center rounded-full transition-colors hover:bg-white/[0.08]"
+                  >
+                    <ChevronDown className={clsx('h-3 w-3 text-gray-400 transition-transform', isOpen && 'rotate-180')} />
+                  </span>
                 </span>
                 {/* mini progress bar inside the milestone */}
                 <span className="flex w-full items-center justify-center gap-1">
@@ -134,7 +165,7 @@ export function JourneyMap() {
         })}
 
         {/* overall animated progress track */}
-        <div className="absolute bottom-0 left-0 right-0 h-[3px]">
+        <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-[3px]">
           <div className="h-full w-full rounded-full bg-white/[0.06]" />
           <motion.div
             className="absolute top-0 left-0 h-full rounded-full bg-gradient-to-r from-primary-500 via-accent-cyan to-accent-emerald shadow-[0_0_10px_rgba(76,95,213,0.5)]"
@@ -153,20 +184,20 @@ export function JourneyMap() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -6 }}
               transition={{ duration: 0.16, ease: B }}
-              className="absolute left-0 right-0 top-full z-50 mt-1 flex max-h-64 flex-wrap items-center gap-1.5 overflow-y-auto rounded-button border border-white/[0.08] bg-surface-light/95 p-2 shadow-2xl backdrop-blur-md"
+              className="absolute left-0 right-0 top-full z-[70] mt-1 flex max-h-64 flex-wrap items-center gap-1.5 overflow-y-auto rounded-button border border-white/[0.08] bg-surface-light/95 p-2 shadow-2xl backdrop-blur-md"
             >
               {MILESTONES.filter(m => m.key === open)[0]?.stages.map(key => {
                 const stage = WORKFLOW.find(s => s.key === key)!
                 const Icon = STAGE_ICONS[key]
                 const st = statusFor(stageStatuses, key)
-                const path = stagePath(stage, { datasetId: datasetId || '', runId: runId || '', modelId: modelId || '' })
+                // reuse pathFor() for a consistent resolved route
                 const reqName = stage.requires === 'dataset' ? 'dataset' : stage.requires === 'run' ? 'run' : stage.requires === 'model' ? 'model' : null
                 const missingReq = reqName &&
                   (reqName === 'dataset' ? !datasetId : reqName === 'run' ? !runId : !modelId)
                 const locked = !!missingReq && st !== 'done'
                 const active = isActiveRoute(location.pathname, key)
                 return (
-                  <div key={key} className="flex min-w-0 items-center">
+                  <div key={key} className="relative z-10 flex min-w-0 items-center">
                     {locked ? (
                       <span
                         title={`Locked — needs a ${reqName} first`}
@@ -181,10 +212,10 @@ export function JourneyMap() {
                       </span>
                     ) : (
                       <Link
-                        to={path as any}
+                        to={pathFor(stage) as any}
                         onClick={() => setOpen(null)}
                         className={clsx(
-                          'flex items-center gap-1.5 rounded-button px-2.5 py-1.5 text-[11px] font-mono transition-colors',
+                          'pointer-events-auto flex items-center gap-1.5 rounded-button px-2.5 py-1.5 text-[11px] font-mono transition-colors',
                           active && 'bg-primary-500/15 text-primary-500',
                           !active && 'hover:bg-white/[0.04]',
                         )}

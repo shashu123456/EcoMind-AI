@@ -19,21 +19,19 @@ export interface WorkflowStage {
 export const WORKFLOW: WorkflowStage[] = [
   { index: 1, key: 'library', label: 'Dataset Library', short: 'Library', description: 'Choose an energy dataset to begin the journey.', path: '/library', requires: 'none' },
   { index: 2, key: 'import', label: 'Import Dataset', short: 'Import', description: 'Stream CSV / Excel rows into EcoMind.', path: '/import/$datasetId', requires: 'dataset' },
-  { index: 3, key: 'raw_preview', label: 'Raw Preview', short: 'Raw Display', description: 'Show the data exactly as received — untouched.', path: '/preview/$datasetId', requires: 'dataset' },
-  { index: 4, key: 'schema_discovery', label: 'Schema Discovery', short: 'Schema Engine', description: 'Auto-detect types, roles and confidence per field.', path: '/schema/$datasetId', requires: 'dataset' },
-  { index: 5, key: 'dq_engine', label: 'Data Quality Engine', short: 'Quality Engine', description: 'Animated row-by-row repair across 8 quality dimensions.', path: '/dq/$datasetId', requires: 'dataset', inspect: true },
-  { index: 6, key: 'transformation', label: 'Transformation Viewer', short: 'Transformations', description: 'Raw → Processed with a live transformation log.', path: '/transformations/$datasetId', requires: 'dataset' },
-  { index: 7, key: 'feature_engineering', label: 'Feature Engineering', short: 'Features', description: 'AI generates explainable energy features.', path: '/features/$datasetId', requires: 'dataset' },
-  { index: 8, key: 'prediction', label: 'Prediction Engine', short: 'Prediction', description: 'Train models head-to-head — watch them learn.', path: '/prediction/$datasetId', requires: 'dataset', inspect: true },
-  { index: 9, key: 'confidence_gate', label: 'AI Confidence Gate', short: 'Trust Gate', description: 'Explainable trust score before decisions are made.', path: '/confidence/$runId', requires: 'run', inspect: true },
-  { index: 10, key: 'raw_vs_processed', label: 'Raw vs Processed Comparison', short: 'DQ Impact', description: 'Prove data quality improves model performance.', path: '/comparison/$runId', requires: 'run' },
-  { index: 11, key: 'shap', label: 'SHAP Explainability', short: 'SHAP', description: 'Why did the model decide what it decided?', path: '/shap/$modelId', requires: 'model' },
-  { index: 12, key: 'anomaly', label: 'Anomaly Detection', short: 'Anomalies', description: 'Timeline scan for energy anomalies, severity ranked.', path: '/anomalies/$datasetId', requires: 'dataset' },
-  { index: 13, key: 'benchmarking', label: 'Benchmarking', short: 'Benchmarks', description: 'Model / portfolio comparison and percentile ranking.', path: '/benchmarks/$datasetId', requires: 'dataset' },
-  { index: 14, key: 'recommendation', label: 'Recommendation Engine', short: 'Recommendations', description: 'AI consultant presents evidence-backed actions.', path: '/recommendations/$datasetId', requires: 'dataset' },
-  { index: 15, key: 'executive_center', label: 'Executive Intelligence Center', short: 'Executive', description: 'CEO briefing — the whole analysis in one view.', path: '/executive', requires: 'none' },
-  { index: 16, key: 'report', label: 'Report Generation', short: 'Reports', description: 'PDF / HTML / CSV audit-ready deliverables.', path: '/reports', requires: 'none' },
-  { index: 17, key: 'history_registry', label: 'History & Model Registry', short: 'History', description: 'Reopen any past run, version and verdict.', path: '/history', requires: 'none' },
+  { index: 3, key: 'schema_discovery', label: 'Schema Discovery', short: 'Schema Engine', description: 'Auto-detect types, roles and confidence per field.', path: '/schema/$datasetId', requires: 'dataset' },
+  { index: 4, key: 'dq_engine', label: 'Data Quality Engine', short: 'Quality Engine', description: 'Animated row-by-row repair across 8 quality dimensions.', path: '/dq/$datasetId', requires: 'dataset', inspect: true },
+  { index: 5, key: 'transformation', label: 'Transformation Viewer', short: 'Transformations', description: 'Raw → Processed with a live transformation log.', path: '/transformations/$datasetId', requires: 'dataset' },
+  { index: 6, key: 'feature_engineering', label: 'Feature Engineering', short: 'Features', description: 'AI generates explainable energy features.', path: '/features/$datasetId', requires: 'dataset' },
+  { index: 7, key: 'prediction', label: 'Prediction Engine', short: 'Prediction', description: 'Train models head-to-head — watch them learn.', path: '/prediction/$datasetId', requires: 'dataset', inspect: true },
+  { index: 8, key: 'confidence_gate', label: 'AI Confidence Gate', short: 'Trust Gate', description: 'Explainable trust score before decisions are made.', path: '/confidence/$runId', requires: 'run', inspect: true },
+  { index: 9, key: 'shap', label: 'SHAP Explainability', short: 'SHAP', description: 'Why did the model decide what it decided?', path: '/shap/$modelId', requires: 'model' },
+  { index: 10, key: 'anomaly', label: 'Anomaly Detection', short: 'Anomalies', description: 'Timeline scan for energy anomalies, severity ranked.', path: '/anomalies/$datasetId', requires: 'dataset' },
+  { index: 11, key: 'benchmarking', label: 'Benchmarking', short: 'Benchmarks', description: 'Model / portfolio comparison and percentile ranking.', path: '/benchmarks/$datasetId', requires: 'dataset' },
+  { index: 12, key: 'recommendation', label: 'Recommendation Engine', short: 'Recommendations', description: 'AI consultant presents evidence-backed actions.', path: '/recommendations/$datasetId', requires: 'dataset' },
+  { index: 13, key: 'executive_center', label: 'Executive Intelligence Center', short: 'Executive', description: 'CEO briefing — the whole analysis in one view.', path: '/executive', requires: 'none' },
+  { index: 14, key: 'report', label: 'Report Generation', short: 'Reports', description: 'PDF / HTML / CSV audit-ready deliverables.', path: '/reports', requires: 'none' },
+  { index: 15, key: 'history_registry', label: 'History & Model Registry', short: 'History', description: 'Reopen any past run, version and verdict.', path: '/history', requires: 'none' },
 ]
 
 export const STAGE_BY_KEY = Object.fromEntries(WORKFLOW.map(s => [s.key, s]))
@@ -46,17 +44,17 @@ export interface Milestone {
   stages: string[] // WORKFLOW keys
 }
 export const MILESTONES: Milestone[] = [
-  { key: 'intake', label: 'Intake', short: 'Data In', stages: ['library', 'import', 'raw_preview'] },
+  { key: 'intake', label: 'Intake', short: 'Data In', stages: ['library', 'import'] },
   { key: 'understand', label: 'Understand', short: 'Schema + Quality', stages: ['schema_discovery', 'dq_engine'] },
   { key: 'rebuild', label: 'Rebuild', short: 'Features', stages: ['transformation', 'feature_engineering'] },
   { key: 'model', label: 'Model', short: 'Predict + Trust', stages: ['prediction', 'confidence_gate'] },
-  { key: 'prove', label: 'Prove', short: 'Proof', stages: ['raw_vs_processed', 'shap', 'anomaly'] },
+  { key: 'prove', label: 'Prove', short: 'Proof', stages: ['shap', 'anomaly'] },
   { key: 'decide', label: 'Decide', short: 'Decide', stages: ['benchmarking', 'recommendation', 'executive_center', 'report', 'history_registry'] },
 ]
 
 /* Stages that run silently in the background in auto mode (visual-only).
    The user is only asked to stop at checkpoints. */
-export const PASSTHROUGH_KEYS = new Set(['raw_preview', 'schema_discovery', 'raw_vs_processed', 'shap', 'anomaly'])
+export const PASSTHROUGH_KEYS = new Set(['schema_discovery', 'shap', 'anomaly'])
 
 /* Checkpoints the user actually stops / inspects at. */
 export const CHECKPOINT_KEYS = new Set([

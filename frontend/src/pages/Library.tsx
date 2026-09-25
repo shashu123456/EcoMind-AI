@@ -158,9 +158,9 @@ export function LibraryPage() {
                     mode === 'auto' ? <Zap className="w-3 h-3" /> : <Footprints className="w-3 h-3" />}
                   {launching === d.id ? 'Starting journey…' : runningJourney === d.id ? 'Running journey…' : mode === 'auto' ? 'Run full journey' : 'Start step-by-step'}
                 </button>
-                <Link to="/preview/$datasetId" params={{ datasetId: d.id }} onClick={() => setActive(d.id)}
+                <Link to="/import/$datasetId" params={{ datasetId: d.id }} onClick={() => setActive(d.id)}
                   className="text-xs px-3 py-1.5 rounded-button bg-primary-500/10 text-primary-400 hover:bg-primary-500/20 font-medium">
-                  Preview
+                  Import
                 </Link>
                 <Link to="/dq/$datasetId" params={{ datasetId: d.id }} onClick={() => setActive(d.id)}
                   className="text-xs px-3 py-1.5 rounded-button bg-white/[0.05] text-gray-300 hover:bg-white/[0.1] font-medium">

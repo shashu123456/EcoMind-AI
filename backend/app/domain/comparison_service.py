@@ -169,16 +169,3 @@ def charts(db: Session, run_id: str):
     return {"charts": [{"id": r.id, "chart_type": r.chart_type, "title": r.title,
                         "data": r.data or {}, "config": r.config or {},
                         "comparison_type": r.comparison_type} for r in rows]}
-
-
-def raw_vs_processed_stage(run, db: Session, params: dict):
-    result = run_comparison(db, run, params)
-    c = result["comparison"]
-    imp = c["improvement"]
-    return {"output": result,
-            "confidence": round(float(max(0.0, min(1.0, 0.5 + imp.get("r2_delta", 0)))), 3),
-            "decision": c["conclusion"]}
-
-
-from app.workflow.stages import register_stage_runner  # noqa: E402
-register_stage_runner("raw_vs_processed")(raw_vs_processed_stage)

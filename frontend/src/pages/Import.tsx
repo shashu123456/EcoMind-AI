@@ -237,8 +237,8 @@ export function ImportPage() {
 
           {done && (
             <AutoNext
-              to={`/preview/${datasetId}`}
-              label="Dataset ingested — opening the untouched raw view"
+              to={`/schema/${datasetId}`}
+              label="Dataset ingested — running schema discovery"
             />
           )}
         </>

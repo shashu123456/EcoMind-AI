@@ -17,8 +17,9 @@ const FORMATS = [
 const TYPES = ['executive', 'performance', 'compliance', 'full']
 
 const SECTIONS = [
-  'Methodology', 'Dataset Provenance', 'Transformation Log', 'Prediction Results',
-  'Comparison Results', 'Trust Score', 'Recommendations', 'Appendix',
+  'Executive Summary', 'Dataset & Provenance', 'Data Quality Assessment', 'Model Performance',
+  'AI Confidence Gate', 'Anomalies', 'Recommendations', 'Explainability',
+  'Benchmarks', 'Pipeline Execution', 'Methodology & Footnotes',
 ]
 
 export function ReportGenerationPage() {

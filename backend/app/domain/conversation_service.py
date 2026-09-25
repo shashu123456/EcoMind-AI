@@ -96,8 +96,8 @@ def build_reply(facts: dict, message: str, stage_context: str | None = None) -> 
         return "SHAP explanations not computed yet. Run the SHAP stage after training a model."
 
     if any(k in msg for k in ("next", "what should", "pipeline", "stage", "todo", "steps")):
-        order = ["library", "import", "raw_preview", "schema_discovery", "dq_engine", "transformation",
-                 "feature_engineering", "prediction", "confidence_gate", "raw_vs_processed", "shap",
+        order = ["library", "import", "schema_discovery", "dq_engine", "transformation",
+                 "feature_engineering", "prediction", "confidence_gate", "shap",
                  "anomaly", "benchmarking", "recommendation", "executive_center", "report", "history_registry"]
         done = (facts["run"].stages_completed or []) if facts["run"] else []
         if not done:

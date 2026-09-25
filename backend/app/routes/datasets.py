@@ -2,7 +2,7 @@
 
 Router prefix (from main.py): `/api/v1/datasets`.
 Importing this module also imports `dataset_service`, which registers the
-`library` / `import` / `raw_preview` stage runners at import time.
+`library` / `import` stage runners at import time.
 """
 from fastapi import APIRouter, Depends, File, Query, UploadFile
 from sqlalchemy.orm import Session

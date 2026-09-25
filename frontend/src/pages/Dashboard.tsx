@@ -97,36 +97,6 @@ function ProgressRing({ pct }: { pct: number }) {
   )
 }
 
-/* ── Process-word strip: shows the CURRENT + NEXT stage, adapting live ── */
-function ProcessWords({ stageStatuses, runId }: { stageStatuses: Record<string, string>; runId: string | null }) {
-  const activeIdx = WORKFLOW.findIndex(s => stageStatuses[s.key] === 'active')
-  const firstTodo = WORKFLOW.find(s => stageStatuses[s.key] !== 'done')
-  const now = activeIdx >= 0 ? WORKFLOW[activeIdx] : (firstTodo && firstTodo.requires !== 'none' && !runId ? null : firstTodo)
-  const next = now ? WORKFLOW[now.index] : WORKFLOW[0]
-
-  const words = [
-    { tag: 'PROCESSING', label: now ? now.label : runId ? 'Automation online' : 'Ready to ignite', active: !!now, cls: 'text-[#7CFCB0]' },
-    { tag: 'NEXT UP', label: next ? next.label : 'Journey complete', active: false, cls: 'text-[#7DD3FC]' },
-  ]
-
-  return (
-    <div className="flex flex-wrap items-center gap-2">
-      {words.map(w => (
-        <motion.div
-          key={w.tag}
-          initial={{ opacity: 0, x: -10 }}
-          animate={{ opacity: 1, x: 0 }}
-          className="flex items-center gap-2 rounded-button border border-white/[0.08] bg-black/30 px-3 py-2 font-mono"
-        >
-          <span className={clsx('text-[9px] uppercase tracking-[0.22em]', w.active ? 'text-[#7CFCB0]' : 'text-gray-500')}>{w.tag}</span>
-          <span className={clsx('text-xs font-semibold uppercase tracking-wider', w.cls)}>{w.label}</span>
-          {w.active && <span className="ml-1 h-1.5 w-1.5 animate-pulse rounded-full bg-[#7CFCB0] shadow-[0_0_8px_#22C55E]" />}
-        </motion.div>
-      ))}
-    </div>
-  )
-}
-
 /* ── Mission screen: energy data-flow panel on the right ── */
 function EnergyScreen({ dsId, runId, dsName, doneCount, pct }: { dsId: string; runId: string; dsName: string; doneCount: number; pct: number }) {
   return (
@@ -285,14 +255,9 @@ export function DashboardPage() {
             </motion.div>
 
             <p className="mt-5 max-w-lg text-sm leading-7 text-gray-300">
-              EcoMind runs your energy data through a <span className="font-semibold text-gray-100">17-stage explainable pipeline</span> —
+              EcoMind runs your energy data through a <span className="font-semibold text-gray-100">15-stage explainable pipeline</span> —
               every transformation, every model, every verdict is shown, proven, and ready for audit.
             </p>
-
-            {/* process-adaptive words */}
-            <div className="mt-5">
-              <ProcessWords stageStatuses={stageStatuses} runId={runId} />
-            </div>
 
             <div className="mt-5 flex flex-wrap items-center gap-3">
               <button
@@ -410,7 +375,7 @@ export function DashboardPage() {
               <Sparkles className="h-8 w-8 text-primary-400/70" />
               <p className="font-display text-lg font-semibold text-gray-200">Nothing to show on this dataset yet</p>
               <p className="max-w-xl text-sm leading-relaxed text-gray-400">
-                EcoMind generates the Mission Control briefing only after the full 17-stage explainable
+                EcoMind generates the Mission Control briefing only after the full 15-stage explainable
                 pipeline completes. Run the journey now — every decision it makes becomes visible here —
                 or pick a completed run from the Library.
               </p>

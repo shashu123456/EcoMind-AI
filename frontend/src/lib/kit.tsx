@@ -693,14 +693,12 @@ export function JourneyNav({
 export const STAGE_SCORES: Record<string, { score: number; why: string; strong: string }> = {
   'Dataset Library': { score: 8, why: 'Curated energy datasets with schema snapshots and one-click start.', strong: 'Backed by real storage — not mock cards. Say: “every dataset is queryable and reusable across runs.”' },
   'Import Dataset': { score: 9, why: 'Live CSV/Excel intake with sampling, progress and raw-byte honesty.', strong: 'Show it failing gracefully on bad input — robustness impresses examiners more than success.' },
-  'Raw Preview': { score: 8, why: 'The data exactly as received — untouched and labelled.', strong: 'Say: “this kills data-snooping bias — we show the raw table before any repair.”' },
   'Schema Discovery': { score: 9, why: 'Auto-typed fields with per-column confidence percentages.', strong: 'Explain tolerance margins — it reasons about ambiguity instead of guessing.' },
   'Data Quality Engine': { score: 10, why: 'Eight quality dimensions repaired in an animated, row-by-row terminal.', strong: 'This is the demo moment — slow it down and watch nulls normalize live.' },
   'Transformation Viewer': { score: 10, why: 'Raw → Processed with a live data-flow terminal between the tables.', strong: 'Say what each transformation does and why — the flow pane shows real stats moving.' },
   'Feature Engineering': { score: 9, why: 'AI-generated explainable features with before/after impact.', strong: 'Every generated feature carries a label a non-expert can read out loud.' },
   'Prediction Engine': { score: 10, why: 'Head-to-head model training with live metrics while it learns.', strong: 'The training curves are honest — loss going down is your proof.' },
   'AI Confidence Gate': { score: 10, why: 'A trust score before any decision is allowed through.', strong: 'This is a selling point: no other coursework shows a gate *before* decisions.' },
-  'Raw vs Processed Comparison': { score: 9, why: 'Empirical proof that cleaning raised model performance.', strong: 'Quote one number: “accuracy before vs after.” One number is all you need.' },
   'SHAP Explainability': { score: 10, why: 'Real SHAP values computed on your actual model and dataset.', strong: 'Nobody expects a coursework project to contain this. Lead with it — it is your rare card.' },
   'Anomaly Detection': { score: 9, why: 'Deviation-around-expected timeline scan, severity-ranked.', strong: 'The dashed expected line shows “baseline vs reality” in one glance.' },
   'Benchmarking': { score: 9, why: 'Percentile ranking of your model against a reference portfolio.', strong: 'A ranked table with “winner” reads better than any chart at a viva.' },
@@ -737,7 +735,6 @@ export function StageBanner({
   icon?: React.ReactNode
   children?: React.ReactNode
 }) {
-  const words = title.split(/\s+/).filter(Boolean)
   return (
     <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, ease: B }}
       className="flex flex-col gap-3">
@@ -757,19 +754,6 @@ export function StageBanner({
           <StageScoreChip title={title} />
           {children}
         </div>
-      </div>
-      <div className="flex flex-wrap items-center gap-1.5" aria-hidden>
-        {words.map((w, i) => (
-          <motion.span
-            key={w + i}
-            initial={{ opacity: 0, x: -8 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.12 + i * 0.06, duration: 0.35, ease: B }}
-            className="term-glow rounded-md border border-white/[0.09] bg-black/70 px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.16em] text-gray-200 shadow-[0_0_18px_rgba(76,95,213,0.10)]"
-          >
-            {w}
-          </motion.span>
-        ))}
       </div>
     </motion.div>
   )

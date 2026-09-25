@@ -64,7 +64,7 @@ describe('journey poll() dataset selection', () => {
     expect(s.runId).toBe('rB')
     expect(s.stageStatuses.library).toBe('done')
     expect(s.stageStatuses.import).toBe('done')
-    expect(s.stageStatuses.raw_preview).toBe('active')
+    expect(s.stageStatuses.schema_discovery).toBe('active')
     expect(streamWorkflow).toHaveBeenCalledWith('rB', expect.any(Function), expect.any(Function))
   })
 
