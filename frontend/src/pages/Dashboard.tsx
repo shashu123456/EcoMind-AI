@@ -124,13 +124,13 @@ function EnergyScreen({ dsId, runId, dsName, doneCount, pct }: { dsId: string; r
             <AnnotatedText variant="highlight" className="text-white">Every step explained.</AnnotatedText>
           </h1>
           <p className="mt-1 max-w-md text-sm leading-6 text-gray-300">
-            A 17-stage explainable pipeline — from raw energy data to decisions you can trust.
+            A 15-stage explainable pipeline — from raw energy data to decisions you can trust.
           </p>
           {doneCount > 0 && (
             <div className="mt-3 flex items-center gap-3">
               <ProgressRing pct={pct} />
               <div>
-                <p className="font-mono text-xs leading-none text-gray-200">{doneCount}/17 stages complete</p>
+                <p className="font-mono text-xs leading-none text-gray-200">{doneCount}/15 stages complete</p>
                 <p className="mt-1 font-mono text-[10px] uppercase tracking-widest text-gray-400">trust score ready</p>
               </div>
             </div>
@@ -232,15 +232,15 @@ export function DashboardPage() {
         <div className="grid items-center gap-8 lg:grid-cols-[1.12fr_1fr]">
           <div>
             {/* brand — left-aligned, electric pulse */}
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mb-4 flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.3em] text-[#7DD3FC]">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mb-4 flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.3em] text-accent-cyan">
               <Cpu className="h-3.5 w-3.5 animate-pulse-glow" />
               <span>adaptive · explainable · energy intelligence</span>
             </motion.div>
             <div className="flex items-center gap-3">
               <EcoMindLogo size={46} />
-              <h1 className="font-display text-5xl font-black tracking-tight text-white sm:text-6xl">
-                ECO<span className="text-[#7DD3FC]">MIND</span>
-                <span className="ml-2 inline-block h-2.5 w-2.5 rounded-full bg-[#22C55E] shadow-[0_0_14px_#22C55E]" />
+              <h1 className="font-display text-5xl font-black tracking-tight text-gray-100 sm:text-6xl">
+                ECO<span className="text-accent-cyan">MIND</span>
+                <span className="ml-2 inline-block h-2.5 w-2.5 rounded-full bg-accent-emerald shadow-[0_0_14px_rgba(14,122,85,0.5)]" />
               </h1>
             </div>
             <motion.div
@@ -251,7 +251,7 @@ export function DashboardPage() {
               {Array.from({ length: 6 }).map((_, i) => (
                 <span key={i} className="h-[3px] rounded-full bg-gradient-to-r from-primary-500 via-[#4A9FD8] to-[#22C55E]" style={{ width: `${34 + i * 10}px` }} />
               ))}
-              <Zap className="ml-1 h-4 w-4 text-[#7DD3FC]" />
+              <Zap className="ml-1 h-4 w-4 text-accent-cyan" />
             </motion.div>
 
             <p className="mt-5 max-w-lg text-sm leading-7 text-gray-300">
@@ -321,7 +321,7 @@ export function DashboardPage() {
 
       {/* Race lights strip */}
       <Reveal delay={0.14}>
-        <div className="glass-panel screws relative flex flex-wrap items-center justify-between gap-4 p-5">
+        <div className="glass-panel relative flex flex-wrap items-center justify-between gap-4 p-5">
           <div className="flex items-center gap-3">
             <span className="relative flex h-10 w-10 items-center justify-center rounded-glass bg-primary-500/15">
               <Radio className="h-5 w-5 text-primary-400 animate-pulse-glow" />
@@ -337,7 +337,7 @@ export function DashboardPage() {
                 ) : journeyFailed ? (
                   <span className="text-accent-rose">Journey stopped — {journeyFailed}</span>
                 ) : (
-                  <>17-stage explainable workflow · {doneCount} completed</>
+                  <>15-stage explainable workflow · {doneCount} completed</>
                 )}
               </p>
             </div>
@@ -461,7 +461,7 @@ export function DashboardPage() {
               <h3 className="font-display text-sm font-semibold">Executive Narrative</h3>
             </div>
             <p className="text-sm leading-relaxed text-gray-400">
-              {exec?.headline || exec?.summary || 'Begin your journey: select a dataset and run the full 17-stage explainable pipeline. EcoMind will show you every decision it makes.'}
+              {exec?.headline || exec?.summary || 'Begin your journey: select a dataset and run the full 15-stage explainable pipeline. EcoMind will show you every decision it makes.'}
             </p>
             {exec?.overview && <p className="mt-3 text-sm leading-relaxed text-gray-400">{exec.overview}</p>}
             {exec?.key_findings?.length ? (

@@ -109,6 +109,17 @@
     text-shadow: 0 0 9px rgba(125, 211, 252, 0.5);
   }
 
+  /* Theme-aware console line tones (auto-flip via --term-*) */
+  .console-log { color: var(--term-hi); }
+  .console-ok { color: var(--term-emerald); }
+  .console-warn { color: var(--term-gold); }
+  .console-err { color: var(--color-accent-rose); }
+  .console-muted { color: var(--term-lo); }
+  .console-bg {
+    background: var(--term-bg);
+    color: var(--term-hi);
+  }
+
   body {
     background:
       radial-gradient(48% 40% at 12% 8%, rgba(76, 95, 213, 0.22), transparent 68%),
@@ -120,7 +131,7 @@
     background-size: 220% 220%, 190% 190%, 210% 210%, 180% 180%, 100% 100%, 100% 100%;
     animation: eco-flow 32s ease-in-out infinite alternate;
     color: var(--color-text-primary);
-    font-family: 'Inter', sans-serif;
+    font-family: 'Manrope', sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
@@ -237,51 +248,51 @@
 }
 
 /* ══════════════════════════════════════════════════════════════════
-   LIGHT THEME — INDUSTRIAL SKEUOMORPHISM (default)
-   Terminals stay dark monitors (a light chassis with dark screens).
-   Every surface is a moulded ABS/cast-aluminium object lit from the
-   top-left at 45°: dual neumorphic shadows, safety-orange controls.
+   LIGHT THEME — CLEAN PRODUCT PAPER (default)
+   Terminals follow the theme: light "ink on paper" consoles.
+   Raised white surfaces, navy ink, brand-indigo interactive, soft
+   elevation shadows, subtle indigo auras on the canvas.
    ══════════════════════════════════════════════════════════════════ */
 [data-theme='light'] {
-  /* ── Industrial palette ─────────────────────────── */
-  --chassis: #e0e5ec;       /* level 0 matte plastic bg      */
-  --panel-lt: #f0f2f5;      /* level +1 raised panel          */
-  --muted: #d1d9e6;         /* level -1 recessed               */
-  --ink: #2d3436;           /* charcoal text                  */
-  --ink-mid: #4a5568;       /* slate labels                   */
-  --bor-shadow: #babecc;    /* neumorphic dark half           */
-  --bor-light: #ffffff;     /* neumorphic light half          */
-  --bor-deep: #a3b1c6;      /* prominent dividers             */
-  --accent: #ff4757;        /* safety orange (interactive)    */
+  /* ── Professional light palette ─────────────────── */
+  --chassis: #EEF1F7;       /* page canvas, cool soft grey   */
+  --panel-lt: #FFFFFF;      /* raised card                   */
+  --muted: #E4E8F0;         /* recessed wells                */
+  --ink: #1B2437;           /* near-navy primary text        */
+  --ink-mid: #3E4A61;       /* secondary text                */
+  --bor-shadow: #C9D0DC;    /* soft shadow base              */
+  --bor-light: #FFFFFF;     /* crisp edge highlight          */
+  --bor-deep: #B6BFCF;      /* prominent dividers            */
+  --accent: #4C5FD5;        /* brand indigo (interactive)    */
 
-  /* ── Neumorphic shadow system ───────────────────── */
-  --shadow-card: 8px 8px 16px #babecc, -8px -8px 16px #ffffff;
-  --shadow-floating: 12px 12px 24px #babecc, -12px -12px 24px #ffffff, inset 1px 1px 0 rgba(255, 255, 255, 0.5);
-  --shadow-pressed: inset 6px 6px 12px #babecc, inset -6px -6px 12px #ffffff;
-  --shadow-recessed: inset 4px 4px 8px #babecc, inset -4px -4px 8px #ffffff;
-  --shadow-sharp: 4px 4px 8px rgba(0, 0, 0, 0.15), -1px -1px 1px rgba(255, 255, 255, 0.8);
-  --shadow-glow: 0 0 10px 2px rgba(255, 71, 87, 0.6);
-  --shadow-glow-green: 0 0 10px 2px rgba(34, 197, 94, 1);
-  --glow-cta-a: rgba(166, 50, 60, 0.4);
-  --glow-cta-b: rgba(255, 100, 110, 0.4);
+  /* ── Soft elevation shadow system ───────────────── */
+  --shadow-card: 0 1px 2px rgba(20, 28, 48, 0.05), 0 8px 24px rgba(20, 28, 48, 0.07);
+  --shadow-floating: 0 2px 6px rgba(20, 28, 48, 0.07), 0 18px 44px rgba(20, 28, 48, 0.14);
+  --shadow-pressed: inset 0 1px 3px rgba(20, 28, 48, 0.12);
+  --shadow-recessed: inset 0 1px 4px rgba(20, 28, 48, 0.10);
+  --shadow-sharp: 0 1px 2px rgba(20, 28, 48, 0.10);
+  --shadow-glow: 0 0 0 3px rgba(76, 95, 213, 0.18);
+  --shadow-glow-green: 0 0 0 3px rgba(16, 138, 95, 0.18);
+  --glow-cta-a: rgba(76, 95, 213, 0.35);
+  --glow-cta-b: rgba(74, 159, 216, 0.35);
 
-  /* ── Semantic text (dark ink on light chassis) ──── */
+  /* ── Semantic text (navy ink on soft canvas) ────── */
   --t-hi: var(--ink);
   --t-mid: var(--ink-mid);
-  --t-lo: #6b7684;
+  --t-lo: #66718A;
 
-  /* ── Surfaces (light chassis) ───────────────────── */
+  /* ── Surfaces (light canvas) ────────────────────── */
   --bg: var(--chassis);
-  --bg2: #dbe0e8;
-  --bg3: #d3d9e3;
+  --bg2: #E9EDF4;
+  --bg3: #E1E6EF;
   --panel: var(--panel-lt);
-  --panel2: #e7eaef;
-  --panel3: #d4dae2;
+  --panel2: #F4F6FA;
+  --panel3: #E4E8F0;
   --color-dark: var(--chassis);
   --color-surface: var(--panel-lt);
-  --color-surface-light: #e7eaef;
-  --color-surface-lighter: #d4dae2;
-  --color-surface-lighter2: #ffffff;
+  --color-surface-light: #F4F6FA;
+  --color-surface-lighter: #E4E8F0;
+  --color-surface-lighter2: #FFFFFF;
 
   /* ── Semantic chrome tokens (flip with theme) ───── */
   --chrome-bg: var(--bg);
@@ -292,181 +303,154 @@
   --chrome-hi: var(--t-hi);   /* headings / strong text */
   --chrome-mid: var(--t-mid); /* body text              */
   --chrome-lo: var(--t-lo);   /* muted text             */
-  --chrome-line: rgba(74, 85, 104, 0.14);   /* hairlines  */
-  --chrome-line-hi: rgba(46, 52, 54, 0.24);
+  --chrome-line: rgba(27, 36, 55, 0.10);   /* hairlines  */
+  --chrome-line-hi: rgba(27, 36, 55, 0.18);
 
-  /* ── Interactive accent = safety orange ─────────── */
+  /* ── Interactive accent = brand indigo ──────────── */
   --color-primary: var(--accent);
-  --color-primary-glow: rgba(255, 71, 87, 0.22);
-  --color-accent-cyan: #2173a8;
+  --color-primary-glow: rgba(76, 95, 213, 0.12);
+  --color-accent-cyan: #147D9D;
   --color-accent-amber: #9A6B12;
   --color-accent-gold: #9A6B12;
-  --color-accent-rose: #B02348;
+  --color-accent-rose: #BE3455;
   --color-accent-violet: #6A52BE;
 
-  /* ── Text / borders (ink hairlines) ─────────────── */
+  /* ── Text / borders (navy hairlines) ────────────── */
   --color-text-primary: var(--ink);
   --color-text-secondary: var(--ink-mid);
   --color-text-muted: var(--t-lo);
-  --color-border: rgba(74, 85, 104, 0.14);
-  --color-border-hover: rgba(46, 52, 54, 0.24);
+  --color-border: rgba(27, 36, 55, 0.10);
+  --color-border-hover: rgba(27, 36, 55, 0.18);
 
-  /* ── Industrial radii ───────────────────────────── */
+  /* ── Radii ──────────────────────────────────────── */
   --radius-glass: 16px;
-  --radius-card: 16px;
+  --radius-card: 14px;
   --radius-button: 8px;
   --shadow-glass: var(--shadow-card);
+
+  /* ── Terminals follow the theme: light paper consoles ── */
+  --term-bg: #F6F8FC;
+  --term-bg2: #EFF3FA;
+  --term-hi: #1B2437;
+  --term-mid: #3E4A61;
+  --term-lo: #66718A;
+  --term-jade: #4C5FD5;
+  --term-emerald: #0E7A55;
+  --term-gold: #9A6B12;
 }
 
 /* ══════════════════════════════════════════════════════════════════
    LIGHT THEME — REMAP hardcoded dark-only utilities (chassis + ink)
    Most components carry dark-monitor classes literally. Instead of
-   editing 60 files, remap those exact class tokens to industrial
+   editing 60 files, remap those exact class tokens to clean product
    values here. Specificity beats Tailwind's single-class rules.
+   Terminals become LIGHT paper consoles in light mode.
    ══════════════════════════════════════════════════════════════════ */
 [data-theme='light'] {
-  /* neutral text → charcoal ink */
-  [class~='text-gray-100'] { color: #1f2428; }
-  [class~='text-gray-200'] { color: #2d3436; }
-  [class~='text-gray-300'] { color: #3d464e; }
-  [class~='text-gray-400'] { color: #4a5568; }
-  [class~='text-gray-500'] { color: #5f6872; }
-  [class~='text-gray-600'] { color: #6b7684; }
+  /* neutral text → navy ink family */
+  [class~='text-gray-50'] { color: #252F43; }
+  [class~='text-gray-100'] { color: #252F43; }
+  [class~='text-gray-200'] { color: #2C3850; }
+  [class~='text-gray-300'] { color: #3E4A61; }
+  [class~='text-gray-400'] { color: #55617A; }
+  [class~='text-gray-500'] { color: #66718A; }
+  [class~='text-gray-600'] { color: #77829A; }
+  [class~='text-gray-700'] { color: #8A94A8; }
 
-  /* brand text → safety orange for interactive, ink for metadata */
-  [class~='text-primary-300'] { color: #4a5568; }
-  [class~='text-primary-400'] { color: #ff4757; }
-  [class~='text-primary-500'] { color: #d63a47; }
-  [class~='text-accent-emerald'] { color: #1b7a52; }
-  [class~='text-accent-cyan'] { color: #2173a8; }
+  /* brand text → brand indigo for interactive, ink for metadata */
+  [class~='text-primary-100'] { color: #5870E0; }
+  [class~='text-primary-200'] { color: #4C5FD5; }
+  [class~='text-primary-200/90'] { color: rgba(76, 95, 213, 0.9); }
+  [class~='text-primary-300'] { color: #55617A; }
+  [class~='text-primary-400'] { color: #4C5FD5; }
+  [class~='text-primary-500'] { color: #4255C4; }
+  [class~='text-accent-emerald'] { color: #0E7A55; }
+  [class~='text-accent-cyan'] { color: #147D9D; }
   [class~='text-accent-gold'] { color: #9A6B12; }
   [class~='text-accent-rose'] { color: #B02348; }
   [class~='text-accent-violet'] { color: #6A52BE; }
   [class~='text-accent-amber'] { color: #9A6B12; }
 
-  /* solid / graded primary → safety orange CTA */
-  [class~='bg-primary-500'] { background-color: #ff4757; color: #ffffff; }
-  [class~='hover:bg-primary-400'] { background-color: #e03545; }
-  [class~='bg-primary-500/10'] { background-color: rgba(255, 71, 87, 0.12); }
-  [class~='bg-primary-500/20'] { background-color: rgba(255, 71, 87, 0.18); }
-  [class~='bg-primary-500/15'] { background-color: rgba(255, 71, 87, 0.14); }
-  [class~='from-primary-500'] { --tw-gradient-from: #ff4757; --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to, rgba(255, 71, 87, 0)); }
-  [class~='to-accent-cyan'] { --tw-gradient-to: #ff4757; }
-  [class~='via-accent-cyan'] { --tw-gradient-via: #ff4757; }
-  [class~='via-primary-500'] { --tw-gradient-via: #ff4757; }
-  [class~='border-primary-500/30'] { border-color: rgba(255, 71, 87, 0.3); }
-  [class~='border-primary-500/25'] { border-color: rgba(255, 71, 87, 0.25); }
-  [class~='bg-primary-500/30'] { background-color: rgba(255, 71, 87, 0.3); }
-  [class~='from-accent-rose'] { --tw-gradient-from: #ff4757; --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to, rgba(255, 71, 87, 0)); }
-  [class~='to-accent-emerald'] { --tw-gradient-to: #15803d; }
+  /* solid / graded primary → brand indigo CTA */
+  [class~='bg-primary-500'] { background-color: #4C5FD5; color: #ffffff; }
+  [class~='hover:bg-primary-400'] { background-color: #4358C6; }
+  [class~='bg-primary-500/10'] { background-color: rgba(76, 95, 213, 0.10); }
+  [class~='bg-primary-500/20'] { background-color: rgba(76, 95, 213, 0.16); }
+  [class~='bg-primary-500/15'] { background-color: rgba(76, 95, 213, 0.12); }
+  [class~='from-primary-500'] { --tw-gradient-from: #4C5FD5; --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to, rgba(76, 95, 213, 0)); }
+  [class~='to-accent-cyan'] { --tw-gradient-to: #3386C4; }
+  [class~='via-accent-cyan'] { --tw-gradient-via: #4A8FD0; }
+  [class~='via-primary-500'] { --tw-gradient-via: #4358C6; }
+  [class~='border-primary-500/30'] { border-color: rgba(76, 95, 213, 0.28); }
+  [class~='border-primary-500/25'] { border-color: rgba(76, 95, 213, 0.22); }
+  [class~='bg-primary-500/30'] { background-color: rgba(76, 95, 213, 0.24); }
+  [class~='from-accent-rose'] { --tw-gradient-from: #BE3455; --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to, rgba(190, 52, 85, 0)); }
+  [class~='to-accent-emerald'] { --tw-gradient-to: #0E7A55; }
 
-  /* ghost tinted accents → recessed wells */
-  [class~='bg-primary-400'] { background-color: #ff4757; color: #ffffff; }
+  /* ghost tinted accents → indigo wash */
+  [class~='bg-primary-400'] { background-color: #4C5FD5; color: #ffffff; }
 
-  /* terminal + console frames stay DARK monitors (industrial CRT) */
-  [class~='bg-black/45'] { background-color: #0C0F12; }
-  [class~='bg-black/40'] { background-color: #10141A; }
-  [class~='bg-black/30'] { background-color: #11151b; }
-  [class~='bg-black/60'] { background-color: rgba(9, 11, 14, 0.68); }
-  [class~='bg-dark-200/60'] { background-color: #14181d; }
-  [class~='from-dark'] { --tw-gradient-from: #F5F7FB; --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to, rgba(245, 247, 251, 0)); }
-  [class~='from-dark'] { background-image: linear-gradient(to right, #F5F7FB, transparent); }
-  [class~='bg-[#0a0f1a]'] { background-color: #0C0F12; }
-  [class~='bg-[#111827]'] { background-color: #0C0F12; }
-  [class~='text-color-dark'] { color: #2d3436; }
+  /* terminal + console frames become LIGHT paper consoles (theme-aware) */
+  [class~='bg-black/45'] { background-color: #F6F8FC; }
+  [class~='bg-black/40'] { background-color: #F1F4F9; }
+  [class~='bg-black/30'] { background-color: #EDF1F8; }
+  [class~='bg-black/60'] { background-color: rgba(16, 20, 26, 0.32); }
+  [class~='bg-dark-200/60'] { background-color: #E4E9F2; }
+  [class~='from-dark'] { --tw-gradient-from: #F6F8FC; --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to, rgba(246, 248, 252, 0)); }
+  [class~='from-dark'] { background-image: linear-gradient(to right, #F6F8FC, transparent); }
+  [class~='bg-[#0a0f1a]'] { background-color: #F6F8FC; }
+  [class~='bg-[#111827]'] { background-color: #F1F4F9; }
+  [class~='text-color-dark'] { color: #2C3850; }
 
-  /* tonal tiles & chips → inset recessed wells */
-  [class~='bg-white/[0.02]'] { background-color: rgba(224, 229, 236, 0.65); }
-  [class~='bg-white/[0.03]'] { background-color: rgba(224, 229, 236, 0.75); }
-  [class~='bg-white/[0.04]'] { background-color: rgba(224, 229, 236, 0.85); }
-  [class~='bg-white/[0.05]'] { background-color: #e0e5ec; }
-  [class~='bg-white/[0.06]'] { background-color: #e2e7ef; }
-  [class~='bg-white/20'] { background-color: rgba(255, 71, 87, 0.14); }
-  [class~='after:bg-white/20'] { --tw-bg-opacity: 1; background-color: rgba(255, 71, 87, 0.14); }
+  /* tonal tiles & chips → ink-tinted recessed wells */
+  [class~='bg-white/[0.02]'] { background-color: rgba(27, 36, 55, 0.03); }
+  [class~='bg-white/[0.03]'] { background-color: rgba(27, 36, 55, 0.04); }
+  [class~='bg-white/[0.04]'] { background-color: rgba(27, 36, 55, 0.05); }
+  [class~='bg-white/[0.05]'] { background-color: #E9EDF4; }
+  [class~='bg-white/[0.06]'] { background-color: #E4E9F2; }
+  [class~='bg-white/20'] { background-color: rgba(76, 95, 213, 0.08); }
+  [class~='after:bg-white/20'] { --tw-bg-opacity: 1; background-color: rgba(76, 95, 213, 0.08); }
 
-  /* hover washes → recessed tint */
-  [class~='hover:bg-white/[0.03]'] { background-color: rgba(255, 71, 87, 0.07); }
-  [class~='hover:bg-white/[0.04]'] { background-color: rgba(255, 71, 87, 0.07); }
-  [class~='hover:bg-white/[0.1]'] { background-color: rgba(255, 71, 87, 0.10); }
-  [class~='hover:bg-white/[0.12]'] { background-color: rgba(255, 71, 87, 0.12); }
+  /* hover washes → indigo tint */
+  [class~='hover:bg-white/[0.03]'] { background-color: rgba(76, 95, 213, 0.07); }
+  [class~='hover:bg-white/[0.04]'] { background-color: rgba(76, 95, 213, 0.07); }
+  [class~='hover:bg-white/[0.1]'] { background-color: rgba(76, 95, 213, 0.10); }
+  [class~='hover:bg-white/[0.12]'] { background-color: rgba(76, 95, 213, 0.12); }
 
   /* hairlines → ink hairlines */
-  [class~='border-white/[0.03]'] { border-color: rgba(74, 85, 104, 0.10); }
-  [class~='border-white/[0.05]'] { border-color: rgba(74, 85, 104, 0.14); }
-  [class~='border-white/[0.06]'] { border-color: rgba(74, 85, 104, 0.14); }
-  [class~='border-white/[0.07]'] { border-color: rgba(74, 85, 104, 0.16); }
-  [class~='border-white/[0.08]'] { border-color: rgba(74, 85, 104, 0.16); }
-  [class~='border-white/[0.1]'] { border-color: rgba(74, 85, 104, 0.18); }
-  [class~='border-white/[0.12]'] { border-color: rgba(74, 85, 104, 0.20); }
-  [class~='border-white/10'] { border-color: rgba(74, 85, 104, 0.18); }
-  [class~='border-white/20'] { border-color: rgba(74, 85, 104, 0.22); }
+  [class~='border-white/[0.03]'] { border-color: rgba(27, 36, 55, 0.08); }
+  [class~='border-white/[0.05]'] { border-color: rgba(27, 36, 55, 0.10); }
+  [class~='border-white/[0.06]'] { border-color: rgba(27, 36, 55, 0.10); }
+  [class~='border-white/[0.07]'] { border-color: rgba(27, 36, 55, 0.12); }
+  [class~='border-white/[0.08]'] { border-color: rgba(27, 36, 55, 0.12); }
+  [class~='border-white/[0.1]'] { border-color: rgba(27, 36, 55, 0.14); }
+  [class~='border-white/[0.12]'] { border-color: rgba(27, 36, 55, 0.16); }
+  [class~='border-white/10'] { border-color: rgba(27, 36, 55, 0.14); }
+  [class~='border-white/20'] { border-color: rgba(27, 36, 55, 0.18); }
 
   /* scan wash + misc white gradients → ink-tinted */
-  [class~='via-white/[0.03]'] { --tw-gradient-via: rgba(74, 85, 104, 0.05); }
-  [class~='via-white/[0.04]'] { --tw-gradient-via: rgba(74, 85, 104, 0.06); }
+  [class~='via-white/[0.03]'] { --tw-gradient-via: rgba(27, 36, 55, 0.05); }
+  [class~='via-white/[0.04]'] { --tw-gradient-via: rgba(27, 36, 55, 0.06); }
 
-  /* ── DARK MONITOR ZONE protection ─────────────────────────
-     Terminal surfaces stay dark CRTs in light mode. The generic
-     text remaps above flip gray→ink; inside these dark surfaces we
-     must keep the mono/body text LIGHT. Descendant rules win on
-     specificity. Terminal surfaces: any of the dark fills.        */
-  [data-theme='light'] :is(
-      [class~='bg-black/30'], [class~='bg-black/40'], [class~='bg-black/45'],
-      [class~='bg-black/60'], [class~='bg-dark-200/60'],
-      [class~='bg-[#0a0f1a]'], [class~='bg-[#111827]'],
-      .terminal-screen, .device-screen, [class~='glassy-console']) [class~='text-gray-100'] { color: #E9ECF0; }
-  [data-theme='light'] :is(
-      [class~='bg-black/30'], [class~='bg-black/40'], [class~='bg-black/45'],
-      [class~='bg-black/60'], [class~='bg-dark-200/60'],
-      [class~='bg-[#0a0f1a]'], [class~='bg-[#111827]'],
-      .terminal-screen, .device-screen, [class~='glassy-console']) [class~='text-gray-200'] { color: #D7DBE1; }
-  [data-theme='light'] :is(
-      [class~='bg-black/30'], [class~='bg-black/40'], [class~='bg-black/45'],
-      [class~='bg-black/60'], [class~='bg-dark-200/60'],
-      [class~='bg-[#0a0f1a]'], [class~='bg-[#111827]'],
-      .terminal-screen, .device-screen, [class~='glassy-console']) [class~='text-gray-300'] { color: #B6BDC6; }
-  [data-theme='light'] :is(
-      [class~='bg-black/30'], [class~='bg-black/40'], [class~='bg-black/45'],
-      [class~='bg-black/60'], [class~='bg-dark-200/60'],
-      [class~='bg-[#0a0f1a]'], [class~='bg-[#111827]'],
-      .terminal-screen, .device-screen, [class~='glassy-console']) [class~='text-gray-400'] { color: #97A0AA; }
-  [data-theme='light'] :is(
-      [class~='bg-black/30'], [class~='bg-black/40'], [class~='bg-black/45'],
-      [class~='bg-black/60'], [class~='bg-dark-200/60'],
-      [class~='bg-[#0a0f1a]'], [class~='bg-[#111827]'],
-      .terminal-screen, .device-screen, [class~='glassy-console']) [class~='text-gray-500'] { color: #7E8792; }
-  [data-theme='light'] :is(
-      [class~='bg-black/30'], [class~='bg-black/40'], [class~='bg-black/45'],
-      [class~='bg-black/60'], [class~='bg-dark-200/60'],
-      [class~='bg-[#0a0f1a]'], [class~='bg-[#111827]'],
-      .terminal-screen, .device-screen, [class~='glassy-console']) [class~='text-gray-600'] { color: #6B7480; }
-  [data-theme='light'] :is(
-      [class~='bg-black/30'], [class~='bg-black/40'], [class~='bg-black/45'],
-      [class~='bg-black/60'], [class~='bg-dark-200/60'],
-      [class~='bg-[#0a0f1a]'], [class~='bg-[#111827]'],
-      .terminal-screen, .device-screen, [class~='glassy-console']) [class~='text-white'] { color: #F2F4F7; }
+  /* remaining bg-black wells → ink-tinted recessed wells */
+  [class~='bg-black/20'] { background-color: rgba(27, 36, 55, 0.06); }
+  [class~='bg-black/25'] { background-color: rgba(27, 36, 55, 0.07); }
+  [class~='bg-black/50'] { background-color: #EDF1F8; }
 
-  /* keep bright literal status colors readable on dark monitors */
-  [data-theme='light'] :is(
-      [class~='bg-black/30'], [class~='bg-black/40'], [class~='bg-black/45'],
-      [class~='bg-black/60'], [class~='bg-dark-200/60'],
-      [class~='bg-[#0a0f1a]'], [class~='bg-[#111827]'],
-      .terminal-screen, .device-screen, [class~='glassy-console']) :is([class~='text-emerald-400'], [class~='text-emerald-500']) { color: #34d399; }
-  [data-theme='light'] :is(
-      [class~='bg-black/30'], [class~='bg-black/40'], [class~='bg-black/45'],
-      [class~='bg-black/60'], [class~='bg-dark-200/60'],
-      [class~='bg-[#0a0f1a]'], [class~='bg-[#111827]'],
-      .terminal-screen, .device-screen, [class~='glassy-console']) :is([class~='text-amber-400'], [class~='text-amber-500']) { color: #fbbf24; }
-  [data-theme='light'] :is(
-      [class~='bg-black/30'], [class~='bg-black/40'], [class~='bg-black/45'],
-      [class~='bg-black/60'], [class~='bg-dark-200/60'],
-      [class~='bg-[#0a0f1a]'], [class~='bg-[#111827]'],
-      .terminal-screen, .device-screen, [class~='glassy-console']) :is([class~='text-red-400'], [class~='text-rose-400'], [class~='text-rose-500']) { color: #f87171; }
-  [data-theme='light'] :is(
-      [class~='bg-black/30'], [class~='bg-black/40'], [class~='bg-black/45'],
-      [class~='bg-black/60'], [class~='bg-dark-200/60'],
-      [class~='bg-[#0a0f1a]'], [class~='bg-[#111827]'],
-      .terminal-screen, .device-screen, [class~='glassy-console']) :is([class~='text-cyan-300'], [class~='text-cyan-400'], [class~='text-sky-300'], [class~='text-sky-400']) { color: #7dd3fc; }
+  /* ── Light console glow (matches dark .term-glow/.term-key/.term-num) ── */
+  .term-key {
+    color: #173A63;
+    text-decoration-color: rgba(76, 95, 213, 0.45);
+    text-shadow: 0 0 10px rgba(76, 95, 213, 0.35), 0 0 22px rgba(76, 95, 213, 0.15);
+  }
+  .term-num {
+    color: #1E4A86;
+    text-decoration-color: rgba(76, 95, 213, 0.30);
+    text-shadow: 0 0 9px rgba(76, 95, 213, 0.40);
+  }
+  .term-scroll {
+    scrollbar-color: rgba(76, 95, 213, 0.35) transparent;
+  }
 
   /* ── LIGHT SURFACES: bright literal status text → deep ink variants ──
      Tailwind literal emerald/amber/rose/red are neon on light chassis;
@@ -487,40 +471,41 @@
   /* text-white is only used on colored fills (gradient buttons, node
      chips, logo tiles) where white stays correct — no global remap.  */
 
-  /* ── Industrial body: chassis + noise + top-left light ── */
+  /* ── Light canvas: cool chassis + soft indigo auras ── */
   body {
     background:
-      radial-gradient(900px 400px at -5% -15%, rgba(255, 255, 255, 0.9), transparent 60%),
-      radial-gradient(700px 500px at 110% 110%, rgba(163, 177, 198, 0.35), transparent 70%),
-      url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="140" height="140"><filter id="n"><feTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="2" stitchTiles="stitch"/></filter><rect width="140" height="140" filter="url(%23n)" opacity="0.24"/></svg>'),
+      radial-gradient(1100px 480px at 82% -18%, rgba(76, 95, 213, 0.10), transparent 62%),
+      radial-gradient(900px 560px at -8% 108%, rgba(74, 159, 216, 0.08), transparent 66%),
       var(--chassis);
     color: var(--ink);
+    animation: none;
   }
 
-  /* ── Display type = Inter (industrial sans) ─────── */
+  /* ── Display type = Manrope (matches dark product face) ── */
   .font-display {
-    font-family: 'Inter', sans-serif;
+    font-family: 'Manrope', sans-serif;
     letter-spacing: -0.02em;
   }
 
-  /* ── Glass panels become bolted chassis modules ─── */
+  /* ── Glass panels become raised white modules ─── */
   .glass-panel {
-    background: linear-gradient(135deg, rgba(240, 242, 245, 0.92), rgba(224, 229, 236, 0.88));
-    border: 1px solid var(--bor-light);
+    background: linear-gradient(160deg, #FFFFFF, #F4F6FA);
+    border: 1px solid var(--bor-deep);
     border-radius: var(--radius-glass);
-    box-shadow: var(--shadow-card), inset 0 1px 0 var(--bor-light);
+    box-shadow: var(--shadow-card);
   }
 
   .glass-card {
-    background: linear-gradient(135deg, rgba(240, 242, 245, 0.94), rgba(224, 229, 236, 0.90));
-    border: 1px solid var(--bor-light);
+    background: #FFFFFF;
+    border: 1px solid var(--bor-deep);
     border-radius: var(--radius-card);
-    box-shadow: var(--shadow-card), inset 0 1px 0 var(--bor-light);
-    transition: box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1), transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: var(--shadow-card);
+    transition: box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1), transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.2s;
   }
 
   .glass-card:hover {
-    box-shadow: var(--shadow-floating), inset 0 1px 0 var(--bor-light);
+    border-color: rgba(76, 95, 213, 0.35);
+    box-shadow: var(--shadow-floating);
   }
 }
 
@@ -561,7 +546,7 @@
     flex-shrink: 0;
   }
   .led-online { background: rgba(34, 197, 94, 1); box-shadow: 0 0 10px 2px rgba(34, 197, 94, 0.7); }
-  .led-alert  { background: #ff4757;             box-shadow: 0 0 10px 2px rgba(255, 71, 87, 0.6); }
+  .led-alert  { background: #C2335A;             box-shadow: 0 0 10px 2px rgba(194, 51, 90, 0.6); }
   .led-warn   { background: #f5b04e;             box-shadow: 0 0 10px 2px rgba(245, 176, 78, 0.6); }
   .led-idle   { background: #a3b1c6;             box-shadow: 0 0 4px rgba(163, 177, 198, 0.5); }
 
@@ -569,13 +554,6 @@
   .scanlines {
     background-image: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.22) 50%);
     background-size: 100% 4px;
-  }
-
-  /* ── Blueprint grid (schematic backgrounds) ── */
-  .blueprint-grid {
-    background-image: linear-gradient(#636e72 1px, transparent 1px),
-      linear-gradient(90deg, #636e72 1px, transparent 1px);
-    background-size: 40px 40px;
   }
 
   /* ── Physical key button: presses 2px with reversed shadows ── */
@@ -590,7 +568,7 @@
     box-shadow: inset 4px 4px 8px var(--shadow-pressed);
   }
   .phys-key:focus-visible {
-    outline: 2px solid var(--accent, #ff4757);
+    outline: 2px solid var(--accent, #4C5FD5);
     outline-offset: 2px;
   }
 
@@ -601,7 +579,7 @@
   }
   .input-well:focus {
     outline: none;
-    box-shadow: var(--shadow-recessed), 0 0 0 2px var(--accent, #ff4757);
+    box-shadow: var(--shadow-recessed), 0 0 0 2px var(--accent, #4C5FD5);
   }
 
   /* ── Connector pipe between steps (physical link) ── */
@@ -664,6 +642,6 @@
 
   /* ── Mechanical spring ease (overrides framer B in components) ── */
   :root {
-    --spring: cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    --spring: cubic-bezier(0.16, 1, 0.3, 1);
   }
 }

@@ -72,7 +72,7 @@ export function LoginPage() {
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.35, ease: 'easeOut' }}
-        className="glass-panel screws relative w-full max-w-md p-8"
+        className="glass-panel relative w-full max-w-md p-8"
       >
         <div className="mb-6 flex items-center justify-between">
           <div className="flex items-center gap-3">

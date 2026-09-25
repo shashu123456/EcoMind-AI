@@ -88,11 +88,11 @@ const { data: gate } = useApi(
               </span>
               <h1 className="mt-2 font-display text-3xl font-semibold text-gray-50">Journey complete.</h1>
               <p className="mt-1 max-w-xl text-sm text-gray-400">
-                All 17 stages executed and recorded. Here is the whole analysis in one screen — trust,
+                All 15 stages executed and recorded. Here is the whole analysis in one screen — trust,
                 winning model, savings, anomalies and the executive verdict.
               </p>
               <div className="mt-3 flex flex-wrap items-center gap-2">
-                <DoneChip text={`${doneCount}/17 stages done`} />
+                <DoneChip text={`${doneCount}/15 stages done`} />
                 <DoneChip text={runId ? `run ${String(runId).slice(0, 8)}` : 'final results'} />
                 {isHigh ? (
                   <span className="flex items-center gap-1.5 rounded-full border border-accent-emerald/30 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-accent-emerald">

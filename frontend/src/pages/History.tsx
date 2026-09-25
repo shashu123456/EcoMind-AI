@@ -10,6 +10,13 @@ import { useJourney, WORKFLOW, STAGE_BY_KEY, stagePath } from '../lib/journey'
 import { StageBanner, Particles, Reveal, FlowStat, PulseDot } from '../lib/kit'
 import clsx from 'clsx'
 
+const STATUS_BADGE: Record<string, string> = {
+  production: 'bg-emerald-500/10 text-emerald-400',
+  promoted: 'bg-emerald-500/10 text-emerald-400',
+  deprecated: 'bg-rose-500/10 text-rose-400',
+  draft: 'bg-gray-500/10 text-gray-400',
+}
+
 export function HistoryPage() {
   const { setActive, reopenRun } = useJourney()
   const navigate = useNavigate()
@@ -190,8 +197,7 @@ export function HistoryPage() {
                       <ScoreSpark m={m} />
                     </div>
                     <span className="flex items-center gap-1.5">
-                      <span className={clsx('rounded-full px-2 py-0.5 text-xs font-mono',
-                        m.status === 'production' || m.status === 'promoted' ? 'bg-emerald-500/10 text-emerald-400' : m.status === 'deprecated' ? 'bg-rose-500/10 text-rose-400' : 'bg-gray-500/10 text-gray-400')}>
+                      <span className={clsx('rounded-full px-2 py-0.5 text-xs font-mono', STATUS_BADGE[m.status] ?? 'bg-gray-500/10 text-gray-400')}>
                         {m.status}
                       </span>
                       <Box className="h-4 w-4 text-gray-400 transition-colors group-hover:text-primary-400" />
@@ -241,8 +247,7 @@ export function HistoryPage() {
                   <div className="flex flex-wrap items-center gap-2">
                     <h3 className="font-display text-lg font-semibold text-gray-100">{regOpen.model_id}</h3>
                     {regOpen.is_current && <span className="rounded bg-amber-500/15 px-2 py-0.5 text-xs font-mono text-amber-400">CURRENT</span>}
-                    <span className={clsx('rounded-full px-2 py-0.5 text-xs font-mono',
-                      regOpen.status === 'production' || regOpen.status === 'promoted' ? 'bg-emerald-500/10 text-emerald-400' : regOpen.status === 'deprecated' ? 'bg-rose-500/10 text-rose-400' : 'bg-gray-500/10 text-gray-400')}>
+                    <span className={clsx('rounded-full px-2 py-0.5 text-xs font-mono', STATUS_BADGE[regOpen.status] ?? 'bg-gray-500/10 text-gray-400')}>
                       {regOpen.status}
                     </span>
                   </div>

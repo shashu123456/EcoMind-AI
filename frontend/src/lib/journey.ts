@@ -309,7 +309,7 @@ export const useJourney = create<JourneyState>((set, get) => {
 /* Auto-drive: sequentially execute every stage of an existing run.
    "Run automation" driver — fires one `advance` per stage. Backend stage
    runners derive their inputs from run.dataset_id / best_model, so an empty
-   params advance completes the entire 17-stage pipeline. Progress streams
+   params advance completes the entire 15-stage pipeline. Progress streams
    live to the journey rail via SSE. */
 export async function runJourneyToCompletion(
   runId: string,
@@ -331,7 +331,6 @@ export async function runJourneyToCompletion(
       await workflows.advance(runId)
       state.markCompleted(stage.key)
       hooks?.onStageDone?.(stage)
-      toast(`${i + 1}/${WORKFLOW.length} · ${stage.label}`, stage.requires ? `requires ${stage.requires}` : stage.index === WORKFLOW.length ? 'pipeline finished' : 'stage complete')
     } catch (err) {
       try { state.disconnect() } catch { /* noop */ }
       toast(`${stage.label} failed`, String((err as any)?.message ?? err), 'error')

@@ -1,4 +1,5 @@
 import { ReactNode, useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { motion, animate, AnimatePresence } from 'framer-motion'
 import { useNavigate } from '@tanstack/react-router'
 import { ArrowRight, Check, Loader2, Footprints, RotateCcw, Flag } from 'lucide-react'
@@ -501,26 +502,170 @@ export function StreamTable({ columns, rows, speed = 60, live = true, exportable
   )
 }
 
+/* ── Theme-aware live console ──────────────────────────
+   The single terminal surface for the whole product. Dark theme = a
+   black glowing monitor; light theme = an ink-on-paper console.
+   All data is fully visible: lines wrap instead of truncating, the
+   body scrolls like a real terminal (auto-sticks to the bottom while
+   running, freezes when you scroll up). Copy / clear / fullscreen. */
+export type ConsoleLine = {
+  kind?: 'log' | 'key' | 'num' | 'ok' | 'warn' | 'err' | 'muted'
+  text: ReactNode
+}
+
+const CONSOLE_KIND: Record<NonNullable<ConsoleLine['kind']>, string> = {
+  log: 'console-log',
+  key: 'term-key',
+  num: 'term-num',
+  ok: 'console-ok',
+  warn: 'console-warn',
+  err: 'console-err',
+  muted: 'console-muted',
+}
+
+export function Console({
+  lines,
+  title = 'ecoSight console',
+  running = false,
+  height = 260,
+  caret = true,
+  onClear,
+  className,
+}: {
+  lines: ConsoleLine[]
+  title?: string
+  running?: boolean
+  height?: number
+  caret?: boolean
+  onClear?: () => void
+  className?: string
+}) {
+  const bodyRef = useRef<HTMLDivElement>(null)
+  const [full, setFull] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const stick = useRef(true)
+
+  useEffect(() => {
+    if (stick.current && bodyRef.current) {
+      bodyRef.current.scrollTop = bodyRef.current.scrollHeight
+    }
+  }, [lines, full])
+
+  const onScroll = () => {
+    const el = bodyRef.current
+    if (!el) return
+    stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 24
+  }
+
+  const copy = async () => {
+    const el = bodyRef.current
+    if (!el) return
+    try {
+      await navigator.clipboard.writeText(el.innerText || '')
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), 1400)
+    } catch {
+      /* clipboard unavailable */
+    }
+  }
+
+  const pane = (
+    <div
+      className={clsx('flex flex-col overflow-hidden rounded-glass border', className)}
+      style={{
+        background: 'var(--term-bg)',
+        borderColor: 'var(--chrome-line)',
+        boxShadow: '0 18px 50px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.05)',
+      }}
+    >
+      <div
+        className="flex h-9 shrink-0 items-center gap-2 px-3"
+        style={{ background: 'var(--term-bg2)', borderBottom: `1px solid var(--chrome-line)` }}
+      >
+        <span className="h-2.5 w-2.5 rounded-full bg-accent-rose/80" />
+        <span className="h-2.5 w-2.5 rounded-full bg-accent-gold/80" />
+        <span className="h-2.5 w-2.5 rounded-full bg-accent-emerald/80" />
+        <span className="ml-1 truncate font-mono text-[9px] uppercase tracking-[0.22em] text-[var(--term-lo)]">{title}</span>
+        <span className="ml-auto flex shrink-0 items-center gap-1">
+          {onClear && (
+            <button
+              onClick={onClear}
+              title="Clear console"
+              className="rounded px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-widest text-[var(--term-lo)] transition-colors hover:bg-white/10 hover:text-[var(--term-hi)]"
+            >
+              clear
+            </button>
+          )}
+          <button
+            onClick={copy}
+            title="Copy console output"
+            className="rounded px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-widest text-[var(--term-lo)] transition-colors hover:bg-white/10 hover:text-[var(--term-hi)]"
+          >
+            {copied ? 'copied' : 'copy'}
+          </button>
+          <button
+            onClick={() => setFull(f => !f)}
+            title={full ? 'Exit fullscreen' : 'Fullscreen'}
+            className="rounded px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-widest text-[var(--term-lo)] transition-colors hover:bg-white/10 hover:text-[var(--term-hi)]"
+          >
+            {full ? 'exit' : 'max'}
+          </button>
+        </span>
+      </div>
+      <div
+        ref={bodyRef}
+        onScroll={onScroll}
+        className="term-scroll flex-1 overflow-y-auto px-4 py-3 font-mono text-[11px] leading-5"
+        style={{ height: !full ? height : undefined, color: 'var(--term-hi)' }}
+      >
+        <div className="space-y-1">
+          {lines.map((ln, i) => (
+            <p key={i} className={clsx('whitespace-pre-wrap break-words', CONSOLE_KIND[ln.kind || 'log'])}>
+              {ln.text}
+            </p>
+          ))}
+          {running && caret && (
+            <span className="animate-pulse text-primary-400" style={{ textShadow: '0 0 8px currentColor' }}>▌</span>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+
+  if (!full) return pane
+  return createPortal(
+    <div className="fixed inset-0 z-[95] flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm sm:p-8">
+      <div className="h-full w-full max-w-6xl">
+        {pane}
+      </div>
+      <button
+        onClick={() => setFull(false)}
+        className="absolute right-4 top-4 rounded-button border border-white/15 px-3 py-1.5 font-mono text-[10px] uppercase tracking-widest text-white transition-colors hover:bg-white/10"
+      >
+        esc · close
+      </button>
+    </div>,
+    document.body,
+  )
+}
+
 /* ── Terminal-style live log ──────────────────────────── */
 export function LiveLog({ lines, accent = 'text-primary-400' }: { lines: string[]; accent?: string }) {
   return (
-    <div className="rounded-card border border-white/[0.06] bg-black/40 p-3 font-mono text-[11px] leading-5">
-      <div className="flex items-center gap-1.5 mb-2">
-        <span className="w-2.5 h-2.5 rounded-full bg-accent-rose/70" />
-        <span className="w-2.5 h-2.5 rounded-full bg-accent-amber/70" />
-        <span className="w-2.5 h-2.5 rounded-full bg-accent-emerald/70" />
-        <span className="ml-2 text-[9px] uppercase tracking-widest text-gray-600">ecoSight console</span>
-      </div>
-      <div className="space-y-0.5 text-gray-400">
-        {lines.map((l, i) => (
-          <motion.p key={i} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.08 }} className="truncate">
-            <span className="text-gray-600">[{String(i + 1).padStart(2, '0')}]</span> <span className={accent}>›</span>{' '}
+    <Console
+      running
+      title="ecoSight console"
+      lines={lines.map((l, i) => ({
+        kind: 'log',
+        text: (
+          <>
+            <span className="console-muted">[{String(i + 1).padStart(2, '0')}]</span>{' '}
+            <span className={accent}>›</span>{' '}
             <TypeText text={l} delay={i * 150} speed={12} caretClass={accent} />
-          </motion.p>
-        ))}
-        <motion.p animate={{ opacity: [0.4, 1, 0.4] }} transition={{ duration: 1.2, repeat: Infinity }} className={accent}>▌</motion.p>
-      </div>
-    </div>
+          </>
+        ),
+      }))}
+    />
   )
 }
 

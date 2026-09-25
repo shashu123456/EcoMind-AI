@@ -2,7 +2,7 @@ import { useLocation, useNavigate } from '@tanstack/react-router'
 import { Bell, LogOut, Settings, User, Zap, Footprints, Moon, Sun, Cpu, Home, Check, AlertTriangle, ArrowUpRight } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import clsx from 'clsx'
-import { WORKFLOW, useJourney } from '../lib/journey'
+import { WORKFLOW, MILESTONES, useJourney } from '../lib/journey'
 import { useTheme } from '../lib/theme'
 
 import { health, type HealthPayload } from '../lib/api'
@@ -21,6 +21,7 @@ export function TopBar() {
   const mode = useJourney(s => s.mode)
   const stage = stageForPath(location.pathname)
   const title = stage?.label || 'Mission Control'
+  const milestone = stage ? MILESTONES.find(m => m.stages.includes(stage.key)) : null
   const { theme, toggleTheme } = useTheme()
   const [open, setOpen] = useState(false)
   const [menuRefOpen, setMenuRefOpen] = useState(false)
@@ -105,6 +106,8 @@ export function TopBar() {
     ...lockedStages.map(s => ({ id: `locked-${s.key}`, kind: 'locked' as const, stage: s })),
   ].filter(n => n.stage)
 
+  const unseenCount = notifications.filter(n => n.stage && !seen[n.stage.key]).length
+
   const chips = [
     { label: 'ds', value: datasetId ? datasetId.slice(0, 8) : null, cls: 'text-[#4A9FD8]' },
     { label: 'run', value: runId ? runId.slice(0, 8) : null, cls: 'text-primary-400' },
@@ -135,7 +138,7 @@ export function TopBar() {
             <h1 className="truncate font-display text-[15px] font-semibold tracking-tight text-gray-100">{title}</h1>
             {stage && (
               <p className="truncate font-mono text-[10px] uppercase tracking-widest text-gray-500">
-                {stage.index}/17 {stage.requires === 'dataset' ? '· needs dataset' : stage.requires === 'run' ? '· needs run' : stage.requires === 'model' ? '· needs model' : ''}
+                {milestone?.short} › stage {stage.index}/15 {stage.requires === 'dataset' ? '· needs dataset' : stage.requires === 'run' ? '· needs run' : stage.requires === 'model' ? '· needs model' : ''}
               </p>
             )}
           </div>
@@ -221,7 +224,7 @@ export function TopBar() {
             <Bell className="w-4 h-4" />
             {notifications.length > 0 && (
               <span className="absolute -right-0.5 -top-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-primary-500 text-[8px] font-bold text-white shadow-[0_0_8px_rgba(76,95,213,0.6)]">
-                {notifications.length}
+                {unseenCount}
               </span>
             )}
           </button>
@@ -285,7 +288,7 @@ export function TopBar() {
                     {theme === 'dark' ? 'Dark' : 'Light'} mode
                   </button>
                 </div>
-                <p className="text-xs leading-3 text-gray-400">Terminals always stay dark for signal clarity.</p>
+                <p className="text-xs leading-3 text-gray-400">Terminals follow the theme — dark monitors in dark mode, light ink consoles in light mode.</p>
               </div>
 
               <div className="space-y-1.5">
