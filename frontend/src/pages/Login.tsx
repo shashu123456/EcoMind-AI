@@ -5,6 +5,7 @@ import { Cpu, Loader2, LogIn, ShieldCheck, ArrowRight } from 'lucide-react'
 import { auth } from '../lib/api'
 import { cn } from '../lib/interactive'
 import { EcoMindLogo } from '../lib/logo'
+import { DataFlow } from '../lib/kit'
 import { WORKFLOW, MILESTONES } from '../lib/journey'
 import { STAGE_COLORS } from '../components/ProcessRail'
 
@@ -73,6 +74,7 @@ export function LoginPage() {
           }}
         />
         <div className="absolute inset-x-0 top-0 h-3 bg-gradient-to-r from-sky-400 via-accent-cyan to-accent-emerald opacity-80" />
+        <DataFlow opacity={0.35} />
       </div>
 
       <div className="relative grid w-full max-w-5xl overflow-hidden rounded-glass border border-white/[0.08] bg-white/[0.03] shadow-[0_0_80px_rgba(76,95,213,0.18)] backdrop-blur-xl lg:grid-cols-[1.05fr_1fr]">

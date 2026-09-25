@@ -373,6 +373,66 @@ export function Particles({ count = 26 }: { count?: number }) {
   )
 }
 
+/* ── DataFlow: animated energy-stream background ──────────
+   Aurora ribbons flow across the layer while glowing pulses
+   travel along them and aurora nodes drift. Cheap (a few SVG
+   paths + transform/offset animations), mounted behind content. */
+const DATA_FLOW_LINES = [
+  { d: 'M -80 180 C 260 60, 500 330, 820 180 S 1400 90, 1720 210', dur: 13, delay: 0 },
+  { d: 'M -80 340 C 280 430, 560 180, 900 330 S 1420 300, 1720 380', dur: 17, delay: 2.5 },
+  { d: 'M -80 500 C 300 420, 620 600, 940 470 S 1440 520, 1720 470', dur: 15, delay: 5 },
+]
+const DATA_FLOW_NODES = [
+  { left: 12, top: 74, dur: 9 }, { left: 34, top: 26, dur: 11 },
+  { left: 58, top: 62, dur: 10 }, { left: 79, top: 18, dur: 12 },
+  { left: 91, top: 70, dur: 9.5 }, { left: 44, top: 88, dur: 13 },
+  { left: 67, top: 40, dur: 10.5 },
+]
+
+export function DataFlow({ className, opacity = 0.5 }: { className?: string; opacity?: number }) {
+  return (
+    <div className={`pointer-events-none absolute inset-0 overflow-hidden ${className ?? ''}`} aria-hidden style={{ opacity }}>
+      <svg className="absolute inset-0 h-full w-full" viewBox="0 0 1600 600" preserveAspectRatio="none">
+        <defs>
+          <linearGradient id="dataflow-ribbon" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0" stopColor="#4C5FD5" stopOpacity="0" />
+            <stop offset="0.28" stopColor="#4C5FD5" stopOpacity="0.8" />
+            <stop offset="0.55" stopColor="#4A9FD8" stopOpacity="0.7" />
+            <stop offset="0.8" stopColor="#5AD6F0" stopOpacity="0.75" />
+            <stop offset="1" stopColor="#34D399" stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        {DATA_FLOW_LINES.map((ln, i) => (
+          <g key={i}>
+            <path d={ln.d} fill="none" stroke="url(#dataflow-ribbon)" strokeWidth="1.4" />
+            <motion.circle
+              r="3.5"
+              fill={i === 1 ? '#5AD6F0' : '#4C5FD5'}
+              style={{ filter: 'drop-shadow(0 0 6px rgba(90,214,240,0.9))', offsetPath: `path('${ln.d}')` }}
+              animate={{ offsetDistance: ['0%', '100%'] }}
+              transition={{ duration: ln.dur, delay: ln.delay, repeat: Infinity, ease: 'linear' }}
+              initial={false}
+            />
+          </g>
+        ))}
+      </svg>
+      {DATA_FLOW_NODES.map((n, i) => (
+        <motion.div
+          key={i}
+          className="absolute h-1.5 w-1.5 rounded-full"
+          style={{
+            left: `${n.left}%`, top: `${n.top}%`,
+            background: i % 2 ? '#5AD6F0' : '#34D399',
+            boxShadow: `0 0 8px ${i % 2 ? 'rgba(90,214,240,0.9)' : 'rgba(52,211,153,0.9)'}`,
+          }}
+          animate={{ opacity: [0.15, 1, 0.15], scale: [0.8, 1.4, 0.8] }}
+          transition={{ duration: n.dur, repeat: Infinity, ease: 'easeInOut' }}
+        />
+      ))}
+    </div>
+  )
+}
+
 /* ── Reveal wrapper ───────────────────────────────────── */
 export function Reveal({ children, delay = 0, y = 18, className }: {
   children: React.ReactNode
