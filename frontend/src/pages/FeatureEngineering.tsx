@@ -61,7 +61,7 @@ export function FeatureEngineeringPage() {
       <div className="min-h-0 flex-1 space-y-6 overflow-y-auto pr-1">
       <Particles count={12} />
       <StageBanner
-        chapter="Stage 07 · Feature Engineering"
+        chapter="Stage 06 · Feature Engineering"
         title="Feature Engineering"
         tagline="EcoMind constructs explainable energy features — every one with a reason, a source and a purpose."
         icon={<GitBranch className="h-6 w-6 text-accent-violet" />}

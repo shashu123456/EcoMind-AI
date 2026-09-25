@@ -57,7 +57,7 @@ export function SHAPExplainabilityPage() {
       <div className="min-h-0 flex-1 space-y-6 overflow-y-auto pr-1">
       <Particles count={16} />
       <StageBanner
-        chapter="Stage 11 · SHAP Explainability"
+        chapter="Stage 09 · SHAP Explainability"
         title="Why the model decided what it decided"
         tagline="Every prediction decomposes into contributions — nothing is a black box."
         icon={<GitBranch className="h-6 w-6 text-accent-violet" />}

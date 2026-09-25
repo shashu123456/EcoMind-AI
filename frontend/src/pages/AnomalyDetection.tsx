@@ -119,7 +119,7 @@ export function AnomalyDetectionPage() {
       <div className="min-h-0 flex-1 space-y-6 overflow-y-auto pr-1">
       <Particles count={16} />
       <StageBanner
-        chapter="Stage 12 · Anomaly Detection"
+        chapter="Stage 10 · Anomaly Detection"
         title="Scanning the energy timeline for trouble"
         tagline="Severity-ranked anomalies with evidence, context and suggested actions underneath each one."
         icon={<Activity className="h-6 w-6 text-accent-rose" />}

@@ -138,7 +138,7 @@ export function TopBar() {
             <h1 className="truncate font-display text-[15px] font-semibold tracking-tight text-gray-100">{title}</h1>
             {stage && (
               <p className="truncate font-mono text-[10px] uppercase tracking-widest text-gray-500">
-                {milestone?.short} › stage {stage.index}/15 {stage.requires === 'dataset' ? '· needs dataset' : stage.requires === 'run' ? '· needs run' : stage.requires === 'model' ? '· needs model' : ''}
+                {milestone?.short} › stage {stage.index}/15 {stage.key === 'shap' ? '· needs dataset' : stage.requires === 'dataset' ? '· needs dataset' : stage.requires === 'run' ? '· needs run' : stage.requires === 'model' ? '· needs model' : ''}
               </p>
             )}
           </div>
@@ -229,7 +229,7 @@ export function TopBar() {
             )}
           </button>
           {open && (
-            <div className="absolute right-0 top-9 z-50 w-80 rounded-glass border border-white/[0.08] bg-surface-light/95 p-3 shadow-glass backdrop-blur-xl">
+            <div className="absolute right-0 top-9 z-[130] w-80 rounded-glass border border-white/[0.08] bg-surface-light/95 p-3 shadow-glass backdrop-blur-xl">
               <div className="mb-2 flex items-center justify-between">
                 <p className="font-mono text-xs uppercase tracking-[0.2em] text-gray-400">journey pulse</p>
                 <span className="font-mono text-[10px] text-gray-500">{doneCount}/{WORKFLOW.length} done</span>
@@ -271,7 +271,7 @@ export function TopBar() {
             <Settings className="w-4 h-4" />
           </button>
           {menuRefOpen && (
-            <div className="absolute right-0 top-9 z-50 w-72 rounded-glass border border-white/[0.08] bg-surface-light/95 p-4 shadow-glass backdrop-blur-xl">
+            <div className="absolute right-0 top-9 z-[130] w-72 rounded-glass border border-white/[0.08] bg-surface-light/95 p-4 shadow-glass backdrop-blur-xl">
               <p className="mb-3 font-mono text-xs uppercase tracking-[0.2em] text-gray-400">System settings</p>
 
               <div className="mb-4 space-y-1.5">

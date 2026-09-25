@@ -57,7 +57,7 @@ export function RecommendationsPage() {
       <div className="min-h-0 flex-1 space-y-6 overflow-y-auto pr-1">
       <Particles count={16} />
       <StageBanner
-        chapter="Stage 14 · Recommendation Engine"
+        chapter="Stage 12 · Recommendation Engine"
         title="Your AI energy consultant"
         tagline="Evidence-backed actions with projected savings, confidence and business impact."
         icon={<Lightbulb className="h-6 w-6 text-accent-amber" />}

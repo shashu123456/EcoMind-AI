@@ -217,7 +217,7 @@ export function PredictionPage() {
       <div className="min-h-0 flex-1 space-y-6 overflow-y-auto pr-1">
       <Particles count={14} />
       <StageBanner
-        chapter="Stage 08 · Prediction Engine"
+        chapter="Stage 07 · Prediction Engine"
         title="The models are learning"
         tagline="Three algorithms train head-to-head on the processed dataset. The strongest one earns the forecast."
         icon={<Gauge className="h-6 w-6 text-primary-400" />}

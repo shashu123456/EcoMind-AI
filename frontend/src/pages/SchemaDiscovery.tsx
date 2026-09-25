@@ -123,7 +123,7 @@ export function SchemaDiscoveryPage() {
       <div className="min-h-0 flex-1 space-y-6 overflow-y-auto pr-1">
       <Particles count={16} />
       <StageBanner
-        chapter="Stage 04 · Schema Discovery"
+        chapter="Stage 03 · Schema Discovery"
         title="Schema Discovery"
         tagline="EcoMind inspects every column and reveals what it is — type, role and confidence — one field at a time."
         icon={<Braces className="h-6 w-6 text-primary-400" />}

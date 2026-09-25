@@ -259,39 +259,123 @@ def _sections(facts: dict) -> list[dict]:
     return s
 
 
-def _render_pdf(title: str, sections: list[dict], path) -> None:
+_BRAND = {
+    "ink": "#0B1020",
+    "deep": "#111A2E",
+    "panel": "#F4F7FC",
+    "line": "#D7E0EE",
+    "indigo": "#4C5FD5",
+    "indigo_dark": "#3B4BB8",
+    "cyan": "#1488B8",
+    "emerald": "#0E7A55",
+    "amber": "#9A6B12",
+    "rose": "#B91C4C",
+    "muted": "#5B6B85",
+}
+
+
+def _render_pdf(title: str, sections: list[dict], path, subtitle: str = "") -> None:
     from reportlab.lib.pagesizes import A4
-    from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+    from reportlab.lib.styles import ParagraphStyle
     from reportlab.lib.units import mm
-    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+    from reportlab.platypus import (
+        Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle,
+        PageBreak, HRFlowable, KeepTogether,
+    )
     from reportlab.lib import colors
 
-    styles = getSampleStyleSheet()
-    h1 = ParagraphStyle("H1", parent=styles["Title"], fontName="Helvetica-Bold", fontSize=22, textColor=colors.HexColor("#0B1020"), spaceAfter=6)
-    h2 = ParagraphStyle("H2", parent=styles["Heading2"], fontName="Helvetica-Bold", fontSize=14, textColor=colors.HexColor("#3B82F6"), spaceBefore=12, spaceAfter=4)
-    body = ParagraphStyle("Body", parent=styles["BodyText"], fontName="Helvetica", fontSize=9.5, leading=13)
-    cell = ParagraphStyle("Cell", parent=body, fontSize=8.5, leading=11)
+    W, H = A4
+    c = {k: colors.HexColor(v) for k, v in _BRAND.items()}
 
-    doc = SimpleDocTemplate(str(path), pagesize=A4, topMargin=18 * mm, bottomMargin=18 * mm)
-    story = [Paragraph(title, h1),
-             Paragraph(f"Generated {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}", body), Spacer(1, 8)]
-    for sec in sections:
-        story.append(Paragraph(sec["title"], h2))
-        story.append(Paragraph(sec["content"].replace("\n", "<br/>"), body))
+    h1 = ParagraphStyle("H1", fontName="Helvetica-Bold", fontSize=23, leading=28,
+                        textColor=c["ink"], spaceAfter=4)
+    h2 = ParagraphStyle("H2", fontName="Helvetica-Bold", fontSize=13.5, leading=17,
+                        textColor=c["indigo_dark"], spaceBefore=16, spaceAfter=6)
+    body = ParagraphStyle("Body", fontName="Helvetica", fontSize=9.8, leading=14.5,
+                          textColor=c["ink"])
+    cell = ParagraphStyle("Cell", parent=body, fontSize=8.6, leading=11.2)
+    cellh = ParagraphStyle("CellH", parent=cell, textColor=colors.white,
+                           fontName="Helvetica-Bold")
+
+    def cover(story, sec_count: int) -> None:
+        story.append(Spacer(1, 88 * mm))
+        story.append(Paragraph(
+            "<font color='%s'>EcoMind</font> <font color='%s'>AI</font>" % (
+                c["indigo"].hexval(), c["cyan"].hexval()),
+            ParagraphStyle("Brand", fontName="Helvetica-Bold", fontSize=40,
+                           leading=46, textColor=c["indigo"], alignment=1)))
+        story.append(Spacer(1, 8))
+        story.append(HRFlowable(width="38%", thickness=1.2, color=c["cyan"], spaceBefore=2, spaceAfter=14))
+        story.append(Paragraph(title, ParagraphStyle(
+            "CovTitle", fontName="Helvetica-Bold", fontSize=19, leading=25,
+            textColor=c["ink"], alignment=1)))
+        story.append(Spacer(1, 6))
+        story.append(Paragraph(
+            subtitle,
+            ParagraphStyle("CovSub", fontName="Helvetica", fontSize=11, leading=16,
+                           textColor=c["muted"], alignment=1)))
+        story.append(Spacer(1, 10))
+        story.append(Paragraph(
+            f"Adaptive · Explainable · Energy Intelligence — {sec_count} evidence sections",
+            ParagraphStyle("CovTag", fontName="Helvetica", fontSize=9.5,
+                           textColor=c["muted"], alignment=1)))
+        story.append(Spacer(1, 26))
+        story.append(PageBreak())
+
+    def footer(canvas, doc_):
+        canvas.saveState()
+        canvas.setFont("Helvetica", 8)
+        canvas.setFillColor(c["muted"])
+        canvas.drawString(18 * mm, 11 * mm, "EcoMind AI — Adaptive Explainable Energy Intelligence")
+        canvas.drawRightString(W - 18 * mm, 11 * mm, f"Page {doc_.page}")
+        canvas.setStrokeColor(c["line"])
+        canvas.setLineWidth(0.5)
+        canvas.line(18 * mm, 14 * mm, W - 18 * mm, 14 * mm)
+        canvas.restoreState()
+
+    def table_block(rows, header_colors=(1, "indigo_dark")):
+        header_col = c[header_colors[1]] if header_colors[1] else c["indigo_dark"]
+        data = [[Paragraph(str(v), cellh) if r == 0 else Paragraph(str(v), cell)
+                 for v in row] for r, row in enumerate(rows)]
+        t = Table(data, repeatRows=1, hAlign="LEFT")
+        t.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), header_col),
+            ("GRID", (0, 0), (-1, -1), 0.4, c["line"]),
+            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, c["panel"]]),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("TOPPADDING", (0, 0), (-1, -1), 3.5),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 3.5),
+            ("LEFTPADDING", (0, 0), (-1, -1), 6),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+        ]))
+        return t
+
+    doc = SimpleDocTemplate(str(path), pagesize=A4, topMargin=20 * mm,
+                            bottomMargin=20 * mm, leftMargin=18 * mm, rightMargin=18 * mm,
+                            title=title, author="EcoMind AI",
+                            subject="Energy intelligence audit report",
+                            onFirstPage=footer, onLaterPages=footer)
+
+    story: list = []
+    cover(story, len(sections))
+    story.append(Paragraph("<font color='%s'>Report summary</font>" % c["indigo_dark"].hexval(),
+                           ParagraphStyle("Kicker", fontName="Helvetica-Bold", fontSize=10,
+                                          tracking=1, spaceAfter=6, textColor=c["indigo_dark"])))
+    for i, sec in enumerate(sections, 1):
+        block = [Paragraph(
+            "<font color='%s'>%02d</font>  %s" % (c["cyan"].hexval(), i, sec["title"]),
+            h2)]
+        block.append(HRFlowable(width="100%", thickness=0.8, color=c["line"], spaceBefore=2, spaceAfter=8))
+        block.append(Paragraph(sec["content"].replace("\n", "<br/>"), body))
         rows = sec.get("rows")
         if rows:
-            table = Table([[Paragraph(str(c), cell) for c in row] for row in rows],
-                          repeatRows=1)
-            table.setStyle(TableStyle([
-                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#EAF1FB")),
-                ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#C9D6E8")),
-                ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                ("FONTSIZE", (0, 0), (-1, -1), 8.5),
-            ]))
-            story.append(Spacer(1, 4))
-            story.append(table)
-        story.append(Spacer(1, 6))
+            block.append(Spacer(1, 6))
+            block.append(table_block(rows))
+        block.append(Spacer(1, 10))
+        if len(rows or []) == 0:
+            story.append(KeepTogether(block))
+        else:
+            story.extend(block)
     doc.build(story)
 
 
@@ -299,19 +383,46 @@ def _render_html(title: str, sections: list[dict]) -> str:
     import jinja2
     tpl = jinja2.Template("""<!doctype html><html><head><meta charset='utf-8'><title>{{title}}</title>
 <style>
-body{font-family:Inter,Arial,sans-serif;background:#0B1020;color:#E5E7EB;margin:0;padding:40px;}
-.panel{background:#171F33;border:1px solid #1E293B;border-radius:14px;padding:20px 24px;margin:14px 0;}
-h1{font-family:'Space Grotesk',sans-serif;color:#fff;font-size:26px;} h2{color:#3B82F6;font-size:16px;margin:0 0 8px;}
-code{background:#111827;padding:2px 6px;border-radius:6px;font-family:'JetBrains Mono',monospace;font-size:12px;}
-.meta{color:#94A3B8;font-size:12px;} pre{white-space:pre-wrap;margin:0;}
-table{border-collapse:collapse;width:100%;margin:10px 0;font-size:12.5px;}
-th,td{border:1px solid #2A3650;padding:6px 10px;text-align:left;}
-th{background:#101A30;color:#7DD3FC;font-weight:600;} td{color:#CBD5E1;}
-</style></head><body><h1>{{title}}</h1><div class='meta'>Generated {{ts}}</div>
-{% for s in sections %}<div class='panel'><h2>{{s.title}}</h2>
-{% if s.rows %}<table>{% for row in s.rows %}<tr>{% for cell in row %}{% if loop.parent.loop.index == 1 %}<th>{{cell}}</th>{% else %}<td>{{cell}}</td>{% endif %}{% endfor %}</tr>{% endfor %}</table>{% endif %}
-<pre>{{s.content}}</pre></div>{% endfor %}
-</body></html>""")
+:root{--indigo:#4C5FD5;--indigo-dark:#3B4BB8;--cyan:#1488B8;--emerald:#0E7A55;
+--amber:#9A6B12;--ink:#0B1020;--panel:#F4F7FC;--line:#D7E0EE;--muted:#5B6B85;--white:#fff;}
+body{font-family:'Manrope','Segoe UI',Arial,sans-serif;background:radial-gradient(46% 34% at 12% 4%,rgba(76,95,213,.10),transparent 66%),radial-gradient(40% 30% at 88% 2%,rgba(20,136,184,.08),transparent 66%),#F7F9FC;color:var(--ink);margin:0;padding:48px 0;}
+.page{max-width:880px;margin:0 auto;padding:0 24px;}
+.cover{text-align:center;padding:72px 0 40px;}
+.brand{font-weight:800;font-size:46px;letter-spacing:-1px;color:var(--ink);}
+.brand b{color:var(--cyan);font-weight:800;}
+.rule{width:180px;height:3px;margin:16px auto;background:linear-gradient(90deg,var(--indigo),var(--cyan),var(--emerald));border-radius:99px;}
+h1.title{margin:8px 0 4px;font-size:22px;line-height:1.3;}
+.sub{color:var(--muted);font-size:12.5px;margin:0 0 10px;}
+.tag{display:inline-block;color:var(--muted);font-size:11px;letter-spacing:.06em;}
+.meta{color:var(--muted);font-size:12px;margin:0 0 26px;}
+.panel{background:var(--white);border:1px solid var(--line);border-radius:14px;
+padding:22px 26px;margin:16px 0;box-shadow:0 1px 0 rgba(11,16,32,.04),0 10px 30px -18px rgba(76,95,213,.25);}
+.sec-head{display:flex;align-items:baseline;gap:12px;margin:0 0 4px;}
+.sec-num{font-family:'JetBrains Mono',ui-monospace,monospace;font-weight:700;color:var(--cyan);font-size:14px;}
+h2{margin:0;font-size:16.5px;color:var(--indigo-dark);}
+.hline{height:1px;background:var(--line);margin:10px 0 14px;}
+pre{white-space:pre-wrap;margin:0;font-size:12.5px;line-height:1.65;color:#232D43;}
+table{border-collapse:collapse;width:100%;margin:12px 0 2px;font-size:12.5px;}
+th{background:var(--indigo);color:#fff;font-weight:700;text-align:left;padding:8px 12px;border:1px solid var(--indigo-dark);}
+td{border:1px solid var(--line);padding:7px 12px;color:#2A3550;}
+tr:nth-child(even) td{background:var(--panel);}
+code{background:#EEF1F8;color:var(--indigo-dark);padding:1px 6px;border-radius:6px;
+font-family:'JetBrains Mono',ui-monospace,monospace;font-size:11.5px;}
+.foot{margin-top:34px;padding-top:14px;border-top:1px solid var(--line);display:flex;justify-content:space-between;
+color:var(--muted);font-size:11px;}
+</style></head><body><div class='page'>
+<div class='cover'><div class='brand'>EcoMind<b>AI</b></div><div class='rule'></div>
+<h1 class='title'>{{title}}</h1><p class='sub'>Adaptive · Explainable · Energy Intelligence</p>
+<p class='tag'>full pipeline energy-intelligence report</p></div>
+<p class='meta'>Generated {{ts}}</p>
+{% for s in sections %}<div class='panel'>
+<div class='sec-head'><span class='sec-num'>{{ '%02d' % loop.index }}</span><h2>{{s.title}}</h2></div>
+<div class='hline'></div>
+{% if s.rows %}<table>{% for row in s.rows %}{% set is_head = loop.index == 1 %}<tr>{% for cell in row %}{% if is_head %}<th>{{cell}}</th>{% else %}<td>{{cell}}</td>{% endif %}{% endfor %}</tr>{% endfor %}</table>{% endif %}
+{% if s.rows %}<pre style='margin-top:12px'>{{s.content}}</pre>{% else %}<pre>{{s.content}}</pre>{% endif %}
+</div>{% endfor %}
+<div class='foot'><span>EcoMind AI · Adaptive Explainable Energy Intelligence</span><span>evidence-grade audit · generated {{ts}}</span></div>
+</div></body></html>""")
     return tpl.render(title=title, ts=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"), sections=sections)
 
 
@@ -346,8 +457,10 @@ def generate(db: Session, dataset_id: str, title: str | None, report_type: str,
     fname = f"{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}_{ds.id[:8]}.{fmt}"
     path = settings.reports_dir / fname
     t0 = time.time()
+    sub = (f"{ds.name} · {ds.row_count} rows × {ds.column_count} columns · "
+           f"{report_type} report · generated {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}")
     if fmt == "pdf":
-        _render_pdf(title or f"EcoMind AI Report — {ds.name}", secs, path)
+        _render_pdf(title or f"EcoMind AI Report — {ds.name}", secs, path, subtitle=sub)
     elif fmt == "html":
         path.write_text(_render_html(title or f"EcoMind AI Report — {ds.name}", secs), encoding="utf-8")
     else:

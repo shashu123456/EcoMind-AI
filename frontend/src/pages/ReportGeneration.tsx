@@ -81,7 +81,7 @@ export function ReportGenerationPage() {
       <div className="min-h-0 flex-1 space-y-6 overflow-y-auto pr-1">
       <Particles count={16} />
       <StageBanner
-        chapter="Stage 16 · Report Generation"
+        chapter="Stage 14 · Report Generation"
         title="Report Generation"
         tagline="Every decision, every transformation, every number — compiled into an audit-ready deliverable."
         icon={<FileText className="h-6 w-6 text-primary-400" />}

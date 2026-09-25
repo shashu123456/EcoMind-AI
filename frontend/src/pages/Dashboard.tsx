@@ -7,9 +7,10 @@ import {
 } from 'lucide-react'
 import { datasets, ai, workflows } from '../lib/api'
 import { useApi } from '../lib/hooks'
-import { useJourney, WORKFLOW, stagePath, runJourneyToCompletion } from '../lib/journey'
+import { useJourney, WORKFLOW, stagePath, runJourneyToCompletion, MILESTONES, milestoneProgress } from '../lib/journey'
 import { AnimatedNumber, Particles, Reveal, Gauge as TrustGauge, B, firePageRipple } from '../lib/kit'
 import { AnnotatedText, MatrixRain, SplitFlapDisplay } from '../lib/interactive'
+import { STAGE_ICONS, STAGE_COLORS } from '../components/ProcessRail'
 import { EcoMindLogo } from '../lib/logo'
 import clsx from 'clsx'
 
@@ -60,6 +61,117 @@ function ElectricHero() {
         />
       ))}
     </div>
+  )
+}
+
+/* ── Live stage flow monitor: the full 15-stage pipeline lighting up
+     in real time as the auto journey advances (not just a counter). ── */
+function StageCascade({ statuses, running, now }: { statuses: Record<string, string>; running: boolean; now: number }) {
+  const pct = WORKFLOW.length ? (WORKFLOW.filter(s => statuses[s.key] === 'done').length / WORKFLOW.length) * 100 : 0
+  return (
+    <div className="glass-panel relative overflow-hidden p-5">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <p className="flex items-center gap-2 font-display text-sm font-semibold">
+            Live pipeline monitor
+            {running && (
+              <span className="flex items-center gap-1.5 rounded-full border border-accent-amber/30 bg-accent-amber/10 px-2 py-0.5 font-mono text-[9px] uppercase tracking-[0.18em] text-accent-amber">
+                <motion.span className="h-1.5 w-1.5 rounded-full bg-accent-amber" animate={{ opacity: [1, 0.2, 1] }} transition={{ duration: 1, repeat: Infinity }} />
+                auto-running
+              </span>
+            )}
+          </p>
+          <p className="mt-0.5 font-mono text-[10px] uppercase tracking-[0.18em] text-gray-500">
+            {running ? `stage ${now}/${WORKFLOW.length} — ${WORKFLOW[now - 1]?.short ?? 'igniting'}` : 'execution flow · every stage watching live'}
+          </p>
+        </div>
+        <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-widest text-gray-400">
+          <span>{Math.round(pct)}%</span>
+          <div className="h-1.5 w-24 overflow-hidden rounded-full bg-white/[0.06]">
+            <motion.div
+              className="h-full rounded-full bg-gradient-to-r from-primary-500 via-accent-cyan to-accent-emerald"
+              animate={{ width: `${pct}%` }}
+              transition={{ duration: 0.6, ease: 'easeOut' }}
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="space-y-3">
+        {MILESTONES.map((m, mi) => {
+          const prog = milestoneProgress(statuses, m)
+          const mColor = STAGE_COLORS[m.stages[0]]
+          return (
+            <div key={m.key}>
+              <div className="mb-1.5 flex items-center gap-2">
+                <span
+                  className="flex h-[18px] items-center justify-center rounded-full px-1.5 font-mono text-[9px] font-bold"
+                  style={{ background: `${mColor}1f`, color: mColor }}
+                >
+                  {String(mi + 1).padStart(2, '0')}
+                </span>
+                <span className="font-mono text-[9.5px] font-semibold uppercase tracking-[0.18em]" style={{ color: mColor }}>
+                  {m.short}
+                </span>
+                <span className="ml-auto font-mono text-[9px] text-gray-600">
+                  {prog.done}/{prog.total}
+                </span>
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5">
+                {m.stages.map((key, i) => {
+                  const s = WORKFLOW.find(x => x.key === key)!
+                  const st = statuses[key] || 'todo'
+                  const Icon = STAGE_ICONS[key]
+                  const c = STAGE_COLORS[key]
+                  const done = st === 'done'
+                  const active = running && s.index === now
+                  const locked = st === 'locked'
+                  return (
+                    <div key={key} className="flex items-center">
+                      <div
+                        className={clsx(
+                          'flex min-w-0 items-center gap-1.5 rounded-button border px-2 py-1.5 transition-all',
+                          done
+                            ? 'border-accent-emerald/40 bg-accent-emerald/10'
+                            : active
+                              ? 'bg-white/[0.06] shadow-[0_0_18px_rgba(76,95,213,0.25)]'
+                              : locked
+                                ? 'border-white/[0.05] opacity-45'
+                                : 'border-white/[0.07] hover:border-white/[0.12]',
+                        )}
+                        style={active ? { borderColor: `${c}88` } : undefined}
+                      >
+                        <span
+                          className="flex h-[18px] w-[18px] items-center justify-center rounded-md border font-mono text-[8.5px] font-bold"
+                          style={done ? { borderColor: 'rgba(52,211,153,0.5)', color: '#34D399' } : active ? { borderColor: `${c}99`, color: c } : { borderColor: 'rgba(255,255,255,0.1)', color: '#94A3B8' }}
+                        >
+                          {done ? <CheckMark className="h-2.5 w-2.5" /> : active ? <Icon className="h-2.5 w-2.5" /> : locked ? '!' : s.index}
+                        </span>
+                        <span className={clsx('truncate text-[10.5px] font-medium', done ? 'text-gray-200' : active ? 'text-gray-100' : 'text-gray-400')}>
+                          {s.short}
+                        </span>
+                        <span className="h-1.5 w-1.5 rounded-full" style={{ background: c, opacity: done ? 1 : 0.35 }} />
+                      </div>
+                      {i < m.stages.length - 1 && (
+                        <span className="mx-0.5 text-[10px] text-gray-600">›</span>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function CheckMark({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 12 12" className={className} fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2 6.5 4.5 9 10 3.5" />
+    </svg>
   )
 }
 
@@ -363,6 +475,13 @@ export function DashboardPage() {
           </div>
         </div>
       </Reveal>
+
+      {/* Live pipeline cascade — the full process visibly advancing */}
+      {(runningJourney || doneCount > 0) && (
+        <Reveal delay={0.15}>
+          <StageCascade statuses={stageStatuses} running={runningJourney} now={nowStep} />
+        </Reveal>
+      )}
 
       {/* Empty state */}
       {!exec && !execLoading && (

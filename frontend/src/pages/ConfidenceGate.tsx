@@ -129,7 +129,7 @@ export function ConfidenceGatePage() {
       <div className="min-h-0 flex-1 space-y-6 overflow-y-auto pr-1">
       <Particles count={16} />
       <StageBanner
-        chapter="Stage 09 · AI Confidence Gate"
+        chapter="Stage 08 · AI Confidence Gate"
         title="The AI must earn your trust before it decides"
         tagline="Four explainable signals are fused into a single trust score. Nothing is opaque."
         icon={<ShieldCheck className="h-6 w-6 text-accent-emerald" />}

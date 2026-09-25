@@ -64,7 +64,7 @@ export function BenchmarkingPage() {
       <div className="min-h-0 flex-1 space-y-6 overflow-y-auto pr-1">
       <Particles count={16} />
       <StageBanner
-        chapter="Stage 13 · Benchmarking"
+        chapter="Stage 11 · Benchmarking"
         title="Every model is now ranked against its peers"
         tagline="Percentile positions, per-metric scores and a clear winner."
         icon={<BarChart3 className="h-6 w-6 text-accent-amber" />}

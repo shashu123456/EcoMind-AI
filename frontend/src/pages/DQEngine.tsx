@@ -137,7 +137,7 @@ export function DQEnginePage() {
       </div>
 
       <FlowConsole
-        header="STAGE 05 · PROCESSING BRIDGE"
+        header="STAGE 04 · PROCESSING BRIDGE"
         operation={running ? 'correcting defects' : phase === 'done' ? 'quality verified' : 'waiting for start'}
         through="corrections applied"
         total={Math.round(score)}

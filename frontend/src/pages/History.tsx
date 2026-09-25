@@ -90,7 +90,7 @@ export function HistoryPage() {
       <div className="min-h-0 flex-1 space-y-6 overflow-y-auto pr-1">
       <Particles count={16} />
       <StageBanner
-        chapter="Stage 17 · History & Model Registry"
+        chapter="Stage 15 · History & Model Registry"
         title="History & Model Registry"
         tagline="Every journey is versioned. Reopen any past run — trace, trust score and verdict included."
         icon={<History className="h-6 w-6 text-primary-400" />}

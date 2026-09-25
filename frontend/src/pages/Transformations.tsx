@@ -214,7 +214,7 @@ export function TransformationsPage() {
       <div className="min-h-0 flex-1 space-y-6 overflow-y-auto pr-1">
       <Particles count={12} />
       <StageBanner
-        chapter="Stage 06 · Transformation Viewer"
+        chapter="Stage 05 · Transformation Viewer"
         title="Transformation Viewer"
         tagline="Watch the raw energy profiles become analysis-ready — rule by rule, feature by feature, with every change logged."
         icon={<Workflow className="h-6 w-6 text-primary-400" />}

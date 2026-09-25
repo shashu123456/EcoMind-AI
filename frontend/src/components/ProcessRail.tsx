@@ -21,12 +21,15 @@ export const STAGE_ICONS: Record<string, React.ComponentType<any>> = {
   recommendation: Target, executive_center: Briefcase, report: FileText, history_registry: History,
 }
 
+/* Per-stage accent hue — each pipeline phase gets its own colour family so
+   the flow reads as clearly separated sky → violet → blue → green → amber → rose. */
 export const STAGE_COLORS: Record<string, string> = {
-  library: '#4A9FD8', import: '#4A9FD8', schema_discovery: '#8D7BD8',
-  dq_engine: '#4C5FD5', transformation: '#4C5FD5', feature_engineering: '#4C5FD5',
-  prediction: '#5B6FE0', confidence_gate: '#5B6FE0',
-  shap: '#4AC29A', anomaly: '#D8A648', benchmarking: '#D8A648', recommendation: '#D8A648',
-  executive_center: '#4C5FD5', report: '#5B6FE0', history_registry: '#5B6FE0',
+  library: '#38BDF8', import: '#0EA5E9',
+  schema_discovery: '#8B7CF6', dq_engine: '#7C6DF6',
+  transformation: '#4C5FD5', feature_engineering: '#5B6FE0',
+  prediction: '#10B981', confidence_gate: '#14B8A6',
+  shap: '#F2A93B', anomaly: '#F87171', benchmarking: '#E89B3C', recommendation: '#D08C2B',
+  executive_center: '#A78BFA', report: '#7C6DF6', history_registry: '#8B7CF6',
 }
 
 /* The "under the hood" detail shown on every node — the backend API /
@@ -75,14 +78,20 @@ export function ProcessRail() {
   const stageReady = (key: string): boolean => {
     const stage = WORKFLOW.find(s => s.key === key)
     if (!stage) return false
-    const reqName = stage.requires === 'dataset' ? 'dataset' : stage.requires === 'run' ? 'run' : stage.requires === 'model' ? 'model' : null
+    // SHAP resolves a model automatically given a dataset (modelId optional)
+    const effective = key === 'shap' ? 'dataset' : stage.requires
+    const reqName = effective === 'dataset' ? 'dataset' : effective === 'run' ? 'run' : effective === 'model' ? 'model' : null
     if (!reqName) return true
     const missing = reqName === 'dataset' ? !datasetId : reqName === 'run' ? !runId : !modelId
     return !(missing && statusFor(stageStatuses, key) !== 'done')
   }
 
   const pathFor = (stage: WorkflowStage): string =>
-    stagePath(stage, { datasetId: datasetId || '', runId: runId || '', modelId: modelId || '' })
+    stagePath(stage, {
+      datasetId: datasetId || '',
+      runId: runId || '',
+      modelId: stage.key === 'shap' ? modelId || 'auto' : modelId || '',
+    })
 
   const nozzle = (key: string) => {
     if (!stageReady(key)) return
@@ -100,74 +109,92 @@ export function ProcessRail() {
     const isLast = idx === total - 1
     const reqName = stage.requires === 'dataset' ? 'dataset' : stage.requires === 'run' ? 'run' : stage.requires === 'model' ? 'model' : null
 
+    const color = STAGE_COLORS[key]
+    const nextColor = !isLast ? STAGE_COLORS[WORKFLOW[idx + 1].key] : null
+    const done = st === 'done'
+    const locked = st === 'locked'
+
     const bubble = (
       <span
         className={clsx(
-          'relative flex h-6 w-6 shrink-0 items-center justify-center rounded-button border font-mono text-[10px] transition-all',
-          st === 'done'
-            ? 'border-accent-emerald/40 bg-accent-emerald/15 text-accent-emerald'
-            : active
-              ? 'border-primary-500/50 bg-primary-500/15 text-primary-400 shadow-[0_0_12px_rgba(76,95,213,0.35)]'
-              : ready
-                ? 'border-white/[0.10] bg-white/[0.04] text-gray-400'
-                : 'border-white/[0.06] bg-white/[0.02] text-gray-600',
+          'relative flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-lg border font-mono text-[10px] font-bold transition-all',
+          done
+            ? 'border-accent-emerald/50 bg-accent-emerald/15 text-accent-emerald'
+            : locked
+              ? 'border-white/[0.06] bg-white/[0.02] text-gray-600'
+              : 'border-white/[0.10] bg-white/[0.03]',
         )}
+        style={active && !done ? { borderColor: `${color}99`, background: `${color}1f`, boxShadow: `0 0 16px ${color}44`, color } : undefined}
       >
-        {st === 'done' ? <Check className="h-3.5 w-3.5" strokeWidth={3} /> : active ? <Icon className="h-3.5 w-3.5" /> : <span>{stage.index}</span>}
-        {active && <span className="absolute -inset-px rounded-button border border-primary-500/40" />}
+        {done ? <Check className="h-3.5 w-3.5" strokeWidth={3} /> : active ? <Icon className="h-3.5 w-3.5" style={{ color }} /> : locked ? <Lock className="h-3 w-3" /> : <span>{stage.index}</span>}
+        {active && !done && <span className="absolute -inset-px rounded-lg" style={{ border: `1px solid ${color}55` }} />}
       </span>
     )
 
     const body = (
       <span
-        title={`${stage.description}\n${st === 'locked' ? `Locked — needs a ${reqName} first` : meta ? `${meta.api} · ${meta.engine}` : ''}`}
+        title={`${stage.description}\n${locked ? `Locked — needs a ${reqName} first` : meta ? `${meta.api} · ${meta.engine}` : ''}`}
         className={clsx(
-          'group flex min-w-0 flex-1 cursor-pointer items-start gap-2.5 rounded-button border px-2.5 py-2 text-left transition-all',
+          'group relative flex min-w-0 flex-1 cursor-pointer flex-col overflow-hidden rounded-button border px-2.5 py-2 pl-3.5 text-left transition-all',
           active
-            ? 'border-primary-500/35 bg-primary-500/[0.09]'
-            : st === 'done'
-              ? 'border-transparent hover:border-accent-emerald/25 hover:bg-accent-emerald/[0.06]'
+            ? 'bg-white/[0.05]'
+            : done
+              ? 'border-transparent hover:bg-accent-emerald/[0.05]'
               : ready
-                ? 'border-transparent hover:border-white/[0.08] hover:bg-white/[0.04]'
-                : 'border-transparent opacity-55',
+                ? 'border-transparent hover:bg-white/[0.04]'
+                : 'border-transparent opacity-60',
         )}
+        style={active ? { borderColor: `${color}44`, boxShadow: `0 4px 20px ${color}18` } : undefined}
         onClick={() => nozzle(key)}
       >
-        {bubble}
-        <span className="min-w-0 flex-1">
-          <span className="flex items-center gap-1.5">
-            <span className={clsx(
-              'truncate text-[12px] font-semibold leading-tight',
-              active ? 'text-primary-400' : st === 'done' ? 'text-gray-100' : 'text-gray-300',
-            )}>
-              {stage.short}
+        {/* phase-colour accent bar */}
+        <span
+          className="absolute bottom-2 left-0 top-2 w-[3px] rounded-full"
+          style={{ background: color, opacity: done ? 0.9 : ready ? 0.7 : 0.25, boxShadow: active ? `0 0 8px ${color}66` : undefined }}
+        />
+        <span className="flex items-center gap-2">
+          {bubble}
+          <span className="min-w-0 flex-1">
+            <span className="flex items-center gap-1.5">
+              <span
+                className={clsx('truncate text-[12px] font-semibold leading-tight', done ? 'text-gray-100' : 'text-gray-300')}
+                style={active && !done ? { color } : undefined}
+              >
+                {stage.short}
+              </span>
+              {locked && <Lock className="h-3 w-3 shrink-0 text-gray-500" />}
             </span>
-            {st === 'locked' && <Lock className="h-3 w-3 shrink-0 text-gray-500" />}
           </span>
-          <span className="mt-0.5 block truncate font-mono text-[9.5px] tracking-tight text-gray-500">
-            {st === 'locked' ? `needs ${reqName}` : meta?.api}
-            <span className="hidden xl:inline"> · {meta?.engine}</span>
-          </span>
+          {!done && (
+            <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: color, boxShadow: active ? `0 0 8px ${color}88` : undefined, opacity: locked ? 0.3 : 1 }} />
+          )}
         </span>
-        {st !== 'done' && !active && (
-          <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: STAGE_COLORS[key] }} />
-        )}
+        <span className="mt-1 flex flex-wrap items-center gap-x-1 font-mono text-[9.5px] leading-none tracking-tight text-gray-500">
+          <span className={clsx('rounded border px-1 py-[1px]', active ? 'border-white/[0.14]' : 'border-white/[0.08]')}>{locked ? `needs ${reqName}` : meta.api}</span>
+          <span className="text-gray-600">·</span>
+          <span className={clsx('rounded border px-1 py-[1px]', active ? 'border-white/[0.14]' : 'border-white/[0.08]')}>{locked ? '—' : meta.engine}</span>
+        </span>
       </span>
     )
 
     return (
       <div key={key} className="relative">
-        <div className="flex gap-3">
-          <div className="flex w-6 flex-col items-center">
-            {/* connector line + arrow going down to next stage */}
+        <div className="flex gap-2.5">
+          <div className="flex w-[22px] flex-col items-center">
+            {/* phase-colour flowing connector line + arrow to next node */}
             {!isLast && (
               <div className="relative mt-1 flex flex-1 flex-col items-center">
                 <span
-                  className={clsx('h-full w-px', st === 'done' && statusFor(stageStatuses, WORKFLOW[idx + 1].key) === 'done' ? 'bg-accent-emerald/40' : 'bg-white/[0.10]')}
+                  className="w-[2px] transition-colors"
+                  style={{
+                    height: '100%',
+                    background: nextColor ? `linear-gradient(180deg, ${color}55, ${nextColor}55)` : undefined,
+                    opacity: done ? 0.85 : 0.4,
+                  }}
                 />
                 <span
                   className="absolute bottom-0 h-0 w-0 border-l-[3px] border-r-[3px] border-t-[4px] border-l-transparent border-r-transparent"
-                  style={{ borderTopColor: st === 'done' ? 'rgba(52,211,153,0.6)' : 'rgba(255,255,255,0.22)' }}
+                  style={{ borderTopColor: nextColor ?? color }}
                 />
               </div>
             )}
@@ -192,6 +219,8 @@ export function ProcessRail() {
         {WORKFLOW.map(s => {
           const st = statusFor(stageStatuses, s.key)
           const active = s.key === routeKey
+          const color = STAGE_COLORS[s.key]
+          const done = st === 'done'
           return (
             <button
               key={s.key}
@@ -199,10 +228,11 @@ export function ProcessRail() {
               onClick={() => nozzle(s.key)}
               className={clsx(
                 'relative h-4 w-4 rounded-full border transition-all',
-                st === 'done' && 'border-accent-emerald/40 bg-accent-emerald',
-                active && !(st === 'done') && 'border-primary-400 bg-primary-400 shadow-[0_0_10px_rgba(76,95,213,0.7)]',
-                !(st === 'done') && !active && clsx('border-white/[0.12] bg-transparent'),
+                done && 'border-accent-emerald/40 bg-accent-emerald',
+                active && !done && 'shadow-[0_0_10px_rgba(76,95,213,0.7)]',
+                !done && !active && 'border-white/[0.12] bg-transparent',
               )}
+              style={!done ? { background: active ? color : undefined, borderColor: active ? color : undefined } : undefined}
             />
           )
         })}
@@ -211,7 +241,9 @@ export function ProcessRail() {
   }
 
   return (
-    <nav className="relative flex w-72 shrink-0 flex-col border-r border-white/[0.06] bg-surface/40 backdrop-blur-sm">
+    <nav className="relative flex w-80 shrink-0 flex-col border-r border-white/[0.06] bg-surface/40 backdrop-blur-sm">
+      {/* aurora signature strip */}
+      <div className="h-[3px] w-full bg-gradient-to-r from-sky-400 via-accent-cyan to-accent-emerald opacity-80" />
       {/* rail header */}
       <div className="flex items-center justify-between gap-2 border-b border-white/[0.06] px-3 py-3">
         <div className="min-w-0">
@@ -253,21 +285,25 @@ export function ProcessRail() {
         {MILESTONES.map((m, mi) => {
           const prog = milestoneProgress(stageStatuses, m)
           const mActive = m.stages.some(k => k === routeKey)
+          const mColor = STAGE_COLORS[m.stages[0]]
           return (
             <div key={m.key} className="mb-4 last:mb-0">
               <div className="mb-1.5 flex items-center gap-2 px-1.5">
-                <span className={clsx(
-                  'flex h-[18px] items-center justify-center rounded-full px-1.5 font-mono text-[9px] font-bold',
-                  prog.done === prog.total
-                    ? 'bg-accent-emerald/15 text-accent-emerald'
-                    : mActive
-                      ? 'bg-primary-500/15 text-primary-400 shadow-[0_0_10px_rgba(76,95,213,0.25)]'
-                      : 'bg-white/[0.05] text-gray-500',
-                )}>
+                <span
+                  className={clsx(
+                    'flex h-[18px] items-center justify-center rounded-full px-1.5 font-mono text-[9px] font-bold',
+                    prog.done === prog.total
+                      ? 'bg-accent-emerald/15 text-accent-emerald'
+                      : 'bg-white/[0.05] text-gray-400',
+                  )}
+                  style={mActive && prog.done !== prog.total ? { background: `${mColor}1f`, color: mColor, boxShadow: `0 0 10px ${mColor}22` } : undefined}
+                >
                   {String(mi + 1).padStart(2, '0')}
                 </span>
-                <span className={clsx('font-mono text-[9.5px] font-semibold uppercase tracking-[0.18em]',
-                  mActive ? 'text-primary-400' : 'text-gray-500')}>
+                <span
+                  className={clsx('font-mono text-[9.5px] font-semibold uppercase tracking-[0.18em]', mActive ? 'text-gray-100' : 'text-gray-500')}
+                  style={mActive ? { color: mColor } : undefined}
+                >
                   {m.short}
                 </span>
                 <span className="ml-auto font-mono text-[9px] text-gray-600">{prog.done}/{prog.total}</span>

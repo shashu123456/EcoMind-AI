@@ -59,7 +59,7 @@ export function ExecutiveCenterPage() {
       <div className="min-h-0 flex-1 space-y-6 overflow-y-auto pr-1">
       <Particles count={22} />
       <StageBanner
-        chapter="Stage 15 · Executive Intelligence Center"
+        chapter="Stage 13 · Executive Intelligence Center"
         title="Mission Control"
         tagline="The entire journey compressed into a CEO-grade briefing. Everything EcoMind believes, in one view."
         icon={<Crown className="h-6 w-6 text-accent-amber" />}
