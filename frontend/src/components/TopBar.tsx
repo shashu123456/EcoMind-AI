@@ -115,7 +115,7 @@ export function TopBar() {
   ].filter(c => c.value)
 
   return (
-    <header className="relative flex h-14 shrink-0 items-center justify-between gap-4 border-b border-white/[0.06] bg-surface/60 px-4 backdrop-blur-md">
+    <header className="relative z-40 flex h-14 shrink-0 items-center justify-between gap-4 border-b border-white/[0.06] bg-surface/60 px-4 backdrop-blur-md">
       {/* brand + active-stage light follows the rail */}
       <div className="flex min-w-0 items-center gap-3">
         <EcoMindLockup size={24} sub={''} className="shrink-0" />

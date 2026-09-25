@@ -184,7 +184,7 @@ class Prediction(TimestampMixin, Base):
 class SHAPExplanation(TimestampMixin, Base):
     __tablename__ = "shap_explanations"
     id = Column(String, primary_key=True, default=_uuid)
-    prediction_id = Column(String, ForeignKey("predictions.id"), nullable=False, index=True)
+    prediction_id = Column(String, ForeignKey("predictions.id"), nullable=True, index=True)
     model_id = Column(String, ForeignKey("models.id"), nullable=False, index=True)
     method = Column(String(50), default="tree")  # tree / kernel / linear / deep
     feature_names = Column(JSON, default=list)

@@ -85,7 +85,7 @@ def predict(db: Session, params: dict, actor_id: str | None = None) -> dict:
     artifact = load_artifact(model.id)
     feat_cols = artifact["feature_cols"]
     algo = artifact["algorithm"]
-    X, y, _ = build_ml_matrix(df, target, derive=True, features=feat_cols)
+    X, y, feat_cols = build_ml_matrix(df, target, derive=True, features=feat_cols)
     m_obj = build_model(algo, model.hyperparameters or {})
     m_obj.fit(X, y)
     y_pred_full = m_obj.predict(X)

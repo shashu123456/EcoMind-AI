@@ -143,15 +143,16 @@ export function TransformationsPage() {
       setLogLines((p: string[]) => [...p, LOG_SCRIPT[i]])
       await mk(420)
     }
-    // run real operations, animated one by one
+    // run real operations, animated one by one (must match backend transform_service OPS)
     const { transformations } = await import('../lib/api')
+    const numeric = columns.filter(c => !['timestamp', 'datetime', 'date', 'month', 'day'].includes(c.toLowerCase()))
+    const c1 = numeric[0] ?? ''
+    const c2 = numeric[1] ?? ''
     const ops: Array<{ operation: string; params: any }> = [
-      { operation: 'fillna', params: { column: 'energy_kwh', strategy: 'interpolate' } },
-      { operation: 'fillna', params: { column: 'temperature_c', strategy: 'interpolate' } },
-      { operation: 'dedupe', params: {} },
-      { operation: 'normalize', params: { column: 'energy_kwh', method: 'min_max' } },
-      { operation: 'clip', params: { column: 'energy_kwh', min: 0, max: null } },
-      { operation: 'log_transform', params: { column: 'power_kw' } },
+      { operation: 'fill_missing', params: { columns: numeric.length ? numeric : [], strategy: 'mean' } },
+      { operation: 'normalize', params: { columns: c1 ? [c1] : [], method: 'minmax' } },
+      { operation: 'outlier_clip', params: { columns: c1 ? [c1] : [], method: 'iqr', threshold: 3.0 } },
+      { operation: 'encode_categorical', params: { columns: c2 && numeric.length > 1 ? [c2] : [], method: 'label' } },
     ]
     let appliedCount = 0
     for (const op of ops) {

@@ -131,7 +131,7 @@
     background-size: 220% 220%, 190% 190%, 210% 210%, 180% 180%, 100% 100%, 100% 100%;
     animation: eco-flow 32s ease-in-out infinite alternate;
     color: var(--color-text-primary);
-    font-family: 'Manrope', sans-serif;
+    font-family: 'Outfit', sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
@@ -156,8 +156,8 @@
   }
 
   .font-display {
-    font-family: 'Manrope', sans-serif;
-    letter-spacing: -0.01em;
+    font-family: 'Rajdhani', sans-serif;
+    letter-spacing: 0.01em;
   }
 
   /* Glass panel utility */
@@ -481,10 +481,10 @@
     animation: none;
   }
 
-  /* ── Display type = Manrope (matches dark product face) ── */
+  /* ── Display type = Rajdhani (technical, mission-control face) ── */
   .font-display {
-    font-family: 'Manrope', sans-serif;
-    letter-spacing: -0.02em;
+    font-family: 'Rajdhani', sans-serif;
+    letter-spacing: 0.02em;
   }
 
   /* ── Glass panels become raised white modules ─── */
