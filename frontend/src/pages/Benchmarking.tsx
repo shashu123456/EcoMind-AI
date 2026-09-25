@@ -14,6 +14,14 @@ const RANK_ICON: Record<number, React.ReactNode> = {
   3: <Award className="w-4 h-4 text-accent-amber" />,
 }
 
+function algLabel(a?: string): string {
+  const s = (a || '').toLowerCase()
+  if (s.includes('ridge')) return 'ridge (linear baseline)'
+  if (s.includes('xgb')) return 'xgboost'
+  if (s.includes('grad')) return 'gradient boosting'
+  return a || 'model'
+}
+
 export function BenchmarkingPage() {
   const { datasetId } = useRouteParams()
   const { setActive, markCompleted } = useJourney()
@@ -116,7 +124,7 @@ export function BenchmarkingPage() {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <p className="font-display text-sm font-semibold text-gray-200 truncate">{r?.name || r?.model_id || `Model ${i + 1}`}</p>
-                      {r?.algorithm && <span className="rounded-button bg-white/[0.05] px-2 py-0.5 text-xs font-mono text-gray-400">{r.algorithm}</span>}
+                      {r?.algorithm && <span className="rounded-button bg-white/[0.05] px-2 py-0.5 text-xs font-mono text-gray-400">{algLabel(r.algorithm)}</span>}
                     </div>
                     <LiveBar value={(score / maxScore) * 100} max={100} className="mt-2"
                       barClassName={i === 0 ? 'bg-gradient-to-r from-amber-500 to-accent-amber' : 'bg-gradient-to-r from-primary-500 to-accent-cyan'} />

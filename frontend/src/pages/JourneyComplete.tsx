@@ -1,6 +1,6 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
-import { CheckCircle2, Download, Home, PartyPopper } from 'lucide-react'
+import { CheckCircle2, Download, Home, PartyPopper, Archive } from 'lucide-react'
 import clsx from 'clsx'
 import { ai, models, recommendations, anomalies, reports } from '../lib/api'
 import { useApi } from '../lib/hooks'
@@ -71,8 +71,24 @@ const { data: gate } = useApi(
   const reportsList = Array.isArray(reportsData) ? reportsData : reportsData?.reports || []
   const latestReport = reportsList[reportsList.length - 1]
 
-  const doneCount = Object.values(stageStatuses).filter(s => s === 'done').length
+const doneCount = Object.values(stageStatuses).filter(s => s === 'done').length
   const isHigh = trustPct >= 60
+
+  const [generating, setGenerating] = useState(false)
+
+  const generateReport = async () => {
+    if (!dsId || generating) return
+    setGenerating(true)
+    try {
+      const r: any = await reports.generate({ dataset_id: dsId, format: 'html' })
+      const rep = r?.report || r?.reports?.[0]
+      if (rep) await reports.download(rep.id, rep.file_name || rep.name || 'ecomind-report.html')
+    } catch {
+      /* report — generation failed, stay on page */
+    } finally {
+      setGenerating(false)
+    }
+  }
 
   return (
     <div className="mx-auto max-w-5xl space-y-6 px-5 py-8">
@@ -210,14 +226,18 @@ const { data: gate } = useApi(
             <AnimatedNumber value={doneCount} className="text-gray-200" /> of {WORKFLOW.length} stages recorded on this run —
             every decision is in the audit trail.
           </p>
-          <div className="flex flex-wrap items-center gap-3">
+<div className="flex flex-wrap items-center gap-3">
+            <Button variant="primary" gradient="emerald"
+              onClick={generateReport}>
+              <Download className="mr-1.5 h-4 w-4" /> {generating ? 'Generating…' : 'Generate audit report'}
+            </Button>
             {latestReport?.id && (
               <Button variant="outline" gradient="gold"
                 onClick={() => navigate({ to: '/reports' } as any)}>
-                <Download className="mr-1.5 h-4 w-4" /> Download reports
+                <Archive className="mr-1.5 h-4 w-4" /> Download reports
               </Button>
             )}
-            <Button variant="primary" gradient="emerald"
+            <Button variant="outline"
               onClick={() => navigate({ to: '/dashboard' } as any)}>
               <Home className="mr-1.5 h-4 w-4" /> Return to dashboard
             </Button>

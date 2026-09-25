@@ -63,54 +63,45 @@ const FLOW_TOKENS = [
   { t: '+ Season', c: 'text-accent-emerald' },
   { t: '+ Rolling Mean 24', c: 'text-primary-300' },
   { t: '+ Rolling Std 24', c: 'text-accent-rose' },
+  { t: '+ Normalized', c: 'text-accent-amber' },
 ]
 
+/* Lively left → right data flow corridor. Tokens stream from the RAW table
+   to the PROCESSED table in real time, each line wearing its own colour so
+   you can follow which transformation is moving across the bridge. */
 function FlowPipe({ active }: { active: boolean }) {
-  const tokens = [...FLOW_TOKENS, ...FLOW_TOKENS]
   return (
-    <div className="relative flex h-full min-h-0 items-center justify-center">
-      <div className="flex h-full max-h-80 w-full items-center gap-1.5 lg:max-w-11 lg:flex-col">
-        <motion.span
-          animate={active ? { y: [0, 4, 0], opacity: [0.4, 1, 0.4] } : { opacity: 0.3 }}
-          transition={{ duration: 1.2, repeat: Infinity, ease: 'easeInOut' }}
-          className={clsx('shrink-0 rotate-90 lg:rotate-90', active ? 'text-accent-cyan' : 'text-gray-600')}
-        >
-          <ArrowRight className="h-3.5 w-3.5" />
-        </motion.span>
-
-        {/* vertical data-flow terminal — front-page style */}
-        <div className="relative min-h-0 min-w-0 flex-1 self-stretch overflow-hidden rounded-md border border-white/[0.1] bg-black/60 shadow-[0_0_22px_rgba(76,95,213,0.18)]">
-          <div className="absolute inset-x-0 top-0 z-10 flex items-center justify-between border-b border-white/[0.06] bg-black/70 px-1.5 py-[3px]">
-            <span className="flex items-center gap-1">
-              <span className={clsx('h-1 w-1 rounded-full', active ? 'animate-pulse bg-accent-emerald' : 'bg-gray-600')} />
-              <span className="font-mono text-[7px] uppercase tracking-[0.2em] text-primary-400">data flow</span>
-            </span>
-          </div>
-          <div className="h-full overflow-hidden">
-            <motion.div
-              className="flex h-full flex-col gap-1 px-1.5 py-2 lg:pt-4"
-              animate={active ? { y: ['0%', '-33.33%'] } : { y: 0 }}
-              transition={{ duration: 12, repeat: Infinity, ease: 'linear' }}
-            >
-              {tokens.map((f, i) => (
-                <span
-                  key={i}
-                  className={clsx(
-                    'term-glow whitespace-nowrap font-mono text-[8.5px] leading-[1.75]',
-                    active ? f.c : 'text-gray-600',
-                    i < tokens.length / 3 ? 'opacity-90' : 'opacity-40',
-                  )}
-                >
-                  › {f.t}
-                </span>
-              ))}
-            </motion.div>
-          </div>
-        </div>
-
-        <span className="hidden shrink-0 font-mono text-[8px] uppercase tracking-[0.25em] text-gray-600 lg:block [writing-mode:vertical-rl]">
-          {active ? 'flowing' : 'stand by'}
+    <div className="relative flex h-full min-h-0 flex-col overflow-hidden rounded-md border border-white/[0.1] bg-black/30">
+      <div className="z-10 flex shrink-0 items-center justify-between border-b border-white/[0.06] bg-black/40 px-2 py-1">
+        <span className="font-mono text-[8px] uppercase tracking-[0.2em] text-primary-400">live flow</span>
+        <span className="flex items-center gap-1 font-mono text-[8px] uppercase tracking-[0.18em] text-gray-500">
+          raw
+          <ArrowRight className={clsx('h-3 w-3 transition-colors', active ? 'text-accent-emerald' : 'text-gray-600')} />
+          processed
         </span>
+      </div>
+      <div className="relative min-h-0 flex-1 overflow-hidden">
+        <div className="absolute left-0 right-0 top-1/2 h-px bg-gradient-to-r from-accent-cyan/0 via-accent-cyan/50 to-accent-emerald/0" />
+        {FLOW_TOKENS.map((f, i) => {
+          const dur = 5.5 + (i % 4) * 1.6
+          const top = 12 + (i % 5) * 17
+          return (
+            <motion.span
+              key={i}
+              initial={false}
+              className={clsx(
+                'absolute whitespace-nowrap rounded border border-white/[0.08] bg-black/40 px-1.5 py-0.5 font-mono text-[9px] leading-[1.6] shadow-[0_0_10px_rgba(76,95,213,0.15)]',
+                f.c,
+                active ? '' : 'opacity-25',
+              )}
+              style={{ top: `${top}%` }}
+              animate={active ? { left: ['-22%', '106%'] } : { left: `${(i * 13) % 80}%` }}
+              transition={active ? { duration: dur, repeat: Infinity, ease: 'linear', delay: -i * 0.9 } : undefined}
+            >
+              › {f.t}
+            </motion.span>
+          )
+        })}
       </div>
     </div>
   )
@@ -194,7 +185,7 @@ export function TransformationsPage() {
 
   const diffView = (
     <div className="flex h-full min-h-0 flex-col gap-3">
-      <div className="grid min-h-0 flex-1 gap-0 lg:grid-cols-[1fr_44px_1fr]">
+      <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[minmax(0,1fr)_260px_minmax(0,1fr)]">
         <StreamTable columns={columns} rows={rows} speed={10} filename="transformations-raw-full.csv" />
         <FlowPipe active={running || done} />
         <StreamTable columns={processedCols} rows={rows} speed={8} filename="transformations-processed-full.csv" />

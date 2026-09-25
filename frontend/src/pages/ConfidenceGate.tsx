@@ -29,17 +29,17 @@ function SignalMath({ name, value, last, total, verdict }: {
   const w = sig.weight
   const part = w * value
   return (
-    <div className="ml-[10rem] mt-1.5 rounded border border-white/[0.06] bg-[#0B0E13] px-3 py-2 font-mono text-[10px] leading-4 text-gray-500">
+    <div className="ml-[10rem] mt-1.5 rounded border border-white/[0.08] bg-black/25 px-3 py-2 font-mono text-[10px] leading-4 text-gray-500">
       <span className="text-gray-400">equation </span>
       trust += {sig.symbol}·{w.toFixed(2)}
       <span className="text-gray-400"> = </span>
       {w.toFixed(2)}×{value.toFixed(1)} = <span className="text-gray-200">{part.toFixed(1)}</span> pts
       {last && (
-        <div className="mt-1 border-t border-white/[0.06] pt-1">
+        <div className="mt-1 border-t border-white/[0.08] pt-1">
           <span className="text-gray-400">Σ = 0.40·pred + 0.25·dq + 0.20·rel + 0.15·shap = </span>
-          <span className="text-[#34D399]">{total.toFixed(1)}</span>
+          <span className="text-accent-emerald">{total.toFixed(1)}</span>
           <span className="text-gray-400"> → </span>
-          <span className={verdict === 'high_trust' ? 'text-[#34D399]' : verdict === 'moderate' ? 'text-accent-amber' : 'text-[#F87171]'}>{verdict}</span>
+          <span className={verdict === 'high_trust' ? 'text-accent-emerald' : verdict === 'moderate' ? 'text-accent-amber' : 'text-accent-rose'}>{verdict}</span>
         </div>
       )}
     </div>
@@ -73,13 +73,25 @@ export function ConfidenceGatePage() {
         await res.refetch()
         setDone(true)
         markCompleted('confidence_gate')
-        setActive(dsId, runId)
+        setActive(dsId, runId, g?.model_id || undefined)
       }
       void g
     } catch { } finally { setBusy(false) }
   }
 
-  useEffect(() => { if (gate && runId) { setDone(true); markCompleted('confidence_gate'); setActive(dsId, runId) } }, [gate, runId])
+  useEffect(() => {
+    if (gate && runId) {
+      setDone(true)
+      markCompleted('confidence_gate')
+      setActive(dsId, runId, gate?.model_id || undefined)
+    }
+  }, [gate, runId])
+
+  const shapTarget = gate?.model_id
+    ? `/shap/${gate.model_id}`
+    : modelId
+      ? `/shap/${modelId}`
+      : '/library'
 
   const factors = useMemo(() => {
     const raw = (gate?.factors || {}) as any
@@ -231,7 +243,7 @@ export function ConfidenceGatePage() {
 
           {done && (
             <AutoNext
-              to={modelId ? `/shap/${modelId}` : '/library'}
+              to={shapTarget}
               label="Trust gate passed — opening SHAP explanations of every prediction"
             />
           )}

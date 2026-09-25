@@ -307,8 +307,8 @@ export function DataPreview({
         </span>
       </div>
       <div className="min-h-0 flex-1 overflow-hidden p-2">
-        <div className="overflow-hidden rounded-card border border-white/[0.06]">
-          <div className="grid gap-x-2 border-b border-white/[0.06] px-2 py-1.5"
+        <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-card border border-white/[0.06]">
+          <div className="grid shrink-0 gap-x-2 overflow-x-auto border-b border-white/[0.06] px-2 py-1.5"
             style={{ gridTemplateColumns: `repeat(${cols.length || 1}, minmax(0, 1fr))` }}>
             {cols.map((c, i) => {
               const q = quals[i]
@@ -326,7 +326,7 @@ export function DataPreview({
               )
             })}
           </div>
-          <div className="max-h-40 overflow-hidden font-mono text-[10.5px] text-gray-300">
+          <div className="min-h-0 flex-1 overflow-auto font-mono text-[10.5px] text-gray-300">
             {shown.length === 0 && <p className="px-3 py-4 text-gray-600">no sample rows</p>}
             {shown.map((row, ri) => (
               <motion.div key={ri} initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: ri * 0.08, duration: 0.25 }}

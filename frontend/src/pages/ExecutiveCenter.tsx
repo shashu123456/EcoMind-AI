@@ -188,9 +188,12 @@ export function ExecutiveCenterPage() {
                   <div style={{ height: 280 }}>
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={chart} margin={{ top: 4, right: 8, left: 8, bottom: 4 }}>
-                        <XAxis dataKey="name" tick={{ fill: '#94a3b8', fontSize: 9 }} interval={0} angle={-24} height={50} />
-                        <YAxis tick={{ fill: '#64748b', fontSize: 9 }} width={42} />
-                        <Tooltip formatter={(v: any) => `${Math.round(Number(v))} ms`} contentStyle={{ background: '#0b1020', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12 }} />
+                        <XAxis dataKey="name" tick={{ fill: 'var(--gray-500)', fontSize: 9 }} interval={0} angle={-24} height={50} />
+                        <YAxis tick={{ fill: 'var(--gray-400)', fontSize: 9 }} width={42} />
+                        <Tooltip formatter={(v: any) => `${Math.round(Number(v))} ms`} cursor={{ fill: 'var(--bg2, rgba(255,255,255,0.04))' }}
+                          contentStyle={{ background: 'var(--panel2, #171A20)', border: '1px solid var(--color-border, rgba(255,255,255,0.1))', borderRadius: 12, color: 'var(--gray-100, #E8EAEE)' }}
+                          labelStyle={{ color: 'var(--gray-300, #BEC4CF)', fontSize: 12, fontWeight: 600 }}
+                          itemStyle={{ color: 'var(--gray-100, #E8EAEE)', fontSize: 12 }} />
                         <Bar dataKey="ms" radius={[4, 4, 0, 0]}>
                           {chart.map((d: any, i: number) => <Cell key={i} fill={d.c} />)}
                         </Bar>

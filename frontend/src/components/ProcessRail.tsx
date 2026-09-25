@@ -8,7 +8,7 @@ import {
 } from 'lucide-react'
 import clsx from 'clsx'
 import { useEffect, useState } from 'react'
-import { WORKFLOW, useJourney, stagePath, MILESTONES, milestoneProgress } from '../lib/journey'
+import { WORKFLOW, useJourney, stagePath, MILESTONES, milestoneProgress, progressStats, PIPELINE_TOTAL } from '../lib/journey'
 import type { WorkflowStage } from '../lib/journey'
 import { soundEnabled, setSoundEnabled } from '../lib/sound'
 import { B } from '../lib/kit'
@@ -66,14 +66,40 @@ export function ProcessRail() {
   const navigate = useNavigate()
   const { datasetId, runId, modelId, stageStatuses } = useJourney()
   const [collapsed, setCollapsed] = useState(false)
+  const [railW, setRailW] = useState(320)
+  const [dragging, setDragging] = useState(false)
 
   useEffect(() => {
     try { localStorage.setItem('ecomind_rail', collapsed ? 'off' : 'on') } catch { /* ignore */ }
   }, [collapsed])
 
+  useEffect(() => {
+    try {
+      const saved = Number(localStorage.getItem('ecomind_rail_w') || 320)
+      setRailW(Math.max(248, Math.min(400, saved)))
+    } catch { /* ignore */ }
+  }, [])
+
+  useEffect(() => {
+    try { localStorage.setItem('ecomind_rail_w', String(railW)) } catch { /* ignore */ }
+  }, [railW])
+
+  const onResizeStart = (e: React.PointerEvent) => {
+    e.preventDefault()
+    setDragging(true)
+    const move = (ev: PointerEvent) => setRailW(Math.max(248, Math.min(400, ev.clientX)))
+    const up = () => {
+      setDragging(false)
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', up)
+    }
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', up)
+  }
+
   const routeKey = routeKeyFor(location.pathname)
-  const doneCount = WORKFLOW.filter(s => statusFor(stageStatuses, s.key) === 'done').length
-  const pct = WORKFLOW.length ? (doneCount / WORKFLOW.length) * 100 : 0
+  const doneCount = progressStats(stageStatuses).done
+  const pct = progressStats(stageStatuses).pct
 
   const stageReady = (key: string): boolean => {
     const stage = WORKFLOW.find(s => s.key === key)
@@ -241,9 +267,27 @@ export function ProcessRail() {
   }
 
   return (
-    <nav className="relative flex w-80 shrink-0 flex-col border-r border-white/[0.06] bg-surface/40 backdrop-blur-sm">
+    <nav className={clsx('relative flex shrink-0 flex-col border-r border-white/[0.06] bg-surface/40 backdrop-blur-sm', dragging ? 'transition-none' : 'transition-[width] duration-100')}
+      style={{ width: collapsed ? 48 : railW }}>
       {/* aurora signature strip */}
       <div className="h-[3px] w-full bg-gradient-to-r from-sky-400 via-accent-cyan to-accent-emerald opacity-80" />
+      {/* resize handle */}
+      {!collapsed && (
+        <div
+          role="slider"
+          aria-label="Resize pipeline rail"
+          aria-orientation="vertical"
+          aria-valuemin={248}
+          aria-valuemax={400}
+          aria-valuenow={railW}
+          onPointerDown={onResizeStart}
+          className={clsx('absolute -right-[3px] top-0 z-20 h-full w-[7px] cursor-col-resize touch-none',
+            'group flex items-center justify-center',
+            dragging ? 'bg-primary-500/40' : 'hover:bg-primary-500/20')}
+        >
+          <span className={clsx('h-10 w-[3px] rounded-full transition-colors', dragging ? 'bg-primary-400' : 'bg-white/[0.14] group-hover:bg-primary-400/70')} />
+        </div>
+      )}
       {/* rail header */}
       <div className="flex items-center justify-between gap-2 border-b border-white/[0.06] px-3 py-3">
         <div className="min-w-0">
@@ -252,7 +296,7 @@ export function ProcessRail() {
         </div>
         <div className="flex items-center gap-1">
           <span className="rounded-full border border-white/[0.08] bg-white/[0.03] px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-widest text-primary-400">
-            {doneCount}/{WORKFLOW.length}
+            {doneCount}/{PIPELINE_TOTAL}
           </span>
           <button
             onClick={() => setCollapsed(true)}

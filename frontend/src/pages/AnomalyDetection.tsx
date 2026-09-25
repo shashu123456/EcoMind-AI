@@ -224,7 +224,7 @@ export function AnomalyDetectionPage() {
               const c = a.context || {}
               const expanded = open === a.id
               return (
-                <motion.div key={a.id} layout initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
+                <motion.div key={a.id} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: i * 0.06 }}
                   className={clsx('glass-panel overflow-hidden border', sev.color)}>
                   <button onClick={() => setOpen(open === a.id ? null : a.id)} className="w-full px-5 py-4 text-left">

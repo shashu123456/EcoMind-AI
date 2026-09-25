@@ -55,7 +55,7 @@ function ReadWriteTerminal({
   const sp = 12
 
   return (
-    <div className="rounded-card border border-white/[0.08] bg-[#07090C] font-mono text-xs leading-6 shadow-[0_0_30px_rgba(76,95,213,0.12)]">
+    <div className="rounded-card border border-white/[0.08] bg-black/25 font-mono text-xs leading-6 shadow-[0_0_30px_rgba(76,95,213,0.12)]">
       <div className="flex items-center justify-between border-b border-white/[0.07] px-3 py-2">
         <div className="flex items-center gap-2">
           <span className="h-2.5 w-2.5 rounded-full bg-accent-rose/70" />

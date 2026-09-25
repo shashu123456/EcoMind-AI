@@ -126,7 +126,12 @@ export function HistoryPage() {
                         <div className="min-w-0 flex-1">
                           <p className="text-sm text-gray-200 truncate">{dsName(r.dataset_id)}</p>
                           <p className="text-xs font-mono text-gray-400">
-                            v{r.config?.dataset_version || '1'} · {r.stages_completed?.length || 0}/{r.total_stages} stages
+                            v{r.config?.dataset_version || '1'} · {r.stages_completed?.length || 0}/{r.total_stages} stages ·{' '}
+                            <span className="text-primary-300">
+                              {typeof r.total_stages === 'number' && r.total_stages > 0
+                                ? Math.round(((r.stages_completed?.length || 0) / r.total_stages) * 100) + '%'
+                                : '—'}
+                            </span>
                             {r.error_message ? ' · ' + r.error_message : ''}
                           </p>
                         </div>
@@ -231,7 +236,7 @@ export function HistoryPage() {
               onClick={() => setRegOpen(null)} />
             <motion.div initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }}
               transition={{ type: 'tween', duration: 0.28, ease: 'easeOut' }}
-              className="fixed right-0 top-0 z-50 h-full w-full max-w-md overflow-y-auto border-l border-white/[0.08] bg-[#0a0f1a] shadow-2xl">
+              className="fixed right-0 top-0 z-50 h-full w-full max-w-md overflow-y-auto border-l border-white/[0.08] bg-[var(--panel2)] shadow-2xl">
               <div className="flex items-center justify-between border-b border-white/[0.06] px-5 py-4">
                 <div className="flex items-center gap-2">
                   <Database className="h-4 w-4 text-primary-400" />

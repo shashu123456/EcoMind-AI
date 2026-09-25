@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Trophy, Play, Gauge, RefreshCw } from 'lucide-react'
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts'
+import { LineChart, Line, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts'
 import { useApi } from '../lib/hooks'
 import { useRouteParams, fmt, EmptyBox, ErrorBox, ensureRun } from '../lib/pagekit'
 import { useJourney } from '../lib/journey'
@@ -25,7 +25,7 @@ const REAL: Record<string, { r2: number; rmse: number; mae: number; mape: number
 function MathBox({ title, lines, result, win }: { title: string; lines: string[]; result: string; win: boolean | null }) {
   const resColor = win === true ? 'text-[#34D399]' : win === false ? 'text-[#F87171]' : 'text-gray-200'
   return (
-    <div className="rounded border border-white/[0.08] bg-[#07090C] p-2.5 font-mono text-[11px] leading-5">
+    <div className="rounded border border-white/[0.08] bg-black/25 p-2.5 font-mono text-[11px] leading-5">
       <p className="mb-1 text-[9px] uppercase tracking-[0.2em] text-gray-500">{title}</p>
       {lines.map((l, i) => <div key={i} className="text-gray-500">{l}</div>)}
       <p className={`mt-1.5 font-semibold ${resColor}`}>{result}</p>
@@ -331,7 +331,7 @@ export function PredictionPage() {
               <label className="flex items-center gap-2 text-xs text-gray-400">
                 Horizon
                 <select value={horizon} onChange={e => setHorizon(Number(e.target.value))}
-                  className="rounded-button border border-white/10 bg-[#111827] px-2 py-1.5 text-xs text-gray-200 outline-none focus:border-primary-500">
+                  className="rounded-button border border-white/10 bg-black/25 px-2 py-1.5 text-xs text-gray-200 outline-none focus:border-primary-500">
                   {[24, 48, 72, 168].map(h => <option key={h} value={h}>{h}h</option>)}
                 </select>
               </label>
@@ -354,15 +354,30 @@ export function PredictionPage() {
             <div className="h-[300px] mt-2">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={pts} margin={{ top: 8, right: 12, bottom: 0, left: 0 }}>
-                  <CartesianGrid stroke="rgba(255,255,255,0.05)" />
-                  <XAxis dataKey="timestamp" tick={{ fill: '#6B7280', fontSize: 11 }} tickFormatter={(t: string) => t?.slice(5, 10)} stroke="rgba(255,255,255,0.1)" />
-                  <YAxis tick={{ fill: '#6B7280', fontSize: 11 }} stroke="rgba(255,255,255,0.1)" />
-                  <Tooltip contentStyle={{ background: '#111827', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, fontSize: 12 }} />
+                  <defs>
+                    <linearGradient id="fcBand" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#4A9FD8" stopOpacity={0.35} />
+                      <stop offset="100%" stopColor="#4A9FD8" stopOpacity={0.08} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid stroke="var(--color-border, rgba(255,255,255,0.06))" strokeDasharray="3 3" />
+                  <XAxis dataKey="timestamp" tick={{ fill: 'var(--gray-500, #6B7280)', fontSize: 11 }} tickFormatter={(t: string) => t?.slice(5, 10)} stroke="var(--color-border, rgba(255,255,255,0.1))" />
+                  <YAxis tick={{ fill: 'var(--gray-500, #6B7280)', fontSize: 11 }} stroke="var(--color-border, rgba(255,255,255,0.1))" domain={['auto', 'auto']} />
+                  <Tooltip
+                    contentStyle={{ background: 'var(--panel2, #171A20)', border: '1px solid var(--color-border, rgba(255,255,255,0.1))', borderRadius: 12, fontSize: 12, color: 'var(--gray-100, #E8EAEE)' }}
+                    labelStyle={{ color: 'var(--gray-300, #BEC4CF)' }}
+                    itemStyle={{ color: 'var(--gray-100, #E8EAEE)' }}
+                    formatter={(v: any, name: any) => [`${Number(v).toFixed(2)} kWh`, name]}
+                  />
                   <Legend wrapperStyle={{ fontSize: 12 }} />
-                  <Line type="monotone" dataKey="upper" stroke="#60A5FA" strokeDasharray="4 4" strokeWidth={1} dot={false} opacity={0.4} name="Upper" />
-                  <Line type="monotone" dataKey="predicted" stroke="#3B82F6" strokeWidth={2} dot={false} name="Predicted" />
-                  <Line type="monotone" dataKey="actual" stroke="#34D399" strokeDasharray="2 4" strokeWidth={1} dot={false} name="Actual" />
-                  <Line type="monotone" dataKey="lower" stroke="#60A5FA" strokeDasharray="4 4" strokeWidth={1} dot={false} opacity={0.4} name="Lower" />
+                  <Area type="monotone" dataKey="upper" stroke="none" fill="url(#fcBand)" strokeWidth={0} baseValue="dataMin" name="Confidence band" />
+                  <Area type="monotone" dataKey="lower" stroke="none" fill="var(--panel, #171A20)" fillOpacity={0.85} strokeWidth={0} baseValue="dataMin" name="" connectNulls />
+                  <Line type="monotone" dataKey="upper" stroke="#4A9FD8" strokeDasharray="4 4" strokeWidth={1} dot={false} opacity={0.45} name="Upper" />
+                  {pts.some((p: any) => p.actual != null) && (
+                    <Line type="monotone" dataKey="actual" stroke="#34D399" strokeWidth={1.5} dot={false} name="Actual" />
+                  )}
+                  <Line type="monotone" dataKey="predicted" stroke="#3B82F6" strokeWidth={2.5} dot={{ r: 2, fill: '#3B82F6' }} name="Predicted" />
+                  <Line type="monotone" dataKey="lower" stroke="#4A9FD8" strokeDasharray="4 4" strokeWidth={1} dot={false} opacity={0.45} name="Lower" />
                 </LineChart>
               </ResponsiveContainer>
             </div>

@@ -36,6 +36,19 @@ export const WORKFLOW: WorkflowStage[] = [
 
 export const STAGE_BY_KEY = Object.fromEntries(WORKFLOW.map(s => [s.key, s]))
 
+/* Report & History are supporting deliverables — they never block the
+   analysis pipeline and are NOT counted in the process progress, so the
+   core 13-stage journey reaches 100% the moment the decision loop ends. */
+export const UTILITY_KEYS = new Set(['report', 'history_registry'])
+export const CORE_WORKFLOW: WorkflowStage[] = WORKFLOW.filter(s => !UTILITY_KEYS.has(s.key))
+export const PIPELINE_TOTAL = CORE_WORKFLOW.length
+
+/* Progress metrics over the core pipeline (reports/history excluded). */
+export function progressStats(statuses: Record<string, string>) {
+  const done = CORE_WORKFLOW.filter(s => statuses[s.key] === 'done').length
+  return { done, total: PIPELINE_TOTAL, pct: PIPELINE_TOTAL ? Math.round((done / PIPELINE_TOTAL) * 100) : 0 }
+}
+
 /* ── Milestone grouping (6-milestone rail) ─────────── */
 export interface Milestone {
   key: string
@@ -49,7 +62,7 @@ export const MILESTONES: Milestone[] = [
   { key: 'rebuild', label: 'Rebuild', short: 'Features', stages: ['transformation', 'feature_engineering'] },
   { key: 'model', label: 'Model', short: 'Predict + Trust', stages: ['prediction', 'confidence_gate'] },
   { key: 'prove', label: 'Prove', short: 'Proof', stages: ['shap', 'anomaly'] },
-  { key: 'decide', label: 'Decide', short: 'Decide', stages: ['benchmarking', 'recommendation', 'executive_center', 'report', 'history_registry'] },
+  { key: 'decide', label: 'Decide', short: 'Decide', stages: ['benchmarking', 'recommendation', 'executive_center'] },
 ]
 
 /* Stages that run silently in the background in auto mode (visual-only).

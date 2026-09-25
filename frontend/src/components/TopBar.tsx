@@ -1,8 +1,8 @@
 import { useLocation, useNavigate } from '@tanstack/react-router'
-import { Bell, LogOut, Settings, User, Zap, Footprints, Moon, Sun, Cpu, Home, Check, AlertTriangle, ArrowUpRight } from 'lucide-react'
+import { Bell, LogOut, Settings, User, Zap, Footprints, Moon, Sun, Cpu, Home, Check, AlertTriangle } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import clsx from 'clsx'
-import { WORKFLOW, MILESTONES, useJourney } from '../lib/journey'
+import { WORKFLOW, MILESTONES, useJourney, progressStats, PIPELINE_TOTAL } from '../lib/journey'
 import { useTheme } from '../lib/theme'
 
 import { health, type HealthPayload } from '../lib/api'
@@ -30,7 +30,6 @@ export function TopBar() {
   const [backend, setBackend] = useState<HealthPayload | null>(null)
   const [backendDown, setBackendDown] = useState(false)
   const [seen, setSeen] = useState<Record<string, boolean>>({})
-  const lastStatuses = useRef<string>('')
   let user: any = null
   try { user = JSON.parse(localStorage.getItem('ecomind_user') || 'null') } catch { /* ignore */ }
 
@@ -55,17 +54,28 @@ export function TopBar() {
   }, [])
 
   const openStageStatuses = useJourney(s => s.stageStatuses)
+  const doneCount = progressStats(openStageStatuses).done
+  const lockedStages = WORKFLOW.filter(s => openStageStatuses[s.key] === 'locked')
+
+  const notifications = [
+    ...Object.entries(openStageStatuses)
+      .filter(([, st]) => st === 'done')
+      .map(([k]) => ({ id: `done-${k}`, kind: 'done' as const, stage: WORKFLOW.find(s => s.key === k) })),
+    ...lockedStages.map(s => ({ id: `locked-${s.key}`, kind: 'locked' as const, stage: s })),
+  ].filter(n => n.stage)
+
+  const unseenCount = notifications.filter(n => n.stage && !seen[n.stage.key]).length
+
+  // mark everything as "seen" only when the popover is actually opened —
+  // so the bell badge counts fresh stage completions instead of always showing 0
   useEffect(() => {
-    const sig = JSON.stringify(openStageStatuses)
-    if (sig === lastStatuses.current) return
-    lastStatuses.current = sig
-    const fresh = Object.entries(openStageStatuses)
-      .filter(([, st]) => st === 'done' || st === 'locked')
-      .filter(([k]) => !seen[k])
-    if (fresh.length) {
-      setSeen(s => ({ ...s, ...Object.fromEntries(fresh.map(([k]) => [k, true])) }))
-    }
-  }, [openStageStatuses, seen])
+    if (!open) return
+    setSeen(s => {
+      const next = { ...s }
+      notifications.forEach(n => { if (n.stage) next[n.stage.key] = true })
+      return next
+    })
+  }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!menuRefOpen) return
@@ -96,22 +106,10 @@ export function TopBar() {
     navigate({ to: '/dashboard' } as any)
   }
 
-  const doneCount = WORKFLOW.filter(s => openStageStatuses[s.key] === 'done').length
-  const lockedStages = WORKFLOW.filter(s => openStageStatuses[s.key] === 'locked')
-
-  const notifications = [
-    ...Object.entries(openStageStatuses)
-      .filter(([, st]) => st === 'done')
-      .map(([k]) => ({ id: `done-${k}`, kind: 'done' as const, stage: WORKFLOW.find(s => s.key === k) })),
-    ...lockedStages.map(s => ({ id: `locked-${s.key}`, kind: 'locked' as const, stage: s })),
-  ].filter(n => n.stage)
-
-  const unseenCount = notifications.filter(n => n.stage && !seen[n.stage.key]).length
-
   const chips = [
-    { label: 'ds', value: datasetId ? datasetId.slice(0, 8) : null, cls: 'text-[#4A9FD8]' },
-    { label: 'run', value: runId ? runId.slice(0, 8) : null, cls: 'text-primary-400' },
-    { label: 'model', value: modelId ? modelId.slice(0, 8) : null, cls: 'text-[#5B6FE0]' },
+    { label: 'dataset', value: datasetId ? datasetId.slice(0, 8) : null, cls: 'text-[#4A9FD8]', title: datasetId ? `dataset ${datasetId}` : '' },
+    { label: 'run', value: runId ? runId.slice(0, 8) : null, cls: 'text-primary-400', title: runId ? `run ${runId}` : '' },
+    { label: 'model', value: modelId ? modelId.slice(0, 8) : null, cls: 'text-[#5B6FE0]', title: modelId ? `model ${modelId}` : '' },
   ].filter(c => c.value)
 
   return (
@@ -131,14 +129,18 @@ export function TopBar() {
         <div className="flex items-center gap-2">
           <div className={clsx('relative flex h-8 w-8 items-center justify-center rounded-glass border',
             stage ? 'border-primary-500/40 bg-primary-500/10 shadow-[0_0_14px_rgba(76,95,213,0.35)]' : 'border-white/[0.06] bg-white/[0.03]')}>
-            {stage ? <ArrowUpRight className="h-4 w-4 text-primary-300" /> : <Settings className="h-4 w-4 text-gray-400" />}
+            {stage ? (
+              <span className="font-mono text-xs font-bold text-primary-300">{stage.index}</span>
+            ) : (
+              <span className="font-mono text-[9px] text-gray-500">═</span>
+            )}
             {openStageStatuses[stage?.key || ''] === 'active' && <span className="absolute -right-0.5 -top-0.5 h-2 w-2 animate-ping rounded-full bg-accent-emerald" />}
           </div>
           <div className="min-w-0">
             <h1 className="truncate font-display text-[15px] font-semibold tracking-tight text-gray-100">{title}</h1>
             {stage && (
               <p className="truncate font-mono text-[10px] uppercase tracking-widest text-gray-500">
-                {milestone?.short} › stage {stage.index}/15 {stage.key === 'shap' ? '· needs dataset' : stage.requires === 'dataset' ? '· needs dataset' : stage.requires === 'run' ? '· needs run' : stage.requires === 'model' ? '· needs model' : ''}
+                {milestone?.short} › stage {stage.index}/{PIPELINE_TOTAL} {stage.key === 'shap' ? '· needs dataset' : stage.requires === 'dataset' ? '· needs dataset' : stage.requires === 'run' ? '· needs run' : stage.requires === 'model' ? '· needs model' : ''}
               </p>
             )}
           </div>
@@ -154,7 +156,7 @@ export function TopBar() {
         )}
         <span className="hidden items-center gap-2 md:flex">
           {chips.map(c => (
-            <span key={c.label} className={clsx('rounded-full border border-white/[0.08] bg-white/[0.03] px-2 py-0.5 font-mono text-[11px] tracking-wider', c.cls)}>
+            <span key={c.label} title={c.title} className={clsx('rounded-full border border-white/[0.08] bg-white/[0.03] px-2 py-0.5 font-mono text-[11px] tracking-wider', c.cls)}>
               {c.label}.{c.value}
             </span>
           ))}
@@ -222,17 +224,17 @@ export function TopBar() {
             className={clsx('relative p-1.5 transition-colors rounded-lg hover:bg-white/[0.03]', open ? 'text-primary-300' : 'text-gray-400 hover:text-gray-200')}
           >
             <Bell className="w-4 h-4" />
-            {notifications.length > 0 && (
+            {unseenCount > 0 && (
               <span className="absolute -right-0.5 -top-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-primary-500 text-[8px] font-bold text-white shadow-[0_0_8px_rgba(76,95,213,0.6)]">
                 {unseenCount}
               </span>
             )}
           </button>
           {open && (
-            <div className="absolute right-0 top-9 z-[130] w-80 rounded-glass border border-white/[0.08] bg-surface-light/95 p-3 shadow-glass backdrop-blur-xl">
+            <div className="absolute right-0 top-9 z-[300] w-80 rounded-glass border border-white/[0.08] bg-surface-light/95 p-3 shadow-glass backdrop-blur-xl">
               <div className="mb-2 flex items-center justify-between">
                 <p className="font-mono text-xs uppercase tracking-[0.2em] text-gray-400">journey pulse</p>
-                <span className="font-mono text-[10px] text-gray-500">{doneCount}/{WORKFLOW.length} done</span>
+                <span className="font-mono text-[10px] text-gray-500">{doneCount}/{PIPELINE_TOTAL} done</span>
               </div>
               {notifications.length === 0 ? (
                 <p className="py-3 text-center text-xs text-gray-500">No completed stages yet. Run the journey to see progress here.</p>
@@ -271,7 +273,7 @@ export function TopBar() {
             <Settings className="w-4 h-4" />
           </button>
           {menuRefOpen && (
-            <div className="absolute right-0 top-9 z-[130] w-72 rounded-glass border border-white/[0.08] bg-surface-light/95 p-4 shadow-glass backdrop-blur-xl">
+            <div className="absolute right-0 top-9 z-[300] w-72 rounded-glass border border-white/[0.08] bg-surface-light/95 p-4 shadow-glass backdrop-blur-xl">
               <p className="mb-3 font-mono text-xs uppercase tracking-[0.2em] text-gray-400">System settings</p>
 
               <div className="mb-4 space-y-1.5">

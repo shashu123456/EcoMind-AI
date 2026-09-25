@@ -1,4 +1,4 @@
-﻿import { useEffect, useRef, useState } from 'react'
+﻿import { useEffect, useMemo, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import { Sparkles, Loader2, Wand2, Check } from 'lucide-react'
 import clsx from 'clsx'
@@ -6,7 +6,7 @@ import { datasets, dq } from '../lib/api'
 import { useApi } from '../lib/hooks'
 import { useRouteParams, fmt, EmptyBox } from '../lib/pagekit'
 import { useJourney } from '../lib/journey'
-import { AutoNext, DoneChip, DiffStrip, FlowStat, Reveal, B } from '../lib/kit'
+import { AutoNext, DoneChip, DiffStrip, FlowStat, Reveal, B, colLabel } from '../lib/kit'
 import { PixelatedReveal } from '../lib/interactive'
 import { FullscreenBlock, Terminal, FlowConsole, DataPreview } from '../components/RoomStage'
 
@@ -51,6 +51,33 @@ export function DQEnginePage() {
   const columns = (prevData?.columns || []) as any[]
   const rows = (prevData?.rows || []) as any[]
   const rowCount = ds?.row_count ?? rows.length
+
+  /* REAL defect profile computed from the imported record set — no fake numbers. */
+  const gapProfile = useMemo(() => {
+    const cols = columns.map((c: any, ci: number) => {
+      let miss = 0
+      for (const r of rows) {
+        const v = r ? r[ci] : undefined
+        if (v === null || v === undefined || v === '') miss++
+      }
+      const name = typeof c === 'string' ? c : c?.name ?? `col${ci + 1}`
+      return { name, miss, total: rows.length, pct: rows.length ? Math.round((miss / rows.length) * 100) : 0 }
+    })
+    const missingCells = cols.reduce((a: number, g: any) => a + g.miss, 0)
+    const totalCells = columns.length * rows.length
+    return { colGaps: cols.filter((g: any) => g.miss > 0), missingCells, totalCells, completeness: totalCells ? Math.round(((totalCells - missingCells) / totalCells) * 100) : 100 }
+  }, [columns, rows])
+
+  const rawLines = [
+    `rows scanned: ${fmt(rowCount)}`,
+    `columns held: ${fmt(columns.length)}`,
+    `cells inspected: ${fmt(gapProfile.totalCells, 0)}`,
+    `missing cells found: ${fmt(gapProfile.missingCells, 0)}`,
+    gapProfile.colGaps.length ? 'ranked gaps by column:' : 'no column gaps detected',
+    ...gapProfile.colGaps.slice(0, 3).map(g => `  • ${colLabel(g.name)}: ${g.pct}% (${g.miss}/${g.total})`),
+    `completeness: ~${gapProfile.completeness}%`,
+  ]
+
   const autoStarted = useRef(false)
 
   useEffect(() => {
@@ -102,7 +129,7 @@ export function DQEnginePage() {
   function diffRows(): Array<{ label: string; before?: number; after?: number }> {
     const r: Array<{ label: string; before?: number; after?: number }> = []
     if (typeof result?.overall_score === 'number') {
-      r.push({ label: 'completeness', before: 43, after: Math.round(result.overall_score * 100) || 97 })
+      r.push({ label: 'completeness', before: gapProfile.completeness, after: Math.round(result.overall_score * 100) || 97 })
     }
     Object.entries(dims || {})
       .sort((a, b) => b[1] - a[1])
@@ -124,16 +151,9 @@ export function DQEnginePage() {
           className="min-h-0 flex-1"
           title="RAW SIGNAL · ISSUES"
           tag={scope === 'all' ? `all ${fmt(rowCount)} records` : `sample of ${fmt(Math.min(rowCount, 20))}`}
-          lines={[
-            'null timestamps detected: 214',
-            'duplicate rows: 37',
-            'wrong timezone markers: 9',
-            'unit mismatch kW/kWh: 5',
-            'missing metadata: 12',
-            'completeness: ~43%',
-          ]}
+          lines={rawLines}
         />
-        <DataPreview columns={columns} rows={rows} maxCols={4} maxRows={3} title="Raw records · gaps to fix" />
+        <DataPreview columns={columns} rows={rows} maxCols={columns.length || 8} maxRows={10} title="Raw records · full scan" />
       </div>
 
       <FlowConsole
@@ -206,7 +226,7 @@ export function DQEnginePage() {
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
           <FlowStat label="Rows scanned" value={scope === 'all' ? rowCount : Math.min(rowCount, 20)} hint="records checked" />
           <FlowStat label="Dimensions" value={8} hint="quality axes scored" />
-          <FlowStat label="Raw completeness" value={43} suffix="%" accent hint="before repair" />
+          <FlowStat label="Raw completeness" value={gapProfile.completeness} suffix="%" accent hint="before repair · real scan" />
           <FlowStat label="Target quality" value={Math.round(score)} suffix="%" hint="after repair" />
         </div>
 

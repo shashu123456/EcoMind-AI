@@ -34,6 +34,7 @@ def _factors(db: Session, dataset_id: str, overrides: dict | None = None):
         dq_score = round(dq.score, 1) if dq else None
 
     model_rel = oj.get("model_relevance")
+    best = None
     if model_rel is None:
         best = db.query(Model).filter(Model.dataset_id == dataset_id, Model.is_active.is_(True)) \
             .order_by(Model.created_at.desc()).first()
@@ -56,6 +57,7 @@ def _factors(db: Session, dataset_id: str, overrides: dict | None = None):
         "dq_score": dq_score,
         "model_relevance": model_rel,
         "shap_stability": shap_stab,
+        "model_id": best.id if best else None,
     }
 
 
@@ -80,6 +82,7 @@ def evaluate(db: Session, dataset_id: str, overrides: dict | None = None) -> Con
             "explanation": "Weighted fusion of prediction confidence, DQ score, model relevance and SHAP stability.",
             "weights": TRUST_WEIGHTS,
             "missing_factors": [k for k in TRUST_WEIGHTS if f[k] is None],
+            "model_id": f.get("model_id"),
         }),
     )
     db.add(gate)
@@ -111,6 +114,7 @@ def gate_payload(g: ConfidenceGate) -> dict:
         "reasoning": reason or {},
         "created_at": g.created_at.isoformat() if g.created_at else None,
         "workflow_run_id": g.workflow_run_id,
+        "model_id": (reason or {}).get("model_id"),
     }
 
 

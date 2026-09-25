@@ -56,6 +56,19 @@ export function FeatureEngineeringPage() {
 
   const shown = done ? features : features.slice(0, visible)
 
+  // importance_score arrives as 0–1 from the engineer backend; normalise
+  // defensively (some rows may carry it as 0–100) so bars never read empty.
+  const impOf = (f: any) => {
+    const v = Number(f?.importance_score)
+    if (v == null || Number.isNaN(v)) return 0
+    const n = Math.abs(v)
+    return n > 1 ? Math.min(100, Math.round(n)) : Math.round(n * 100)
+  }
+
+  const meanImp = features.length
+    ? Math.round(features.reduce((a: number, f: any) => a + impOf(f), 0) / features.length)
+    : 0
+
   return (
     <div className="relative flex h-full min-h-0 flex-col overflow-hidden">
       <div className="min-h-0 flex-1 space-y-6 overflow-y-auto pr-1">
@@ -74,8 +87,8 @@ export function FeatureEngineeringPage() {
       />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <FlowStat label="Features" value={Math.max(shown.length, done ? features.length : shown.length)} accent hint="engineered set" />
-        <FlowStat label="Importance signal" value={features.length ? Math.round(features.reduce((a: number, f: any) => a + (f.importance_score || 0), 0) / features.length * 100) : 0} suffix="%" hint="mean importance" />
+        <FlowStat label="Features" value={shown.length} accent hint="engineered set" />
+        <FlowStat label="Importance signal" value={meanImp} suffix="%" hint="mean importance" />
         <FlowStat label="Source columns" value={new Set(features.flatMap((f: any) => f.source_columns || [])).size} hint="raw columns used" />
         <FlowStat label="Methods" value={new Set(features.map((f: any) => f.feature_type || 'custom')).size} hint="generation types" />
       </div>
@@ -111,8 +124,8 @@ export function FeatureEngineeringPage() {
               </p>
             </div>
           </div>
-          <div className="border-t border-white/[0.06] bg-[#07090C] px-4 py-2.5 font-mono text-[11px] text-gray-500">
-            <span className="text-gray-400">case_:</span> a <span className="text-gray-300">10.3&nbsp;kWh</span> spike at 09:00 on a Tuesday is unreadable raw — but with features it becomes <span className="text-[#7DD3FC]">Hour=9</span> + <span className="text-[#7DD3FC]">Weekday=2</span> + <span className="text-[#7DD3FC]">Lag=2.1</span> + <span className="text-[#7DD3FC]">RollingMean=1.8</span> → the model recognises a morning peak and predicts the next interval correctly.
+          <div className="border-t border-white/[0.06] bg-black/25 px-4 py-2.5 font-mono text-[11px] text-gray-500">
+            <span className="text-gray-400">case_:</span> a <span className="text-gray-300">10.3&nbsp;kWh</span> spike at 09:00 on a Tuesday is unreadable raw — but with features it becomes <span className="text-accent-cyan">Hour=9</span> + <span className="text-accent-cyan">Weekday=2</span> + <span className="text-accent-cyan">Lag=2.1</span> + <span className="text-accent-cyan">RollingMean=1.8</span> → the model recognises a morning peak and predicts the next interval correctly.
           </div>
         </div>
       </Reveal>
@@ -146,7 +159,7 @@ export function FeatureEngineeringPage() {
             <AnimatePresence initial={false}>
               {shown.length === 0 && !busy && <p className="px-4 py-8 text-center text-sm text-gray-400">run the generator to build features…</p>}
               {shown.map((f: any, i: number) => {
-                const imp = Math.round((f.importance_score || 0) * 100)
+                const imp = impOf(f)
                 return (
                   <motion.div key={f.id || f.name || i}
                     initial={{ opacity: 0, y: 10, scale: 0.99 }} animate={{ opacity: 1, y: 0, scale: 1 }}

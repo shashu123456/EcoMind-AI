@@ -1,4 +1,4 @@
-import { ReactNode, useEffect, useMemo, useRef, useState } from 'react'
+import { ReactNode, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { motion, animate, AnimatePresence } from 'framer-motion'
 import { useNavigate } from '@tanstack/react-router'
@@ -264,6 +264,7 @@ export function Gauge({
   decimals?: number
   threshold?: number
 }) {
+  const gid = useId()
   const [display, setDisplay] = useState(0)
   useEffect(() => {
     const controls = animate(0, Math.max(0, Math.min(100, (value || 0) * 100)), {
@@ -277,70 +278,134 @@ export function Gauge({
   const c = Math.PI * r
   const frac = display / 100
   const cx = size / 2
-  const hubY = size / 2 + 6
+  const hubY = size / 2 + 8
   const pt = (f: number, rad: number) => {
-    const a = ((-90 + f * 180) * Math.PI) / 180
+    const a = ((-90 + Math.max(0, Math.min(1, f)) * 180) * Math.PI) / 180
     return [cx + rad * Math.cos(a), hubY + rad * Math.sin(a)]
   }
+  const DIAL = 'var(--chassis, #0F1217)'
+  const RIM = 'var(--term-mid, rgba(255,255,255,0.18))'
 
   return (
     <div className="flex flex-col items-center" style={{ width: size }}>
-      <svg width={size} height={size / 2 + 26} viewBox={`0 0 ${size} ${size / 2 + 26}`}>
+      <svg width={size} height={size / 2 + 28} viewBox={`0 0 ${size} ${size / 2 + 28}`}>
         <defs>
-          <linearGradient id="gaugeGrad" x1="0" y1="0" x2="1" y2="0">
+          <linearGradient id={gid} x1="0" y1="0" x2="1" y2="0">
             <stop offset="0%" stopColor={color} />
             <stop offset="100%" stopColor="#5B6FE0" />
           </linearGradient>
         </defs>
+        {/* static dial face + rim */}
         <path d={`M ${stroke / 2} ${hubY} A ${r} ${r} 0 0 1 ${size - stroke / 2} ${hubY}`}
-          fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth={stroke} strokeLinecap="round" />
-        {[0.25, 0.5, 0.75, 1].map(f => {
-          const [x1, y1] = pt(f, r + stroke / 2 + 5)
-          const [x2, y2] = pt(f, r + stroke / 2 + 12)
-          return <line key={f} x1={x1} y1={y1} x2={x2} y2={y2} stroke="rgba(255,255,255,0.22)" strokeWidth={2} strokeLinecap="round" />
-        })}
+          fill="none" stroke={DIAL} strokeOpacity={0.55} strokeWidth={stroke} strokeLinecap="round" />
+        <path d={`M ${stroke / 2} ${hubY} A ${r} ${r} 0 0 1 ${size - stroke / 2} ${hubY}`}
+          fill="none" stroke={RIM} strokeWidth={1} strokeLinecap="round" />
+        {/* graduated ticks */}
         {[0, 0.25, 0.5, 0.75, 1].map(f => {
-          const [x1, y1] = pt(f, stroke / 2 - 4)
-          const [x2, y2] = pt(f, stroke / 2 - 11)
-          return <line key={`i${f}`} x1={x1} y1={y1} x2={x2} y2={y2} stroke="rgba(255,255,255,0.12)" strokeWidth={1.5} strokeLinecap="round" />
+          const [x1, y1] = pt(f, r + stroke / 2 + 4)
+          const [x2, y2] = pt(f, r + stroke / 2 + 11)
+          return <line key={`o${f}`} x1={x1} y1={y1} x2={x2} y2={y2} stroke={RIM} strokeWidth={f === 0 || f === 1 ? 2.5 : 1.4} strokeLinecap="round" opacity={f === 0 || f === 1 ? 0.8 : 0.5} />
+        })}
+        {[0.25, 0.5, 0.75].map(f => {
+          const [x1, y1] = pt(f, stroke / 2 - 3)
+          const [x2, y2] = pt(f, stroke / 2 - 10)
+          return <line key={`i${f}`} x1={x1} y1={y1} x2={x2} y2={y2} stroke={RIM} strokeWidth={1.4} strokeLinecap="round" opacity={0.6} />
         })}
         {threshold > 0 && threshold < 1 && (() => {
-          const [x1, y1] = pt(threshold, stroke / 2 - 12)
-          const [x2, y2] = pt(threshold, stroke / 2 + 7)
+          const [x1, y1] = pt(threshold, stroke / 2 - 13)
+          const [x2, y2] = pt(threshold, stroke / 2 + 6)
           return <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="#F59E0B" strokeWidth={2.5} strokeLinecap="round" />
         })()}
+        {/* value arc */}
         <motion.path
           d={`M ${stroke / 2} ${hubY} A ${r} ${r} 0 0 1 ${size - stroke / 2} ${hubY}`}
-          fill="none" stroke="url(#gaugeGrad)" strokeWidth={stroke} strokeLinecap="round"
+          fill="none" stroke={`url(#${gid})`} strokeWidth={stroke} strokeLinecap="round"
           strokeDasharray={c}
           initial={{ strokeDashoffset: c }}
           animate={{ strokeDashoffset: c * (1 - frac) }}
           transition={{ duration: 1.6, ease: B }}
           style={{ filter: `drop-shadow(0 0 8px ${color}55)` }}
         />
-        {/* needle */}
+        {/* needle — swept from the centre hub like a real meter */}
         <motion.g
           initial={{ rotate: -90 }}
           animate={{ rotate: -90 + Math.max(0.01, Math.min(1, frac)) * 180 }}
           transition={{ duration: 1.6, ease: B }}
           style={{ transformOrigin: `${cx}px ${hubY}px` }}
         >
-          <line x1={cx} y1={hubY} x2={cx} y2={hubY + 9} stroke="rgba(255,255,255,0.25)" strokeWidth={2} strokeLinecap="round" />
-          <line x1={cx} y1={hubY} x2={cx} y2={hubY - (r - 12)} stroke={color} strokeWidth={3} strokeLinecap="round" />
-          <polygon points={`${cx},${hubY - 6} ${cx - 5.5},${hubY + 5} ${cx + 5.5},${hubY + 5}`} fill={color} />
+          <line x1={cx} y1={hubY} x2={cx} y2={hubY - (r - 6)} stroke={color} strokeWidth={3.5} strokeLinecap="round" />
+          <line x1={cx} y1={hubY} x2={cx} y2={hubY - 6} stroke={color} strokeWidth={1.2} opacity={0.6} />
+          <line x1={cx} y1={hubY} x2={cx} y2={hubY + 12} stroke={color} strokeWidth={2.5} strokeLinecap="round" opacity={0.35} />
         </motion.g>
-        <circle cx={cx} cy={hubY} r={7.5} fill="#171A20" stroke={color} strokeWidth={2} />
-        <circle cx={cx} cy={hubY} r={2.8} fill={color} />
+        {/* centre hub — visible bezel so the needle reads as attached, not floating */}
+        <circle cx={cx} cy={hubY} r={9} fill="var(--panel2, #171A20)" stroke={color} strokeWidth={2} />
+        <circle cx={cx} cy={hubY} r={3.4} fill={color} />
       </svg>
       <div className="-mt-1 text-center">
         <p className="font-display text-2xl font-bold text-gray-100">
           <AnimatedNumber value={display} decimals={decimals} />
           <span className="text-sm font-mono text-gray-400">%</span>
         </p>
-        {label && <p className="text-[10px] uppercase tracking-[0.2em] text-gray-500 mt-0.5">{label}</p>}
-        {sublabel && <p className="text-xs text-gray-400 mt-0.5">{sublabel}</p>}
+        {label && <p className="mt-0.5 text-[10px] uppercase tracking-[0.2em] text-gray-500">{label}</p>}
+        {sublabel && <p className="mt-0.5 text-xs text-gray-400">{sublabel}</p>}
       </div>
     </div>
+  )
+}
+
+/* ── Ripple button: realistic expanding water-ripple from the click point,
+   plus a continuous ripple while `loading` (stops the moment the page lands). ── */
+export function RippleButton({
+  className, children, loading, ...rest
+}: React.ButtonHTMLAttributes<HTMLButtonElement> & { loading?: boolean }) {
+  const ref = useRef<HTMLButtonElement>(null)
+  const [ripples, setRipples] = useState<{ id: number; x: number; y: number; d: number }[]>([])
+  const idRef = useRef(0)
+
+  function spawn(e: React.PointerEvent<HTMLButtonElement>) {
+    if (rest.disabled || loading) return
+    const el = ref.current
+    if (!el) return
+    const rect = el.getBoundingClientRect()
+    const d = Math.max(rect.width, rect.height) * 1.3
+    const id = ++idRef.current
+    setRipples(rs => [...rs, { id, x: e.clientX - rect.left, y: e.clientY - rect.top, d }])
+    setTimeout(() => setRipples(rs => rs.filter(r => r.id !== id)), 750)
+  }
+
+  return (
+    <button
+      ref={ref}
+      onPointerDown={spawn}
+      className={clsx('relative overflow-hidden', className)}
+      {...rest}
+    >
+      <span className="pointer-events-none absolute inset-0 overflow-hidden rounded-[inherit]">
+        {loading && (
+          <motion.span
+            className="pointer-events-none absolute left-1/2 top-1/2 rounded-full border border-white/70"
+            style={{ width: '72%', aspectRatio: '1' }}
+            initial={{ x: '-50%', y: '-50%', scale: 0.25, opacity: 0.9 }}
+            animate={{ scale: 1.8, opacity: 0 }}
+            transition={{ duration: 1.05, repeat: Infinity, ease: 'easeOut' }}
+          />
+        )}
+        {ripples.map(r => (
+          <motion.span
+            key={r.id}
+            className="pointer-events-none absolute rounded-full"
+            style={{
+              left: r.x - r.d / 2, top: r.y - r.d / 2, width: r.d, height: r.d,
+              background: 'radial-gradient(circle, rgba(255,255,255,0.5) 0%, rgba(255,255,255,0.22) 35%, rgba(255,255,255,0) 65%)',
+            }}
+            initial={{ scale: 0, opacity: 0.75 }}
+            animate={{ scale: 1, opacity: 0 }}
+            transition={{ duration: 0.7, ease: 'easeOut' }}
+          />
+        ))}
+      </span>
+      <span className="relative z-10 inline-flex w-full items-center justify-center gap-2">{children}</span>
+    </button>
   )
 }
 

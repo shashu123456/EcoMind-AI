@@ -3,12 +3,12 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Link, useNavigate } from '@tanstack/react-router'
 import {
   ArrowRight, Database, ShieldCheck, Gauge, AlertTriangle,
-  Trophy, TrendingUp, Coins, Cloud, Sparkles, Play, Activity, Radio, Cpu, Zap, CircuitBoard, X, Star,
+  Trophy, TrendingUp, Coins, Cloud, Sparkles, Play, Activity, Radio, Cpu, Zap, Star,
 } from 'lucide-react'
 import { datasets, ai, workflows } from '../lib/api'
 import { useApi } from '../lib/hooks'
-import { useJourney, WORKFLOW, stagePath, runJourneyToCompletion, MILESTONES, milestoneProgress } from '../lib/journey'
-import { AnimatedNumber, Particles, Reveal, Gauge as TrustGauge, B, firePageRipple } from '../lib/kit'
+import { useJourney, WORKFLOW, stagePath, runJourneyToCompletion, MILESTONES, milestoneProgress, progressStats } from '../lib/journey'
+import { AnimatedNumber, Particles, Reveal, Gauge as TrustGauge, B, firePageRipple, RippleButton } from '../lib/kit'
 import { AnnotatedText, MatrixRain, SplitFlapDisplay } from '../lib/interactive'
 import { STAGE_ICONS, STAGE_COLORS } from '../components/ProcessRail'
 import { EcoMindLogo } from '../lib/logo'
@@ -64,10 +64,10 @@ function ElectricHero() {
   )
 }
 
-/* ── Live stage flow monitor: the full 15-stage pipeline lighting up
+/* ── Live stage flow monitor: the full pipeline lighting up
      in real time as the auto journey advances (not just a counter). ── */
 function StageCascade({ statuses, running, now }: { statuses: Record<string, string>; running: boolean; now: number }) {
-  const pct = WORKFLOW.length ? (WORKFLOW.filter(s => statuses[s.key] === 'done').length / WORKFLOW.length) * 100 : 0
+  const pct = progressStats(statuses).pct
   return (
     <div className="glass-panel relative overflow-hidden p-5">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
@@ -209,7 +209,7 @@ function ProgressRing({ pct }: { pct: number }) {
   )
 }
 
-/* ── Mission screen: energy data-flow panel on the right ── */
+/* ── Mission screen: the live energy terminal on the front page ── */
 function EnergyScreen({ dsId, runId, dsName, doneCount, pct }: { dsId: string; runId: string; dsName: string; doneCount: number; pct: number }) {
   return (
     <div className="device-bezel relative mx-auto w-full max-w-xl p-3">
@@ -236,13 +236,13 @@ function EnergyScreen({ dsId, runId, dsName, doneCount, pct }: { dsId: string; r
             <AnnotatedText variant="highlight" className="text-white">Every step explained.</AnnotatedText>
           </h1>
           <p className="mt-1 max-w-md text-sm leading-6 text-gray-300">
-            A 15-stage explainable pipeline — from raw energy data to decisions you can trust.
+            A 13-stage explainable pipeline — from raw energy data to decisions you can trust.
           </p>
           {doneCount > 0 && (
             <div className="mt-3 flex items-center gap-3">
               <ProgressRing pct={pct} />
               <div>
-                <p className="font-mono text-xs leading-none text-gray-200">{doneCount}/15 stages complete</p>
+                <p className="font-mono text-xs leading-none text-gray-200">{doneCount}/13 stages complete</p>
                 <p className="mt-1 font-mono text-[10px] uppercase tracking-widest text-gray-400">trust score ready</p>
               </div>
             </div>
@@ -260,7 +260,7 @@ function EnergyScreen({ dsId, runId, dsName, doneCount, pct }: { dsId: string; r
 export function DashboardPage() {
   const navigate = useNavigate()
   const { data: ds, refetch: refetchDs } = useApi<any>(() => datasets.list() as any, [])
-  const { setActive, datasetId, stageStatuses, runId } = useJourney()
+  const { setActive, datasetId, stageStatuses, runId, mode } = useJourney()
   const activeId = datasetId || ds?.datasets?.[0]?.id || ''
   const { data: exec, refetch, loading: execLoading } = useApi<any>(
     () => (activeId ? ai.executive(activeId).then(r => r.summary as any) : Promise.resolve(null)),
@@ -313,6 +313,18 @@ export function DashboardPage() {
     } finally { setStarting(false) }
   }
 
+  function startStepByStep() {
+    useJourney.getState().setMode('manual')
+    void startJourney()
+  }
+
+  function startAutomated() {
+    useJourney.getState().setMode('auto')
+    if (!activeId) { navigate({ to: '/library' } as any); return }
+    firePageRipple()
+    navigate({ to: '/automated' } as any)
+  }
+
   const metrics = [
     { label: 'Data Quality', value: typeof dq === 'number' ? dq : (Array.isArray(dq) ? dq[0]?.overall_score : 0), icon: ShieldCheck, color: 'text-accent-emerald', pct: true },
     { label: 'Trust Score', value: trust, icon: Gauge, color: 'text-primary-400', pct: true },
@@ -320,12 +332,13 @@ export function DashboardPage() {
     { label: 'Critical Anomalies', value: anomalies, icon: AlertTriangle, color: 'text-accent-rose' },
   ]
 
-  const doneCount = WORKFLOW.filter(s => stageStatuses[s.key] === 'done').length
-  const pct = (doneCount / WORKFLOW.length) * 100
+  const doneCount = progressStats(stageStatuses).done
+  const pct = progressStats(stageStatuses).pct
   const nextPending = WORKFLOW.find(s => stageStatuses[s.key] !== 'done')
   const resumePath = nextPending ? stagePath(nextPending, { datasetId: activeId || '', runId: runId || '' }) : null
   const savings = totals
   const bestModel = exec?.best_model
+  const activeName = activeId ? ds?.datasets?.find((d: any) => d.id === activeId)?.name || 'Active dataset' : ''
 
   const pipeline = useMemo(() => [
     'transform raw energy → clean features',
@@ -339,7 +352,7 @@ export function DashboardPage() {
     <div className="relative space-y-6 overflow-hidden">
       <Particles count={24} />
 
-      {/* ── FRONT PAGE: brand left, electric mission screen right ── */}
+      {/* ── FRONT PAGE: brand left, electric mission terminal right ── */}
       <Reveal delay={0}>
         <div className="grid items-center gap-8 lg:grid-cols-[1.12fr_1fr]">
           <div>
@@ -350,8 +363,10 @@ export function DashboardPage() {
             </motion.div>
             <div className="flex items-center gap-3">
               <EcoMindLogo size={46} />
-              <h1 className="font-display text-5xl font-black tracking-tight text-gray-100 sm:text-6xl">
-                ECO<span className="text-accent-cyan">MIND</span>
+              <h1 className="font-display text-5xl font-black tracking-tight sm:text-6xl">
+                <span className="bg-gradient-to-r from-accent-cyan via-primary-400 to-accent-emerald bg-clip-text text-transparent">
+                  EcoMind-AI
+                </span>
                 <span className="ml-2 inline-block h-2.5 w-2.5 rounded-full bg-accent-emerald shadow-[0_0_14px_rgba(14,122,85,0.5)]" />
               </h1>
             </div>
@@ -367,18 +382,26 @@ export function DashboardPage() {
             </motion.div>
 
             <p className="mt-5 max-w-lg text-sm leading-7 text-gray-300">
-              EcoMind runs your energy data through a <span className="font-semibold text-gray-100">15-stage explainable pipeline</span> —
+              EcoMind runs your energy data through a <span className="font-semibold text-gray-100">13-stage explainable pipeline</span> —
               every transformation, every model, every verdict is shown, proven, and ready for audit.
             </p>
 
             <div className="mt-5 flex flex-wrap items-center gap-3">
-              <button
+              <RippleButton
                 onClick={startJourney}
-                disabled={!activeId || starting || runningJourney}
+                loading={starting || runningJourney}
+                disabled={!activeId}
                 className="group relative inline-flex items-center justify-center gap-2 overflow-visible rounded-button bg-gradient-to-r from-primary-500 to-accent-cyan px-6 py-3 text-sm font-bold uppercase tracking-wider text-white shadow-[0_0_26px_rgba(76,95,213,0.45)] transition-all hover:shadow-[0_0_40px_rgba(76,95,213,0.7)] disabled:opacity-50"
               >
                 <Zap className="h-4 w-4 group-hover:animate-pulse" fill="currentColor" />
                 {starting ? 'Igniting engine…' : runningJourney ? 'Running journey…' : 'Run the full process'}
+              </RippleButton>
+              <button
+                onClick={startStepByStep}
+                disabled={!activeId || starting || runningJourney}
+                className="inline-flex items-center justify-center gap-2 rounded-button border border-accent-cyan/30 bg-accent-cyan/10 px-5 py-3 text-sm font-semibold text-accent-cyan transition-colors hover:bg-accent-cyan/20 disabled:opacity-50"
+              >
+                <Play className="h-4 w-4" /> Step-by-step
               </button>
               <Link
                 to="/library"
@@ -401,6 +424,15 @@ export function DashboardPage() {
                 </button>
               )}
             </div>
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              <button
+                onClick={startAutomated}
+                disabled={!activeId}
+                className="inline-flex items-center gap-1.5 rounded-button border border-white/[0.06] px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.18em] text-gray-400 transition-colors hover:border-accent-emerald/40 hover:bg-accent-emerald/10 hover:text-accent-emerald disabled:opacity-50"
+              >
+                <Radio className="h-3 w-3" /> {mode === 'auto' ? 'Automated board · selected' : 'Automated single-screen board'}
+              </button>
+            </div>
             {journeyFailed && (
               <p className="mt-3 text-xs text-accent-rose">{journeyFailed}</p>
             )}
@@ -410,7 +442,7 @@ export function DashboardPage() {
             <EnergyScreen
               dsId={activeId}
               runId={runId || ''}
-              dsName={activeId ? ds?.datasets?.find((d: any) => d.id === activeId)?.name || 'Active dataset' : 'no dataset'}
+              dsName={activeName || 'no dataset'}
               doneCount={doneCount}
               pct={pct}
             />
@@ -439,7 +471,7 @@ export function DashboardPage() {
               <Radio className="h-5 w-5 text-primary-400 animate-pulse-glow" />
             </span>
             <div>
-              <p className="font-display text-sm font-semibold">{activeId ? ds?.datasets?.find((d: any) => d.id === activeId)?.name || 'Active dataset' : 'No dataset yet'}</p>
+              <p className="font-display text-sm font-semibold">{activeName || 'No dataset yet'}</p>
               <p className="text-xs text-gray-400">
                 {runningJourney ? (
                   <span className="flex items-center gap-1.5 text-accent-amber">
@@ -449,13 +481,13 @@ export function DashboardPage() {
                 ) : journeyFailed ? (
                   <span className="text-accent-rose">Journey stopped — {journeyFailed}</span>
                 ) : (
-                  <>15-stage explainable workflow · {doneCount} completed</>
+                  <>{mode === 'manual' ? 'step-by-step mode' : 'automated mode'} · {doneCount}/13 completed</>
                 )}
               </p>
             </div>
             <div className="ml-1 hidden md:block">
               <SplitFlapDisplay
-                text={(activeId ? ds?.datasets?.find((d: any) => d.id === activeId)?.name || 'EcoMind' : 'WAITING').toUpperCase().slice(0, 11)}
+                text={(activeName || 'EcoMind').toUpperCase().slice(0, 11)}
                 columns={11}
                 size="sm"
                 accentColor="#22c55e"
@@ -464,14 +496,15 @@ export function DashboardPage() {
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            <button
+            <RippleButton
               onClick={startJourney}
-              disabled={!activeId || starting || runningJourney}
+              loading={starting || runningJourney}
+              disabled={!activeId}
               className="inline-flex items-center justify-center gap-2 rounded-button bg-gradient-to-r from-primary-500 to-accent-cyan px-5 py-2.5 text-sm font-semibold text-white shadow-[0_0_20px_rgba(76,95,213,0.3)] transition-all hover:shadow-[0_0_30px_rgba(76,95,213,0.5)] disabled:opacity-50"
             >
               {starting || runningJourney ? <Activity className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
-              {starting ? 'Igniting engine…' : runningJourney ? 'Running journey…' : 'Run the full journey'}
-            </button>
+              {starting ? 'Igniting engine…' : runningJourney ? 'Running journey…' : `Run the full journey (${mode === 'manual' ? 'step' : 'auto'})`}
+            </RippleButton>
           </div>
         </div>
       </Reveal>
@@ -494,19 +527,20 @@ export function DashboardPage() {
               <Sparkles className="h-8 w-8 text-primary-400/70" />
               <p className="font-display text-lg font-semibold text-gray-200">Nothing to show on this dataset yet</p>
               <p className="max-w-xl text-sm leading-relaxed text-gray-400">
-                EcoMind generates the Mission Control briefing only after the full 15-stage explainable
+                EcoMind generates the Mission Control briefing only after the full 13-stage explainable
                 pipeline completes. Run the journey now — every decision it makes becomes visible here —
                 or pick a completed run from the Library.
               </p>
               <div className="mt-2 flex flex-wrap items-center justify-center gap-3">
-                <button
+                <RippleButton
                   onClick={startJourney}
-                  disabled={!activeId || starting || runningJourney}
+                  loading={starting || runningJourney}
+                  disabled={!activeId}
                   className="inline-flex items-center justify-center gap-2 rounded-button bg-gradient-to-r from-primary-500 to-accent-cyan px-5 py-2.5 text-sm font-semibold text-white shadow-[0_0_20px_rgba(76,95,213,0.3)] transition-all hover:shadow-[0_0_30px_rgba(76,95,213,0.5)] disabled:opacity-50"
                 >
                   {starting || runningJourney ? <Activity className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
                   {starting ? 'Igniting engine…' : runningJourney ? 'Running journey…' : 'Run the full journey'}
-                </button>
+                </RippleButton>
                 <Link to="/library" className="inline-flex items-center justify-center gap-2 rounded-button border border-white/[0.08] px-4 py-2.5 text-sm font-medium text-gray-300 transition-colors hover:bg-white/[0.04]">
                   <Database className="h-4 w-4" /> Open Library
                 </Link>
@@ -580,7 +614,7 @@ export function DashboardPage() {
               <h3 className="font-display text-sm font-semibold">Executive Narrative</h3>
             </div>
             <p className="text-sm leading-relaxed text-gray-400">
-              {exec?.headline || exec?.summary || 'Begin your journey: select a dataset and run the full 15-stage explainable pipeline. EcoMind will show you every decision it makes.'}
+              {exec?.headline || exec?.summary || 'Begin your journey: select a dataset and run the full 13-stage explainable pipeline. EcoMind will show you every decision it makes.'}
             </p>
             {exec?.overview && <p className="mt-3 text-sm leading-relaxed text-gray-400">{exec.overview}</p>}
             {exec?.key_findings?.length ? (
