@@ -122,7 +122,10 @@ export function TransformationsPage() {
   const preview = useApi<any>(() => (datasetId ? (import('../lib/api').then(m => m.datasets.preview(datasetId, 8)) as any) : null), [datasetId])
   const trLog = useApi<any>(() => (datasetId ? (import('../lib/api').then(m => m.transformations.list(datasetId)) as any) : null), [datasetId])
 
-  const columns = useMemo<string[]>(() => (preview.data?.columns || []) as string[], [preview.data])
+  const columns = useMemo<string[]>(() =>
+    (preview.data?.columns || []).map((c: any) =>
+      typeof c === 'string' ? c : c && typeof c === 'object' && c.name != null ? String(c.name) : String(c ?? '')),
+    [preview.data])
   const rows = useMemo<any[][]>(() => (preview.data?.rows || []) as any[][], [preview.data])
 
   const [logLines, setLogLines] = useState<string[]>([])

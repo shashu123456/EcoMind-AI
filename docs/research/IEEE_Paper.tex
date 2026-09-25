@@ -31,7 +31,7 @@ data quality, energy forecasting, explainable AI, SHAP, trust, MLOps
 
 Building energy datasets are not ready to be modeled the moment they are exported. Meter files arrive with null cells, duplicate timestamps, stuck sensors that report constant values, and occupants or equipment that produce values outside any physical range. We built EcoMind AI after noticing that most pipelines in this space solve the modeling part well and treat everything before it as plumbing. That assumption caused real trouble during our own experiments: a clean-looking file could still fail on timestamp continuity, and a feature we derived before validation made a linear model look perfect while the numbers meant nothing.
 
-Our view is that prediction quality is downstream of data quality, and that trust in a forecast is downstream of being able to show \emph{why} a number is trustworthy. So the platform is organized as an explicit sequence of seventeen stages, from ingestion to a final registry, and every stage is persisted and streamed to the browser. Nothing runs on the cloud; the dataset files never leave the host machine.
+Our view is that prediction quality is downstream of data quality, and that trust in a forecast is downstream of being able to show \emph{why} a number is trustworthy. So the platform is organized as an explicit sequence of fifteen stages, from ingestion to a final registry, and every stage is persisted and streamed to the browser. Nothing runs on the cloud; the dataset files never leave the host machine.
 
 The contribution of this paper is not a new learning algorithm. It is an integrated workflow in which quality assessment, preprocessing, explainable AI, raw-versus-processed comparison, confidence evaluation, anomaly detection, benchmarking, and executive decision support operate together inside one transparent pipeline. We report implementation details and measured results from the running system, including the failure modes it caught.
 
@@ -45,9 +45,10 @@ Four differences position the platform. Existing systems predict; EcoMind AI val
 \caption{Compared against representative families of related tools}
 \label{tab:compare}
 \centering
-\begin{tabular}{@{}p{0.16\textwidth}p{0.22\textwidth}p{0.22\textwidth}p{0.22\textwidth}@{}}
+\footnotesize
+\begin{tabular}{@{}p{0.19\columnwidth}p{0.19\columnwidth}p{0.19\columnwidth}p{0.19\columnwidth}@{}}
 \toprule
-Capability & Prediction studies~\cite{amasyali:2018,chen:2016} & Generic ML frameworks~\cite{pedregosa:2011} & EcoMind AI \\
+Capability & Prediction studies & Generic ML frameworks & EcoMind AI \\
 \midrule
 Data quality scoring & no & no & separate engine, 8 rules \\
 Retrospective leakage check & no & no & explicit \\
@@ -90,7 +91,7 @@ The data quality engine is the signature stage, and it exists because cleaning w
 \begin{figure}[!t]
 \centering
 \includegraphics[width=\columnwidth]{paper_assets/diagrams/data-quality-flow.png}
-\caption{The eight data quality rules grouped into five dimensions, with the score clamped and the pass/fail threshold applied per rule. Rule details are persisted so a failure can be traced later.}
+\caption{The eight data quality rules grouped into five dimensions.}
 \label{fig:dq}
 \end{figure}
 
@@ -151,22 +152,15 @@ ridge$^{\dagger}$ & 1.0000 & 0.0048 & 0.0024 & 0.09 \\
 
 \subsection{AI Confidence Gate}
 
-Every model produces a number; very few show why the number deserves trust. The confidence gate (Fig.~\ref{fig:conf}) fuses four evidence factors into a single trust score with fixed weights: 0.40 for prediction confidence, 0.25 for the quality score, 0.20 for model relevance, and 0.15 for explanation stability:
+Every model produces a number; very few show why the number deserves trust. The confidence gate fuses four evidence factors into a single trust score with fixed weights: 0.40 for prediction confidence, 0.25 for the quality score, 0.20 for model relevance, and 0.15 for explanation stability:
 \[
 T = 0.40(100) + 0.25(100) + 0.20(91.5) + 0.15(75) = 94.5
 \]
-on the reference run, a \texttt{high\_trust} verdict. Scores are thresholded into \texttt{high\_trust}, \texttt{reliable with caveats}, and \texttt{need more data} so a non-specialist can act without reading four decimals. Explanation stability is measured by a genuine two-half-sample index: SHAP rankings on two randomly split halves must agree (Spearman), otherwise the explanation is not stable enough to report. We intentionally label the gate an auditable composite, not a calibrated probability~\cite{guo:2017}; its job is to make a deployment decision traceable to named evidence.
-
-\begin{figure}[!t]
-\centering
-\includegraphics[width=\columnwidth]{paper_assets/figures/confidence.png}
-\caption{The AI confidence gate reporting 94.5/100 (high trust) with the four contributing factors. Screenshot captured from the live deployment.}
-\label{fig:conf}
-\end{figure}
+on the reference run, a \texttt{high\_trust} verdict. Scores are thresholded at 80 and 60 into \texttt{high\_trust}, \texttt{moderate\_trust}, and \texttt{low\_trust} so a non-specialist can act without reading four decimals. Explanation stability is measured by a genuine two-half-sample index: SHAP rankings on two randomly split halves must agree (Spearman), otherwise the explanation is not stable enough to report. We intentionally label the gate an auditable composite, not a calibrated probability~\cite{guo:2017}; its job is to make a deployment decision traceable to named evidence.
 
 \subsection{Raw versus Processed Comparison}\label{sec:rawproc}
 
-This stage answers a question nobody asks in most pipelines: did cleaning actually help? Identical models are trained on the raw and the cleaned frames under the same split, and the deltas are reported. On our already-clean dataset the answer was a clean zero---$R^2 = 0.9153$ on both sides, all error deltas zero (Table~\ref{tab:rawproc}). The platform's own conclusion phrased it honestly: cleaning cannot improve accuracy when there is little left to fix. We had expected a positive result here; measuring it was an uncomfortable but necessary lesson that the value of the stage is the measurement itself.
+Alongside the workflow, the platform exposes a raw-versus-processed comparison utility that answers a question nobody asks in most pipelines: did cleaning actually help? Identical models are trained on the raw and the cleaned frames under the same split, and the deltas are reported. On our already-clean dataset the answer was a clean zero---$R^2 = 0.9153$ on both sides, all error deltas zero (Table~\ref{tab:rawproc}). The comparison's own conclusion phrased it honestly: cleaning cannot improve accuracy when there is little left to fix. We had expected a positive result here; measuring it was an uncomfortable but necessary lesson that the value of the comparison is the measurement itself.
 
 \begin{table}[!t]
 \caption{Raw versus processed comparison on the reference dataset}
@@ -194,36 +188,29 @@ Anomaly detection flags records the quality engine rated as borderline so an ope
 \begin{figure*}[!t]
 \centering
 \includegraphics[width=\textwidth]{paper_assets/diagrams/workflow-pipeline.png}
-\caption{The seventeen-stage workflow grouped into six milestones. The confidence gate branches on the trust verdict, and an unstable explanation can send the run back to the data quality engine.}
+\caption{The fifteen-stage workflow grouped into six milestones. The confidence gate branches on the trust verdict.}
 \label{fig:pipeline}
 \end{figure*}
 
 \begin{table*}[!t]
-\caption{The seventeen stages mapped onto six milestones, with the evidence each stage produces}
+\caption{The fifteen stages mapped onto six milestones, with the evidence each stage produces}
 \label{tab:stages}
 \centering
-\begin{tabular}{@{}lp{0.42\textwidth}p{0.38\textwidth}@{}}
+\begin{tabular}{@{}llp{0.34\textwidth}p{0.30\textwidth}@{}}
 \toprule
 Milestone & Stages & Evidence produced \\
 \midrule
-Intake & register, import, preview & file digest, row/column counts \\
+Intake & library, import & file digest, row/column counts \\
 Understand & schema, data quality & types, per-rule quality scores \\
 Rebuild & transformation, features & replayable ops, 17 features \\
 Model & prediction, confidence gate & predictions, trust score \\
-Prove & raw-vs-processed, SHAP, anomaly, benchmark & deltas, attributions, flags, leaderboard \\
-Decide & recommendation, executive, report, registry & advice, narrative, export, stored model \\
+Prove & SHAP, anomaly & attributions, flags \\
+Decide & benchmarking, recommendation, executive, report, registry & leaderboard, advice, narrative, export, stored model \\
 \bottomrule
 \end{tabular}
 \end{table*}
 
-The seventeen stages are grouped into six milestones---Intake, Understand, Rebuild, Model, Prove, Decide---so the operator always knows where a run sits (Fig.~\ref{fig:pipeline} and Table~\ref{tab:stages}). Each stage runs explicitly: the operator clicks run, or the client advances automatically on SSE events. Every transition is persisted, which made debugging during development much easier and gives the history view the ability to reconstruct timings for a past run. The interface was built around the idea that every number on screen should be traceable to a stage and a stored record; we considered a screen useless if it showed a number we could not explain.
-
-\begin{figure}[!t]
-\centering
-\includegraphics[width=\columnwidth]{paper_assets/figures/executive.png}
-\caption{The executive intelligence center: trust verdict, business impact, and narrative compressed from the full run.}
-\label{fig:exec}
-\end{figure}
+The fifteen stages are grouped into six milestones---Intake, Understand, Rebuild, Model, Prove, Decide---so the operator always knows where a run sits (Fig.~\ref{fig:pipeline} and Table~\ref{tab:stages}). Each stage runs explicitly: the operator clicks run, or the client advances automatically on SSE events. Every transition is persisted, which made debugging during development much easier and gives the history view the ability to reconstruct timings for a past run. The interface was built around the idea that every number on screen should be traceable to a stage and a stored record; we considered a screen useless if it showed a number we could not explain.
 
 \begin{algorithm}[!t]
 \caption{TrustGate}
@@ -232,7 +219,7 @@ The seventeen stages are grouped into six milestones---Intake, Understand, Rebui
 \REQUIRE factors $c_{\text{pred}}, s_{\text{dq}}, r_{\text{model}}, s_{\text{shap}} \in [0,100]$
 \ENSURE trust score $T$, verdict
 \STATE $T \gets 0.40\,c_{\text{pred}} + 0.25\,s_{\text{dq}} + 0.20\,r_{\text{model}} + 0.15\,s_{\text{shap}}$
-\STATE verdict $\gets$ \texttt{high\_trust} if $T \ge 90$, \texttt{medium} if $T \ge 70$, else \texttt{low}
+\STATE verdict $\gets$ \texttt{high\_trust} if $T \ge 80$, \texttt{moderate\_trust} if $T \ge 60$, else \texttt{low\_trust}
 \RETURN $T$, verdict
 \end{algorithmic}
 \end{algorithm}
