@@ -5,7 +5,7 @@ import { schema } from '../lib/api'
 import { useApi } from '../lib/hooks'
 import { useRouteParams, fmt, EmptyBox, ErrorBox } from '../lib/pagekit'
 import { useJourney } from '../lib/journey'
-import { StageBanner, Particles, Reveal, FlowStat, LiveBar, AutoNext } from '../lib/kit'
+import { StageBanner, Particles, Reveal, FlowStat, LiveBar, AutoNext, Button } from '../lib/kit'
 import clsx from 'clsx'
 
 const TYPE_ICON: Record<string, React.ReactNode> = {
@@ -129,20 +129,19 @@ export function SchemaDiscoveryPage() {
         icon={<Braces className="h-6 w-6 text-primary-400" />}
         children={
           !data?.columns?.length ? (
-            <button onClick={discover} disabled={busy}
-              className="inline-flex items-center justify-center gap-2 rounded-button bg-gradient-to-r from-primary-500 to-accent-cyan px-5 py-2.5 text-sm font-semibold text-white shadow-[0_0_16px_rgba(76,95,213,0.35)] disabled:opacity-60">
+            <Button onClick={discover} disabled={busy} size="md" gradient="primary"
+              className="h-11 px-6">
               <Wand2 className={`w-4 h-4 ${busy ? 'animate-spin' : ''}`} /> Discover schema
-            </button>
+            </Button>
           ) : null
         }
       />
 
       {data?.columns?.length ? (
         <Reveal delay={0.05}>
-          <button onClick={runReveal}
-            className="inline-flex items-center gap-2 rounded-button bg-white/[0.05] px-4 py-2 text-xs text-gray-300 hover:bg-white/[0.1]">
+          <Button onClick={runReveal} size="sm" variant="secondary">
             <Sparkles className="w-3.5 h-3.5 text-primary-400" /> Re-run animated discovery
-          </button>
+          </Button>
         </Reveal>
       ) : null}
 

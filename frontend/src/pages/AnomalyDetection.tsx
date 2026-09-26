@@ -5,7 +5,7 @@ import { anomalies } from '../lib/api'
 import { useApi } from '../lib/hooks'
 import { useRouteParams, fmt } from '../lib/pagekit'
 import { useJourney } from '../lib/journey'
-import { StageBanner, Particles, Reveal, FlowStat, AutoNext, DoneChip, PulseDot } from '../lib/kit'
+import { StageBanner, Particles, Reveal, FlowStat, AutoNext, DoneChip, PulseDot, Button } from '../lib/kit'
 import clsx from 'clsx'
 
 const SEV: Record<string, { color: string; dot: string; label: string }> = {
@@ -124,16 +124,16 @@ export function AnomalyDetectionPage() {
         tagline="Severity-ranked anomalies with evidence, context and suggested actions underneath each one."
         icon={<Activity className="h-6 w-6 text-accent-rose" />}
         children={!items.length ? (
-          <button onClick={detect} disabled={busy}
-            className="inline-flex items-center justify-center gap-2 rounded-button bg-gradient-to-r from-accent-rose to-accent-amber px-5 py-2.5 text-sm font-semibold text-white shadow-[0_0_16px_rgba(244,63,94,0.3)] disabled:opacity-60">
+          <Button onClick={detect} disabled={busy} size="md" gradient="rose"
+            className="h-11 px-6">
             <TrendingUp className={`w-4 h-4 ${busy ? 'animate-spin' : ''}`} /> Run anomaly scan
-          </button>
+          </Button>
         ) : <DoneChip text="Scan complete" />}
       />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <FlowStat label="Anomalies" value={items.length} accent hint="found in scan" />
-        <FlowStat label="Critical" value={counts.critical ?? 0} />
+        <FlowStat label="Critical" value={counts.critical ?? 0} accent />
         <FlowStat label="Warning" value={counts.warning ?? 0} />
         <FlowStat label="Info" value={counts.info ?? 0} />
       </div>

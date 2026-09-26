@@ -231,14 +231,15 @@ export function ProcessRail() {
     )
   }
 
-  /* collapsed slim rail: a vertical stack of status dots */
+  /* collapsed slim rail: a labelled icon stack, not plain dots */
   if (collapsed) {
     return (
-      <nav className="flex w-12 shrink-0 flex-col items-center gap-1 overflow-y-auto border-r border-white/[0.06] bg-surface/40 py-3 backdrop-blur-sm">
+      <nav className="flex w-14 shrink-0 flex-col items-center gap-1 overflow-y-auto border-r border-white/[0.06] bg-surface/40 py-3 backdrop-blur-sm">
+        <div className="h-[3px] w-full shrink-0 bg-gradient-to-r from-sky-400 via-accent-cyan to-accent-emerald opacity-80" />
         <button
           onClick={() => setCollapsed(false)}
           title="Expand pipeline"
-          className="mb-1 rounded-button p-1.5 text-gray-400 transition-colors hover:bg-white/[0.06] hover:text-gray-200"
+          className="mb-1.5 rounded-button border border-white/[0.08] bg-white/[0.03] p-2 text-gray-300 transition-colors hover:border-accent-cyan/40 hover:text-accent-cyan"
         >
           <PanelLeft className="h-4 w-4" />
         </button>
@@ -247,21 +248,45 @@ export function ProcessRail() {
           const active = s.key === routeKey
           const color = STAGE_COLORS[s.key]
           const done = st === 'done'
+          const locked = st === 'locked'
+          const Icon = STAGE_ICONS[s.key]
           return (
             <button
               key={s.key}
-              title={`${s.label}${st === 'locked' ? ' (locked)' : ''}`}
+              title={`${s.label}${locked ? ' (locked)' : ''}`}
               onClick={() => nozzle(s.key)}
               className={clsx(
-                'relative h-4 w-4 rounded-full border transition-all',
-                done && 'border-accent-emerald/40 bg-accent-emerald',
-                active && !done && 'shadow-[0_0_10px_rgba(76,95,213,0.7)]',
-                !done && !active && 'border-white/[0.12] bg-transparent',
+                'relative flex h-9 w-9 shrink-0 items-center justify-center rounded-button border transition-all',
+                locked && 'opacity-40',
               )}
-              style={!done ? { background: active ? color : undefined, borderColor: active ? color : undefined } : undefined}
-            />
+              style={{
+                borderColor: active || done ? `${color}66` : 'rgba(255,255,255,0.08)',
+                background: active ? `${color}22` : done ? `${color}1a` : 'rgba(255,255,255,0.03)',
+                boxShadow: active && !done ? `0 0 16px ${color}44` : undefined,
+              }}
+            >
+              {done
+                ? <Check className="h-4 w-4 text-accent-emerald" strokeWidth={3} />
+                : <Icon className="h-4 w-4" style={{ color }} />}
+              {active && !done && (
+                <span className="absolute -inset-px rounded-button border" style={{ borderColor: `${color}88` }} />
+              )}
+            </button>
           )
         })}
+        <div className="mt-auto flex w-full shrink-0 flex-col items-center gap-1.5 border-t border-white/[0.06] pt-2">
+          <span className="rounded-full border border-white/[0.08] bg-white/[0.03] px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-primary-400"
+            title={`${doneCount} of ${PIPELINE_TOTAL} stages complete`}>
+            {doneCount}/{PIPELINE_TOTAL}
+          </span>
+          <button
+            onClick={() => setSoundEnabled(!soundEnabled())}
+            title={soundEnabled() ? 'Mute stage sounds' : 'Enable stage sounds'}
+            className="rounded-button p-1.5 text-gray-400 transition-colors hover:bg-white/[0.06] hover:text-gray-200"
+          >
+            {soundEnabled() ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
+          </button>
+        </div>
       </nav>
     )
   }

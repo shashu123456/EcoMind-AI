@@ -567,19 +567,37 @@ export function downloadCSV(
 }
 
 /* ── Stream rows into a table one by one ──────────────── */
-export function StreamTable({ columns, rows, speed = 60, live = true, exportable = true, filename = 'ecomind-export.csv' }: {
+export function StreamTable({ columns, rows, speed = 60, live = true, exportable = true, filename = 'ecomind-export.csv', datasetId, totalRows, maxHeight }: {
   columns: (string | TableColumn)[]
   rows: any[]
   speed?: number
   live?: boolean
   exportable?: boolean
   filename?: string
+  /* pass a dataset id + total row count to unlock full-data scrolling */
+  datasetId?: string
+  totalRows?: number
+  maxHeight?: number
 }) {
+  const [extended, setExtended] = useState<any[][]>(rows)
   const [shown, setShown] = useState(0)
+  const [fetching, setFetching] = useState(false)
+  const [exhausted, setExhausted] = useState(false)
   const frame = useRef(0)
-  const safeRows = useMemo(() => normRows(rows, columns), [rows, columns])
+  const baseRef = useRef(rows.length)
+
+  useEffect(() => {
+    baseRef.current = rows.length
+    setExtended(rows)
+    setShown(0)
+    setExhausted(false)
+  }, [rows])
+
+  const safeRows = useMemo(() => normRows(extended, columns), [extended, columns])
+
   useEffect(() => {
     if (!live) { setShown(safeRows.length); return }
+    if (extended.length > baseRef.current) { setShown(safeRows.length); return }
     frame.current = 0
     const id = window.setInterval(() => {
       frame.current += 1
@@ -587,11 +605,37 @@ export function StreamTable({ columns, rows, speed = 60, live = true, exportable
       if (frame.current >= safeRows.length) window.clearInterval(id)
     }, speed)
     return () => window.clearInterval(id)
-  }, [safeRows, speed, live])
+  }, [safeRows, speed, live, extended])
+
+  const loadMore = async () => {
+    if (fetching || exhausted || !datasetId) return
+    if (totalRows != null && extended.length >= totalRows) { setExhausted(true); return }
+    setFetching(true)
+    try {
+      const { datasets } = await import('./api')
+      const p: any = await datasets.preview(datasetId, 500, extended.length)
+      const more = (p?.rows || []) as any[]
+      setExtended(prev => [...prev, ...more])
+      if (more.length < 500) setExhausted(true)
+    } catch {
+      setExhausted(true)
+    } finally {
+      setFetching(false)
+    }
+  }
+
+  const onScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const el = e.currentTarget
+    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 48) void loadMore()
+  }
+
+  const scrollable = Boolean(datasetId) || Boolean(maxHeight)
+  const cap = totalRows != null ? totalRows : Infinity
+  const moreToLoad = Boolean(datasetId) && !exhausted && extended.length < cap
 
   const visible = safeRows.slice(0, shown)
   return (
-    <div className="overflow-hidden rounded-card border border-white/[0.06] bg-dark-200/60">
+    <div className="flex min-h-0 flex-col overflow-hidden rounded-card border border-white/[0.06] bg-dark-200/60">
       <div className="flex items-center gap-2 border-b border-white/[0.06] px-4 py-2">
         <div className="grid flex-1 gap-x-3 gap-y-1.5 text-[10px] font-mono uppercase tracking-wider text-gray-500"
           style={{ gridTemplateColumns: `repeat(${Math.max(columns.length, 1)}, minmax(0, 1fr))` }}>
@@ -601,13 +645,14 @@ export function StreamTable({ columns, rows, speed = 60, live = true, exportable
           <button
             onClick={() => downloadCSV(columns, safeRows, filename)}
             className="shrink-0 rounded-button border border-white/[0.08] bg-white/[0.03] px-2.5 py-1 font-mono text-[9px] uppercase tracking-widest text-primary-300 transition-colors hover:border-primary-500/40 hover:bg-primary-500/10"
-            title="Download all rows as CSV"
+            title="Download all loaded rows as CSV"
           >
             export csv
           </button>
         )}
       </div>
-      <div className="font-mono text-[11px] text-gray-300">
+      <div onScroll={onScroll} className={clsx('font-mono text-[11px] text-gray-300', scrollable ? 'overflow-y-auto' : 'overflow-hidden')}
+        style={scrollable ? { maxHeight: maxHeight ?? 360 } : undefined}>
         <AnimatePresence initial={false}>
           {visible.map((row, ri) => (
             <motion.div
@@ -628,6 +673,16 @@ export function StreamTable({ columns, rows, speed = 60, live = true, exportable
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="px-4 py-2 text-[10px] text-primary-400">
             streaming {Math.min(shown, safeRows.length)} / {safeRows.length} rows…
           </motion.div>
+        )}
+        {moreToLoad && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="sticky bottom-0 px-4 py-2 text-[10px] text-accent-emerald/80">
+            {fetching ? 'loading more rows…' : `● scrolled to ${extended.length.toLocaleString()} / ${cap === Infinity ? '∞' : cap.toLocaleString()} rows — scroll to load more`}
+          </motion.div>
+        )}
+        {!moreToLoad && extended.length > 0 && (
+          <div className="px-4 py-2 text-[10px] opacity-60 text-gray-500">
+            {extended.length.toLocaleString()} rows · end of {totalRows != null ? `${totalRows.toLocaleString()} ` : ''}dataset
+          </div>
         )}
       </div>
     </div>
@@ -1014,25 +1069,27 @@ export function StageBanner({
 }) {
   return (
     <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, ease: B }}
-      className="flex flex-col gap-3">
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <div className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-glass border border-white/[0.08] bg-surface-light/60 shadow-[0_0_24px_rgba(76,95,213,0.18)]">
+      className="flex min-w-0 flex-col gap-3">
+      <div className="flex min-w-0 flex-wrap items-start justify-between gap-4">
+        <div className="flex min-w-0 items-center gap-4">
+          <div className="relative hidden h-12 w-12 shrink-0 items-center justify-center rounded-glass border border-white/[0.08] bg-surface-light/60 shadow-[0_0_24px_rgba(76,95,213,0.18)] sm:flex">
             <span className="absolute inset-0 animate-pulse-glow rounded-glass bg-primary-500/10" />
             {icon}
           </div>
           <div className="min-w-0">
             <p className="text-[10px] font-mono uppercase tracking-[0.25em] text-primary-400">{chapter}</p>
             <h2 className="sr-only">{title}</h2>
-            <SplitFlapDisplay
-              text={title.toUpperCase()}
-              size="sm"
-              accentColor="#4A9FD8"
-            />
-            {tagline && <p className="text-sm text-gray-500 mt-0.5 max-w-2xl">{tagline}</p>}
+            <div className="max-w-[min(76vw,560px)] overflow-x-auto pb-1">
+              <SplitFlapDisplay
+                text={title.toUpperCase()}
+                size="sm"
+                accentColor="#4A9FD8"
+              />
+            </div>
+            {tagline && <p className="text-sm text-gray-500 mt-1 max-w-2xl">{tagline}</p>}
           </div>
         </div>
-        <div className="flex shrink-0 items-center gap-3">
+        <div className="ml-auto flex shrink-0 items-center gap-3">
           <StageScoreChip title={title} />
           {children}
         </div>
@@ -1062,7 +1119,7 @@ export function ScoreTile({ label, value, hint, barClassName, valueClass }: {
   return (
     <div className="rounded-card border border-white/[0.06] bg-surface-light/40 p-4">
       <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-gray-500">{label}</p>
-      <p className={clsx('font-display text-xl font-semibold text-gray-100 mt-1', valueClass)}>
+      <p className={clsx('font-display text-base font-semibold text-gray-100 mt-1 lg:text-lg', valueClass)}>
         <AnimatedNumber value={value} decimals={1} suffix="%" />
       </p>
       <LiveBar value={value} className="mt-2" barClassName={barClassName} />
@@ -1082,9 +1139,13 @@ export function FlowStat({ label, value, decimals = 0, suffix = '', prefix = '',
   accent?: boolean
 }) {
   return (
-    <motion.div whileHover={{ y: -2 }} className={clsx('glass-card p-5', accent && 'border-primary-500/40')}>
+    <motion.div whileHover={{ y: -2 }} className={clsx('glass-card relative overflow-hidden p-5', accent && 'border-primary-500/40')}>
+      {accent && <span className="pointer-events-none absolute -right-6 -top-6 h-20 w-20 rounded-full bg-accent-gold/10 blur-2xl" />}
       <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-gray-500">{label}</p>
-      <p className="font-display text-2xl font-semibold mt-2 text-gray-100">
+      <p className={clsx('font-display text-lg font-semibold mt-2 sm:text-xl',
+        accent
+          ? 'bg-gradient-to-r from-accent-emerald via-accent-gold to-accent-cyan bg-clip-text text-transparent drop-shadow-[0_0_14px_rgba(216,166,72,0.25)]'
+          : 'text-gray-100')}>
         <AnimatedNumber value={value} decimals={decimals} suffix={suffix} prefix={prefix} />
       </p>
       {hint && <p className="text-xs text-gray-500 mt-1">{hint}</p>}

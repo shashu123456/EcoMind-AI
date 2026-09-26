@@ -156,8 +156,8 @@
   }
 
   .font-display {
-    font-family: 'Rajdhani', sans-serif;
-    letter-spacing: 0.01em;
+    font-family: 'Orbitron', 'Arial Black', sans-serif;
+    letter-spacing: 0.02em;
   }
 
   /* Glass panel utility */
@@ -481,20 +481,20 @@
     animation: none;
   }
 
-/* ── Display type = Chakra Petch (chunky technical face) ── */
+/* ── Display type = Orbitron (bulky technical sci-fi face) ── */
   .font-display {
-    font-family: 'Chakra Petch', 'Arial Black', sans-serif;
-    letter-spacing: 0;
+    font-family: 'Orbitron', 'Arial Black', sans-serif;
+    letter-spacing: 0.02em;
   }
 
   .font-chunky {
-    font-family: 'Titan One', 'Chakra Petch', 'Arial Black', sans-serif;
+    font-family: 'Titan One', 'Orbitron', 'Arial Black', sans-serif;
     letter-spacing: 0.01em;
   }
 
   /* Extra-chunky hero/logo face */
   .font-chunky {
-    font-family: 'Titan One', 'Chakra Petch', 'Arial Black', sans-serif;
+    font-family: 'Titan One', 'Orbitron', 'Arial Black', sans-serif;
     letter-spacing: 0.01em;
   }
 

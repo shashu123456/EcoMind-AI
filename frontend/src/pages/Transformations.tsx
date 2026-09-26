@@ -4,7 +4,7 @@ import { Workflow, Columns3, Play, History, Check, ArrowRight } from 'lucide-rea
 import { useApi } from '../lib/hooks'
 import { useRouteParams, fmt, EmptyBox, ErrorBox } from '../lib/pagekit'
 import { useJourney } from '../lib/journey'
-import { StageBanner, Particles, Reveal, FlowStat, StreamTable, LiveLog, AutoNext, DoneChip, PulseDot } from '../lib/kit'
+import { StageBanner, Particles, Reveal, FlowStat, StreamTable, LiveLog, AutoNext, DoneChip, PulseDot, Button } from '../lib/kit'
 import { FullscreenBlock } from '../components/RoomStage'
 import clsx from 'clsx'
 
@@ -71,8 +71,10 @@ const FLOW_TOKENS = [
    you can follow which transformation is moving across the bridge. */
 function FlowPipe({ active }: { active: boolean }) {
   return (
-    <div className="relative flex h-full min-h-0 flex-col overflow-hidden rounded-md border border-white/[0.1] bg-black/30">
-      <div className="z-10 flex shrink-0 items-center justify-between border-b border-white/[0.06] bg-black/40 px-2 py-1">
+    <div className="relative flex h-full min-h-0 min-w-[150px] flex-col overflow-hidden rounded-md border"
+      style={{ background: 'var(--term-bg)', borderColor: 'var(--chrome-line)' }}>
+      <div className="z-10 flex shrink-0 items-center justify-between border-b px-2 py-1"
+        style={{ background: 'var(--term-bg2)', borderColor: 'var(--chrome-line)' }}>
         <span className="font-mono text-[8px] uppercase tracking-[0.2em] text-primary-400">live flow</span>
         <span className="flex items-center gap-1 font-mono text-[8px] uppercase tracking-[0.18em] text-gray-500">
           raw
@@ -81,7 +83,9 @@ function FlowPipe({ active }: { active: boolean }) {
         </span>
       </div>
       <div className="relative min-h-0 flex-1 overflow-hidden">
-        <div className="absolute left-0 right-0 top-1/2 h-px bg-gradient-to-r from-accent-cyan/0 via-accent-cyan/50 to-accent-emerald/0" />
+        <div className="pointer-events-none absolute inset-0 opacity-20"
+          style={{ backgroundImage: 'linear-gradient(rgba(128,128,160,0.12) 1px, transparent 1px), linear-gradient(90deg, rgba(128,128,160,0.12) 1px, transparent 1px)', backgroundSize: '18px 18px' }} />
+        <div className="absolute left-0 right-0 top-1/2 h-px bg-gradient-to-r from-accent-cyan/0 via-accent-cyan/60 to-accent-emerald/0" />
         {FLOW_TOKENS.map((f, i) => {
           const dur = 5.5 + (i % 4) * 1.6
           const top = 12 + (i % 5) * 17
@@ -90,11 +94,11 @@ function FlowPipe({ active }: { active: boolean }) {
               key={i}
               initial={false}
               className={clsx(
-                'absolute whitespace-nowrap rounded border border-white/[0.08] bg-black/40 px-1.5 py-0.5 font-mono text-[9px] leading-[1.6] shadow-[0_0_10px_rgba(76,95,213,0.15)]',
+                'absolute whitespace-nowrap rounded border border-white/[0.1] px-1.5 py-0.5 font-mono text-[9px] leading-[1.6]',
                 f.c,
-                active ? '' : 'opacity-25',
+                active ? 'opacity-100 shadow-[0_0_12px_rgba(91,111,224,0.25)]' : 'opacity-40',
               )}
-              style={{ top: `${top}%` }}
+              style={{ top: `${top}%`, background: 'var(--term-bg2)' }}
               animate={active ? { left: ['-22%', '106%'] } : { left: `${(i * 13) % 80}%` }}
               transition={active ? { duration: dur, repeat: Infinity, ease: 'linear', delay: -i * 0.9 } : undefined}
             >
@@ -185,10 +189,10 @@ export function TransformationsPage() {
 
   const diffView = (
     <div className="flex h-full min-h-0 flex-col gap-3">
-      <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[minmax(0,1fr)_260px_minmax(0,1fr)]">
-        <StreamTable columns={columns} rows={rows} speed={10} filename="transformations-raw-full.csv" />
+      <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[minmax(0,1.1fr)_minmax(170px,240px)_minmax(0,1.1fr)]">
+        <StreamTable columns={columns} rows={rows} speed={10} datasetId={datasetId} totalRows={preview.data?.total_rows} filename="transformations-raw-full.csv" />
         <FlowPipe active={running || done} />
-        <StreamTable columns={processedCols} rows={rows} speed={8} filename="transformations-processed-full.csv" />
+        <StreamTable columns={processedCols} rows={rows} speed={8} datasetId={datasetId} totalRows={preview.data?.total_rows} filename="transformations-processed-full.csv" />
       </div>
       <div className="shrink-0">
         <div className="mb-2 font-mono text-[10px] uppercase tracking-[0.2em] text-accent-gold">why each +{ENGINEERED_FEATURES.length} column was added</div>
@@ -215,10 +219,10 @@ export function TransformationsPage() {
         icon={<Workflow className="h-6 w-6 text-primary-400" />}
         children={done
           ? <DoneChip text="Transformation complete" />
-          : <button onClick={runPipeline} disabled={running}
-              className="inline-flex items-center justify-center gap-2 rounded-button bg-gradient-to-r from-primary-500 to-accent-emerald px-5 py-2.5 text-sm font-semibold text-white shadow-[0_0_16px_rgba(91,111,224,0.3)] disabled:opacity-60">
+          : <Button onClick={runPipeline} disabled={running} size="md" gradient="emerald"
+              className="h-11 px-6 font-bold uppercase tracking-wider disabled:opacity-60">
               <Play className={`w-4 h-4 ${running ? 'animate-pulse' : ''}`} /> {running ? 'Transforming…' : 'Run transformation pipeline'}
-            </button>}
+            </Button>}
       />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

@@ -5,7 +5,7 @@ import { recommendations } from '../lib/api'
 import { useApi } from '../lib/hooks'
 import { useRouteParams, fmt, n, EmptyBox } from '../lib/pagekit'
 import { useJourney } from '../lib/journey'
-import { StageBanner, Particles, Reveal, FlowStat, AutoNext, DoneChip, PulseDot } from '../lib/kit'
+import { StageBanner, Particles, Reveal, FlowStat, AutoNext, DoneChip, PulseDot, Button } from '../lib/kit'
 import clsx from 'clsx'
 
 const PRIORITY: Record<string, { color: string; icon: React.ReactNode }> = {
@@ -62,10 +62,10 @@ export function RecommendationsPage() {
         tagline="Evidence-backed actions with projected savings, confidence and business impact."
         icon={<Lightbulb className="h-6 w-6 text-accent-amber" />}
         children={!items.length ? (
-          <button onClick={generate} disabled={busy}
-            className="inline-flex items-center justify-center gap-2 rounded-button bg-gradient-to-r from-accent-amber to-primary-500 px-5 py-2.5 text-sm font-semibold text-white shadow-[0_0_16px_rgba(245,158,11,0.3)] disabled:opacity-60">
+          <Button onClick={generate} disabled={busy} size="md" gradient="amber"
+            className="h-11 px-6">
             <Sparkles className={`w-4 h-4 ${busy ? 'animate-spin' : ''}`} /> Generate recommendations
-          </button>
+          </Button>
         ) : <DoneChip text={`${items.length} recommendations ready`} />}
       />
 

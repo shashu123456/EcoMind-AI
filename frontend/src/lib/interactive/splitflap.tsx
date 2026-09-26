@@ -35,7 +35,7 @@ interface SplitFlapDisplayProps {
 
 /* ─── Character Set ─────────────────────────────────────────── */
 
-const CHARACTERS = ' ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789$.,!?:;+-=%&#@'
+const CHARACTERS = ' ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789$.,!?:;+-=%&#@_"\'()/*'
 
 function getNextChar(current: string): string {
   const idx = CHARACTERS.indexOf(current)
@@ -71,6 +71,7 @@ function FlapCell({
   useEffect(() => {
     cleanup()
     const target = targetChar.toUpperCase()
+    const safeTarget = CHARACTERS.includes(target) ? target : '_'
 
     if (displayChar === target) {
       setIsFlipping(false)
@@ -108,9 +109,9 @@ function FlapCell({
   }, [targetChar])
 
   const sizeMap = {
-    sm: { cell: 'w-[26px] h-[38px] text-[16px]', gap: 'gap-[1px]' },
-    md: { cell: 'w-[38px] h-[54px] text-[24px]', gap: 'gap-[1px]' },
-    lg: { cell: 'w-[52px] h-[72px] text-[34px]', gap: 'gap-[2px]' },
+    sm: { cell: 'w-[20px] h-[30px] text-[13px]', gap: 'gap-[1px]' },
+    md: { cell: 'w-[32px] h-[46px] text-[21px]', gap: 'gap-[1px]' },
+    lg: { cell: 'w-[46px] h-[64px] text-[30px]', gap: 'gap-[2px]' },
   }
 
   const s = sizeMap[size]
@@ -222,7 +223,7 @@ function IndicatorStrip({
   color?: string
   size?: 'sm' | 'md' | 'lg'
 }) {
-  const heightMap = { sm: 'h-[38px]', md: 'h-[54px]', lg: 'h-[72px]' }
+  const heightMap = { sm: 'h-[30px]', md: 'h-[46px]', lg: 'h-[64px]' }
   return (
     <div
       className={cn('w-[6px] rounded-[2px] flex-shrink-0 self-stretch', heightMap[size])}

@@ -6,7 +6,7 @@ import { datasets, dq } from '../lib/api'
 import { useApi } from '../lib/hooks'
 import { useRouteParams, fmt, EmptyBox } from '../lib/pagekit'
 import { useJourney } from '../lib/journey'
-import { AutoNext, DoneChip, DiffStrip, FlowStat, Reveal, B, colLabel } from '../lib/kit'
+import { AutoNext, DoneChip, DiffStrip, FlowStat, Reveal, B, colLabel, Button } from '../lib/kit'
 import { PixelatedReveal, SplitFlapDisplay } from '../lib/interactive'
 import { FullscreenBlock, Terminal, FlowConsole, DataPreview } from '../components/RoomStage'
 
@@ -200,9 +200,9 @@ export function DQEnginePage() {
           )}
         </Terminal>
         {error && (
-          <button onClick={runQuality} className="rounded-card border border-accent-rose/30 bg-accent-rose/10 px-3 py-2 text-xs text-accent-rose">
+          <Button onClick={runQuality} variant="danger" size="sm">
             {error} — retry quality engine
-          </button>
+          </Button>
         )}
       </div>
     </div>

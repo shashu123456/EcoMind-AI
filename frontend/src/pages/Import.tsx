@@ -7,7 +7,7 @@ import { datasets } from '../lib/api'
 import { useApi } from '../lib/hooks'
 import { useRouteParams, ErrorBox, EmptyBox, fmt } from '../lib/pagekit'
 import { useJourney } from '../lib/journey'
-import { StageBanner, Particles, StreamTable, Reveal, DoneChip, AutoNext } from '../lib/kit'
+import { StageBanner, Particles, StreamTable, Reveal, DoneChip, AutoNext, Button } from '../lib/kit'
 
 function fmtBytes(b?: number) {
   if (!b || b <= 0) return '—'
@@ -191,10 +191,9 @@ export function ImportPage() {
                 <p className="text-sm text-gray-500 mt-1">EcoMind reads it end-to-end — sheets, columns, rows and provenance engine.</p>
               </div>
               <input ref={fileRef} type="file" accept=".csv,.xlsx" className="hidden" onChange={onFile} />
-              <button onClick={() => fileRef.current?.click()}
-                className="inline-flex items-center justify-center gap-2 rounded-button bg-gradient-to-r from-primary-500 to-accent-cyan px-5 py-2.5 text-sm font-semibold text-white shadow-[0_0_18px_rgba(76,95,213,0.35)] hover:shadow-[0_0_30px_rgba(76,95,213,0.55)] transition-all">
+              <Button onClick={() => fileRef.current?.click()} size="md" gradient="primary" className="h-11 px-6">
                 <UploadCloud className="w-4 h-4" /> Choose file
-              </button>
+              </Button>
               {uploadMsg && <p className="text-sm text-accent-emerald font-medium">{uploadMsg}</p>}
             </div>
           </Reveal>
@@ -231,7 +230,7 @@ export function ImportPage() {
               </div>
 
               <div className="lg:col-span-2">
-                <StreamTable columns={columns} rows={shownRows} speed={18} live={!done} filename={`import-${(ds?.name ?? 'dataset').replace(/[^a-z0-9]+/gi, '-')}.csv`} />
+                <StreamTable columns={columns} rows={shownRows} speed={18} live={!done} datasetId={datasetId} totalRows={prev?.total_rows ?? prev?.row_count} filename={`import-${(ds?.name ?? 'dataset').replace(/[^a-z0-9]+/gi, '-')}.csv`} />
                 {done && (
                   <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-2 text-xs text-gray-500 font-mono">
                     ingest complete · {fmt(prev?.total_rows ?? rowCount, 0)} rows · {fmtBytes(prev?.file_size_bytes ?? ds?.file_size_bytes)}

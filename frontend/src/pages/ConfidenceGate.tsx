@@ -5,7 +5,7 @@ import { ai, workflows } from '../lib/api'
 import { useApi } from '../lib/hooks'
 import { useRouteParams, fmt, ErrorBox } from '../lib/pagekit'
 import { useJourney } from '../lib/journey'
-import { StageBanner, Particles, Reveal, Gauge, LiveBar, FlowStat, AutoNext, DoneChip, PulseDot } from '../lib/kit'
+import { StageBanner, Particles, Reveal, Gauge, LiveBar, FlowStat, AutoNext, DoneChip, PulseDot, Button } from '../lib/kit'
 import clsx from 'clsx'
 
 const VERDICT: Record<string, { label: string; color: string; tip: string }> = {
@@ -146,10 +146,10 @@ export function ConfidenceGatePage() {
         tagline="Four explainable signals are fused into a single trust score. Nothing is opaque."
         icon={<ShieldCheck className="h-6 w-6 text-accent-emerald" />}
         children={gate ? <DoneChip text="Trust assessed" /> : (
-          <button onClick={evaluate} disabled={busy}
-            className="inline-flex items-center justify-center gap-2 rounded-button bg-gradient-to-r from-primary-500 to-accent-emerald px-5 py-2.5 text-sm font-semibold text-white shadow-[0_0_16px_rgba(76,95,213,0.35)] disabled:opacity-60">
+          <Button onClick={evaluate} disabled={busy} size="md" gradient="emerald"
+            className="h-11 px-6">
             <Sparkles className={`w-4 h-4 ${busy ? 'animate-spin' : ''}`} /> Evaluate trust gate
-          </button>
+          </Button>
         )}
       />
 
@@ -235,7 +235,7 @@ export function ConfidenceGatePage() {
           )}
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <FlowStat label="Prediction Confidence" value={Number(gate.prediction_confidence ?? 0)} decimals={1} suffix="%" />
+            <FlowStat label="Prediction Confidence" value={Number(gate.prediction_confidence ?? 0)} decimals={1} suffix="%" accent />
             <FlowStat label="Data Quality" value={Number(gate.dq_score ?? 0)} decimals={1} suffix="%" />
             <FlowStat label="Model Reliability" value={Number(gate.model_relevance ?? 0)} decimals={1} suffix="%" />
             <FlowStat label="SHAP Stability" value={Number(gate.shap_stability ?? 0)} decimals={1} suffix="%" />

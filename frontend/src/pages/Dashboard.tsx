@@ -357,24 +357,21 @@ export function DashboardPage() {
         <div className="grid items-center gap-8 lg:grid-cols-[1.12fr_1fr]">
           <div>
             {/* brand — left-aligned, electric pulse */}
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mb-4 flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.3em] text-accent-cyan">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mb-5 inline-flex items-center gap-2 rounded-full border border-accent-emerald/30 bg-accent-emerald/[0.06] px-3.5 py-1.5 font-mono text-[10px] uppercase tracking-[0.28em] text-accent-emerald">
               <Cpu className="h-3.5 w-3.5 animate-pulse-glow" />
-              <span>adaptive · explainable · energy intelligence</span>
+              adaptive · explainable · energy intelligence
             </motion.div>
-            <div className="flex items-center gap-3">
-              <EcoMindLogo size={46} />
-              <div>
-                <h1 className="font-chunky text-5xl leading-none text-white sm:text-6xl">
-                  EcoMind
+            <div className="flex items-end gap-4">
+              <EcoMindLogo size={54} />
+              <div className="min-w-0">
+                <h1 className="font-chunky text-[52px] leading-[0.95] text-gray-100 sm:text-6xl">
+                  EcoMind{' '}
+                  <span className="bg-gradient-to-r from-accent-emerald via-accent-gold to-accent-cyan bg-clip-text text-transparent">AI</span>
                 </h1>
-                <div className="mt-1.5 flex items-center gap-2">
-                  <div className="-ml-1 origin-left scale-90">
-                    <SplitFlapDisplay text="AI" size="sm" accentColor="#34D399" />
-                  </div>
-                  <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-accent-cyan">
-                    environmental intelligence
-                  </span>
-                </div>
+                <p className="mt-2 font-mono text-[10px] uppercase tracking-[0.3em] text-gray-400">
+                  environmental intelligence engine{' '}
+                  <span className="font-semibold text-accent-gold">· live</span>
+                </p>
               </div>
             </div>
             <motion.div

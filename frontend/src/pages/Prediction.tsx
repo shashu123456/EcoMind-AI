@@ -5,7 +5,7 @@ import { LineChart, Line, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, Cart
 import { useApi } from '../lib/hooks'
 import { useRouteParams, fmt, EmptyBox, ErrorBox, ensureRun } from '../lib/pagekit'
 import { useJourney } from '../lib/journey'
-import { StageBanner, Particles, Reveal, FlowStat, LiveBar, AutoNext, DoneChip, PulseDot } from '../lib/kit'
+import { StageBanner, Particles, Reveal, FlowStat, LiveBar, AutoNext, DoneChip, PulseDot, Button } from '../lib/kit'
 import clsx from 'clsx'
 
 const ALGOS = [
@@ -223,16 +223,16 @@ export function PredictionPage() {
         icon={<Gauge className="h-6 w-6 text-primary-400" />}
         children={done
           ? <DoneChip text={winnerId ? `Winner · ${WIN_LABEL(winnerId)}` : 'Prediction complete'} />
-          : <button onClick={trainAll} disabled={Object.values(training).some(Boolean)}
-              className="inline-flex items-center justify-center gap-2 rounded-button bg-gradient-to-r from-primary-500 to-accent-violet px-5 py-2.5 text-sm font-semibold text-white shadow-[0_0_16px_rgba(76,95,213,0.35)] disabled:opacity-60">
+          : <Button onClick={trainAll} disabled={Object.values(training).some(Boolean)} size="md" gradient="primary"
+              className="h-11 px-6">
               <Play className={`w-4 h-4 ${Object.values(training).some(Boolean) ? 'animate-pulse' : ''}`} /> {Object.values(training).some(Boolean) ? 'Training…' : 'Train models head-to-head'}
-            </button>}
+            </Button>}
       />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <FlowStat label="Horizon" value={horizon} suffix="h" hint="default forecast window" />
         <FlowStat label="Models in race" value={Object.keys(trained).filter(k => trained[k] && !trained[k].error).length || ALGOS.length} accent hint="parallel contenders" />
-        <FlowStat label="Best R²" value={res?.metrics?.r2 != null ? Number((res.metrics.r2 * 100).toFixed(0)) : 0} suffix="%" hint="winning model" />
+        <FlowStat label="Best R²" value={res?.metrics?.r2 != null ? Number((res.metrics.r2 * 100).toFixed(0)) : 0} suffix="%" hint="winning model" accent />
         <FlowStat label="RMSE" value={res?.metrics?.rmse != null ? Number(res.metrics.rmse.toFixed(2)) : 0} hint="winning model" />
       </div>
 
@@ -335,10 +335,10 @@ export function PredictionPage() {
                   {[24, 48, 72, 168].map(h => <option key={h} value={h}>{h}h</option>)}
                 </select>
               </label>
-              <button onClick={runForecast} disabled={busy || !winnerModel}
-                className="inline-flex items-center gap-2 rounded-button bg-accent-emerald px-4 py-2 text-sm font-semibold text-dark-900 transition-colors hover:bg-emerald-400 disabled:opacity-50">
+              <Button onClick={runForecast} disabled={busy || !winnerModel} size="md" variant="success"
+                className="h-11 px-6 font-bold uppercase tracking-wider">
                 <RefreshCw className={`h-4 w-4 ${busy ? 'animate-spin' : ''}`} /> {busy ? 'Forecasting…' : 'Run 7-day forecast'}
-              </button>
+              </Button>
             </div>
           </div>
         </Reveal>

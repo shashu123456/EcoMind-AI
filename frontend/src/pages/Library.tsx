@@ -5,7 +5,7 @@ import { Upload, Database, FileSpreadsheet, BadgeCheck, Loader2, Trash2, ArrowRi
 import { datasets, workflows } from '../lib/api'
 import { useApi } from '../lib/hooks'
 import { useJourney, WORKFLOW, stagePath, runJourneyToCompletion } from '../lib/journey'
-import { AnimatedNumber, Particles, Reveal, StageBanner, FlowStat, B, firePageRipple } from '../lib/kit'
+import { AnimatedNumber, Particles, Reveal, StageBanner, FlowStat, B, firePageRipple, Button } from '../lib/kit'
 import { EmptyBox, ErrorBox, fmt } from '../lib/pagekit'
 
 import { Zap, Footprints } from 'lucide-react'
@@ -149,15 +149,16 @@ export function LibraryPage() {
               </div>
 
               <div className="flex items-center gap-2 pt-1">
-                <button
+                <Button
                   onClick={() => launch(d.id)}
                   disabled={launching === d.id || runningJourney === d.id}
-                  className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-button bg-gradient-to-r from-primary-500 to-accent-cyan text-white font-medium transition-all hover:shadow-[0_0_14px_rgba(76,95,213,0.4)] disabled:opacity-60"
+                  size="sm" gradient="primary"
+                  className="font-medium"
                 >
                   {launching === d.id || runningJourney === d.id ? <Loader2 className="w-3 h-3 animate-spin" /> :
                     mode === 'auto' ? <Zap className="w-3 h-3" /> : <Footprints className="w-3 h-3" />}
                   {launching === d.id ? 'Starting journey…' : runningJourney === d.id ? 'Running journey…' : mode === 'auto' ? 'Run full journey' : 'Start step-by-step'}
-                </button>
+                </Button>
                 <Link to="/import/$datasetId" params={{ datasetId: d.id }} onClick={() => setActive(d.id)}
                   className="text-xs px-3 py-1.5 rounded-button bg-primary-500/10 text-primary-400 hover:bg-primary-500/20 font-medium">
                   Import

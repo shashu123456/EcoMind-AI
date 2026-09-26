@@ -4,7 +4,7 @@ import { GitBranch, Play, Sparkles, Check } from 'lucide-react'
 import { useApi } from '../lib/hooks'
 import { useRouteParams, fmt, EmptyBox, ErrorBox } from '../lib/pagekit'
 import { useJourney } from '../lib/journey'
-import { StageBanner, Particles, Reveal, FlowStat, LiveBar, AutoNext, DoneChip, PulseDot } from '../lib/kit'
+import { StageBanner, Particles, Reveal, FlowStat, LiveBar, AutoNext, DoneChip, PulseDot, Button } from '../lib/kit'
 import clsx from 'clsx'
 
 export function FeatureEngineeringPage() {
@@ -80,10 +80,10 @@ export function FeatureEngineeringPage() {
         icon={<GitBranch className="h-6 w-6 text-accent-violet" />}
         children={done
           ? <DoneChip text="Features engineered" />
-          : <button onClick={engineer} disabled={busy}
-              className="rounded-button bg-gradient-to-r from-accent-violet to-primary-500 px-5 py-2.5 text-sm font-semibold text-white shadow-[0_0_16px_rgba(139,92,246,0.3)] disabled:opacity-60">
+          : <Button onClick={engineer} disabled={busy} size="md" gradient="violet"
+              className="h-11 px-6">
               <Play className={`w-4 h-4 ${busy ? 'animate-pulse' : ''}`} /> {busy ? 'Engineering…' : 'Generate features'}
-            </button>}
+            </Button>}
       />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

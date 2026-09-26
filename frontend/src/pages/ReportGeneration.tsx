@@ -5,7 +5,7 @@ import { reports, datasets } from '../lib/api'
 import { useApi } from '../lib/hooks'
 import { useRouteParams, fmt, ErrorBox } from '../lib/pagekit'
 import { useJourney } from '../lib/journey'
-import { StageBanner, Particles, Reveal, FlowStat, JourneyNav, DoneChip } from '../lib/kit'
+import { StageBanner, Particles, Reveal, FlowStat, JourneyNav, DoneChip, Button } from '../lib/kit'
 import clsx from 'clsx'
 
 const FORMATS = [
@@ -144,11 +144,11 @@ export function ReportGenerationPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-3 pt-1">
-            <button onClick={generate} disabled={busy || !activeDs}
-              className="inline-flex items-center justify-center gap-2 rounded-button bg-gradient-to-r from-primary-500 to-accent-cyan px-5 py-2.5 text-sm font-semibold text-white shadow-[0_0_16px_rgba(76,95,213,0.35)] disabled:opacity-60">
+            <Button onClick={generate} disabled={busy || !activeDs} size="md" gradient="primary"
+              className="h-11 px-6">
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
               {busy ? 'Generating…' : 'Generate report'}
-            </button>
+            </Button>
             {log.map((l, i) => (
               <motion.span key={i} initial={{ opacity: 0 }} animate={{ opacity: 1 }}
                 className="font-mono text-xs text-gray-400">{l}</motion.span>

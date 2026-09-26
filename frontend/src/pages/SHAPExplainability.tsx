@@ -5,7 +5,7 @@ import { explanations, models } from '../lib/api'
 import { useApi } from '../lib/hooks'
 import { useRouteParams, fmt, ErrorBox } from '../lib/pagekit'
 import { useJourney } from '../lib/journey'
-import { StageBanner, Particles, Reveal, LiveBar, FlowStat, AutoNext, DoneChip } from '../lib/kit'
+import { StageBanner, Particles, Reveal, LiveBar, FlowStat, AutoNext, DoneChip, Button } from '../lib/kit'
 import clsx from 'clsx'
 
 export function SHAPExplainabilityPage() {
@@ -62,10 +62,10 @@ export function SHAPExplainabilityPage() {
         tagline="Every prediction decomposes into contributions — nothing is a black box."
         icon={<GitBranch className="h-6 w-6 text-accent-violet" />}
         children={!g ? (
-          <button onClick={res.refetch} disabled={res.loading}
-            className="inline-flex items-center justify-center gap-2 rounded-button bg-gradient-to-r from-accent-violet to-primary-500 px-5 py-2.5 text-sm font-semibold text-white shadow-[0_0_16px_rgba(139,92,246,0.35)] disabled:opacity-60">
+          <Button onClick={res.refetch} disabled={res.loading} size="md" gradient="violet"
+            className="h-11 px-6">
             <Sparkles className={`w-4 h-4 ${res.loading ? 'animate-spin' : ''}`} /> Compute global SHAP
-          </button>
+          </Button>
         ) : <DoneChip text="Explanations ready" />}
       />
 

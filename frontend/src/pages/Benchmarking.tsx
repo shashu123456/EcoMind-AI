@@ -5,7 +5,7 @@ import { benchmarks } from '../lib/api'
 import { useApi } from '../lib/hooks'
 import { useRouteParams, fmt, n, EmptyBox } from '../lib/pagekit'
 import { useJourney } from '../lib/journey'
-import { StageBanner, Particles, Reveal, FlowStat, AutoNext, DoneChip, PulseDot, LiveBar, downloadCSV } from '../lib/kit'
+import { StageBanner, Particles, Reveal, FlowStat, AutoNext, DoneChip, PulseDot, LiveBar, downloadCSV, Button } from '../lib/kit'
 import clsx from 'clsx'
 
 const RANK_ICON: Record<number, React.ReactNode> = {
@@ -77,16 +77,16 @@ export function BenchmarkingPage() {
         tagline="Percentile positions, per-metric scores and a clear winner."
         icon={<BarChart3 className="h-6 w-6 text-accent-amber" />}
         children={!leaderboard.length ? (
-          <button onClick={run} disabled={busy}
-            className="inline-flex items-center justify-center gap-2 rounded-button bg-gradient-to-r from-accent-amber to-accent-rose px-5 py-2.5 text-sm font-semibold text-white shadow-[0_0_16px_rgba(245,158,11,0.3)] disabled:opacity-60">
+          <Button onClick={run} disabled={busy} size="md" gradient="golden"
+            className="h-11 px-6">
             <BarChart3 className={`w-4 h-4 ${busy ? 'animate-spin' : ''}`} /> Run benchmark
-          </button>
+          </Button>
         ) : <DoneChip text="Benchmark complete" />}
       />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <FlowStat label="Contenders" value={leaderboard.length} accent hint="models in the race" />
-        <FlowStat label="Winner" value={n(leaderboard[0]?.total_score) ?? 0} decimals={2} suffix=" pts" hint={leaderboard[0]?.name} />
+        <FlowStat label="Winner" value={n(leaderboard[0]?.total_score) ?? 0} decimals={2} suffix=" pts" hint={leaderboard[0]?.name} accent />
         <FlowStat label="Best R²" value={n(leaderboard[0]?.scores?.r2) ?? 0} decimals={3} />
         <FlowStat label="Methodology" value={0} hint={bench?.benchmark?.methodology || 'k-fold'} />
       </div>
