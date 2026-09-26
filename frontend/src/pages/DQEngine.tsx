@@ -7,7 +7,7 @@ import { useApi } from '../lib/hooks'
 import { useRouteParams, fmt, EmptyBox } from '../lib/pagekit'
 import { useJourney } from '../lib/journey'
 import { AutoNext, DoneChip, DiffStrip, FlowStat, Reveal, B, colLabel } from '../lib/kit'
-import { PixelatedReveal } from '../lib/interactive'
+import { PixelatedReveal, SplitFlapDisplay } from '../lib/interactive'
 import { FullscreenBlock, Terminal, FlowConsole, DataPreview } from '../components/RoomStage'
 
 const SCRIPT = (n: number, c: number) => [
@@ -214,7 +214,8 @@ export function DQEnginePage() {
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <p className="font-mono text-[11px] uppercase tracking-[0.25em] text-primary-400">Stage 05 · Data Quality Engine</p>
-            <h1 className="font-display text-2xl font-bold text-gray-100">Data Quality Engine</h1>
+            <h1 className="sr-only">Data Quality Engine</h1>
+            <SplitFlapDisplay bare text="DATA QUALITY ENGINE" size="sm" accentColor="#4A9FD8" showIndicators={false} />
             <p className="mt-1 text-sm text-gray-400">Watch EcoMind repair the dataset — every correction is explained, and the quality you actually achieved lights up live.</p>
           </div>
           <div className="flex items-center gap-2">

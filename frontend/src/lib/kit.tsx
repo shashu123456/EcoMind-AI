@@ -5,6 +5,7 @@ import { useNavigate } from '@tanstack/react-router'
 import { ArrowRight, Check, Loader2, Footprints, RotateCcw, Flag } from 'lucide-react'
 import clsx from 'clsx'
 import { useJourney } from './journey'
+import { SplitFlapDisplay } from './interactive'
 
 export const B = [0.16, 1, 0.3, 1] as [number, number, number, number]
 
@@ -1009,9 +1010,16 @@ export function StageBanner({
             <span className="absolute inset-0 animate-pulse-glow rounded-glass bg-primary-500/10" />
             {icon}
           </div>
-          <div>
+          <div className="min-w-0">
             <p className="text-[10px] font-mono uppercase tracking-[0.25em] text-primary-400">{chapter}</p>
-            <h2 className="font-display text-2xl font-semibold tracking-tight text-gray-100">{title}</h2>
+            <h2 className="sr-only">{title}</h2>
+            <SplitFlapDisplay
+              bare
+              text={title.toUpperCase()}
+              size="sm"
+              accentColor="#4A9FD8"
+              showIndicators={false}
+            />
             {tagline && <p className="text-sm text-gray-500 mt-0.5 max-w-2xl">{tagline}</p>}
           </div>
         </div>

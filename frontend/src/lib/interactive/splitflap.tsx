@@ -15,7 +15,7 @@ interface SplitFlapDisplayProps {
   rows?: SplitFlapRow[]
   /** Simple text mode – renders a single row of characters */
   text?: string
-  /** Total number of character cells per row (pads shorter strings with spaces) */
+  /** Total number of character cells per row (pads shorter strings with spaces). 0 = auto-fit the text length. */
   columns?: number
   /** Size variant controlling cell dimensions and typography */
   size?: 'sm' | 'md' | 'lg'
@@ -29,6 +29,8 @@ interface SplitFlapDisplayProps {
   flipSpeed?: number
   /** Additional CSS classes for the outer container */
   className?: string
+  /** Render without the dark framed board — just the flap row itself */
+  bare?: boolean
 }
 
 /* ─── Character Set ─────────────────────────────────────────── */
@@ -307,18 +309,36 @@ function useInjectKeyframes() {
 export function SplitFlapDisplay({
   rows,
   text,
-  columns = 14,
+  columns = 0,
   size = 'md',
   accentColor = '#22c55e',
   showIndicators = true,
   staggerDelay = 30,
   flipSpeed = 35,
   className,
+  bare = false,
 }: SplitFlapDisplayProps) {
   useInjectKeyframes()
 
+  const fit = (t: string) => Math.min(Math.max(t.length + 6, 10), 40)
+
   // Simple single-row text mode
   if (text && !rows) {
+    const cols = columns > 0 ? columns : fit(text)
+    const flap = (
+      <FlapRow
+        text={text}
+        columns={cols}
+        size={size}
+        accentColor={accentColor}
+        showIndicators={showIndicators}
+        staggerDelay={staggerDelay}
+        flipSpeed={flipSpeed}
+      />
+    )
+    if (bare) {
+      return <div className={cn('inline-flex', className)}>{flap}</div>
+    }
     return (
       <div
         className={cn(
@@ -332,20 +352,13 @@ export function SplitFlapDisplay({
             '0 20px 60px rgba(0,0,0,0.8), 0 0 0 1px rgba(255,255,255,0.03), inset 0 1px 0 rgba(255,255,255,0.04)',
         }}
       >
-        <FlapRow
-          text={text}
-          columns={columns}
-          size={size}
-          accentColor={accentColor}
-          showIndicators={showIndicators}
-          staggerDelay={staggerDelay}
-          flipSpeed={flipSpeed}
-        />
+        {flap}
       </div>
     )
   }
 
   // Multi-row board mode
+  const boardCols = columns > 0 ? columns : 14
   return (
     <div
       className={cn(
@@ -360,12 +373,12 @@ export function SplitFlapDisplay({
       }}
     >
       {(rows ?? []).map((row, idx) => {
-        const combined = `${row.label}${' '.repeat(Math.max(1, columns - row.label.length - row.value.length))}${row.value}`
+        const combined = `${row.label}${' '.repeat(Math.max(1, boardCols - row.label.length - row.value.length))}${row.value}`
         return (
           <FlapRow
             key={idx}
             text={combined}
-            columns={columns}
+            columns={boardCols}
             size={size}
             accentColor={accentColor}
             showIndicators={showIndicators}
