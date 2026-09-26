@@ -1134,6 +1134,10 @@ const BUTTON_VARIANTS: Record<ButtonVariant, string> = {
   success: 'bg-accent-emerald font-semibold text-dark-900 transition-colors hover:bg-emerald-400 disabled:opacity-50',
 }
 
+export function Skeleton({ className = '', style }: { className?: string; style?: Record<string, string | number> }) {
+  return <div aria-hidden className={clsx('animate-pulse rounded-card bg-white/[0.06]', className)} style={style} />
+}
+
 export function Button({
   variant = 'primary',
   gradient = 'primary',

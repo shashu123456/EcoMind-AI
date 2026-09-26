@@ -8,7 +8,7 @@ import {
 import { datasets, ai, workflows } from '../lib/api'
 import { useApi } from '../lib/hooks'
 import { useJourney, WORKFLOW, CORE_WORKFLOW, stagePath, runJourneyToCompletion, MILESTONES, milestoneProgress, progressStats } from '../lib/journey'
-import { AnimatedNumber, Particles, Reveal, Gauge as TrustGauge, B, firePageRipple, RippleButton } from '../lib/kit'
+import { AnimatedNumber, Particles, Reveal, Gauge as TrustGauge, B, Skeleton, firePageRipple, RippleButton } from '../lib/kit'
 import { AnnotatedText, MatrixRain, SplitFlapDisplay } from '../lib/interactive'
 import { STAGE_ICONS, STAGE_COLORS } from '../components/ProcessRail'
 import { EcoMindLogo } from '../lib/logo'
@@ -582,7 +582,12 @@ export function DashboardPage() {
               <MatrixRain variant="cyan" transparent className="h-full w-full" fontSize={15} />
             </div>
             <div className="relative flex flex-col items-center gap-3">
-              <Sparkles className="h-8 w-8 text-primary-400/70" />
+              <div className="relative flex items-center justify-center">
+              <Sparkles className="h-8 w-8 text-accent-emerald/70" />
+              <Zap className="absolute -left-9 h-5 w-5 animate-pulse-glow text-accent-gold/70" fill="currentColor" />
+              <Activity className="absolute -right-9 h-5 w-5 text-accent-cyan/70" />
+              <Cpu className="absolute bottom-1 left-1/2 h-4 w-4 -translate-x-1/2 text-primary-400/60" />
+            </div>
               <p className="font-display text-lg font-semibold text-gray-200">Nothing to show on this dataset yet</p>
               <p className="max-w-xl text-sm leading-relaxed text-gray-400">
                 EcoMind generates the Mission Control briefing only after the full 13-stage explainable
@@ -612,7 +617,11 @@ export function DashboardPage() {
       <div className="grid gap-6 lg:grid-cols-3">
         <Reveal delay={0.2} className="lg:col-span-1">
           <div className="glass-card flex h-full flex-col items-center justify-center p-6">
-            <TrustGauge value={typeof trust === 'number' ? trust / 100 : 0} label="Overall AI Trust" size={200} />
+            {execLoading ? (
+              <Skeleton style={{ width: 200, height: 200 }} className="rounded-full" />
+            ) : (
+              <TrustGauge value={typeof trust === 'number' ? trust / 100 : 0} label="Overall AI Trust" size={200} />
+            )}
             <p className="mt-2 text-center text-xs text-gray-400">
               {trust >= 80 ? 'High trust — decisions ready for business use.' : trust >= 60 ? 'Moderate trust — review caveats before acting.' : 'Low trust — improve data quality first.'}
             </p>
@@ -621,17 +630,25 @@ export function DashboardPage() {
 
         <Reveal delay={0.25} className="lg:col-span-2">
           <div className="grid h-full grid-cols-2 gap-4">
-            {metrics.map((m, i) => (
-              <motion.div key={m.label} whileHover={{ y: -3 }}
-                className="glass-card relative overflow-hidden p-5">
-                <div className="absolute -right-6 -top-6 h-20 w-20 rounded-full bg-white/[0.02]" />
-                <m.icon className={clsx('h-5 w-5', m.color)} />
-                <p className="mt-3 font-mono text-xs uppercase tracking-[0.18em] text-gray-400">{m.label}</p>
-                <p className="mt-1 font-display text-3xl font-bold text-gray-100">
-                  <AnimatedNumber value={m.value} decimals={(m as any).pct ? 1 : 0} suffix={(m as any).pct ? '%' : ''} />
-                </p>
-              </motion.div>
-            ))}
+            {execLoading
+              ? Array.from({ length: 4 }).map((_, i) => (
+                  <motion.div key={i} className="glass-card relative overflow-hidden p-5">
+                    <Skeleton className="h-5 w-5" />
+                    <Skeleton className="mt-3 h-3 w-24" />
+                    <Skeleton className="mt-2 h-8 w-16" />
+                  </motion.div>
+                ))
+              : metrics.map((m, i) => (
+                  <motion.div key={m.label} whileHover={{ y: -3 }}
+                    className="glass-card relative overflow-hidden p-5">
+                    <div className="absolute -right-6 -top-6 h-20 w-20 rounded-full bg-white/[0.02]" />
+                    <m.icon className={clsx('h-5 w-5', m.color)} />
+                    <p className="mt-3 font-mono text-xs uppercase tracking-[0.18em] text-gray-400">{m.label}</p>
+                    <p className="mt-1 font-display text-3xl font-bold text-gray-100">
+                      <AnimatedNumber value={m.value} decimals={(m as any).pct ? 1 : 0} suffix={(m as any).pct ? '%' : ''} />
+                    </p>
+                  </motion.div>
+                ))}
           </div>
         </Reveal>
       </div>
