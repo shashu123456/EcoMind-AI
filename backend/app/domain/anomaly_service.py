@@ -55,6 +55,8 @@ def _scores(df: pd.DataFrame) -> pd.DataFrame:
     feats = ["energy_kwh", "power_kw", "voltage_v", "current_a", "power_factor",
              "temperature_c", "humidity_pct", "occupancy_count"]
     feats = [c for c in feats if c in out.columns]
+    for c in feats:
+        out[c] = pd.to_numeric(out[c], errors="coerce")
     X = pd.to_numeric(out[feats].stack(), errors="coerce").unstack().ffill().fillna(0)
     if len(feats):
         from sklearn.ensemble import IsolationForest

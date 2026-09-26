@@ -188,7 +188,6 @@ export function AutomatedPage() {
           setRunning(false)
           setNowIdx(CORE_WORKFLOW.length)
           setStations(prev => prev.map(st => ({ ...st, state: 'done' as const })))
-          setTimeout(() => navigate({ to: '/journey-complete' } as any), 900)
         },
         onError: (e: any) => {
           setRunning(false)
@@ -230,7 +229,7 @@ export function AutomatedPage() {
   const doneCount = stations.filter(s => s.state === 'done').length
 
   const FlowMontage = () => (
-    <div className="mt-6 grid grid-cols-1 gap-4 overflow-y-auto pr-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+    <div key="montage" className="mt-6 grid grid-cols-1 gap-4 overflow-y-auto pr-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
       {CORE_WORKFLOW.map((st, i) => {
         const s = stations.find(x => x.key === st.key)!
         const Icon = STAGE_ICONS[st.key]
@@ -242,7 +241,7 @@ export function AutomatedPage() {
             key={st.key}
             initial={{ opacity: 0, y: 14 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.04 }}
+            transition={{ duration: 0.3, ease: B }}
             className={clsx(
               'flex flex-col overflow-hidden rounded-card border transition-all duration-300',
               s.state === 'active' && 'border-primary-500/50 bg-primary-500/[0.06] shadow-[0_0_30px_rgba(76,95,213,0.25)]',
@@ -269,7 +268,7 @@ export function AutomatedPage() {
               </span>
             </div>
 
-            {/* terminal body */}
+            {/* terminal body — static, fixed height, no per-line animation */}
             <div className="h-[150px] overflow-hidden bg-black/30 px-3 py-2 font-mono text-[10px] leading-[1.7]">
               {s.state === 'waiting' && (
                 <p className="text-gray-600">// queued — waiting for prior stages…</p>
@@ -282,10 +281,7 @@ export function AutomatedPage() {
                   {lines.length ? (
                     <div className="mt-1 space-y-0.5 overflow-hidden">
                       {lines.map((ln, li) => (
-                        <motion.p key={li} initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: li * 0.08 }}
-                          className={clsx('truncate', li === 0 ? 'text-gray-200' : 'text-gray-400')}>
-                          {ln}
-                        </motion.p>
+                        <p key={li} className={clsx('truncate', li === 0 ? 'text-gray-200' : 'text-gray-400')}>{ln}</p>
                       ))}
                     </div>
                   ) : (
@@ -392,7 +388,42 @@ export function AutomatedPage() {
         </div>
       )}
 
-      {(running || doneCount > 0) && <FlowMontage />}
+      {(running || doneCount > 0) && (
+        <>
+          {!running && doneCount >= CORE_WORKFLOW.length && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mt-4 flex flex-wrap items-center gap-4 rounded-card border border-accent-emerald/40 bg-gradient-to-r from-accent-emerald/15 via-black/20 to-primary-500/10 px-5 py-4 shadow-[0_0_40px_rgba(52,211,153,0.12)]"
+            >
+              <span className="flex h-10 w-10 items-center justify-center rounded-full bg-accent-emerald/20 text-accent-emerald">
+                <Check className="h-5 w-5" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="font-display text-base font-bold text-gray-100">
+                  Automation complete — all {CORE_WORKFLOW.length} stages green
+                </p>
+                <p className="mt-0.5 font-mono text-[10px] uppercase tracking-[0.16em] text-gray-400">
+                  run {runId ? short(runId) : '—'} · every terminal resolved against the live backend · pipeline fully explainable
+                </p>
+              </div>
+              <Link
+                to="/journey-complete"
+                className="inline-flex items-center gap-1.5 rounded-button border border-accent-emerald/40 bg-accent-emerald/10 px-4 py-2 text-xs font-semibold text-accent-emerald transition-colors hover:bg-accent-emerald/20"
+              >
+                Wrap-up summary <span className="font-mono">→</span>
+              </Link>
+              <Link
+                to="/dashboard"
+                className="inline-flex items-center gap-1.5 rounded-button border border-white/[0.1] bg-black/20 px-4 py-2 text-xs font-semibold text-gray-200 transition-colors hover:bg-white/[0.05]"
+              >
+                Dashboard
+              </Link>
+            </motion.div>
+          )}
+          <FlowMontage />
+        </>
+      )}
     </div>
   )
 }

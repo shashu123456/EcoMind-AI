@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
+import { useNavigate } from '@tanstack/react-router'
 import { UploadCloud, FileSpreadsheet, Check, Loader2, Sheet, TerminalSquare } from 'lucide-react'
 import clsx from 'clsx'
 import { datasets } from '../lib/api'
@@ -98,6 +99,7 @@ function ReadWriteTerminal({
 export function ImportPage() {
   const { datasetId } = useRouteParams()
   const { markCompleted, setActive } = useJourney()
+  const navigate = useNavigate()
   const { data: ds, loading } = useApi<any>(() => datasets.get(datasetId).then(d => (d as any)), [datasetId])
   const { data: prev } = useApi<any>(() =>
     datasetId ? datasets.preview(datasetId, 40).then(p => (p as any)) : Promise.resolve(null), [datasetId])
@@ -109,6 +111,12 @@ export function ImportPage() {
   const [uploadMsg, setUploadMsg] = useState<string | null>(null)
 
   const isNewUpload = !ds
+
+  useEffect(() => {
+    if (!ds || done || loading) return
+    const t = setTimeout(() => setDone(true), 1400)
+    return () => clearTimeout(t)
+  }, [ds, done, loading])
 
   useEffect(() => {
     if (!isNewUpload || loading || !datasetId) return
@@ -150,6 +158,7 @@ export function ImportPage() {
       const id = r?.dataset?.id || r?.id
       setActive(id)
       markCompleted('import')
+      navigate({ to: `/import/${id}` } as any)
     }).catch((err: any) => setUploadMsg(`Error: ${err.message}`)).finally(() => {
       if (fileRef.current) fileRef.current.value = ''
     })

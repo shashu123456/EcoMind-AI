@@ -326,17 +326,12 @@ export function Gauge({
           transition={{ duration: 1.6, ease: B }}
           style={{ filter: `drop-shadow(0 0 8px ${color}55)` }}
         />
-        {/* needle — swept from the centre hub like a real meter */}
-        <motion.g
-          initial={{ rotate: -90 }}
-          animate={{ rotate: -90 + Math.max(0.01, Math.min(1, frac)) * 180 }}
-          transition={{ duration: 1.6, ease: B }}
-          style={{ transformOrigin: `${cx}px ${hubY}px` }}
-        >
+        {/* needle — swept from the centre hub like a real meter; native SVG rotate so it renders identically in every browser */}
+        <g transform={`rotate(${-90 + Math.max(0.01, Math.min(1, frac)) * 180} ${cx} ${hubY})`}>
           <line x1={cx} y1={hubY} x2={cx} y2={hubY - (r - 6)} stroke={color} strokeWidth={3.5} strokeLinecap="round" />
           <line x1={cx} y1={hubY} x2={cx} y2={hubY - 6} stroke={color} strokeWidth={1.2} opacity={0.6} />
           <line x1={cx} y1={hubY} x2={cx} y2={hubY + 12} stroke={color} strokeWidth={2.5} strokeLinecap="round" opacity={0.35} />
-        </motion.g>
+        </g>
         {/* centre hub — visible bezel so the needle reads as attached, not floating */}
         <circle cx={cx} cy={hubY} r={9} fill="var(--panel2, #171A20)" stroke={color} strokeWidth={2} />
         <circle cx={cx} cy={hubY} r={3.4} fill={color} />

@@ -7,7 +7,7 @@ import {
 } from 'lucide-react'
 import { datasets, ai, workflows } from '../lib/api'
 import { useApi } from '../lib/hooks'
-import { useJourney, WORKFLOW, stagePath, runJourneyToCompletion, MILESTONES, milestoneProgress, progressStats } from '../lib/journey'
+import { useJourney, WORKFLOW, CORE_WORKFLOW, stagePath, runJourneyToCompletion, MILESTONES, milestoneProgress, progressStats } from '../lib/journey'
 import { AnimatedNumber, Particles, Reveal, Gauge as TrustGauge, B, firePageRipple, RippleButton } from '../lib/kit'
 import { AnnotatedText, MatrixRain, SplitFlapDisplay } from '../lib/interactive'
 import { STAGE_ICONS, STAGE_COLORS } from '../components/ProcessRail'
@@ -249,8 +249,8 @@ function EnergyScreen({ dsId, runId, dsName, doneCount, pct }: { dsId: string; r
           )}
         </div>
       </div>
-      <div className="flex flex-wrap items-center gap-2 px-1 pb-1 pt-3">
-        <HeroKey k="ds." label={dsName} color="bg-cyan-400" />
+      <div className="flex flex-wrap items-center gap-2 px-1 pb-1 pt-3" title={dsName}>
+        <HeroKey k="sys." label="EcoMind-AI · grid online" color="bg-cyan-400" />
         <HeroKey k="run." label={runId ? runId.slice(0, 8) : '—'} color="bg-emerald-400" />
       </div>
     </div>
@@ -363,12 +363,19 @@ export function DashboardPage() {
             </motion.div>
             <div className="flex items-center gap-3">
               <EcoMindLogo size={46} />
-              <h1 className="font-display text-5xl font-black tracking-tight sm:text-6xl">
-                <span className="bg-gradient-to-r from-accent-cyan via-primary-400 to-accent-emerald bg-clip-text text-transparent">
-                  EcoMind-AI
-                </span>
-                <span className="ml-2 inline-block h-2.5 w-2.5 rounded-full bg-accent-emerald shadow-[0_0_14px_rgba(14,122,85,0.5)]" />
-              </h1>
+              <div>
+                <h1 className="font-display text-5xl font-black leading-none tracking-tight text-white sm:text-6xl">
+                  EcoMind
+                </h1>
+                <div className="mt-2 flex items-center gap-2">
+                  <span className="inline-flex items-center rounded-md bg-gradient-to-r from-primary-500 to-accent-cyan px-2 py-0.5 font-mono text-[11px] font-bold uppercase tracking-[0.25em] text-white shadow-[0_0_16px_rgba(76,95,213,0.45)]">
+                    AI
+                  </span>
+                  <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-gray-400">
+                    environmental intelligence
+                  </span>
+                </div>
+              </div>
             </div>
             <motion.div
               className="mt-4 flex items-center gap-1"
@@ -505,6 +512,54 @@ export function DashboardPage() {
               {starting || runningJourney ? <Activity className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
               {starting ? 'Igniting engine…' : runningJourney ? 'Running journey…' : `Run the full journey (${mode === 'manual' ? 'step' : 'auto'})`}
             </RippleButton>
+          </div>
+        </div>
+      </Reveal>
+
+      {/* Every process, a hero section */}
+      <Reveal delay={0.16}>
+        <div className="glass-panel p-5">
+          <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <p className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.24em] text-accent-cyan">
+                <Cpu className="h-3.5 w-3.5" /> the engine · stage by stage
+              </p>
+              <h2 className="mt-1 font-display text-xl font-bold text-gray-100">Every process, explained.</h2>
+            </div>
+            <p className="max-w-sm text-xs leading-5 text-gray-400">
+              {CORE_WORKFLOW.length} explainable stages — click any journey to watch each step prove itself against the live backend.
+            </p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+            {CORE_WORKFLOW.map((st, i) => {
+              const Icon = STAGE_ICONS[st.key]
+              const color = STAGE_COLORS[st.key]
+              return (
+                <motion.div
+                  key={st.key}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.05 + i * 0.035 }}
+                  className="group rounded-card border border-white/[0.06] bg-black/20 p-4 transition-all duration-300 hover:-translate-y-1 hover:border-primary-500/40 hover:bg-primary-500/[0.06] hover:shadow-[0_10px_30px_rgba(0,0,0,0.35)]"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <span
+                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border font-mono text-[11px] font-bold"
+                      style={{ borderColor: `${color}55`, color, background: `${color}14` }}
+                    >
+                      {i + 1}
+                    </span>
+                    <Icon className="h-4 w-4 shrink-0" style={{ color }} />
+                    <span className="truncate font-mono text-[11px] font-semibold uppercase tracking-wider text-gray-200">{st.short}</span>
+                  </div>
+                  <p className="mt-3 text-xs leading-5 text-gray-400">{st.description}</p>
+                  <div className="mt-3 flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-widest text-gray-600 transition-colors group-hover:text-primary-400">
+                    <span className="h-1 w-1 rounded-full" style={{ background: color }} />
+                    stage {st.index} of {WORKFLOW.length}
+                  </div>
+                </motion.div>
+              )
+            })}
           </div>
         </div>
       </Reveal>

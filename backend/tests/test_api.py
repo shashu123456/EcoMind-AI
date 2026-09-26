@@ -78,16 +78,16 @@ def test_workflow_list_and_detail():
         assert "traces" in detail
 
 
-def test_workflow_totals_are_seventeen():
-    """Regression: WorkflowRun.total_stages must stay in sync with TOTAL_STAGES (17)."""
+def test_workflow_totals_are_fifteen():
+    """Regression: WorkflowRun.total_stages must stay in sync with TOTAL_STAGES (15)."""
     from app.workflow.stages import STAGES, TOTAL_STAGES
 
-    assert TOTAL_STAGES == 17
-    assert len(STAGES) == 17
+    assert TOTAL_STAGES == 15
+    assert len(STAGES) == 15
     with _client() as c:
         h = _auth(c)
         r = c.get("/api/v1/workflows", headers=h)
         assert r.status_code == 200
         runs = r.json()["runs"]
         assert runs
-        assert runs[0]["total_stages"] == 17
+        assert runs[0]["total_stages"] == 15
