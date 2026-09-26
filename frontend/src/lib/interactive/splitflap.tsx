@@ -320,7 +320,7 @@ export function SplitFlapDisplay({
 }: SplitFlapDisplayProps) {
   useInjectKeyframes()
 
-  const fit = (t: string) => Math.min(Math.max(t.length + 6, 10), 40)
+  const fit = (t: string) => Math.min(Math.max(t.length + 2, 6), 40)
 
   // Simple single-row text mode
   if (text && !rows) {

@@ -481,10 +481,21 @@
     animation: none;
   }
 
-  /* ── Display type = Rajdhani (technical, mission-control face) ── */
+/* ── Display type = Chakra Petch (chunky technical face) ── */
   .font-display {
-    font-family: 'Rajdhani', sans-serif;
-    letter-spacing: 0.02em;
+    font-family: 'Chakra Petch', 'Arial Black', sans-serif;
+    letter-spacing: 0;
+  }
+
+  .font-chunky {
+    font-family: 'Titan One', 'Chakra Petch', 'Arial Black', sans-serif;
+    letter-spacing: 0.01em;
+  }
+
+  /* Extra-chunky hero/logo face */
+  .font-chunky {
+    font-family: 'Titan One', 'Chakra Petch', 'Arial Black', sans-serif;
+    letter-spacing: 0.01em;
   }
 
   /* ── Glass panels become raised white modules ─── */

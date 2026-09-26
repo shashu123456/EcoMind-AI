@@ -364,14 +364,14 @@ export function DashboardPage() {
             <div className="flex items-center gap-3">
               <EcoMindLogo size={46} />
               <div>
-                <h1 className="font-display text-5xl font-black leading-none tracking-tight text-white sm:text-6xl">
+                <h1 className="font-chunky text-5xl leading-none text-white sm:text-6xl">
                   EcoMind
                 </h1>
-                <div className="mt-2 flex items-center gap-2">
-                  <span className="inline-flex items-center rounded-md bg-gradient-to-r from-primary-500 to-accent-cyan px-2 py-0.5 font-mono text-[11px] font-bold uppercase tracking-[0.25em] text-white shadow-[0_0_16px_rgba(76,95,213,0.45)]">
-                    AI
-                  </span>
-                  <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-gray-400">
+                <div className="mt-1.5 flex items-center gap-2">
+                  <div className="-ml-1 origin-left scale-90">
+                    <SplitFlapDisplay text="AI" size="sm" accentColor="#34D399" />
+                  </div>
+                  <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-accent-cyan">
                     environmental intelligence
                   </span>
                 </div>
@@ -388,9 +388,12 @@ export function DashboardPage() {
               <Zap className="ml-1 h-4 w-4 text-accent-cyan" />
             </motion.div>
 
-            <p className="mt-5 max-w-lg text-sm leading-7 text-gray-300">
-              EcoMind runs your energy data through a <span className="font-semibold text-gray-100">13-stage explainable pipeline</span> —
-              every transformation, every model, every verdict is shown, proven, and ready for audit.
+            <p className="mt-5 max-w-lg text-[15px] leading-7 text-gray-200">
+              EcoMind runs your energy data through a{' '}
+              <AnnotatedText variant="wavy" className="font-semibold text-accent-emerald">13-stage explainable pipeline</AnnotatedText>{' '}
+              — every transformation, every model, every verdict is{' '}
+              <AnnotatedText variant="highlight" className="font-semibold text-accent-gold">shown</AnnotatedText>,{' '}
+              <AnnotatedText variant="underline" className="font-semibold text-accent-cyan">proven</AnnotatedText>, and ready for audit.
             </p>
 
             <div className="mt-5 flex flex-wrap items-center gap-3">
@@ -398,7 +401,7 @@ export function DashboardPage() {
                 onClick={startJourney}
                 loading={starting || runningJourney}
                 disabled={!activeId}
-                className="group relative inline-flex items-center justify-center gap-2 overflow-visible rounded-button bg-gradient-to-r from-primary-500 to-accent-cyan h-11 px-6 text-sm font-bold uppercase tracking-wider text-white shadow-[0_0_26px_rgba(76,95,213,0.45)] transition-all hover:shadow-[0_0_40px_rgba(76,95,213,0.7)] disabled:opacity-50"
+                className="group relative inline-flex items-center justify-center gap-2 overflow-visible rounded-button bg-gradient-to-r from-accent-emerald to-accent-gold h-11 px-6 text-sm font-bold uppercase tracking-wider text-[#08120E] shadow-[0_0_26px_rgba(16,138,95,0.45)] transition-all hover:shadow-[0_0_40px_rgba(216,166,72,0.6)] disabled:opacity-50"
               >
                 <Zap className="h-4 w-4 group-hover:animate-pulse" fill="currentColor" />
                 {starting ? 'Igniting engine…' : runningJourney ? 'Running journey…' : 'Run the full process'}
@@ -406,13 +409,13 @@ export function DashboardPage() {
               <button
                 onClick={startStepByStep}
                 disabled={!activeId || starting || runningJourney}
-                className="inline-flex items-center justify-center gap-2 rounded-button border border-accent-cyan/30 bg-accent-cyan/10 h-11 px-5 text-sm font-semibold text-accent-cyan transition-colors hover:bg-accent-cyan/20 disabled:opacity-50"
+                className="inline-flex items-center justify-center gap-2 rounded-button border border-accent-gold/40 bg-accent-gold/10 h-11 px-5 text-sm font-semibold text-accent-gold transition-colors hover:bg-accent-gold/20 disabled:opacity-50"
               >
                 <Play className="h-4 w-4" /> Step-by-step
               </button>
               <Link
                 to="/library"
-                className="inline-flex items-center justify-center gap-2 rounded-button border border-white/[0.1] bg-black/20 h-11 px-5 text-sm font-semibold text-gray-200 transition-colors hover:border-primary-500/40 hover:bg-primary-500/10"
+                className="inline-flex items-center justify-center gap-2 rounded-button border border-accent-emerald/40 bg-accent-emerald/10 h-11 px-5 text-sm font-semibold text-accent-emerald transition-colors hover:border-accent-emerald/60 hover:bg-accent-emerald/20"
               >
                 <Database className="h-4 w-4" /> Open Library
               </Link>
@@ -425,7 +428,7 @@ export function DashboardPage() {
               {resumePath && doneCount > 0 && doneCount < WORKFLOW.length && (
                 <button
                   onClick={() => { (navigate as any)({ to: resumePath }) }}
-                  className="inline-flex items-center gap-2 rounded-button border border-accent-gold/40 bg-accent-gold/10 h-11 px-5 text-sm font-semibold text-accent-gold transition-colors hover:bg-accent-gold/20"
+                  className="inline-flex items-center gap-2 rounded-button border border-accent-rose/40 bg-accent-rose/10 h-11 px-5 text-sm font-semibold text-accent-rose transition-colors hover:bg-accent-rose/20"
                 >
                   <ArrowRight className="h-4 w-4" /> Resume
                 </button>

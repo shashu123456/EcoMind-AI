@@ -1,8 +1,8 @@
 import { useLocation, useNavigate } from '@tanstack/react-router'
-import { Bell, LogOut, Settings, User, Zap, Footprints, Moon, Sun, Cpu, Home, Check, AlertTriangle } from 'lucide-react'
+import { Bell, LogOut, Settings, User, Zap, Footprints, Moon, Sun, Cpu, Home, Check, AlertTriangle, Copy, ArrowRight } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import clsx from 'clsx'
-import { WORKFLOW, MILESTONES, useJourney, progressStats, PIPELINE_TOTAL } from '../lib/journey'
+import { WORKFLOW, MILESTONES, useJourney, progressStats, PIPELINE_TOTAL, stagePath } from '../lib/journey'
 import { useTheme } from '../lib/theme'
 
 import { health, type HealthPayload } from '../lib/api'
@@ -30,8 +30,21 @@ export function TopBar() {
   const [backend, setBackend] = useState<HealthPayload | null>(null)
   const [backendDown, setBackendDown] = useState(false)
   const [seen, setSeen] = useState<Record<string, boolean>>({})
+  const [copiedRun, setCopiedRun] = useState(false)
   let user: any = null
   try { user = JSON.parse(localStorage.getItem('ecomind_user') || 'null') } catch { /* ignore */ }
+
+  function copyRunId() {
+    if (!runId) return
+    navigator.clipboard?.writeText(runId).catch(() => { /* ignore */ })
+    setCopiedRun(true)
+    setTimeout(() => setCopiedRun(false), 1600)
+  }
+
+  function jumpNext() {
+    if (!nextStage) return
+    navigate({ to: stagePath(nextStage, { datasetId: datasetId || '', runId: runId || '' }) } as any)
+  }
 
   useEffect(() => {
     let alive = true
@@ -56,6 +69,9 @@ export function TopBar() {
   const openStageStatuses = useJourney(s => s.stageStatuses)
   const doneCount = progressStats(openStageStatuses).done
   const lockedStages = WORKFLOW.filter(s => openStageStatuses[s.key] === 'locked')
+  const nextStage = stage
+    ? WORKFLOW.find(s => !openStageStatuses[s.key] || openStageStatuses[s.key] !== 'done')
+    : undefined
 
   const notifications = [
     ...Object.entries(openStageStatuses)
@@ -120,11 +136,11 @@ export function TopBar() {
         <span className="h-6 w-px bg-white/[0.08]" />
         <button
           onClick={() => goHome(true)}
-          title="Back to the front page"
-          className="group flex items-center gap-1.5 rounded-button border border-white/[0.08] bg-white/[0.03] px-2.5 py-1.5 transition-colors hover:border-primary-500/40 hover:bg-primary-500/10"
+          title="Front page"
+          aria-label="Front page"
+          className="group flex h-8 w-8 shrink-0 items-center justify-center rounded-button border border-white/[0.08] bg-white/[0.03] transition-colors hover:border-primary-500/40 hover:bg-primary-500/10"
         >
-          <Home className="h-3.5 w-3.5 text-primary-400 transition-transform group-hover:-translate-y-0.5" />
-          <span className="hidden font-mono text-[10px] uppercase tracking-widest text-gray-300 sm:inline">front</span>
+          <Home className="h-4 w-4 text-primary-400 transition-transform group-hover:-translate-y-0.5" />
         </button>
         <div className="flex items-center gap-2">
           <div className={clsx('relative flex h-8 w-8 items-center justify-center rounded-glass border',
@@ -160,6 +176,26 @@ export function TopBar() {
               {c.label}.{c.value}
             </span>
           ))}
+          {runId && (
+            <button
+              onClick={copyRunId}
+              title={copiedRun ? 'Copied!' : 'Copy run id'}
+              className={clsx('flex items-center gap-1 rounded-full border px-2 py-0.5 font-mono text-[11px] tracking-wider transition-colors',
+                copiedRun ? 'border-accent-emerald/50 bg-accent-emerald/10 text-accent-emerald' : 'border-accent-gold/30 bg-accent-gold/[0.06] text-accent-gold hover:border-accent-gold/60 hover:bg-accent-gold/15')}
+            >
+              <Copy className="h-3 w-3" /> {copiedRun ? 'copied' : 'copy'}
+            </button>
+          )}
+          {nextStage && nextStage.key !== stage?.key && stage && (
+            <button
+              onClick={jumpNext}
+              disabled={!datasetId}
+              title={`Jump to next un-done stage: ${nextStage.label}`}
+              className="flex items-center gap-1 rounded-full border border-accent-emerald/30 bg-accent-emerald/[0.06] px-2 py-0.5 font-mono text-[11px] tracking-wider text-accent-emerald transition-colors hover:border-accent-emerald/60 hover:bg-accent-emerald/15 disabled:opacity-50"
+            >
+              <ArrowRight className="h-3 w-3" /> next
+            </button>
+          )}
         </span>
       </div>
 

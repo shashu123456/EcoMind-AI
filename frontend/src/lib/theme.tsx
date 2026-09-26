@@ -16,7 +16,7 @@ function initialTheme(): Theme {
     const stored = localStorage.getItem(THEME_KEY)
     if (stored === 'light' || stored === 'dark') return stored
   } catch { /* storage unavailable */ }
-  return 'light'
+  return 'dark'
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
@@ -24,7 +24,6 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
-    try { localStorage.setItem(THEME_KEY, theme) } catch { /* ignore */ }
   }, [theme])
 
   const toggleTheme = () => setTheme(t => (t === 'dark' ? 'light' : 'dark'))

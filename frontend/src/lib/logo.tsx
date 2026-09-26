@@ -15,37 +15,41 @@ export function EcoMindLogo({ size = 28, className }: { size?: number; className
       fill="none"
       role="img"
       aria-label="EcoMind AI logo"
-      className={clsx('select-none drop-shadow-[0_0_10px_rgba(90,214,240,0.25)]', className)}
+      className={clsx('select-none drop-shadow-[0_0_10px_rgba(61,214,140,0.22)]', className)}
     >
       <defs>
         <linearGradient id="em-logo" x1="12" y1="4" x2="52" y2="60" gradientUnits="userSpaceOnUse">
-          <stop offset="0" stopColor="#A9FBFF" />
-          <stop offset="0.45" stopColor="#5AD6F0" />
-          <stop offset="1" stopColor="#4C5FD5" />
+          <stop offset="0" stopColor="#8BF7B4" />
+          <stop offset="0.5" stopColor="#3DD68C" />
+          <stop offset="1" stopColor="#E0B558" />
+        </linearGradient>
+        <linearGradient id="em-logo-bolt" x1="26" y1="10" x2="48" y2="60" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stopColor="#A6FFC9" />
+          <stop offset="1" stopColor="#E0B558" />
         </linearGradient>
       </defs>
 
-      {/* hexagon wafer */}
+      {/* hexagon wafer — thicker frame */}
       <path
         d="M32 3 L57 17.5 V46.5 L32 61 L7 46.5 V17.5 Z"
         fill="var(--panel2, #171A20)"
         stroke="url(#em-logo)"
-        strokeWidth="2"
+        strokeWidth="3"
         strokeLinejoin="round"
       />
-      {/* circuit traces on the four corner pads */}
+      {/* circuit traces — warm gold */}
       <path
         d="M17 24 V16 h6 M41 16 h6 V24 M47 40 V48 h-6 M23 48 h-6 V40"
-        stroke="#5AD6F0"
-        strokeWidth="2"
+        stroke="#E0B558"
+        strokeWidth="3"
         strokeLinecap="round"
         strokeLinejoin="round"
-        opacity="0.55"
+        opacity="0.7"
       />
-      <circle cx="17" cy="24" r="2.4" fill="#A9FBFF" />
-      <circle cx="47" cy="40" r="2.4" fill="#A9FBFF" />
-      {/* energy bolt */}
-      <path d="M35.5 14 22 35 h7.8 l-3.2 15.5 14-21.5 h-8.6 z" fill="url(#em-logo)" />
+      <circle cx="17" cy="24" r="3" fill="#8BF7B4" />
+      <circle cx="47" cy="40" r="3" fill="#E0B558" />
+      {/* energy bolt — bolder */}
+      <path d="M36 12 21 34 h8 l-3.5 18 15.5-23 h-9 z" fill="url(#em-logo-bolt)" />
       {/* inner hairline echo */}
       <path
         d="M32 8 52.5 19.5 V44.5 L32 56 11.5 44.5 V19.5 Z"
@@ -64,10 +68,10 @@ export function EcoMindLockup({ size = 26, sub = 'adaptive · explainable · ene
       <EcoMindLogo size={size} />
       <span className="flex flex-col leading-tight">
         <span className="font-display text-[15px] font-bold tracking-tight text-gray-50">
-          ecoMind <span className="text-primary-400">AI</span>
+          ecoMind <span className="text-accent-gold">AI</span>
         </span>
         {sub && (
-          <span className="font-mono text-[9px] uppercase tracking-[0.16em] text-gray-500">
+          <span className="font-mono text-[9px] uppercase tracking-[0.16em] text-accent-gold/60">
             {sub}
           </span>
         )}

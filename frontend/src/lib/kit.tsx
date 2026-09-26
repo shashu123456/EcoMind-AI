@@ -307,6 +307,17 @@ export function Gauge({
           const [x2, y2] = pt(f, r + stroke / 2 + 11)
           return <line key={`o${f}`} x1={x1} y1={y1} x2={x2} y2={y2} stroke={RIM} strokeWidth={f === 0 || f === 1 ? 2.5 : 1.4} strokeLinecap="round" opacity={f === 0 || f === 1 ? 0.8 : 0.5} />
         })}
+        {[0, 0.25, 0.5, 0.75, 1].map(f => {
+          const v = Math.round(f * 100)
+          const [x, y] = pt(f, r + stroke / 2 + 20)
+          return (
+            <text key={`l${f}`} x={x} y={y + 3} textAnchor="middle"
+              fill="var(--term-lo, rgba(255,255,255,0.45))" fontSize={8}
+              opacity={f === 0 || f === 1 ? 0.55 : 0.75}>
+              {v}
+            </text>
+          )
+        })}
         {[0.25, 0.5, 0.75].map(f => {
           const [x1, y1] = pt(f, stroke / 2 - 3)
           const [x2, y2] = pt(f, stroke / 2 - 10)
@@ -1014,11 +1025,9 @@ export function StageBanner({
             <p className="text-[10px] font-mono uppercase tracking-[0.25em] text-primary-400">{chapter}</p>
             <h2 className="sr-only">{title}</h2>
             <SplitFlapDisplay
-              bare
               text={title.toUpperCase()}
               size="sm"
               accentColor="#4A9FD8"
-              showIndicators={false}
             />
             {tagline && <p className="text-sm text-gray-500 mt-0.5 max-w-2xl">{tagline}</p>}
           </div>

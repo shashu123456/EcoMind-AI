@@ -215,7 +215,7 @@ export function DQEnginePage() {
           <div>
             <p className="font-mono text-[11px] uppercase tracking-[0.25em] text-primary-400">Stage 05 · Data Quality Engine</p>
             <h1 className="sr-only">Data Quality Engine</h1>
-            <SplitFlapDisplay bare text="DATA QUALITY ENGINE" size="sm" accentColor="#4A9FD8" showIndicators={false} />
+            <SplitFlapDisplay text="DATA QUALITY ENGINE" size="sm" accentColor="#4A9FD8" />
             <p className="mt-1 text-sm text-gray-400">Watch EcoMind repair the dataset — every correction is explained, and the quality you actually achieved lights up live.</p>
           </div>
           <div className="flex items-center gap-2">
