@@ -398,7 +398,7 @@ export function DashboardPage() {
                 onClick={startJourney}
                 loading={starting || runningJourney}
                 disabled={!activeId}
-                className="group relative inline-flex items-center justify-center gap-2 overflow-visible rounded-button bg-gradient-to-r from-primary-500 to-accent-cyan px-6 py-3 text-sm font-bold uppercase tracking-wider text-white shadow-[0_0_26px_rgba(76,95,213,0.45)] transition-all hover:shadow-[0_0_40px_rgba(76,95,213,0.7)] disabled:opacity-50"
+                className="group relative inline-flex items-center justify-center gap-2 overflow-visible rounded-button bg-gradient-to-r from-primary-500 to-accent-cyan h-11 px-6 text-sm font-bold uppercase tracking-wider text-white shadow-[0_0_26px_rgba(76,95,213,0.45)] transition-all hover:shadow-[0_0_40px_rgba(76,95,213,0.7)] disabled:opacity-50"
               >
                 <Zap className="h-4 w-4 group-hover:animate-pulse" fill="currentColor" />
                 {starting ? 'Igniting engine…' : runningJourney ? 'Running journey…' : 'Run the full process'}
@@ -406,26 +406,26 @@ export function DashboardPage() {
               <button
                 onClick={startStepByStep}
                 disabled={!activeId || starting || runningJourney}
-                className="inline-flex items-center justify-center gap-2 rounded-button border border-accent-cyan/30 bg-accent-cyan/10 px-5 py-3 text-sm font-semibold text-accent-cyan transition-colors hover:bg-accent-cyan/20 disabled:opacity-50"
+                className="inline-flex items-center justify-center gap-2 rounded-button border border-accent-cyan/30 bg-accent-cyan/10 h-11 px-5 text-sm font-semibold text-accent-cyan transition-colors hover:bg-accent-cyan/20 disabled:opacity-50"
               >
                 <Play className="h-4 w-4" /> Step-by-step
               </button>
               <Link
                 to="/library"
-                className="inline-flex items-center justify-center gap-2 rounded-button border border-white/[0.1] bg-black/20 px-5 py-3 text-sm font-semibold text-gray-200 transition-colors hover:border-primary-500/40 hover:bg-primary-500/10"
+                className="inline-flex items-center justify-center gap-2 rounded-button border border-white/[0.1] bg-black/20 h-11 px-5 text-sm font-semibold text-gray-200 transition-colors hover:border-primary-500/40 hover:bg-primary-500/10"
               >
                 <Database className="h-4 w-4" /> Open Library
               </Link>
               <Link
                 to="/scorecard"
-                className="inline-flex items-center justify-center gap-2 rounded-button border border-accent-violet/30 bg-accent-violet/10 px-5 py-3 text-sm font-semibold text-accent-violet transition-colors hover:bg-accent-violet/20"
+                className="inline-flex items-center justify-center gap-2 rounded-button border border-accent-violet/30 bg-accent-violet/10 h-11 px-5 text-sm font-semibold text-accent-violet transition-colors hover:bg-accent-violet/20"
               >
                 <Star className="h-4 w-4" /> Presentability
               </Link>
               {resumePath && doneCount > 0 && doneCount < WORKFLOW.length && (
                 <button
                   onClick={() => { (navigate as any)({ to: resumePath }) }}
-                  className="inline-flex items-center gap-2 rounded-button border border-accent-gold/40 bg-accent-gold/10 px-5 py-3 text-sm font-semibold text-accent-gold transition-colors hover:bg-accent-gold/20"
+                  className="inline-flex items-center gap-2 rounded-button border border-accent-gold/40 bg-accent-gold/10 h-11 px-5 text-sm font-semibold text-accent-gold transition-colors hover:bg-accent-gold/20"
                 >
                   <ArrowRight className="h-4 w-4" /> Resume
                 </button>
@@ -492,9 +492,9 @@ export function DashboardPage() {
                 )}
               </p>
             </div>
-            <div className="ml-1 hidden md:block">
+            <div className="ml-1 hidden md:block" title={`session · ${activeName || 'no dataset'}`}>
               <SplitFlapDisplay
-                text={(activeName || 'EcoMind').toUpperCase().slice(0, 11)}
+                text="ECOMIND-AI"
                 columns={11}
                 size="sm"
                 accentColor="#22c55e"
