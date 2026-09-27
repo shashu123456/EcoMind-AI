@@ -20,6 +20,10 @@
   --t-mid: #C2C8D2;
   --t-lo: #8A91A0;
 
+  --t-hi-rgb: 245 246 248;
+  --t-mid-rgb: 194 200 210;
+  --t-lo-rgb: 138 145 160;
+
   /* ── Neutral ramp (dark = default) ─────────────────── */
   /* ── Neutral ramp (dark = default) ───────────────── */
   --gray-50: #F5F6F8;
@@ -40,6 +44,10 @@
   --panel: #171A20;
   --panel2: #1E222A;
   --panel3: #2A2F39;
+
+  --panel-rgb: 23 26 32;
+  --panel2-rgb: 30 34 42;
+  --panel3-rgb: 42 47 57;
 
   /* ── Semantic chrome tokens (DOMAIN flips with theme ─) */
   /* Page canvas + glass surfaces invert; terminals stay dark monitors. */
@@ -62,9 +70,19 @@
     --color-primary-glow: rgba(76, 95, 213, 0.18);
     --color-accent-emerald: #34D399;
     --color-accent-gold: #D8A648;
+    --color-accent-amber: #D8A648;
     --color-accent-rose: #C2335A;
     --color-accent-violet: #8D7BD8;
     --color-accent-cyan: #4A9FD8;
+
+    --color-accent-emerald-rgb: 52 211 153;
+    --color-accent-gold-rgb: 216 166 72;
+    --color-accent-amber-rgb: 216 166 72;
+    --color-accent-rose-rgb: 194 51 90;
+    --color-accent-violet-rgb: 141 123 216;
+    --color-accent-cyan-rgb: 74 159 216;
+
+    --color-border-rgb: 255 255 255;
     --color-text-primary: #F5F6F8;
     --color-text-secondary: #C2C8D2;
     --color-text-muted: #8A91A0;
@@ -131,7 +149,7 @@
     background-size: 220% 220%, 190% 190%, 210% 210%, 180% 180%, 100% 100%, 100% 100%;
     animation: eco-flow 32s ease-in-out infinite alternate;
     color: var(--color-text-primary);
-    font-family: 'Outfit', sans-serif;
+    font-family: 'Inter', sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
@@ -156,7 +174,7 @@
   }
 
   .font-display {
-    font-family: 'Orbitron', 'Arial Black', sans-serif;
+    font-family: 'Inter', 'Arial Black', sans-serif;
     letter-spacing: 0.02em;
   }
 
@@ -281,6 +299,10 @@
   --t-mid: var(--ink-mid);
   --t-lo: #66718A;
 
+  --t-hi-rgb: 27 36 55;
+  --t-mid-rgb: 62 74 97;
+  --t-lo-rgb: 102 113 138;
+
   /* ── Surfaces (light canvas) ────────────────────── */
   --bg: var(--chassis);
   --bg2: #E9EDF4;
@@ -288,6 +310,10 @@
   --panel: var(--panel-lt);
   --panel2: #F4F6FA;
   --panel3: #E4E8F0;
+
+  --panel-rgb: 255 255 255;
+  --panel2-rgb: 244 246 250;
+  --panel3-rgb: 228 232 240;
   --color-dark: var(--chassis);
   --color-surface: var(--panel-lt);
   --color-surface-light: #F4F6FA;
@@ -309,11 +335,21 @@
   /* ── Interactive accent = brand indigo ──────────── */
   --color-primary: var(--accent);
   --color-primary-glow: rgba(76, 95, 213, 0.12);
+  --color-accent-emerald: #0E7A55;
   --color-accent-cyan: #147D9D;
   --color-accent-amber: #9A6B12;
   --color-accent-gold: #9A6B12;
   --color-accent-rose: #BE3455;
   --color-accent-violet: #6A52BE;
+
+  --color-accent-emerald-rgb: 14 122 85;
+  --color-accent-cyan-rgb: 20 125 157;
+  --color-accent-amber-rgb: 154 107 18;
+  --color-accent-gold-rgb: 154 107 18;
+  --color-accent-rose-rgb: 190 52 85;
+  --color-accent-violet-rgb: 106 82 190;
+
+  --color-border-rgb: 27 36 55;
 
   /* ── Text / borders (navy hairlines) ────────────── */
   --color-text-primary: var(--ink);
@@ -433,6 +469,7 @@
   [class~='via-white/[0.04]'] { --tw-gradient-via: rgba(27, 36, 55, 0.06); }
 
   /* remaining bg-black wells → ink-tinted recessed wells */
+  [class~='bg-black/10'] { background-color: rgba(27, 36, 55, 0.04); }
   [class~='bg-black/20'] { background-color: rgba(27, 36, 55, 0.06); }
   [class~='bg-black/25'] { background-color: rgba(27, 36, 55, 0.07); }
   [class~='bg-black/50'] { background-color: #EDF1F8; }
@@ -481,20 +518,14 @@
     animation: none;
   }
 
-/* ── Display type = Orbitron (bulky technical sci-fi face) ── */
+/* ── Display type = Inter (premium enterprise face) ── */
   .font-display {
-    font-family: 'Orbitron', 'Arial Black', sans-serif;
+    font-family: 'Inter', 'Arial Black', sans-serif;
     letter-spacing: 0.02em;
   }
 
   .font-chunky {
-    font-family: 'Titan One', 'Orbitron', 'Arial Black', sans-serif;
-    letter-spacing: 0.01em;
-  }
-
-  /* Extra-chunky hero/logo face */
-  .font-chunky {
-    font-family: 'Titan One', 'Orbitron', 'Arial Black', sans-serif;
+    font-family: 'Inter', 'Arial Black', sans-serif;
     letter-spacing: 0.01em;
   }
 

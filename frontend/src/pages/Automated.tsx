@@ -244,7 +244,7 @@ export function AutomatedPage() {
             transition={{ duration: 0.3, ease: B }}
             className={clsx(
               'flex flex-col overflow-hidden rounded-card border transition-all duration-300',
-              s.state === 'active' && 'border-primary-500/50 bg-primary-500/[0.06] shadow-[0_0_30px_rgba(76,95,213,0.25)]',
+              s.state === 'active' && 'border-primary-500/50 bg-primary-500/[0.06]',
               s.state === 'done' && 'border-accent-emerald/30 bg-black/20',
               s.state === 'waiting' && 'border-white/[0.05] bg-black/10 opacity-60',
             )}
@@ -350,7 +350,7 @@ export function AutomatedPage() {
             <RippleButton
               onClick={generateAndDownload}
               loading={generating}
-              className="inline-flex items-center justify-center gap-2 rounded-button bg-gradient-to-r from-accent-emerald to-primary-500 px-4 py-2.5 text-xs font-semibold text-white shadow-[0_0_20px_rgba(52,211,153,0.3)] transition-all hover:shadow-[0_0_28px_rgba(52,211,153,0.45)] disabled:opacity-60"
+              className="inline-flex items-center justify-center gap-2 rounded-button bg-accent-emerald px-4 py-2.5 text-xs font-semibold text-white transition-all hover:brightness-110 disabled:opacity-60"
             >
               {generating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
               {generating ? 'Generating…' : reportId ? 'Download report' : 'Generate audit report'}
@@ -360,7 +360,7 @@ export function AutomatedPage() {
             onClick={launch}
             loading={busy || running}
             disabled={!datasetId}
-            className="inline-flex items-center justify-center gap-2 rounded-button bg-gradient-to-r from-primary-500 to-accent-cyan px-4 py-2.5 text-xs font-semibold text-white shadow-[0_0_20px_rgba(76,95,213,0.35)] transition-all hover:shadow-[0_0_30px_rgba(76,95,213,0.55)] disabled:opacity-50"
+            className="inline-flex items-center justify-center gap-2 rounded-button bg-primary-500 px-4 py-2.5 text-xs font-semibold text-white transition-all hover:brightness-110 disabled:opacity-50"
           >
             {busy || running ? <Loader2 className="h-4 w-4 animate-spin" /> : running ? <Activity className="h-4 w-4 animate-pulse" /> : <Play className="h-4 w-4" />}
             {busy ? 'Creating run…' : running ? 'Automation running' : 'Launch automation'}
@@ -394,7 +394,7 @@ export function AutomatedPage() {
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="mt-4 flex flex-wrap items-center gap-4 rounded-card border border-accent-emerald/40 bg-gradient-to-r from-accent-emerald/15 via-black/20 to-primary-500/10 px-5 py-4 shadow-[0_0_40px_rgba(52,211,153,0.12)]"
+              className="mt-4 flex flex-wrap items-center gap-4 rounded-card border border-accent-emerald/40 bg-accent-emerald/[0.06] px-5 py-4"
             >
               <span className="flex h-10 w-10 items-center justify-center rounded-full bg-accent-emerald/20 text-accent-emerald">
                 <Check className="h-5 w-5" />

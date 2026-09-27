@@ -5,7 +5,6 @@ import { useNavigate } from '@tanstack/react-router'
 import { ArrowRight, Check, Loader2, Footprints, RotateCcw, Flag } from 'lucide-react'
 import clsx from 'clsx'
 import { useJourney } from './journey'
-import { SplitFlapDisplay } from './interactive'
 
 export const B = [0.16, 1, 0.3, 1] as [number, number, number, number]
 
@@ -192,16 +191,12 @@ export function LiveBar({
 }) {
   const pct = Math.max(0, Math.min(100, ((value || 0) / max) * 100))
   return (
-    <div className={clsx('relative h-2 w-full overflow-hidden rounded-full bg-white/[0.06]', className)}>
+    <div className={clsx('relative h-2 w-full overflow-hidden rounded-full bg-panel3', className)}>
       <motion.div
         initial={{ width: 0 }}
         animate={ready ? { width: `${pct}%` } : { width: 0 }}
         transition={{ duration: 0.9, delay, ease: B }}
-        className={clsx(
-          'relative h-full rounded-full',
-          barClassName || 'bg-gradient-to-r from-primary-500 to-accent-cyan',
-          ready && 'after:absolute after:inset-0 after:animate-pulse-glow after:bg-white/20 after:content-[""]',
-        )}
+        className={clsx('relative h-full rounded-full', barClassName || 'bg-primary-500')}
       />
     </div>
   )
@@ -423,22 +418,14 @@ export function Particles({ count = 26 }: { count?: number }) {
       left: (i * 37 + 13) % 100,
       top: (i * 53 + 29) % 100,
       size: 1 + ((i * 7) % 3),
-      duration: 8 + ((i * 5) % 12),
-      delay: (i * 1.7) % 8,
-      hue: i % 3,
     })), [count])
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
       {dots.map((d, i) => (
-        <motion.div
+        <span
           key={i}
-          className={clsx(
-            'absolute rounded-full',
-            d.hue === 0 && 'bg-primary-400', d.hue === 1 && 'bg-accent-cyan', d.hue === 2 && 'bg-accent-violet',
-          )}
-          style={{ left: `${d.left}%`, top: `${d.top}%`, width: d.size, height: d.size, opacity: 0.5 }}
-          animate={{ y: [0, -24, 0], opacity: [0.35, 0.8, 0.35] }}
-          transition={{ duration: d.duration, delay: d.delay, repeat: Infinity, ease: 'easeInOut' }}
+          className="absolute rounded-full bg-primary-400/20"
+          style={{ left: `${d.left}%`, top: `${d.top}%`, width: d.size, height: d.size }}
         />
       ))}
     </div>
@@ -1072,21 +1059,15 @@ export function StageBanner({
       className="flex min-w-0 flex-col gap-3">
       <div className="flex min-w-0 flex-wrap items-start justify-between gap-4">
         <div className="flex min-w-0 items-center gap-4">
-          <div className="relative hidden h-12 w-12 shrink-0 items-center justify-center rounded-glass border border-white/[0.08] bg-surface-light/60 shadow-[0_0_24px_rgba(76,95,213,0.18)] sm:flex">
-            <span className="absolute inset-0 animate-pulse-glow rounded-glass bg-primary-500/10" />
-            {icon}
-          </div>
-          <div className="min-w-0">
-            <p className="text-[10px] font-mono uppercase tracking-[0.25em] text-primary-400">{chapter}</p>
-            <h2 className="sr-only">{title}</h2>
-            <div className="max-w-[min(76vw,560px)] overflow-x-auto pb-1">
-              <SplitFlapDisplay
-                text={title.toUpperCase()}
-                size="sm"
-                accentColor="#4A9FD8"
-              />
+          {icon && (
+            <div className="relative hidden h-12 w-12 shrink-0 items-center justify-center rounded-glass border border-border bg-panel text-t-mid sm:flex">
+              {icon}
             </div>
-            {tagline && <p className="text-sm text-gray-500 mt-1 max-w-2xl">{tagline}</p>}
+          )}
+          <div className="min-w-0">
+            <p className="text-[10px] font-mono uppercase tracking-[0.25em] text-primary-500">{chapter}</p>
+            <h2 className="text-xl font-semibold tracking-tight text-t-hi sm:text-2xl">{title}</h2>
+            {tagline && <p className="text-sm text-t-lo mt-1 max-w-2xl">{tagline}</p>}
           </div>
         </div>
         <div className="ml-auto flex shrink-0 items-center gap-3">
@@ -1117,13 +1098,13 @@ export function ScoreTile({ label, value, hint, barClassName, valueClass }: {
   valueClass?: string
 }) {
   return (
-    <div className="rounded-card border border-white/[0.06] bg-surface-light/40 p-4">
-      <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-gray-500">{label}</p>
-      <p className={clsx('font-display text-base font-semibold text-gray-100 mt-1 lg:text-lg', valueClass)}>
+    <div className="rounded-card border border-border bg-panel p-4">
+      <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-t-lo">{label}</p>
+      <p className={clsx('font-display text-base font-semibold text-t-hi mt-1 lg:text-lg', valueClass)}>
         <AnimatedNumber value={value} decimals={1} suffix="%" />
       </p>
       <LiveBar value={value} className="mt-2" barClassName={barClassName} />
-      {hint && <p className="mt-1.5 text-[10px] text-gray-600">{hint}</p>}
+      {hint && <p className="mt-1.5 text-[10px] text-t-lo">{hint}</p>}
     </div>
   )
 }
@@ -1140,15 +1121,12 @@ export function FlowStat({ label, value, decimals = 0, suffix = '', prefix = '',
 }) {
   return (
     <motion.div whileHover={{ y: -2 }} className={clsx('glass-card relative overflow-hidden p-5', accent && 'border-primary-500/40')}>
-      {accent && <span className="pointer-events-none absolute -right-6 -top-6 h-20 w-20 rounded-full bg-accent-gold/10 blur-2xl" />}
-      <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-gray-500">{label}</p>
+      <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-t-lo">{label}</p>
       <p className={clsx('font-display text-lg font-semibold mt-2 sm:text-xl',
-        accent
-          ? 'bg-gradient-to-r from-accent-emerald via-accent-gold to-accent-cyan bg-clip-text text-transparent drop-shadow-[0_0_14px_rgba(216,166,72,0.25)]'
-          : 'text-gray-100')}>
+        accent ? 'text-primary-500' : 'text-t-hi')}>
         <AnimatedNumber value={value} decimals={decimals} suffix={suffix} prefix={prefix} />
       </p>
-      {hint && <p className="text-xs text-gray-500 mt-1">{hint}</p>}
+      {hint && <p className="text-xs text-t-lo mt-1">{hint}</p>}
     </motion.div>
   )
 }
@@ -1169,16 +1147,6 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   loading?: boolean
 }
 
-const BUTTON_GRADIENTS: Record<string, string> = {
-  primary: 'from-primary-500 to-accent-cyan',
-  violet: 'from-accent-violet to-primary-500',
-  emerald: 'from-primary-500 to-accent-emerald',
-  amber: 'from-accent-amber to-primary-500',
-  rose: 'from-accent-rose to-accent-amber',
-  golden: 'from-accent-amber to-accent-rose',
-  cyan: 'from-accent-emerald to-accent-cyan',
-}
-
 const BUTTON_SIZES: Record<NonNullable<ButtonProps['size']>, string> = {
   xs: 'px-3 py-1.5 text-xs',
   sm: 'px-4 py-2 text-sm',
@@ -1187,12 +1155,22 @@ const BUTTON_SIZES: Record<NonNullable<ButtonProps['size']>, string> = {
 }
 
 const BUTTON_VARIANTS: Record<ButtonVariant, string> = {
-  primary: 'bg-gradient-to-r font-semibold text-white shadow-[0_0_18px_rgba(76,95,213,0.3)] transition-all hover:shadow-[0_0_28px_rgba(76,95,213,0.5)] disabled:opacity-60',
-  secondary: 'border border-white/[0.08] bg-white/[0.05] font-medium text-gray-300 transition-colors hover:bg-white/[0.1] disabled:opacity-50',
-  outline: 'border border-white/[0.08] font-medium text-gray-300 transition-colors hover:bg-white/[0.04] disabled:opacity-50',
-  danger: 'border border-rose-500/30 font-semibold text-rose-400 transition-colors hover:bg-rose-500/10 disabled:opacity-40',
-  ghost: 'font-medium text-gray-400 transition-colors hover:text-gray-200 hover:bg-white/[0.04] rounded-lg disabled:opacity-40',
-  success: 'bg-accent-emerald font-semibold text-dark-900 transition-colors hover:bg-emerald-400 disabled:opacity-50',
+  primary: 'font-semibold text-white transition-colors hover:brightness-110 disabled:opacity-60',
+  secondary: 'border border-border bg-panel2 font-medium text-t-mid transition-colors hover:bg-panel3 hover:text-t-hi disabled:opacity-50',
+  outline: 'border border-border font-medium text-t-mid transition-colors hover:bg-panel2 hover:text-t-hi disabled:opacity-50',
+  danger: 'border border-rose-500/30 font-semibold text-rose-500 transition-colors hover:bg-rose-500/10 disabled:opacity-40',
+  ghost: 'font-medium text-t-lo transition-colors hover:text-t-hi hover:bg-panel2 rounded-lg disabled:opacity-40',
+  success: 'bg-accent-emerald font-semibold text-white transition-colors hover:bg-emerald-400 disabled:opacity-50',
+}
+
+const BUTTON_SOLIDS: Record<string, string> = {
+  primary: 'bg-primary-500',
+  violet: 'bg-accent-violet',
+  emerald: 'bg-accent-emerald',
+  amber: 'bg-accent-amber',
+  rose: 'bg-accent-rose',
+  golden: 'bg-accent-amber',
+  cyan: 'bg-accent-cyan',
 }
 
 export function Skeleton({ className = '', style }: { className?: string; style?: Record<string, string | number> }) {
@@ -1216,7 +1194,7 @@ export function Button({
       className={clsx(
         'inline-flex items-center justify-center gap-2 rounded-button transition-all disabled:cursor-not-allowed',
         BUTTON_SIZES[size],
-        variant === 'primary' ? BUTTON_GRADIENTS[gradient] : '',
+        variant === 'primary' ? BUTTON_SOLIDS[gradient] || 'bg-primary-500' : '',
         BUTTON_VARIANTS[variant],
         className,
       )}

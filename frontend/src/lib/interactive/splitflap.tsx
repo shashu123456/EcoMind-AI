@@ -31,6 +31,9 @@ interface SplitFlapDisplayProps {
   className?: string
   /** Render without the dark framed board — just the flap row itself */
   bare?: boolean
+  /** Override cell width in px (auto-fit). Shrinks cell + text so the
+      whole board fits its container — every character stays visible. */
+  cellWidth?: number
 }
 
 /* ─── Character Set ─────────────────────────────────────────── */
@@ -50,11 +53,13 @@ function FlapCell({
   size = 'md',
   delay = 0,
   flipSpeed = 35,
+  cellWidth,
 }: {
   targetChar: string
   size?: 'sm' | 'md' | 'lg'
   delay?: number
   flipSpeed?: number
+  cellWidth?: number
 }) {
   const [displayChar, setDisplayChar] = useState(' ')
   const [isFlipping, setIsFlipping] = useState(false)
@@ -114,7 +119,15 @@ function FlapCell({
     lg: { cell: 'w-[46px] h-[64px] text-[30px]', gap: 'gap-[2px]' },
   }
 
-  const s = sizeMap[size]
+  const base = sizeMap[size].cell.match(/w-\[(\d+)px\] h-\[(\d+)px\] text-\[(\d+)px\]/)
+  const auto = cellWidth
+    ? {
+        w: cellWidth,
+        h: Math.round(cellWidth * 1.5),
+        fs: Math.max(6, Math.round(cellWidth * 0.65)),
+      }
+    : null
+  const s = auto ? { cell: `h-[${auto.h}px]`, gap: sizeMap[size].gap } : sizeMap[size]
 
   return (
     <div
@@ -122,7 +135,7 @@ function FlapCell({
         'relative select-none font-mono font-bold',
         s.cell
       )}
-      style={{ perspective: '400px' }}
+      style={{ perspective: '400px', ...(auto ? { width: auto.w } : {}) }}
     >
       {/* ── Static top half ──────────────── */}
       <div
@@ -134,7 +147,7 @@ function FlapCell({
       >
         <span
           className="absolute left-1/2 bottom-0 -translate-x-1/2 translate-y-[48%] text-[#e8e6e3] drop-shadow-[0_1px_1px_rgba(0,0,0,0.6)]"
-          style={{ fontFamily: "'SF Mono', 'Fira Code', 'Courier New', monospace" }}
+          style={{ fontFamily: "'SF Mono', 'Fira Code', 'Courier New', monospace", fontSize: auto ? auto.fs : undefined }}
         >
           {displayChar}
         </span>
@@ -149,7 +162,7 @@ function FlapCell({
       >
         <span
           className="absolute left-1/2 top-0 -translate-x-1/2 -translate-y-[48%] text-[#d4d2cf] drop-shadow-[0_-1px_1px_rgba(0,0,0,0.6)]"
-          style={{ fontFamily: "'SF Mono', 'Fira Code', 'Courier New', monospace" }}
+          style={{ fontFamily: "'SF Mono', 'Fira Code', 'Courier New', monospace", fontSize: auto ? auto.fs : undefined }}
         >
           {displayChar}
         </span>
@@ -167,7 +180,7 @@ function FlapCell({
         >
           <span
             className="absolute left-1/2 bottom-0 -translate-x-1/2 translate-y-[48%] text-[#e8e6e3]"
-            style={{ fontFamily: "'SF Mono', 'Fira Code', 'Courier New', monospace" }}
+            style={{ fontFamily: "'SF Mono', 'Fira Code', 'Courier New', monospace", fontSize: auto ? auto.fs : undefined }}
           >
             {prevCharRef.current}
           </span>
@@ -186,7 +199,7 @@ function FlapCell({
         >
           <span
             className="absolute left-1/2 top-0 -translate-x-1/2 -translate-y-[48%] text-[#d4d2cf]"
-            style={{ fontFamily: "'SF Mono', 'Fira Code', 'Courier New', monospace" }}
+            style={{ fontFamily: "'SF Mono', 'Fira Code', 'Courier New', monospace", fontSize: auto ? auto.fs : undefined }}
           >
             {displayChar}
           </span>
@@ -219,17 +232,20 @@ function FlapCell({
 function IndicatorStrip({
   color = '#22c55e',
   size = 'md',
+  cellWidth,
 }: {
   color?: string
   size?: 'sm' | 'md' | 'lg'
+  cellWidth?: number
 }) {
   const heightMap = { sm: 'h-[30px]', md: 'h-[46px]', lg: 'h-[64px]' }
   return (
     <div
-      className={cn('w-[6px] rounded-[2px] flex-shrink-0 self-stretch', heightMap[size])}
+      className={cn('w-[6px] rounded-[2px] flex-shrink-0 self-stretch', cellWidth ? undefined : heightMap[size])}
       style={{
         background: `linear-gradient(180deg, ${color} 0%, ${color}99 40%, ${color}66 60%, ${color}99 100%)`,
         boxShadow: `0 0 8px ${color}44, inset 0 1px 2px rgba(255,255,255,0.2)`,
+        ...(cellWidth ? { height: Math.round(cellWidth * 1.5) } : {}),
       }}
     />
   )
@@ -245,6 +261,7 @@ function FlapRow({
   showIndicators = true,
   staggerDelay = 30,
   flipSpeed = 35,
+  cellWidth,
 }: {
   text: string
   columns: number
@@ -253,12 +270,13 @@ function FlapRow({
   showIndicators?: boolean
   staggerDelay?: number
   flipSpeed?: number
+  cellWidth?: number
 }) {
   const padded = text.toUpperCase().padEnd(columns, ' ').substring(0, columns)
 
   return (
     <div className="flex items-center gap-1.5">
-      {showIndicators && <IndicatorStrip color={accentColor} size={size} />}
+      {showIndicators && <IndicatorStrip color={accentColor} size={size} cellWidth={cellWidth} />}
       <div className="flex gap-[3px]">
         {padded.split('').map((char, i) => (
           <FlapCell
@@ -267,10 +285,11 @@ function FlapRow({
             size={size}
             delay={i * staggerDelay}
             flipSpeed={flipSpeed}
+            cellWidth={cellWidth}
           />
         ))}
       </div>
-      {showIndicators && <IndicatorStrip color={accentColor} size={size} />}
+      {showIndicators && <IndicatorStrip color={accentColor} size={size} cellWidth={cellWidth} />}
     </div>
   )
 }
@@ -318,6 +337,7 @@ export function SplitFlapDisplay({
   flipSpeed = 35,
   className,
   bare = false,
+  cellWidth,
 }: SplitFlapDisplayProps) {
   useInjectKeyframes()
 
@@ -335,6 +355,7 @@ export function SplitFlapDisplay({
         showIndicators={showIndicators}
         staggerDelay={staggerDelay}
         flipSpeed={flipSpeed}
+        cellWidth={cellWidth}
       />
     )
     if (bare) {
@@ -343,7 +364,7 @@ export function SplitFlapDisplay({
     return (
       <div
         className={cn(
-          'inline-flex flex-col gap-2 p-4 rounded-2xl',
+          'inline-flex flex-col gap-2 p-4 rounded-2xl max-w-full',
           className
         )}
         style={{
@@ -363,7 +384,7 @@ export function SplitFlapDisplay({
   return (
     <div
       className={cn(
-        'inline-flex flex-col gap-2 p-5 rounded-2xl',
+        'inline-flex flex-col gap-2 p-5 rounded-2xl max-w-full',
         className
       )}
       style={{
@@ -385,6 +406,7 @@ export function SplitFlapDisplay({
             showIndicators={showIndicators}
             staggerDelay={staggerDelay}
             flipSpeed={flipSpeed}
+            cellWidth={cellWidth}
           />
         )
       })}

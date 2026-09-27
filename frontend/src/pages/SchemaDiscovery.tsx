@@ -1,261 +1,1279 @@
-import { useState } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
-import { Braces, Wand2, ArrowRight, Hash, Type, Sparkles, Info } from 'lucide-react'
-import { schema } from '../lib/api'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useNavigate } from '@tanstack/react-router'
+import { motion } from 'framer-motion'
+import {
+  AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, Braces, CalendarClock, CheckCircle2,
+  FileText, Hash, RefreshCw, ScanSearch, Table2, ToggleLeft, Type,
+} from 'lucide-react'
+import { datasets, schema, workflows } from '../lib/api'
+import type {
+  Dataset, PreviewPayload, RunDetail, SchemaColumn, SchemaResult,
+} from '../lib/api'
 import { useApi } from '../lib/hooks'
-import { useRouteParams, fmt, EmptyBox, ErrorBox } from '../lib/pagekit'
+import { fmt, n, useRouteParams } from '../lib/pagekit'
 import { useJourney } from '../lib/journey'
-import { StageBanner, Particles, Reveal, FlowStat, LiveBar, AutoNext, Button } from '../lib/kit'
-import clsx from 'clsx'
+import { AutoNext, Button, colLabel, normRows } from '../lib/kit'
+import {
+  Bar, EmptyState, LoadingState, MetricPill, Panel, SectionLabel, StageHeader, Stat,
+  StatusChip, StoryFlow,
+} from '../lib/stagekit'
+import { beatForStage } from '../lib/story'
+import { cn as clsx } from '../lib/cn'
 
-const TYPE_ICON: Record<string, React.ReactNode> = {
-  datetime: <Type className="w-3 h-3 text-accent-cyan" />,
-  timestamp: <Type className="w-3 h-3 text-accent-cyan" />,
-  numeric: <Hash className="w-3 h-3 text-primary-400" />,
-  float: <Hash className="w-3 h-3 text-primary-400" />,
-  integer: <Hash className="w-3 h-3 text-primary-400" />,
-  text: <Type className="w-3 h-3 text-gray-400" />,
-  category: <Type className="w-3 h-3 text-gray-400" />,
-  boolean: <Type className="w-3 h-3 text-primary-400" />,
+/* ─────────────────────────────────────────────────────────────────────────
+   BEAT 02 · DATA UNDERSTANDING — the data atlas
+   Every number on this screen is read from the schema / dataset / preview
+   endpoints. Nothing is decorative: the inventory is the typed schema, the
+   coverage survey is the real null census, the profile is the column's own
+   statistics, and the source sample is the head of the file that entered.
+   ───────────────────────────────────────────────────────────────────────── */
+
+const STAGE_KEY = 'schema_discovery'
+const BEAT = beatForStage(STAGE_KEY)
+const EASE: [number, number, number, number] = [0.16, 1, 0.3, 1]
+const PREVIEW_ROWS = 6
+const SAMPLE_PREVIEW_ROWS = 4
+const SAMPLE_PREVIEW_COLS = 10
+const INVENTORY_MAX_H = 'min(58vh, 620px)'
+
+/* ── dtype family detection (real dtype strings: float64, object, datetime64[ns]…) ── */
+type Kind = 'numeric' | 'text' | 'datetime' | 'boolean' | 'object' | 'other'
+
+function kindOf(...types: Array<string | undefined | null>): Kind {
+  const t = types.filter(Boolean).join(' ').toLowerCase()
+  if (!t) return 'other'
+  if (/datetime|timestamp|date|time/.test(t)) return 'datetime'
+  if (/bool/.test(t)) return 'boolean'
+  if (/int|float|double|dec|number|num/.test(t)) return 'numeric'
+  if (/dict|list|array|struct|json|nested/.test(t)) return 'object'
+  if (/str|text|categor|char/.test(t)) return 'text'
+  return 'other'
 }
 
-function explainField(c: any): { what: string; why: string; derived: string } {
-  const name = String(c?.name ?? '').toLowerCase()
-  const type = (c?.inferred_type || c?.data_type || 'text').toLowerCase()
-  const role = c?.semantic_type || c?.role || 'feature'
-
-  if (role === 'target' || /energy|consumption|demand|usage|kwh|killowatt|kw/.test(name)) {
-    return {
-      what: 'The value the whole pipeline is trying to predict — how much energy this site drew in each interval.',
-      why: 'Every engineered feature and every model below is built to explain this number as precisely as possible.',
-      derived: 'recorded by the meter / source system each interval, never invented by EcoMind.',
-    }
-  }
-  if (type === 'timestamp' || type === 'datetime' || /time|date|hour/.test(name)) {
-    return {
-      what: 'The clock each reading was captured on — a continuous axis shared across every row.',
-      why: 'It is the time axis all later stages slice on, so hourly / daily / weekly patterns can be learned.',
-      derived: 'taken directly from the source file timestamp column.',
-    }
-  }
-  if (role === 'identity' || /id|asset|site|meter|bin|building/.test(name)) {
-    return {
-      what: 'A stable label identifying which asset this row belongs to.',
-      why: 'Lets the pipeline group rows per asset and keeps records distinguishable end-to-end.',
-      derived: 'assigned at source as the row key; kept space-separated/untouched.',
-    }
-  }
-  if (type === 'boolean') {
-    return {
-      what: 'A yes / no flag carried in the raw file (e.g. holiday, override, occupancy).',
-      why: 'Boolean flags are clean inputs models can use without extra processing.',
-      derived: 'read as-is from the source file.',
-    }
-  }
-  if (type === 'category' || type === 'text' || /type|class|region|zone|season|weather|condition/.test(name)) {
-    return {
-      what: 'A category or label that describes the context of each row.',
-      why: 'We keep it verbatim so nothing is invented — categories may become group keys.',
-      derived: 'taken from the source file unchanged.',
-    }
-  }
-  if (type === 'numeric' || type === 'float' || type === 'integer') {
-    return {
-      what: 'A numeric input signal recorded in the same intervals as the target.',
-      why: 'It is a model driver — e.g. temperature, irradiance or occupancy shape how much energy is used.',
-      derived: 'digitized from the source file (units kept intact for now).',
-    }
-  }
-  return {
-    what: `A raw "${type}" column detected in the file with no special role assigned yet.`,
-    why: 'It is kept as-is so no information is silently dropped before quality checks run.',
-    derived: 'copied verbatim from the uploaded file.',
-  }
+const KIND_ICON: Record<Kind, ReactNode> = {
+  numeric: <Hash className="h-3.5 w-3.5" />,
+  text: <Type className="h-3.5 w-3.5" />,
+  datetime: <CalendarClock className="h-3.5 w-3.5" />,
+  boolean: <ToggleLeft className="h-3.5 w-3.5" />,
+  object: <Braces className="h-3.5 w-3.5" />,
+  other: <FileText className="h-3.5 w-3.5" />,
 }
 
-export function SchemaDiscoveryPage() {
-  const { datasetId } = useRouteParams()
-  const { markCompleted, setActive } = useJourney()
-  const { data, loading, error, refetch } = useApi<any>(() => schema.get(datasetId) as any, [datasetId])
-  const [busy, setBusy] = useState(false)
-  const [visible, setVisible] = useState(0)
-  const [done, setDone] = useState(false)
+const KIND_TEXT: Record<Kind, string> = {
+  numeric: 'text-primary-500',
+  text: 'text-t-mid',
+  datetime: 'text-accent-cyan',
+  boolean: 'text-accent-emerald',
+  object: 'text-accent-amber',
+  other: 'text-t-lo',
+}
 
-  async function discover() {
-    setBusy(true); setVisible(0); setDone(false)
-    try {
-      await schema.discover(datasetId, {})
-      const res: any = await schema.get(datasetId)
-      const n = (res?.columns || []).length
-      const id = buildReveal(n)
-      id()
-      refetch()
-    } catch { } finally { setBusy(false) }
-  }
+const KIND_LABEL: Record<Kind, string> = {
+  numeric: 'numeric',
+  text: 'categorical',
+  datetime: 'temporal',
+  boolean: 'boolean',
+  object: 'nested',
+  other: 'unresolved',
+}
 
-  function buildReveal(n: number) {
-    let i = 0
-    const step = () => {
-      if (i < n) { setVisible(i + 1); i += 1; setTimeout(step, 220) }
-      else setTimeout(() => { setDone(true); markCompleted('schema_discovery') }, 2500)
-    }
-    return () => step()
-  }
+/* ── semantic role, derived from the backend `role` first, then semantic_type ── */
+type RoleKind = 'target' | 'feature' | 'identity' | 'time'
 
-  async function runReveal() {
-    const n = (data?.columns || []).length
-    if (!n) { await discover(); return }
-    const step = () => {
-      setVisible(v => {
-        if (v >= n) { setDone(true); markCompleted('schema_discovery'); return v }
-        return v + 1
-      })
-    }
-    for (let k = 0; k <= n; k++) setTimeout(step, 200 * (k + 1))
-    setTimeout(() => setDone(true), 200 * n + 2600)
-  }
+function roleOf(c: SchemaColumn): { role: RoleKind; declared: boolean } {
+  const declared = String(c.role || '').toLowerCase()
+  const pick = (r: RoleKind) => ({ role: r, declared: declared.length > 0 })
+  if (declared === 'target' || declared === 'label') return pick('target')
+  if (declared === 'identifier' || declared === 'key') return pick('identity')
+  if (declared === 'feature' || declared === 'attribute') return pick('feature')
+  if (declared === 'time' || declared === 'timestamp') return pick('time')
+  const s = String(c.semantic_type || '').toLowerCase()
+  if (s.includes('energy_value') || s.includes('consumption')) return pick('target')
+  if (s.includes('timestamp') || s.includes('time')) return pick('time')
+  if (s.includes('device') || s.includes('asset') || s.includes('site')) return pick('identity')
+  return pick('feature')
+}
 
-  const cols = (data?.columns || []) as any[]
-  const shown = cols.slice(0, Math.max(visible, done ? cols.length : visible))
+const ROLE_TEXT: Record<RoleKind, string> = {
+  target: 'text-accent-amber',
+  feature: 'text-primary-500',
+  identity: 'text-accent-violet',
+  time: 'text-accent-cyan',
+}
 
+const ROLE_BOX: Record<RoleKind, string> = {
+  target: 'border-accent-amber/30 bg-accent-amber/[0.06]',
+  feature: 'border-primary-500/30 bg-primary-500/[0.05]',
+  identity: 'border-accent-violet/30 bg-accent-violet/[0.06]',
+  time: 'border-accent-cyan/30 bg-accent-cyan/[0.05]',
+}
+
+/** MetricPill paints its value in text-t-hi, so accent roles need their own chip. */
+function RoleChip({ role, declared }: { role: RoleKind; declared: boolean }) {
   return (
-    <div className="relative flex h-full min-h-0 flex-col overflow-hidden">
-      <div className="min-h-0 flex-1 space-y-6 overflow-y-auto pr-1">
-      <Particles count={16} />
-      <StageBanner
-        chapter="Stage 03 · Schema Discovery"
-        title="Schema Discovery"
-        tagline="EcoMind inspects every column and reveals what it is — type, role and confidence — one field at a time."
-        icon={<Braces className="h-6 w-6 text-primary-400" />}
-        children={
-          !data?.columns?.length ? (
-            <Button onClick={discover} disabled={busy} size="md" gradient="primary"
-              className="h-11 px-6">
-              <Wand2 className={`w-4 h-4 ${busy ? 'animate-spin' : ''}`} /> Discover schema
-            </Button>
-          ) : null
-        }
-      />
+    <span
+      title={declared ? 'role reported by the schema' : 'role derived from the semantic type'}
+      className={clsx(
+        'inline-flex items-baseline gap-1.5 rounded-button border px-2 py-[3px] font-mono text-[10px] uppercase tracking-wider',
+        ROLE_BOX[role],
+      )}
+    >
+      <span className="text-t-lo">role</span>
+      <span className={clsx('font-semibold', ROLE_TEXT[role])}>{role}</span>
+    </span>
+  )
+}
 
-      {data?.columns?.length ? (
-        <Reveal delay={0.05}>
-          <Button onClick={runReveal} size="sm" variant="secondary">
-            <Sparkles className="w-3.5 h-3.5 text-primary-400" /> Re-run animated discovery
-          </Button>
-        </Reveal>
-      ) : null}
+function KindMark({ kind, className }: { kind: Kind; className?: string }) {
+  return (
+    <span
+      title={`${KIND_LABEL[kind]} column`}
+      aria-hidden
+      className={clsx('inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-button border border-border bg-panel2', KIND_TEXT[kind], className)}
+    >
+      {KIND_ICON[kind]}
+    </span>
+  )
+}
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <FlowStat label="Columns" value={cols.length} accent hint="fields inspected" />
-        <FlowStat label="Nullable" value={cols.filter((c: any) => c.nullable).length} hint="may be empty" />
-        <FlowStat label="Datetime" value={cols.filter((c: any) => ['timestamp', 'datetime'].includes(c.inferred_type || c.data_type)).length} hint="time axis" />
-        <FlowStat label="Target" value={cols.filter((c: any) => (c.semantic_type || c.role) === 'target').length} hint="prediction target" />
+/* ── value formatting ───────────────────────────────────────────────── */
+function isVoid(v: unknown): boolean {
+  return v === null || v === undefined || v === ''
+}
+
+function fmtSample(v: unknown, max = 34): string {
+  if (v === null || v === undefined) return '∅'
+  if (typeof v === 'number') return Number.isFinite(v) ? String(Number(v.toFixed(4))) : 'NaN'
+  if (typeof v === 'boolean') return v ? 'true' : 'false'
+  let s: string
+  if (typeof v === 'object') {
+    try { s = JSON.stringify(v) } catch { s = '[object]' }
+  } else {
+    s = String(v)
+  }
+  return s.length > max ? `${s.slice(0, max - 1)}…` : s
+}
+
+function whenText(v: unknown): string {
+  if (isVoid(v)) return '—'
+  const raw = v as string | number
+  const d = typeof raw === 'number' ? new Date(raw < 1e11 ? raw * 1000 : raw) : new Date(raw)
+  if (Number.isNaN(d.getTime())) return String(raw)
+  return d.toLocaleString(undefined, {
+    year: 'numeric', month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit',
+  })
+}
+
+function num(v: unknown): number {
+  const x = n(v)
+  return x === null ? 0 : x
+}
+
+/* ── the atlas field: one schema column, normalised for display ────── */
+interface Field {
+  col: SchemaColumn
+  name: string
+  declared: string
+  resolved: string
+  recast: boolean
+  kind: Kind
+  role: RoleKind
+  roleDeclared: boolean
+  semantic: string
+  nulls: number
+  nullPct: number
+  distinct: number
+  samples: unknown[]
+  voids: number
+}
+
+function buildFields(cols: SchemaColumn[], totalRows: number): Field[] {
+  return (cols || [])
+    .filter(c => c && c.name)
+    .map(c => {
+      const declared = String(c.data_type || 'unknown')
+      const resolved = String(c.inferred_type || declared)
+      const { role, declared: roleDeclared } = roleOf(c)
+      const nulls = num(c.null_count)
+      let nullPct = n(c.null_rate)
+      if (nullPct === null) {
+        nullPct = totalRows > 0 ? (nulls / totalRows) * 100 : 0
+      } else if (nullPct > 0 && nullPct <= 1 && totalRows > 0 && nulls > 0) {
+        nullPct = (nulls / totalRows) * 100
+      } else if (nullPct > 0 && nullPct <= 1) {
+        nullPct = nullPct * 100
+      }
+      const samples = Array.isArray(c.sample_values) ? c.sample_values : []
+      return {
+        col: c,
+        name: String(c.name),
+        declared,
+        resolved,
+        recast: Boolean(c.inferred_type) && resolved !== declared,
+        kind: kindOf(c.inferred_type, c.data_type),
+        role,
+        roleDeclared,
+        semantic: String(c.semantic_type || 'generic'),
+        nulls,
+        nullPct: Math.max(0, Math.min(100, nullPct)),
+        distinct: num(c.unique_count),
+        samples,
+        voids: samples.filter(isVoid).length,
+      }
+    })
+}
+
+/* ── missing-data severity bands (the null census) ─────────────────── */
+type Tone = 'emerald' | 'cyan' | 'amber' | 'rose'
+
+interface Band {
+  key: string
+  label: string
+  tone: Tone
+  test: (pct: number) => boolean
+  note: string
+}
+
+const BANDS: Band[] = [
+  { key: 'complete', label: 'complete', tone: 'emerald', test: p => p <= 0, note: 'zero missing values' },
+  { key: 'trace', label: 'trace', tone: 'cyan', test: p => p > 0 && p <= 5, note: '≤ 5 % missing' },
+  { key: 'sparse', label: 'sparse', tone: 'amber', test: p => p > 5 && p <= 25, note: '5–25 % missing' },
+  { key: 'gapped', label: 'gapped', tone: 'amber', test: p => p > 25 && p <= 60, note: '25–60 % missing' },
+  { key: 'critical', label: 'critical', tone: 'rose', test: p => p > 60, note: '> 60 % missing' },
+]
+
+const TONE_TEXT: Record<Tone, string> = {
+  emerald: 'text-accent-emerald',
+  cyan: 'text-accent-cyan',
+  amber: 'text-accent-amber',
+  rose: 'text-accent-rose',
+}
+
+function bandOf(pct: number): Band {
+  return BANDS.find(b => b.test(pct)) ?? BANDS[BANDS.length - 1]
+}
+
+/* ── inventory sorting ─────────────────────────────────────────────── */
+type SortKey = 'name' | 'type' | 'role' | 'semantic' | 'missing' | 'distinct' | 'sample'
+
+const HEADS: Array<{ key: SortKey; label: string; align?: 'right' }> = [
+  { key: 'name', label: 'column' },
+  { key: 'type', label: 'type' },
+  { key: 'role', label: 'role' },
+  { key: 'semantic', label: 'semantic' },
+  { key: 'missing', label: 'missing' },
+  { key: 'distinct', label: 'distinct', align: 'right' },
+  { key: 'sample', label: 'sample values' },
+]
+
+/* ── statistics keys we know how to label, plus anything else the API sends ── */
+const STAT_KEYS: Array<[string, string]> = [
+  ['min', 'min'], ['q25', 'q25'], ['median', 'median'], ['mean', 'mean'], ['q75', 'q75'],
+  ['max', 'max'], ['std', 'std dev'], ['variance', 'variance'], ['skewness', 'skew'],
+  ['kurtosis', 'kurt'], ['mode', 'mode'], ['cardinality', 'cardinality'],
+]
+const KNOWN_STAT = new Set(STAT_KEYS.map(([k]) => k))
+
+function statValue(v: unknown): string | null {
+  if (typeof v === 'number') return Number.isFinite(v) ? fmt(v, 4) : null
+  if (typeof v === 'boolean') return v ? 'true' : 'false'
+  if (typeof v === 'string' && v.length > 0) return v.length > 18 ? `${v.slice(0, 17)}…` : v
+  return null
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Column inventory — the atlas table
+   ═══════════════════════════════════════════════════════════════════════ */
+function Inventory({
+  fields, headerCols, totalRows, selected, onSelect, sort, onSort, warnings,
+}: {
+  fields: Field[]
+  headerCols: string[]
+  totalRows: number
+  selected: string
+  onSelect: (name: string) => void
+  sort: { key: SortKey; dir: 'asc' | 'desc' }
+  onSort: (key: SortKey) => void
+  warnings: string[]
+}) {
+  return (
+    <div className="min-h-0 flex-1 overflow-auto" style={{ maxHeight: INVENTORY_MAX_H }}>
+      {/* raw header strip — the literal first line of the file that entered */}
+      <div className="flex items-center gap-2 border-b border-border bg-panel2 px-3 py-1.5">
+        <SectionLabel className="shrink-0">source header</SectionLabel>
+        <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
+          {headerCols.length === 0 && <span className="font-mono text-[10px] text-t-lo">header unavailable</span>}
+          {headerCols.map(c => (
+            <span key={c} className="shrink-0 rounded bg-panel3 px-1.5 py-px font-mono text-[9px] text-t-mid">
+              {c}
+            </span>
+          ))}
+        </div>
+        <span className="shrink-0 font-mono text-[9px] uppercase tracking-widest text-t-lo">
+          {headerCols.length || fields.length} fields
+        </span>
       </div>
 
-      {error && <ErrorBox message={error} onRetry={refetch} />}
-      {loading && <EmptyBox title="Inspecting columns…" />}
-
-      {!loading && !error && cols.length > 0 && (
-        <Reveal delay={0.1}>
-          <div className="glass-card overflow-hidden">
-            <div className="px-4 py-3 border-b border-white/[0.06] text-xs font-mono uppercase tracking-widest text-gray-400">
-              inferred schema · {cols.length} fields
-            </div>
-            <div className="divide-y divide-white/[0.04]">
-              <AnimatePresence initial={false}>
-                {shown.map((c: any, i: number) => {
-                  const confidence = Math.min(99, 86 + ((i * 7) % 14))
-                  const type = (c.inferred_type || c.data_type || 'text').toLowerCase()
-                  const role = c.semantic_type || c.role || 'feature'
-                  return (
-                    <motion.div
-                      key={c.name || i}
-                      initial={{ opacity: 0, y: 8, scale: 0.99 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-                      className="px-4 py-3"
-                    >
-                      <div className="grid sm:grid-cols-12 gap-2 items-center">
-                        <p className="sm:col-span-3 font-display font-medium text-gray-200 truncate">{c.name}</p>
-                        <p className="sm:col-span-2 flex items-center gap-1.5 text-xs font-mono text-gray-400">
-                          {TYPE_ICON[type] || <Hash className="w-3 h-3 text-gray-500" />} {type}
-                        </p>
-                        <p className="sm:col-span-2 text-xs">
-                          <span className={clsx('px-2 py-0.5 rounded-button text-[10px]',
-                            role === 'target' ? 'bg-amber-500/10 text-amber-400'
-                              : role === 'identity' ? 'bg-gray-500/10 text-gray-400'
-                                : 'bg-primary-500/10 text-primary-400')}>
-                            {role}
-                          </span>
-                        </p>
-                        <div className="sm:col-span-3 flex items-center gap-2">
-                          <LiveBar value={confidence} max={100} barClassName={clsx(
-                            role === 'target' ? 'bg-gradient-to-r from-amber-500 to-accent-amber' : 'bg-gradient-to-r from-primary-500 to-accent-cyan')} />
-                          <span className="w-9 text-right font-mono text-[10px] text-gray-500">{confidence}%</span>
-                        </div>
-                        <p className="sm:col-span-2 text-[10px] font-mono text-gray-600 truncate">
-                          {(c.sample_values || []).slice(0, 2).map((s: any) => String(s ?? '')).join(' · ')}
-                        </p>
-                      </div>
-                      {(() => {
-                        const ex = explainField(c)
-                        return (
-                          <div className="mt-2 flex items-start gap-2 rounded-button border border-white/[0.05] bg-white/[0.02] px-3 py-2 text-xs leading-relaxed">
-                            <Info className="mt-0.5 h-3 w-3 shrink-0 text-primary-400" />
-                            <div className="min-w-0 text-gray-400">
-                              <span className="text-gray-200">{ex.what}</span>
-                              <span className="block text-gray-500"><span className="text-accent-cyan">why → </span>{ex.why}</span>
-                              <span className="block font-mono text-[10px] text-gray-600"><span className="text-gray-500">how derived → </span>{ex.derived}</span>
-                            </div>
-                          </div>
-                        )
-                      })()}
-                    </motion.div>
-                  )
-                })}
-              </AnimatePresence>
-              {!done && visible < cols.length && (
-                <motion.p animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 1.4, repeat: Infinity }}
-                  className="px-4 py-2 text-[10px] text-primary-400 font-mono">
-                  detecting… {Math.min(visible, cols.length)} / {cols.length}
-                </motion.p>
-              )}
-              {done && (
-                <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="px-4 py-2 text-[10px] text-accent-emerald font-mono">
-                  ✔ all {cols.length} fields detected
-                </motion.p>
-              )}
-            </div>
-          </div>
-        </Reveal>
-      )}
-
-      {!error && cols.length === 0 && !loading && (
-        <Reveal delay={0.1}>
-          <div className="grid md:grid-cols-2 gap-4">
-            {['timestamp', 'asset_id', 'energy_kwh', 'temperature_c'].map((name, i) => (
-              <div key={name} className="glass-card p-5">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="font-mono text-xs text-gray-300">{name}</p>
-                  <span className="text-[10px] font-mono text-gray-600">{90 + i * 2}%</span>
+      <table className="w-full min-w-[60rem] border-collapse text-left">
+        <thead>
+          <tr className="border-b border-border bg-panel2">
+            {HEADS.map(h => {
+              const active = sort.key === h.key
+              const Icon = !active ? ArrowUpDown : sort.dir === 'asc' ? ArrowUp : ArrowDown
+              return (
+                <th key={h.key} className="px-3 py-1.5 font-normal">
+                  <button
+                    type="button"
+                    onClick={() => onSort(h.key)}
+                    title={`Sort by ${h.label}`}
+                    className={clsx(
+                      'inline-flex items-center gap-1 font-mono text-[9px] uppercase tracking-[0.2em] transition-colors',
+                      h.align === 'right' && 'flex-row-reverse',
+                      active ? 'text-primary-500' : 'text-t-lo hover:text-t-hi',
+                    )}
+                  >
+                    {h.label}
+                    <Icon className="h-3 w-3" />
+                  </button>
+                </th>
+              )
+            })}
+          </tr>
+        </thead>
+        <tbody>
+          {fields.map(f => {
+            const on = f.name === selected
+            const band = bandOf(f.nullPct)
+            return (
+              <tr
+                key={f.name}
+                tabIndex={0}
+                aria-selected={on}
+                onClick={() => onSelect(f.name)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect(f.name) }
+                }}
+                className={clsx(
+                  'cursor-pointer border-b border-border transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-primary-500',
+                  on ? 'bg-primary-500/[0.05]' : 'hover:bg-panel2',
+                )}
+              >
+                <td className={clsx('border-l-2 py-1.5 pl-3 pr-3', on ? 'border-l-primary-500' : 'border-l-transparent')}>
+                  <span className="flex min-w-0 items-center gap-2">
+                    <KindMark kind={f.kind} />
+                    <span className="truncate font-mono text-[11px] font-semibold text-t-hi" title={f.name}>{f.name}</span>
+                    {f.recast && (
+                      <span title={`re-cast from ${f.declared}`} className="shrink-0 rounded-full border border-accent-cyan/30 bg-accent-cyan/[0.06] px-1.5 font-mono text-[8px] uppercase tracking-widest text-accent-cyan">
+                        recast
+                      </span>
+                    )}
+                  </span>
+                </td>
+                <td className="px-3 py-1.5">
+                  <span className={clsx('font-mono text-[10px]', KIND_TEXT[f.kind])}>{f.resolved}</span>
+                  {f.recast && <span className="ml-1.5 font-mono text-[10px] text-t-lo">← {f.declared}</span>}
+                </td>
+                <td className="px-3 py-1.5"><RoleChip role={f.role} declared={f.roleDeclared} /></td>
+                <td className="px-3 py-1.5">
+                  <span className="inline-flex max-w-[150px] truncate rounded-button border border-border bg-panel2 px-1.5 py-[2px] font-mono text-[9px] text-t-mid" title={f.semantic}>
+                    {f.semantic}
+                  </span>
+                </td>
+                <td className="px-3 py-1.5">
+                  <span className="flex items-center gap-2">
+                    <Bar value={f.nullPct} tone={band.tone} className="w-14" />
+                    <span className={clsx('w-11 shrink-0 text-right font-mono text-[10px]', f.nulls > 0 ? TONE_TEXT[band.tone] : 'text-t-lo')}>
+                      {fmt(f.nullPct, 2)}%
+                    </span>
+                  </span>
+                </td>
+                <td className="px-3 py-1.5 text-right font-mono text-[10px] text-t-mid">{fmt(f.distinct, 0)}</td>
+                <td className="px-3 py-1.5">
+                  <span className="flex items-center gap-2 overflow-hidden">
+                    {f.samples.length === 0 && <span className="font-mono text-[10px] text-t-lo">no sample captured</span>}
+                    {f.samples.slice(0, 2).map((v, i) => (
+                      <span
+                        key={i}
+                        title={fmtSample(v, 90)}
+                        className={clsx(
+                          'max-w-[150px] shrink-0 truncate font-mono text-[10px]',
+                          isVoid(v) ? 'italic text-accent-rose' : 'text-t-lo',
+                        )}
+                      >
+                        {fmtSample(v)}
+                      </span>
+                    ))}
+                  </span>
+                </td>
+              </tr>
+            )
+          })}
+          {fields.length === 0 && (
+            <tr>
+              <td colSpan={HEADS.length} className="px-3 py-10 text-center text-xs text-t-lo">
+                no columns profiled
+              </td>
+            </tr>
+          )}
+        </tbody>
+        <tfoot>
+          <tr className="bg-panel2">
+            <td colSpan={HEADS.length} className="px-3 py-1.5">
+              <p className="font-mono text-[10px] leading-4 text-t-lo">
+                {fields.length} typed field{fields.length === 1 ? '' : 's'} · {fmt(totalRows, 0)} rows profiled ·
+                missing % = null_count ÷ rows, taken from null_rate when the API supplies it
+              </p>
+            </td>
+          </tr>
+          {warnings.length > 0 && (
+            <tr>
+              <td colSpan={HEADS.length} className="px-3 py-2">
+                <div className="rounded-button border border-accent-amber/30 bg-accent-amber/[0.06] px-2.5 py-2">
+                  <div className="flex items-center gap-1.5">
+                    <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-accent-amber" />
+                    <SectionLabel className="text-accent-amber">discovery warnings · {warnings.length}</SectionLabel>
+                  </div>
+                  <ul className="mt-1 space-y-0.5">
+                    {warnings.map((w, i) => (
+                      <li key={i} className="text-[11px] leading-snug text-t-mid">{w}</li>
+                    ))}
+                  </ul>
                 </div>
-                <LiveBar value={90 + i * 2} barClassName="bg-gradient-to-r from-primary-500 to-accent-cyan" delay={i * 0.15} />
-                <p className="mt-2 text-[10px] font-mono text-gray-600">{['datetime', 'identity', 'numeric · target', 'numeric · feature'][i]}</p>
+              </td>
+            </tr>
+          )}
+        </tfoot>
+      </table>
+    </div>
+  )
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Column profile — the selected field's own numbers
+   ═══════════════════════════════════════════════════════════════════════ */
+function ColumnProfile({ field, totalRows }: { field: Field; totalRows: number }) {
+  const stats = useMemo(() => (field.col.statistics || {}) as Record<string, unknown>, [field.col])
+  const statPairs = useMemo(() => {
+    const known = STAT_KEYS
+      .filter(([k]) => statValue(stats[k]) !== null)
+      .map(([k, label]): [string, string] => [k, label])
+    const extra = Object.keys(stats)
+      .filter(k => !KNOWN_STAT.has(k) && statValue(stats[k]) !== null)
+      .slice(0, 8)
+      .map((k): [string, string] => [k, k.replace(/_/g, ' ').toLowerCase()])
+    return [...known, ...extra]
+  }, [stats])
+
+  const numericSamples = field.samples
+    .map(v => (typeof v === 'number' ? v : Number(v)))
+    .filter(v => Number.isFinite(v))
+    .slice(0, 16)
+
+  const distinct = useMemo(() => {
+    const counts = new Map<string, number>()
+    field.samples.forEach(v => {
+      const k = isVoid(v) ? '∅' : fmtSample(v, 24)
+      counts.set(k, (counts.get(k) || 0) + 1)
+    })
+    return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8)
+  }, [field.samples])
+
+  const band = bandOf(field.nullPct)
+  const completeness = Math.max(0, 100 - field.nullPct)
+
+  return (
+    <motion.div
+      key={field.name}
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.24, ease: EASE }}
+      className="space-y-3.5"
+    >
+      {/* identity */}
+      <div className="flex min-w-0 items-start gap-2.5">
+        <KindMark kind={field.kind} className="h-7 w-7" />
+        <div className="min-w-0 flex-1">
+          <p className="truncate font-mono text-[13px] font-semibold text-t-hi" title={field.name}>{field.name}</p>
+          <p className="mt-0.5 truncate text-[11px] text-t-lo">
+            {field.declared === field.resolved ? field.resolved : `${field.resolved} · re-cast from ${field.declared}`}
+          </p>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-1.5">
+        <RoleChip role={field.role} declared={field.roleDeclared} />
+        <MetricPill label="semantic" value={field.semantic} />
+        <MetricPill label="nullable" value={field.col.nullable ? 'yes' : 'no'} />
+        <MetricPill label="kind" value={KIND_LABEL[field.kind]} />
+      </div>
+
+      {/* the missing bar */}
+      <div className="space-y-1.5">
+        <div className="flex items-baseline justify-between gap-2">
+          <SectionLabel>completeness</SectionLabel>
+          <span className={clsx('font-mono text-[11px] font-semibold', TONE_TEXT[band.tone])}>
+            {fmt(completeness, 2)}% present
+          </span>
+        </div>
+        <Bar value={completeness} tone={band.tone} />
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[10px] text-t-lo">
+          <span>{fmt(field.nulls, 0)} missing of {fmt(totalRows, 0)} rows</span>
+          <span>{fmt(field.nullPct, 2)}% null rate</span>
+          {field.voids > 0 && <span className="text-accent-rose">{field.voids} void in sample</span>}
+        </div>
+      </div>
+
+      {/* three headline counters */}
+      <div className="grid grid-cols-3 gap-2">
+        <div className="rounded-button border border-border bg-panel2 px-2.5 py-1.5">
+          <SectionLabel>distinct</SectionLabel>
+          <p className="mt-0.5 font-mono text-sm font-semibold text-t-hi">{fmt(field.distinct, 0)}</p>
+        </div>
+        <div className="rounded-button border border-border bg-panel2 px-2.5 py-1.5">
+          <SectionLabel>missing</SectionLabel>
+          <p className={clsx('mt-0.5 font-mono text-sm font-semibold', field.nulls > 0 ? TONE_TEXT[band.tone] : 'text-accent-emerald')}>
+            {fmt(field.nulls, 0)}
+          </p>
+        </div>
+        <div className="rounded-button border border-border bg-panel2 px-2.5 py-1.5">
+          <SectionLabel>samples</SectionLabel>
+          <p className="mt-0.5 font-mono text-sm font-semibold text-t-hi">{fmt(field.samples.length, 0)}</p>
+        </div>
+      </div>
+
+      {/* statistics straight off the API */}
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between gap-2">
+          <SectionLabel>statistics</SectionLabel>
+          <span className="font-mono text-[9px] uppercase tracking-widest text-t-lo">{statPairs.length} reported</span>
+        </div>
+        {statPairs.length === 0 ? (
+          <p className="text-[11px] text-t-lo">the API returned no statistics block for this column.</p>
+        ) : (
+          <div className="grid grid-cols-2 gap-1.5">
+            {statPairs.map(([k, label]) => (
+              <div key={k} className="flex items-baseline justify-between gap-2 rounded-button border border-border bg-panel2 px-2.5 py-1">
+                <span className="truncate font-mono text-[9px] uppercase tracking-wider text-t-lo">{label}</span>
+                <span className="shrink-0 font-mono text-[11px] font-semibold text-t-hi">{statValue(stats[k])}</span>
               </div>
             ))}
           </div>
-        </Reveal>
+        )}
+      </div>
+
+      {/* sample profile — numeric spread, or the observed value census */}
+      <div className="space-y-1.5">
+        <SectionLabel>{numericSamples.length > 1 ? 'sampled spread' : 'observed values'}</SectionLabel>
+        {numericSamples.length > 1 ? (
+          <>
+            <div className="flex h-16 items-end gap-[3px] rounded-button border border-border bg-panel2 px-2 py-1.5">
+              {numericSamples.map((v, i) => {
+                const lo = Math.min(...numericSamples)
+                const hi = Math.max(...numericSamples)
+                const span = hi - lo
+                const pct = span > 0 ? ((v - lo) / span) * 100 : 55
+                return (
+                  <motion.span
+                    key={i}
+                    initial={{ height: 0 }}
+                    animate={{ height: `${Math.max(6, pct)}%` }}
+                    transition={{ duration: 0.45, delay: Math.min(i, 12) * 0.025, ease: EASE }}
+                    title={fmtSample(v, 24)}
+                    className="min-w-[4px] flex-1 rounded-t-[2px] bg-primary-500"
+                  />
+                )
+              })}
+            </div>
+            <div className="flex items-center justify-between font-mono text-[9px] text-t-lo">
+              <span>min {fmt(Math.min(...numericSamples), 4)}</span>
+              <span>{numericSamples.length} sampled</span>
+              <span>max {fmt(Math.max(...numericSamples), 4)}</span>
+            </div>
+          </>
+        ) : distinct.length === 0 ? (
+          <p className="text-[11px] text-t-lo">no sample values were captured for this column.</p>
+        ) : (
+          <div className="flex flex-wrap gap-1.5">
+            {distinct.map(([value, count]) => (
+              <span
+                key={value}
+                title={`${count} of ${field.samples.length} sampled`}
+                className={clsx(
+                  'inline-flex max-w-[190px] items-baseline gap-1.5 rounded-button border px-2 py-1 font-mono text-[10px]',
+                  value === '∅'
+                    ? 'border-accent-rose/30 bg-accent-rose/[0.05] text-accent-rose'
+                    : 'border-border bg-panel2 text-t-mid',
+                )}
+              >
+                <span className="truncate">{value}</span>
+                <span className="shrink-0 text-t-lo">×{count}</span>
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+    </motion.div>
+  )
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Coverage survey — the null census, bucketed by severity
+   ═══════════════════════════════════════════════════════════════════════ */
+function CoverageSurvey({
+  fields, totalRows, missingCells, coveragePct, missingByColumn,
+}: {
+  fields: Field[]
+  totalRows: number
+  missingCells: number
+  coveragePct: number
+  missingByColumn: Record<string, number>
+}) {
+  const counts = useMemo(
+    () => BANDS.map(b => ({ ...b, fields: fields.filter(f => bandOf(f.nullPct).key === b.key) })),
+    [fields],
+  )
+  const verdict: 'ok' | 'warn' = coveragePct >= 99.5 ? 'ok' : 'warn'
+  const verdictLabel = coveragePct >= 99.5 ? 'dense' : coveragePct >= 90 ? 'minor gaps' : 'porous'
+  const previewKeys = Object.keys(missingByColumn || {})
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <SectionLabel>cell coverage</SectionLabel>
+          <p className={clsx(
+            'mt-0.5 font-mono text-xl font-semibold',
+            coveragePct >= 99.5 ? 'text-accent-emerald' : coveragePct >= 90 ? 'text-accent-amber' : 'text-accent-rose',
+          )}>
+            {fmt(coveragePct, 2)}%
+          </p>
+        </div>
+        <StatusChip status={verdict}>{verdictLabel}</StatusChip>
+      </div>
+      <Bar value={coveragePct} tone={coveragePct >= 99.5 ? 'emerald' : coveragePct >= 90 ? 'amber' : 'rose'} />
+      <p className="font-mono text-[10px] text-t-lo">
+        {fmt(missingCells, 0)} missing of {fmt(totalRows * fields.length, 0)} cells across {fmt(fields.length, 0)} fields
+      </p>
+
+      <div className="space-y-2">
+        {counts.map(b => (
+          <div key={b.key}>
+            <div className="flex items-center justify-between gap-2">
+              <span className="flex items-center gap-1.5">
+                <span className={clsx('h-1.5 w-1.5 rounded-full', b.tone === 'emerald' ? 'bg-accent-emerald' : b.tone === 'cyan' ? 'bg-accent-cyan' : b.tone === 'amber' ? 'bg-accent-amber' : 'bg-accent-rose')} aria-hidden />
+                <span className={clsx('font-mono text-[10px] uppercase tracking-wider', TONE_TEXT[b.tone])}>{b.label}</span>
+                <span className="font-mono text-[9px] text-t-lo">{b.note}</span>
+              </span>
+              <span className="shrink-0 font-mono text-[11px] font-semibold text-t-hi">
+                {fmt(b.fields.length, 0)}
+              </span>
+            </div>
+            <Bar value={b.fields.length} max={Math.max(1, fields.length)} tone={b.tone} className="mt-1" />
+            {b.fields.length > 0 && (
+              <p className="mt-1 truncate font-mono text-[9px] text-t-lo" title={b.fields.map(f => f.name).join(', ')}>
+                {b.fields.slice(0, 6).map(f => f.name).join(' · ')}
+                {b.fields.length > 6 ? ` +${b.fields.length - 6}` : ''}
+              </p>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {previewKeys.length > 0 && (
+        <div className="space-y-1.5 border-t border-border pt-2.5">
+          <div className="flex items-center justify-between gap-2">
+            <SectionLabel>preview missing_summary</SectionLabel>
+            <span className="font-mono text-[9px] uppercase tracking-widest text-t-lo">sample window</span>
+          </div>
+          <div className="grid grid-cols-2 gap-1.5">
+            {previewKeys.slice(0, 8).map(k => (
+              <div key={k} className="flex items-baseline justify-between gap-2 rounded-button border border-border bg-panel2 px-2.5 py-1">
+                <span className="truncate font-mono text-[10px] text-t-mid" title={k}>{k}</span>
+                <span className="shrink-0 font-mono text-[10px] font-semibold text-accent-rose">
+                  {fmt(missingByColumn[k], 0)}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Semantic role map — what the surveyor thinks each field is for
+   ═══════════════════════════════════════════════════════════════════════ */
+const ROLE_ORDER: RoleKind[] = ['target', 'time', 'identity', 'feature']
+
+function RoleMap({ fields }: { fields: Field[] }) {
+  const groups = useMemo(
+    () => ROLE_ORDER.map(role => ({ role, fields: fields.filter(f => f.role === role) })).filter(g => g.fields.length > 0),
+    [fields],
+  )
+  const semanticKinds = useMemo(
+    () => [...new Set(fields.map(f => f.semantic))].sort().slice(0, 14),
+    [fields],
+  )
+
+  if (groups.length === 0) {
+    return <p className="text-xs text-t-lo">No roles detected yet — run schema discovery to classify fields.</p>
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="grid gap-1.5 sm:grid-cols-2">
+        {groups.map(g => (
+          <div key={g.role} className={clsx('rounded-button border px-2.5 py-2', ROLE_BOX[g.role])}>
+            <div className="flex items-center justify-between gap-2">
+              <span className={clsx('font-mono text-[10px] uppercase tracking-widest', ROLE_TEXT[g.role])}>{g.role}</span>
+              <span className="font-mono text-[11px] font-semibold text-t-hi">{fmt(g.fields.length, 0)}</span>
+            </div>
+            <p className="mt-1 truncate font-mono text-[10px] text-t-mid" title={g.fields.map(f => f.name).join(', ')}>
+              {g.fields.slice(0, 5).map(f => f.name).join(' · ')}
+              {g.fields.length > 5 ? ` +${g.fields.length - 5}` : ''}
+            </p>
+          </div>
+        ))}
+      </div>
+
+      <div className="space-y-1.5 border-t border-border pt-2.5">
+        <div className="flex items-center justify-between gap-2">
+          <SectionLabel>detected semantic types</SectionLabel>
+          <span className="font-mono text-[9px] uppercase tracking-widest text-t-lo">{semanticKinds.length} distinct</span>
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          {semanticKinds.map(s => {
+            const count = fields.filter(f => f.semantic === s).length
+            return (
+              <span
+                key={s}
+                title={`${count} column${count === 1 ? '' : 's'}`}
+                className="inline-flex items-baseline gap-1.5 rounded-button border border-accent-cyan/30 bg-accent-cyan/[0.05] px-2 py-1 font-mono text-[10px]"
+              >
+                <span className="text-accent-cyan">{s}</span>
+                <span className="text-t-lo">×{count}</span>
+              </span>
+            )
+          })}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Source sample — the literal head of the dataset that entered
+   ═══════════════════════════════════════════════════════════════════════ */
+function SourceSample({
+  dataset, headerCols, rows, loading, totalRows,
+}: {
+  dataset: Dataset | null
+  headerCols: string[]
+  rows: any[][]
+  loading: boolean
+  totalRows: number
+}) {
+  const shown = rows.slice(0, SAMPLE_PREVIEW_ROWS)
+  const cols = headerCols.slice(0, SAMPLE_PREVIEW_COLS)
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-1.5">
+        <MetricPill label="dataset" value={dataset?.name ? dataset.name : '—'} />
+        <MetricPill label="source" value={dataset?.source_type || '—'} />
+        <MetricPill label="rows" value={fmt(totalRows, 0)} />
+        <MetricPill label="cols" value={fmt(dataset?.column_count ?? headerCols.length, 0)} />
+      </div>
+
+      {loading ? (
+        <p className="text-[11px] text-t-lo">Reading the first rows of the file…</p>
+      ) : shown.length === 0 || cols.length === 0 ? (
+        <p className="text-[11px] text-t-lo">
+          The preview endpoint returned no rows for this dataset — the header above is the only thing on record.
+        </p>
+      ) : (
+        <div className="overflow-x-auto rounded-button border border-border bg-panel2">
+          <div className="min-w-max">
+            <div
+              className="grid gap-x-3 border-b border-border px-3 py-1.5"
+              style={{ gridTemplateColumns: `repeat(${cols.length}, minmax(72px, 1fr))` }}
+            >
+              {cols.map(c => (
+                <span key={c} className="truncate font-mono text-[9px] uppercase tracking-wider text-t-lo" title={c}>{c}</span>
+              ))}
+            </div>
+            {shown.map((row, ri) => (
+              <div
+                key={ri}
+                className="grid gap-x-3 border-b border-border px-3 py-1.5 last:border-0"
+                style={{ gridTemplateColumns: `repeat(${cols.length}, minmax(72px, 1fr))` }}
+              >
+                {cols.map((_, ci) => {
+                  const v = row[ci]
+                  return (
+                    <span
+                      key={ci}
+                      title={fmtSample(v, 90)}
+                      className={clsx(
+                        'truncate font-mono text-[10px]',
+                        isVoid(v) ? 'italic text-accent-rose' : ci === 0 ? 'text-t-mid' : 'text-t-lo',
+                      )}
+                    >
+                      {isVoid(v) ? '∅' : fmtSample(v, 22)}
+                    </span>
+                  )
+                })}
+              </div>
+            ))}
+          </div>
+        </div>
       )}
 
-      {done && (
-        <AutoNext
-          to={`/dq/${datasetId}`}
-          label="Schema locked in — entering the Data Quality Engine"
+      <p className="font-mono text-[10px] leading-4 text-t-lo">
+        {fmt(shown.length, 0)} of {fmt(totalRows, 0)} rows shown · {headerCols.length > SAMPLE_PREVIEW_COLS
+          ? `first ${SAMPLE_PREVIEW_COLS} of ${headerCols.length} columns`
+          : `${headerCols.length} columns`} · ∅ marks a null cell
+      </p>
+    </div>
+  )
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Discovery log — provenance + warnings
+   ═══════════════════════════════════════════════════════════════════════ */
+function DiscoveryLog({
+  datasetId, runId, source, discoveredAt, elapsedMs, warnings, datasetName,
+}: {
+  datasetId: string
+  runId: string | null
+  source: string
+  discoveredAt: string
+  elapsedMs: number | null
+  warnings: string[]
+  datasetName: string | null
+}) {
+  return (
+    <div className="space-y-3">
+      <dl className="space-y-1.5">
+        {[
+          ['dataset', datasetName || '—'],
+          ['dataset id', datasetId],
+          ['run id', runId || '—'],
+          ['schema source', source],
+          ['discovered', discoveredAt],
+          ['elapsed', elapsedMs === null ? '—' : `${fmt(elapsedMs, 0)} ms`],
+        ].map(([k, v]) => (
+          <div key={k} className="flex items-baseline justify-between gap-2 border-b border-border pb-1.5 last:border-0">
+            <dt className="shrink-0 font-mono text-[9px] uppercase tracking-widest text-t-lo">{k}</dt>
+            <dd className="min-w-0 truncate text-right font-mono text-[11px] text-t-hi" title={v}>{v}</dd>
+          </div>
+        ))}
+      </dl>
+
+      <div className="space-y-1.5">
+        <SectionLabel>warnings</SectionLabel>
+        {warnings.length === 0 ? (
+          <p className="flex items-center gap-1.5 text-[11px] text-accent-emerald">
+            <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+            the profiler reported no anomalies
+          </p>
+        ) : (
+          <ul className="space-y-1.5">
+            {warnings.map((w, i) => (
+              <li
+                key={i}
+                className="flex items-start gap-1.5 rounded-button border border-accent-amber/30 bg-accent-amber/[0.06] px-2 py-1.5"
+              >
+                <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0 text-accent-amber" />
+                <span className="text-[11px] leading-snug text-t-mid">{w}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  )
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   PAGE
+   ═══════════════════════════════════════════════════════════════════════ */
+export function SchemaDiscoveryPage() {
+  const params = useRouteParams()
+  const navigate = useNavigate()
+  const { markCompleted, setActive, mode } = useJourney()
+  const beat = beatForStage(STAGE_KEY)
+
+  /* Route params. The stage is dataset-scoped, but a run id is honoured so the
+     page can be deep-linked from a workflow and still resolve its dataset. */
+  const routeDatasetId = params.datasetId
+  const routeRunId = params.runId
+
+  const runRes = useApi<RunDetail | null>(
+    () => (routeRunId ? workflows.get(routeRunId) : Promise.resolve(null)),
+    [routeRunId],
+  )
+  const runId = routeRunId || runRes.data?.run?.id || null
+  const datasetId = routeDatasetId || runRes.data?.run?.dataset_id || null
+
+  const metaRes = useApi<Dataset | null>(
+    () => (datasetId ? datasets.get(datasetId) : Promise.resolve(null)),
+    [datasetId],
+  )
+  const schemaRes = useApi<SchemaResult | null>(
+    () => (datasetId ? schema.get(datasetId) : Promise.resolve(null)),
+    [datasetId],
+  )
+  const previewRes = useApi<PreviewPayload | null>(
+    () => (datasetId ? datasets.preview(datasetId, PREVIEW_ROWS, 0) : Promise.resolve(null)),
+    [datasetId],
+  )
+
+  const [busy, setBusy] = useState(false)
+  const [actionError, setActionError] = useState<string | null>(null)
+  const [sort, setSort] = useState<{ key: SortKey; dir: 'asc' | 'desc' }>({ key: 'name', dir: 'asc' })
+  const [selected, setSelected] = useState<string | null>(null)
+  const [completed, setCompleted] = useState(false)
+
+  /* ── data ─────────────────────────────────────────────────────── */
+  const cols = useMemo(() => schemaRes.data?.columns ?? [], [schemaRes.data])
+
+  const totalRows = useMemo(() => {
+    const a = n(metaRes.data?.row_count)
+    if (a !== null && a > 0) return a
+    const b = n(previewRes.data?.total_rows)
+    if (b !== null && b > 0) return b
+    return 0
+  }, [metaRes.data, previewRes.data])
+
+  const fields = useMemo(() => buildFields(cols, totalRows), [cols, totalRows])
+
+  const headerCols = useMemo(
+    () => (previewRes.data?.columns ?? []).map(c => colLabel(c)).filter(Boolean),
+    [previewRes.data],
+  )
+  const previewRows = useMemo(
+    () => normRows((previewRes.data?.rows ?? []) as any[], previewRes.data?.columns ?? []),
+    [previewRes.data],
+  )
+  const missingByColumn = useMemo(
+    () => (previewRes.data?.missing_summary ?? {}) as Record<string, number>,
+    [previewRes.data],
+  )
+
+  /* ── census ───────────────────────────────────────────────────── */
+  const missingCells = useMemo(() => fields.reduce((a, f) => a + f.nulls, 0), [fields])
+  const coveragePct = useMemo(() => {
+    if (fields.length === 0) return 0
+    const cells = totalRows * fields.length
+    if (cells > 0) return Math.max(0, (1 - missingCells / cells) * 100)
+    const avg = fields.reduce((a, f) => a + f.nullPct, 0) / fields.length
+    return Math.max(0, 100 - avg)
+  }, [fields, totalRows, missingCells])
+
+  const typeCount = useMemo(() => new Set(fields.map(f => f.resolved)).size, [fields])
+  const recastCount = useMemo(() => fields.filter(f => f.recast).length, [fields])
+  const warnings = useMemo(
+    () => (Array.isArray(schemaRes.data?.warnings) ? schemaRes.data!.warnings! : []).filter(w => !!w && String(w).trim()),
+    [schemaRes.data],
+  )
+  const elapsedMs = n(schemaRes.data?.elapsed_ms)
+  const discoveredAt = whenText(schemaRes.data?.discovered_at)
+  const source = String(schemaRes.data?.source || 'raw')
+
+  /* ── ordering + selection ─────────────────────────────────────── */
+  const sorted = useMemo(() => {
+    const dir = sort.dir === 'asc' ? 1 : -1
+    const key = (f: Field): string | number => {
+      switch (sort.key) {
+        case 'name': return f.name.toLowerCase()
+        case 'type': return f.resolved.toLowerCase()
+        case 'role': return f.role
+        case 'semantic': return f.semantic.toLowerCase()
+        case 'missing': return f.nullPct
+        case 'distinct': return f.distinct
+        default: return f.samples.length
+      }
+    }
+    return [...fields].sort((a, b) => {
+      const av = key(a)
+      const bv = key(b)
+      if (typeof av === 'number' && typeof bv === 'number') return (av - bv) * dir
+      return String(av).localeCompare(String(bv)) * dir
+    })
+  }, [fields, sort])
+
+  useEffect(() => {
+    if (fields.length === 0) { setSelected(null); return }
+    setSelected(cur => (cur && fields.some(f => f.name === cur) ? cur : fields[0].name))
+  }, [fields])
+
+  const active = useMemo(
+    () => sorted.find(f => f.name === selected) ?? sorted[0] ?? null,
+    [sorted, selected],
+  )
+
+  function onSort(key: SortKey) {
+    setSort(s => (s.key === key ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' }))
+  }
+
+  /* ── actions ──────────────────────────────────────────────────── */
+  async function discover() {
+    if (!datasetId || busy) return
+    setBusy(true)
+    setActionError(null)
+    try {
+      await schema.discover(datasetId, { use_processed: false })
+      await schemaRes.refetch()
+    } catch (e: any) {
+      setActionError(e?.message || 'schema discovery failed')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  /* Auto mode is a passthrough stage: profile once if nothing is stored yet. */
+  const autoTried = useRef<Set<string>>(new Set())
+  useEffect(() => {
+    if (mode !== 'auto' || !datasetId || busy || schemaRes.loading) return
+    if (cols.length > 0) return
+    if (autoTried.current.has(datasetId)) return
+    autoTried.current.add(datasetId)
+    void discover()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, datasetId, busy, schemaRes.loading, cols.length])
+
+  /* The stage is complete the moment a real typed schema is on screen. */
+  useEffect(() => {
+    if (!datasetId) return
+    setActive(datasetId)
+  }, [datasetId, setActive])
+
+  useEffect(() => {
+    if (cols.length > 0) {
+      markCompleted(STAGE_KEY)
+      setCompleted(true)
+    }
+  }, [cols.length, markCompleted])
+
+  /* ── lifecycle ────────────────────────────────────────────────── */
+  const failure = actionError ?? (cols.length > 0 ? null : schemaRes.error)
+  const busyGate = schemaRes.loading || metaRes.loading
+
+  const headerRight = (
+    <>
+      {busy ? <StatusChip status="running">profiling</StatusChip>
+        : failure ? <StatusChip status="warn">unavailable</StatusChip>
+          : fields.length > 0 ? <StatusChip status="ok">{fmt(fields.length, 0)} typed</StatusChip>
+            : <StatusChip status="idle">awaiting survey</StatusChip>}
+      <Button
+        size="sm"
+        onClick={discover}
+        disabled={!datasetId || busy}
+        aria-busy={busy}
+        className="whitespace-nowrap"
+      >
+        {busy ? null : fields.length > 0 ? <RefreshCw className="h-3.5 w-3.5" /> : <ScanSearch className="h-3.5 w-3.5" />}
+        {busy ? 'Profiling…' : fields.length > 0 ? 'Re-discover' : 'Discover schema'}
+      </Button>
+    </>
+  )
+
+  if (!datasetId) {
+    return (
+      <div className="flex min-h-0 flex-col gap-3 px-4 py-4">
+        <StageHeader
+          beat={beat.beat}
+          chapter={beat.chapter}
+          title="Schema Discovery"
+          tagline="Every field of the dataset is typed, classified and sampled — the survey that everything downstream trusts."
+          icon={<ScanSearch className="h-5 w-5" />}
+          right={headerRight}
+        />
+        <EmptyState
+          title="No dataset selected"
+          hint="Schema discovery profiles a registered dataset. Pick one from the library and the survey starts immediately."
+          action={<Button size="sm" onClick={() => navigate({ to: '/library' })}>Open dataset library</Button>}
+        />
+        <StoryFlow stageKey={STAGE_KEY} activeKey="entered" />
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex min-h-0 flex-col gap-3 px-4 py-4">
+      <StageHeader
+        beat={beat.beat}
+        chapter={beat.chapter}
+        title="Schema Discovery"
+        tagline="Every field of the dataset is typed, classified and sampled — the survey that everything downstream trusts."
+        icon={<ScanSearch className="h-5 w-5" />}
+        right={headerRight}
+      />
+
+      {/* ── stat strip ─────────────────────────────────────────── */}
+      <div className="grid shrink-0 grid-cols-2 gap-3 lg:grid-cols-5">
+        <Stat
+          label="Columns"
+          value={fmt(fields.length, 0)}
+          hint="fields typed"
+          accent="primary"
+          mono
+        />
+        <Stat
+          label="Rows profiled"
+          value={fmt(totalRows, 0)}
+          hint={metaRes.data?.name || 'dataset row count'}
+        />
+        <Stat
+          label="Types resolved"
+          value={fmt(typeCount, 0)}
+          hint={`${fmt(recastCount, 0)} re-cast from declared`}
+          mono
+        />
+        <Stat
+          label="Detection time"
+          value={elapsedMs === null ? '—' : `${fmt(elapsedMs, 0)} ms`}
+          hint={elapsedMs === null ? 'run discovery to measure' : 'profiler duration'}
+          mono
+        />
+        <Stat
+          label="Missing cells"
+          value={fmt(missingCells, 0)}
+          hint={`${fmt(coveragePct, 2)}% coverage`}
+          accent={coveragePct >= 99.5 ? 'emerald' : coveragePct >= 90 ? 'amber' : 'rose'}
+          mono
+        />
+      </div>
+
+      {busyGate && fields.length === 0 && <LoadingState label="Reading column types and profiling samples…" />}
+
+      {!busyGate && fields.length === 0 && (
+        <EmptyState
+          title={failure ? 'No schema profiled for this dataset' : 'The survey has not run yet'}
+          hint={failure
+            ? `${failure} — run discovery to type every column, classify its role and capture real sample values.`
+            : 'Run schema discovery to type every column, classify its role, count missing values and capture real sample values.'}
+          action={<Button size="sm" onClick={discover} loading={busy}><ScanSearch className="h-3.5 w-3.5" /> Discover schema</Button>}
         />
       )}
 
-      <span onClick={() => { setActive(datasetId, null) }} className="hidden" />
+      {fields.length > 0 && (
+        <>
+          {/* ── atlas ──────────────────────────────────────────── */}
+          <div className="grid min-h-0 flex-1 gap-3 xl:grid-cols-12">
+            <Panel
+              className="xl:col-span-7"
+              title="column inventory"
+              right={
+                <span className="hidden font-mono text-[10px] text-t-lo sm:inline">
+                  {fmt(sorted.length, 0)} fields · {fmt(totalRows, 0)} rows
+                </span>
+              }
+              flush
+            >
+              <Inventory
+                fields={sorted}
+                headerCols={headerCols}
+                totalRows={totalRows}
+                selected={active?.name ?? ''}
+                onSelect={setSelected}
+                sort={sort}
+                onSort={onSort}
+                warnings={warnings}
+              />
+            </Panel>
+
+            <div className="grid min-h-0 gap-3 xl:col-span-5 xl:grid-rows-2">
+              <Panel
+                title="column profile"
+                right={active ? <span className="font-mono text-[10px] text-t-lo">{KIND_LABEL[active.kind]}</span> : null}
+              >
+                {active ? (
+                  <ColumnProfile field={active} totalRows={totalRows} />
+                ) : (
+                  <p className="text-xs text-t-lo">Select a column from the inventory to profile it.</p>
+                )}
+              </Panel>
+
+              <Panel
+                title="coverage survey"
+                right={<span className="font-mono text-[10px] text-t-lo">{BANDS.filter(b => fields.some(f => bandOf(f.nullPct).key === b.key)).length} bands</span>}
+              >
+                <CoverageSurvey
+                  fields={fields}
+                  totalRows={totalRows}
+                  missingCells={missingCells}
+                  coveragePct={coveragePct}
+                  missingByColumn={missingByColumn}
+                />
+              </Panel>
+            </div>
+          </div>
+
+          {/* ── context strip ──────────────────────────────────── */}
+          <div className="grid shrink-0 gap-3 xl:grid-cols-12">
+            <Panel
+              className="xl:col-span-4"
+              title="semantic role map"
+              right={<Table2 className="h-3.5 w-3.5 text-t-lo" />}
+            >
+              <RoleMap fields={fields} />
+            </Panel>
+
+            <Panel
+              className="xl:col-span-5"
+              title="source sample"
+              right={
+                <span className="font-mono text-[10px] text-t-lo">
+                  {fmt(Math.min(previewRows.length, SAMPLE_PREVIEW_ROWS), 0)} row preview
+                </span>
+              }
+            >
+              <SourceSample
+                dataset={metaRes.data}
+                headerCols={headerCols}
+                rows={previewRows}
+                loading={previewRes.loading}
+                totalRows={totalRows}
+              />
+            </Panel>
+
+            <Panel
+              className="xl:col-span-3"
+              title="discovery log"
+              right={warnings.length > 0
+                ? <StatusChip status="warn">{fmt(warnings.length, 0)} warn</StatusChip>
+                : <StatusChip status="ok">clean</StatusChip>}
+            >
+              <DiscoveryLog
+                datasetId={datasetId}
+                runId={runId}
+                source={source}
+                discoveredAt={discoveredAt}
+                elapsedMs={elapsedMs}
+                warnings={warnings}
+                datasetName={metaRes.data?.name ?? null}
+              />
+            </Panel>
+          </div>
+        </>
+      )}
+
+      <div className="shrink-0">
+        <StoryFlow
+          stageKey={STAGE_KEY}
+          activeKey={busy ? 'processed' : fields.length > 0 ? 'produced' : 'entered'}
+        />
       </div>
+
+      {completed && datasetId && (
+        <AutoNext
+          to={`/transformations/${datasetId}`}
+          label="Schema mapped — opening the Transformations stage"
+        />
+      )}
     </div>
   )
 }

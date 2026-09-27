@@ -1,306 +1,780 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
-import { Activity, TrendingUp, AlertTriangle, CheckCircle2 } from 'lucide-react'
-import { anomalies } from '../lib/api'
-import { useApi } from '../lib/hooks'
-import { useRouteParams, fmt } from '../lib/pagekit'
-import { useJourney } from '../lib/journey'
-import { StageBanner, Particles, Reveal, FlowStat, AutoNext, DoneChip, PulseDot, Button } from '../lib/kit'
 import clsx from 'clsx'
+import { Activity, AlertTriangle, Check, Minus, Radar } from 'lucide-react'
+import {
+  anomalies,
+  type Anomaly,
+  type AnomalyContext,
+  type AnomalyListPayload,
+  type DetectResult,
+} from '../lib/api'
+import { useApi } from '../lib/hooks'
+import { fmt, n, useRouteParams } from '../lib/pagekit'
+import { useJourney } from '../lib/journey'
+import { beatForStage } from '../lib/story'
+import {
+  Bar,
+  EmptyState,
+  LoadingState,
+  MetricPill,
+  Panel,
+  SectionLabel,
+  StageHeader,
+  Stat,
+  StatusChip,
+  StoryFlow,
+} from '../lib/stagekit'
+import { AutoNext, Button } from '../lib/kit'
 
-const SEV: Record<string, { color: string; dot: string; label: string }> = {
-  critical: { color: 'text-accent-rose border-rose-500/40 bg-rose-500/10', dot: 'bg-accent-rose', label: 'Critical' },
-  high: { color: 'text-accent-rose border-rose-500/30 bg-rose-500/[0.06]', dot: 'bg-accent-rose/70', label: 'High' },
-  warning: { color: 'text-accent-amber border-amber-500/40 bg-amber-500/10', dot: 'bg-accent-amber', label: 'Warning' },
-  medium: { color: 'text-accent-violet border-violet-500/30 bg-violet-500/[0.06]', dot: 'bg-accent-violet', label: 'Medium' },
-  low: { color: 'text-accent-cyan border-cyan-500/30 bg-cyan-500/[0.06]', dot: 'bg-accent-cyan/60', label: 'Low' },
-  info: { color: 'text-accent-cyan border-cyan-500/40 bg-cyan-500/10', dot: 'bg-accent-cyan', label: 'Info' },
+/* ── Anomaly incident desk ────────────────────────────────────────────
+   Beat 09 · Anomalies. One incident timeline (severity lanes over a date
+   axis), one investigation panel (root cause + confirmation), one ledger.
+   Every number is the real API payload.                            */
+
+type Row = Omit<Anomaly, 'timestamp' | 'context'> & {
+  timestamp: string | null
+  context: Partial<AnomalyContext> | null
 }
 
-const LEGEND = ['critical', 'high', 'warning', 'medium', 'low', 'info']
+type Method = 'ensemble' | 'isolation_forest' | 'zscore'
+const METHODS: Method[] = ['ensemble', 'isolation_forest', 'zscore']
 
-function MiniCurve({ near, peak, expected }: { near?: number[] | null; peak?: number | null; expected?: number | null }) {
-  const pts = (near && near.length >= 2 ? near.slice(0, 12) : [])
-  if (!pts.length && peak == null && expected == null) return null
-  const all = [...pts, ...(peak != null ? [peak] : []), ...(expected != null ? [expected] : [])]
-  const x = (i: number, n: number) => (n <= 1 ? 50 : (i / (n - 1)) * 100)
-  const base = expected != null && expected > 0 ? expected : (pts.length ? pts.reduce((a, b) => a + b, 0) / pts.length : 1)
-  const devOf = (v: number) => (base > 0 ? (v - base) / base : 0)
-  if (!expected || expected > 0) {
-    const devs = all.map(devOf)
-    const floor = Math.max(0.5, ...devs.map(d => Math.abs(d)))
-    const pMax = Math.max(floor * 1.18, 0.5)
-    const yMid = 17
-    const y = (v: number) => yMid - (devOf(v) / pMax) * 12
-    const line = pts.map((v, i) => `${x(i, pts.length).toFixed(1)},${y(v).toFixed(1)}`).join(' ')
-    const peakX = pts.length ? x(pts.length, pts.length + 1) : 50
-    return (
-      <svg viewBox="0 0 100 34" preserveAspectRatio="none" className="h-9 w-full">
-        <line x1="0" y1={yMid - (0 / pMax) * 12} x2="100" y2={yMid - (0 / pMax) * 12}
-          stroke="rgba(217,166,72,0.45)" strokeWidth="0.8" strokeDasharray="3 2" vectorEffect="non-scaling-stroke" />
-        {pts.length > 1 && (
-          <>
-            <polygon points={`0,34 ${line} 100,34`} fill="rgba(74,159,216,0.12)" vectorEffect="non-scaling-stroke" />
-            <polyline points={line} fill="none" stroke="#5AB6E8" strokeWidth="1.5"
-              strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
-          </>
+const SEVERITY_ORDER = ['critical', 'high', 'medium', 'low']
+
+type BarTone = 'primary' | 'emerald' | 'amber' | 'rose' | 'cyan' | 'violet'
+type SevTone = { label: string; dot: string; text: string; chip: string; tone: BarTone }
+
+const SEV: Record<string, SevTone> = {
+  critical: {
+    label: 'Critical',
+    dot: 'bg-rose-500',
+    text: 'text-rose-500',
+    chip: 'border-rose-500/30 bg-rose-500/[0.07] text-rose-500',
+    tone: 'rose',
+  },
+  high: {
+    label: 'High',
+    dot: 'bg-amber-500',
+    text: 'text-amber-500',
+    chip: 'border-amber-500/30 bg-amber-500/[0.07] text-amber-500',
+    tone: 'amber',
+  },
+  medium: {
+    label: 'Medium',
+    dot: 'bg-accent-gold',
+    text: 'text-accent-gold',
+    chip: 'border-accent-gold/30 bg-accent-gold/[0.08] text-accent-gold',
+    tone: 'amber',
+  },
+  low: {
+    label: 'Low',
+    dot: 'bg-cyan-500',
+    text: 'text-cyan-500',
+    chip: 'border-cyan-500/30 bg-cyan-500/[0.07] text-cyan-500',
+    tone: 'cyan',
+  },
+}
+
+function sevTone(severity: string | null | undefined): SevTone {
+  const k = String(severity ?? '').toLowerCase()
+  const known = SEV[k]
+  if (known) return known
+  return {
+    label: k ? k.charAt(0).toUpperCase() + k.slice(1) : 'Unknown',
+    dot: 'bg-gray-400',
+    text: 'text-t-mid',
+    chip: 'border-border bg-panel2 text-t-mid',
+    tone: 'primary',
+  }
+}
+
+function sevKey(severity: string | null | undefined): string {
+  return String(severity ?? '').toLowerCase() || 'low'
+}
+
+/** reading window: nearby readings + the flagged reading, one point highlighted. */
+function MiniSpark({ readings, current, expected }: {
+  readings: number[]
+  current: number | null
+  expected: number | null
+}) {
+  const series = readings.filter(v => Number.isFinite(v))
+  if (current !== null) series.push(current)
+  if (!series.length) {
+    return <p className="py-4 text-center text-[11px] text-t-lo">no neighbours in the sampled window</p>
+  }
+  const exp = expected !== null && expected > 0 ? expected : null
+  const domain = exp !== null ? series.concat(exp) : series
+  const lo = Math.min(...domain)
+  const hi = Math.max(...domain)
+  const span = hi - lo || Math.abs(hi) || 1
+  const W = 200
+  const H = 40
+  const PAD = 5
+  const x = (i: number) =>
+    series.length <= 1 ? W / 2 : PAD + (i / (series.length - 1)) * (W - PAD * 2)
+  const y = (v: number) => H - PAD - ((v - lo) / span) * (H - PAD * 2)
+  const line = series.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ')
+  const area = `0,${H} ${line} ${W},${H}`
+  const li = series.length - 1
+  return (
+    <div className="relative">
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        preserveAspectRatio="none"
+        className="h-10 w-full"
+        role="img"
+        aria-label="reading window versus expected"
+      >
+        {exp !== null && (
+          <line
+            x1="0" y1={y(exp)} x2={W} y2={y(exp)}
+            stroke="currentColor" strokeOpacity="0.3" strokeWidth="1"
+            strokeDasharray="4 3" vectorEffect="non-scaling-stroke"
+            className="text-t-lo"
+          />
         )}
-        {peak != null && (
-          <circle cx={peakX} cy={y(peak)} r="3" fill="#F43F5E" stroke="#0B0E13" strokeWidth="0.8" vectorEffect="non-scaling-stroke" />
+        <polygon points={area} className="fill-primary-500/[0.08]" />
+        {series.length > 1 && (
+          <polyline
+            points={line} fill="none" className="stroke-primary-500"
+            strokeWidth="1.75" strokeLinejoin="round" strokeLinecap="round"
+            vectorEffect="non-scaling-stroke"
+          />
         )}
       </svg>
-    )
-  }
-  const lo = Math.min(...all)
-  const hi = Math.max(...all)
-  const span = Math.max(hi - lo, 1e-6)
-  const y = (v: number) => 30 - ((v - lo) / span) * 26
-  const line = pts.map((v, i) => `${x(i, pts.length).toFixed(1)},${y(v).toFixed(1)}`).join(' ')
-  const peakX = pts.length ? x(pts.length, pts.length + 1) : 50
+      <span
+        className="absolute h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-accent-rose ring-2 ring-panel"
+        style={{ left: `${(x(li) / W) * 100}%`, top: `${(y(series[li]) / H) * 100}%` }}
+      />
+    </div>
+  )
+}
+
+/** indeterminate sweep — only rendered while a detect/confirm call is in flight */
+function Working({ label }: { label: string }) {
   return (
-    <svg viewBox="0 0 100 34" preserveAspectRatio="none" className="h-9 w-full">
-      {expected != null && (
-        <line x1="0" y1={y(expected)} x2="100" y2={y(expected)}
-          stroke="rgba(217,166,72,0.45)" strokeWidth="0.8" strokeDasharray="3 2" vectorEffect="non-scaling-stroke" />
-      )}
-      {pts.length > 1 && (
-        <polyline points={line} fill="none" stroke="#4A9FD8" strokeWidth="1.4"
-          strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
-      )}
-      {peak != null && (
-        <circle cx={peakX} cy={y(peak)} r="3" fill="#F43F5E" stroke="#0B0E13" strokeWidth="0.8" vectorEffect="non-scaling-stroke" />
-      )}
-    </svg>
+    <div className="flex items-center gap-3 rounded-card border border-border bg-panel2 px-3 py-2">
+      <StatusChip status="running">{label}</StatusChip>
+      <div className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-panel3">
+        <motion.span
+          className="absolute inset-y-0 w-1/3 rounded-full bg-primary-500"
+          initial={{ x: '-130%' }}
+          animate={{ x: ['-130%', '330%'] }}
+          transition={{ duration: 1.15, repeat: Infinity, ease: 'easeInOut' }}
+        />
+      </div>
+    </div>
   )
 }
 
 export function AnomalyDetectionPage() {
   const { datasetId } = useRouteParams()
   const { setActive, markCompleted } = useJourney()
-  const res = useApi<any>(() => (datasetId ? anomalies.list(datasetId, 100) as any : null), [datasetId])
-  const list = (res.data || {}) as any
-  const items = (list.by_type ? list.anomalies || [] : list.anomalies || []) as any[]
-  const [busy, setBusy] = useState(false)
-  const [done, setDone] = useState(false)
-  const [open, setOpen] = useState<string | null>(null)
-  const [scanMeta, setScanMeta] = useState<{ precision?: number | null; recall?: number | null; elapsed_ms?: number } | null>(null)
 
-  const tpos = items.map(a => Date.parse(a.timestamp)).filter(Number.isFinite) as number[]
-  const tmin = tpos.length ? Math.min(...tpos) : 0
-  const tmax = tpos.length ? Math.max(...tpos) : 1
-  const tspread = Math.max(tmax - tmin, 1)
-  const posOf = (a: any, i: number) => {
-    const t = Date.parse(a.timestamp)
-    if (!Number.isFinite(t)) return (i + 0.5) / Math.max(items.length, 1) * 100
-    return ((t - tmin) / tspread) * 92 + 4
+  const res = useApi<AnomalyListPayload>(
+    () => (datasetId
+      ? anomalies.list(datasetId, 200)
+      : Promise.resolve({ anomalies: [], total: 0 })),
+    [datasetId],
+  )
+
+  const [run, setRun] = useState<DetectResult | null>(null)
+  const [method, setMethod] = useState<Method>('ensemble')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [confirmBusy, setConfirmBusy] = useState<string | null>(null)
+  const [overrides, setOverrides] = useState<Record<string, boolean>>({})
+
+  const items = useMemo<Row[]>(() => res.data?.anomalies ?? [], [res.data])
+  const listTotal = n(res.data?.total) ?? items.length
+  const sevCounts = run?.by_severity ?? res.data?.by_severity ?? null
+  const typeCounts = run?.by_type ?? res.data?.by_type ?? null
+
+  const detected = n(run?.detected_count) ?? items.length
+  const scanned = n(run?.total) ?? listTotal
+  /* detect result first, stored list stats otherwise */
+  const confSource = useMemo(
+    () => (run?.anomalies?.length ? run.anomalies : items),
+    [run, items],
+  )
+  const avgConfidence = useMemo(() => {
+    if (!confSource.length) return null
+    const sum = confSource.reduce((acc, a) => acc + (n(a.confidence) ?? 0), 0)
+    return sum / confSource.length
+  }, [confSource])
+
+  const confirmedCount = useMemo(
+    () => items.filter(a => overrides[a.id] ?? Boolean(a.is_confirmed)).length,
+    [items, overrides],
+  )
+
+  const sevKeys = useMemo(() => {
+    const seen = new Set<string>()
+    items.forEach(a => seen.add(sevKey(a.severity)))
+    if (sevCounts) Object.keys(sevCounts).forEach(k => seen.add(k.toLowerCase()))
+    return Array.from(seen)
+      .filter(k => k !== '')
+      .sort((a, b) => {
+        const ai = SEVERITY_ORDER.indexOf(a)
+        const bi = SEVERITY_ORDER.indexOf(b)
+        return (ai < 0 ? 99 : ai) - (bi < 0 ? 99 : bi)
+      })
+  }, [items, sevCounts])
+
+  const countOf = (key: string) => {
+    const fromAgg = n(sevCounts?.[key])
+    if (fromAgg !== null) return fromAgg
+    return items.filter(a => sevKey(a.severity) === key).length
   }
+
+  const times = useMemo(
+    () => items.map(a => Date.parse(a.timestamp ?? '')).filter(Number.isFinite) as number[],
+    [items],
+  )
+  const tMin = times.length ? Math.min(...times) : 0
+  const tMax = times.length ? Math.max(...times) : 0
+  const spread = Math.max(tMax - tMin, 1)
+  const timelineReady = times.length >= 2 && tMax > tMin
+  const posOf = (t: number) => 3 + ((t - tMin) / spread) * 94
+
+  const selected = useMemo(
+    () => items.find(a => a.id === selectedId) ?? items[0] ?? null,
+    [items, selectedId],
+  )
 
   async function detect() {
     if (!datasetId || busy) return
     setBusy(true)
+    setError(null)
     try {
-      const resp = await anomalies.detect(datasetId, { method: 'ensemble' }) as any
-      setScanMeta({ precision: resp?.precision ?? null, recall: resp?.recall ?? null, elapsed_ms: resp?.elapsed_ms })
+      const resp = await anomalies.detect(datasetId, { method })
+      setRun(resp)
+      setOverrides({})
+      setSelectedId(null)
       await res.refetch()
-      setDone(true)
       markCompleted('anomaly')
       setActive(datasetId)
-    } catch { } finally { setBusy(false) }
+    } catch (e: any) {
+      setError(e?.message || 'detection failed')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function toggleConfirm(a: Row) {
+    if (!datasetId || confirmBusy) return
+    const next = !(overrides[a.id] ?? Boolean(a.is_confirmed))
+    setConfirmBusy(a.id)
+    setError(null)
+    try {
+      const updated = await anomalies.confirm(datasetId, a.id, { is_confirmed: next })
+      const landed = typeof updated?.is_confirmed === 'boolean' ? updated.is_confirmed : next
+      setOverrides(p => ({ ...p, [a.id]: landed }))
+      await res.refetch()
+    } catch (e: any) {
+      setError(e?.message || 'confirmation failed')
+    } finally {
+      setConfirmBusy(null)
+    }
   }
 
   useEffect(() => {
-    if (items.length && datasetId) { setDone(true); markCompleted('anomaly'); setActive(datasetId) }
-  }, [items.length, datasetId])
+    if (items.length && datasetId) {
+      markCompleted('anomaly')
+      setActive(datasetId)
+    }
+  }, [items.length, datasetId, markCompleted, setActive])
 
-  const counts = (list.by_severity || {}) as Record<string, number>
+  const beat = beatForStage('anomaly')
+  const loading = res.loading && !res.data
+  const ctx = (selected?.context || {}) as Partial<AnomalyContext>
+  const reading = n(ctx.reading_value)
+  const expected = n(ctx.expected_value)
+  const deviation = n(ctx.deviation_pct)
+  const devTone =
+    deviation === null || deviation === 0
+      ? 'text-t-mid'
+      : deviation > 20
+        ? 'text-rose-500'
+        : deviation > 0
+          ? 'text-amber-500'
+          : 'text-emerald-600'
+  const selConfirmed = selected ? overrides[selected.id] ?? Boolean(selected.is_confirmed) : false
+  const activeStep = busy ? 'processed' : items.length ? 'produced' : 'entered'
 
   return (
-    <div className="relative flex h-full min-h-0 flex-col overflow-hidden">
-      <div className="min-h-0 flex-1 space-y-6 overflow-y-auto pr-1">
-      <Particles count={16} />
-      <StageBanner
-        chapter="Stage 10 · Anomaly Detection"
-        title="Scanning the energy timeline for trouble"
-        tagline="Severity-ranked anomalies with evidence, context and suggested actions underneath each one."
-        icon={<Activity className="h-6 w-6 text-accent-rose" />}
-        children={!items.length ? (
-          <Button onClick={detect} disabled={busy} size="md" gradient="rose"
-            className="h-11 px-6">
-            <TrendingUp className={`w-4 h-4 ${busy ? 'animate-spin' : ''}`} /> Run anomaly scan
-          </Button>
-        ) : <DoneChip text="Scan complete" />}
+    <div className="flex min-h-0 flex-col gap-3 px-4 py-4">
+      <StageHeader
+        beat={beat.beat}
+        chapter="Anomalies"
+        title="Anomaly incident desk"
+        tagline="Every flagged reading on one date axis — then open one incident and work the root cause."
+        icon={<Activity className="h-5 w-5 text-accent-rose" />}
+        right={
+          <>
+            <div className="inline-flex rounded-button border border-border bg-panel2 p-0.5">
+              {METHODS.map(m => (
+                <button
+                  key={m}
+                  type="button"
+                  disabled={busy}
+                  onClick={() => setMethod(m)}
+                  title={`Detection method: ${m.replace(/_/g, ' ')}`}
+                  className={clsx(
+                    'rounded-button px-2.5 py-1 font-mono text-[10px] uppercase tracking-widest transition-colors disabled:opacity-50',
+                    method === m ? 'bg-primary-500' : 'text-t-lo hover:text-t-hi',
+                  )}
+                >
+                  {m.replace(/_/g, ' ')}
+                </button>
+              ))}
+            </div>
+            <Button
+              size="sm"
+              onClick={detect}
+              disabled={busy}
+              aria-busy={busy}
+              className="whitespace-nowrap"
+            >
+              <Radar className="h-4 w-4" />
+              {busy ? 'Detecting…' : 'Run detection'}
+            </Button>
+          </>
+        }
       />
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <FlowStat label="Anomalies" value={items.length} accent hint="found in scan" />
-        <FlowStat label="Critical" value={counts.critical ?? 0} accent />
-        <FlowStat label="Warning" value={counts.warning ?? 0} />
-        <FlowStat label="Info" value={counts.info ?? 0} />
+      {/* ── top strip ───────────────────────────────────────────── */}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <Stat
+          label="Detected"
+          value={fmt(detected, 0)}
+          hint={`${fmt(items.length - confirmedCount, 0)} awaiting triage`}
+          accent="rose"
+        />
+        <Stat
+          label="Total scanned"
+          value={fmt(scanned, 0)}
+          hint={run ? 'this detection run' : `${fmt(listTotal, 0)} stored incidents`}
+        />
+        <Stat
+          label="Avg confidence"
+          value={avgConfidence === null ? '—' : `${fmt(avgConfidence * 100, 1)}%`}
+          hint="across the incident set"
+          accent="primary"
+          mono
+        />
+        <Stat
+          label="Elapsed"
+          value={run?.elapsed_ms != null ? `${fmt(run.elapsed_ms, 0)}` : '—'}
+          hint={run?.elapsed_ms != null ? 'ms · last detect call' : 'run a detection to measure'}
+          mono
+        />
       </div>
 
-      {scanMeta && (
-        <Reveal delay={0.05}>
-          <div className="glass-panel flex flex-wrap items-center gap-x-6 gap-y-2 p-5">
-            <p className="text-xs font-mono uppercase tracking-[0.2em] text-gray-400">Detection quality</p>
-            {scanMeta.precision != null ? (
-              <>
-                <span className="flex items-center gap-2 text-sm text-gray-400">
-                  precision
-                  <b className="font-mono text-accent-emerald">{fmt(scanMeta.precision * 100, 1)}%</b>
-                </span>
-                <span className="flex items-center gap-2 text-sm text-gray-400">
-                  recall
-                  <b className="font-mono text-accent-cyan">{fmt(scanMeta.recall! * 100, 1)}%</b>
-                </span>
-                <span className="inline-flex items-center gap-1.5 rounded-button border border-accent-emerald/30 bg-accent-emerald/[0.06] px-2.5 py-1 text-xs font-medium text-accent-emerald">
-                  <CheckCircle2 className="h-3.5 w-3.5" /> evaluated against is_anomaly labels
-                </span>
-              </>
-            ) : (
-              <span className="inline-flex items-center gap-1.5 rounded-button border border-white/[0.08] bg-white/[0.02] px-2.5 py-1 text-xs font-medium text-gray-400">
-                no ground-truth labels in this dataset — unsupervised evaluation
-              </span>
-            )}
-            {scanMeta.elapsed_ms != null && (
-              <span className="ml-auto text-xs font-mono text-gray-400">scan completed in {fmt(scanMeta.elapsed_ms, 0)} ms</span>
-            )}
-          </div>
-        </Reveal>
+      {busy && <Working label="scanning timeline" />}
+      {!busy && error && <StatusChip status="warn">{error}</StatusChip>}
+
+      {/* ── cluster chips ───────────────────────────────────────── */}
+      {(typeCounts || sevCounts) && (
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 rounded-card border border-border bg-panel px-3.5 py-2.5">
+          {typeCounts && Object.keys(typeCounts).length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <SectionLabel>by type</SectionLabel>
+              {Object.entries(typeCounts)
+                .sort((a, b) => (n(b[1]) ?? 0) - (n(a[1]) ?? 0))
+                .map(([k, v]) => (
+                  <MetricPill key={k} label={k.replace(/_/g, ' ')} value={fmt(n(v) ?? 0, 0)} />
+                ))}
+            </div>
+          )}
+          {sevCounts && Object.keys(sevCounts).length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <SectionLabel>by severity</SectionLabel>
+              {sevKeys
+                .filter(k => countOf(k) > 0)
+                .map(k => (
+                  <span
+                    key={k}
+                    className={clsx(
+                      'inline-flex items-baseline gap-1.5 rounded-button border px-2.5 py-1 font-mono text-[11px]',
+                      sevTone(k).chip,
+                    )}
+                  >
+                    {sevTone(k).label}
+                    <span className="font-semibold">{fmt(countOf(k), 0)}</span>
+                  </span>
+                ))}
+            </div>
+          )}
+          <span className="ml-auto font-mono text-[10px] uppercase tracking-widest text-t-lo">
+            {fmt(confirmedCount, 0)} confirmed
+          </span>
+        </div>
       )}
 
-      {items.length === 0 && !res.loading && (
-        <p className="py-10 text-center text-sm text-gray-400">No anomalies detected in this window.</p>
+      {loading && <LoadingState label="Loading incidents…" />}
+
+      {!loading && !items.length && !run && (
+        <EmptyState
+          title="No anomalies recorded for this dataset"
+          hint="Run detection to score every reading against the isolation-forest, z-score and rule ensemble."
+          action={
+            <Button size="sm" onClick={detect} disabled={busy}>
+              <Radar className="h-4 w-4" /> Run detection
+            </Button>
+          }
+        />
       )}
 
       {items.length > 0 && (
-        <Reveal delay={0.1}>
-          <div className="glass-panel mb-4 overflow-hidden px-5 pb-3 pt-4">
-            <div className="relative h-12 select-none">
-              <svg className="pointer-events-none absolute inset-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none">
-                <polyline
-                  points={Array.from({ length: 14 }, (_, i) => {
-                    const wx = (i / 13) * 92 + 4
-                    const wy = 50 + Math.sin(i / 1.6) * 20 + Math.cos(i / 0.9) * 8
-                    return `${wx.toFixed(1)},${wy.toFixed(1)}`
-                  }).join(' ')}
-                  fill="none" stroke="rgba(148,163,184,0.16)" strokeWidth="0.9" />
-              </svg>
-              <div className="absolute inset-x-4 top-1/2 h-1.5 -translate-y-1/2 rounded-full bg-gradient-to-r from-accent-rose/70 via-accent-amber/70 to-accent-cyan/70" />
-              {items.map((a: any, i: number) => {
-                const sev = SEV[a.severity] || SEV.info
-                return (
-                  <motion.button key={a.id} initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: i * 0.05 }}
-                    onClick={() => setOpen(open === a.id ? null : a.id)}
-                    title={`${a.anomaly_type} · ${sev.label} · ${a.timestamp}`}
-                    className="absolute top-1/2 z-10 -translate-x-1/2 -translate-y-1/2"
-                    style={{ left: `${posOf(a, i)}%` }}>
-                    <span className={clsx('block h-4 w-4 rounded-full ring-4 ring-black/40', sev.dot, i === items.length - 1 && 'animate-pulse')} />
-                  </motion.button>
-                )
-              })}
-              <span className="absolute bottom-0 left-4 text-[11px] font-mono text-gray-400">
-                {tpos.length ? new Date(tmin).toISOString().slice(0, 16).replace('T', ' ') : 'start'}
-              </span>
-              <span className="absolute bottom-0 right-4 text-[11px] font-mono text-gray-400">
-                {tpos.length ? new Date(tmax).toISOString().slice(0, 16).replace('T', ' ') : 'end'}
-              </span>
-            </div>
-            <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-white/[0.05] pt-3">
-              {LEGEND.map(s => {
-                const sev = SEV[s] || SEV.info
-                return (
-                  <span key={s} className="inline-flex items-center gap-1.5 text-xs font-mono uppercase tracking-wider text-gray-400">
-                    <span className={clsx('h-2 w-2 rounded-full', sev.dot)} /> {sev.label}
+        <>
+          {/* ── severity timeline ────────────────────────────── */}
+          <Panel
+            title="Severity timeline"
+            right={
+              <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1">
+                {SEVERITY_ORDER.map(k => (
+                  <span
+                    key={k}
+                    className="inline-flex items-center gap-1 font-mono text-[9px] uppercase tracking-wider text-t-lo"
+                    title={`severity ${sevTone(k).label}`}
+                  >
+                    <span className={clsx('h-1.5 w-1.5 rounded-full', sevTone(k).dot)} />
+                    {sevTone(k).label}
                   </span>
-                )
-              })}
-            </div>
-          </div>
+                ))}
+                <span className="font-mono text-[9px] uppercase tracking-widest text-t-lo">
+                  · dot size = confidence
+                </span>
+              </div>
+            }
+          >
+            {timelineReady ? (
+              <div className="space-y-2">
+                {sevKeys.map(key => {
+                  const tone = sevTone(key)
+                  const lane = items.filter(a => sevKey(a.severity) === key)
+                  return (
+                    <div key={key} className="flex items-center gap-3">
+                      <div className="flex w-28 shrink-0 items-center gap-1.5">
+                        <span className={clsx('h-2 w-2 shrink-0 rounded-full', tone.dot)} />
+                        <span className="truncate font-mono text-[10px] uppercase tracking-wider text-t-lo">
+                          {tone.label}
+                        </span>
+                        <span className="ml-auto font-mono text-[10px] text-t-mid">
+                          {fmt(countOf(key), 0)}
+                        </span>
+                      </div>
+                      <div className="relative h-8 flex-1 rounded-button bg-panel2">
+                        <span className="absolute inset-x-2 top-1/2 h-px -translate-y-1/2 bg-border" />
+                        {lane.map((a, i) => {
+                          const t = Date.parse(a.timestamp ?? '')
+                          if (!Number.isFinite(t)) return null
+                          const conf = Math.max(0, Math.min(1, n(a.confidence) ?? 0))
+                          const size = 8 + conf * 8
+                          const on = selected?.id === a.id
+                          return (
+                            <button
+                              key={a.id}
+                              type="button"
+                              onClick={() => setSelectedId(a.id)}
+                              title={`${a.timestamp ?? '—'} · ${a.anomaly_type ?? 'anomaly'} · ${tone.label} · confidence ${fmt(conf * 100, 0)}%`}
+                              className={clsx(
+                                'absolute top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full transition-transform hover:scale-125',
+                                on && 'ring-2 ring-primary-500 ring-offset-2 ring-offset-panel2',
+                              )}
+                              style={{ left: `${posOf(t)}%`, width: size, height: size }}
+                            >
+                              <motion.span
+                                initial={{ scale: 0.3, opacity: 0 }}
+                                animate={{ scale: 1, opacity: 1 }}
+                                transition={{ duration: 0.3, delay: Math.min(i * 0.02, 0.4) }}
+                                className={clsx(
+                                  'block h-full w-full rounded-full',
+                                  tone.dot,
+                                  (overrides[a.id] ?? Boolean(a.is_confirmed)) && 'ring-1 ring-panel',
+                                )}
+                              />
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )
+                })}
+                <div className="flex items-center gap-3 border-t border-border pt-2">
+                  <div className="w-28 shrink-0" />
+                  <div className="flex flex-1 items-center justify-between font-mono text-[10px] text-t-lo">
+                    <span>{new Date(tMin).toISOString().slice(0, 16).replace('T', ' ')}</span>
+                    <span>
+                      {new Date(tMin + spread / 2).toISOString().slice(0, 16).replace('T', ' ')}
+                    </span>
+                    <span>{new Date(tMax).toISOString().slice(0, 16).replace('T', ' ')}</span>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <p className="text-xs text-t-lo">
+                Fewer than two distinct timestamps in this window — the date axis cannot place
+                incidents, so work from the ledger below instead.
+              </p>
+            )}
+          </Panel>
 
-          <div className="grid md:grid-cols-2 gap-4">
-            {items.slice(0, 12).map((a: any, i: number) => {
-              const sev = SEV[a.severity] || SEV.info
-              const c = a.context || {}
-              const expanded = open === a.id
-              return (
-                <motion.div key={a.id} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.06 }}
-                  className={clsx('glass-panel overflow-hidden border', sev.color)}>
-                  <button onClick={() => setOpen(open === a.id ? null : a.id)} className="w-full px-5 py-4 text-left">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <PulseDot color={sev.dot} ping={sev.dot} />
-                        <div className="min-w-0">
-                          <p className="font-display text-sm font-semibold text-gray-200 truncate">{a.asset_id || a.timestamp}</p>
-                          <p className="text-xs font-mono text-gray-400">{a.timestamp} · {a.anomaly_type}</p>
-                        </div>
-                      </div>
-                      <span className={clsx('shrink-0 rounded-button px-2 py-0.5 text-[11px] font-semibold', sev.color)}>
-                        {sev.label}
-                      </span>
-                    </div>
-                    <div className="mt-3 flex items-center gap-4 text-xs">
-                      <span className="font-mono text-gray-400">reading <b className="text-gray-200 text-sm">{c.reading_value ?? '—'}</b></span>
-                      <span className="font-mono text-gray-400">expected <b className="text-gray-200 text-sm">{c.expected_value ?? '—'}</b></span>
-                      {c.deviation_pct != null && (
-                        <span className="font-mono text-accent-rose">{fmt(c.deviation_pct, 1)}% off</span>
-                      )}
-                    </div>
-                  </button>
-                  {expanded && (
-                    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="border-t border-white/[0.06] px-5 py-4">
-                      <p className="mb-3 text-sm text-gray-300">{a.description}</p>
-                      <div className="rounded-button bg-white/[0.03] p-3">
-                        <p className="mb-2 flex items-center gap-1 text-xs font-mono uppercase tracking-widest text-gray-400">
-                          <TrendingUp className="w-3.5 h-3.5 text-accent-rose" /> Curve · reading vs window
-                        </p>
-                        <MiniCurve near={c.nearby_readings} peak={c.reading_value} expected={c.expected_value} />
-                        <p className="mt-1 text-[11px] font-mono text-gray-500">
-                          {c.nearby_readings?.length ? `window: [${c.nearby_readings.slice(0, 5).map((n: number) => fmt(n, 1)).join(', ')}…]` : 'context sampled'} · centre dot is the reading, dashed line is expected
-                        </p>
-                      </div>
-                      <div className="mt-3 grid grid-cols-2 gap-3">
-                        <div className="rounded-button bg-white/[0.03] p-3">
-                          <p className="mb-1 flex items-center gap-1 text-xs font-mono uppercase tracking-widest text-gray-400">
-                            <CheckCircle2 className="w-3 h-3 text-accent-emerald" /> Evidence
-                          </p>
-                          <p className="text-xs text-gray-300 font-mono">
-                            {c.nearby_readings?.length ? `neighbours: [${c.nearby_readings.slice(0, 5).map((n: number) => fmt(n, 1)).join(', ')}]` : 'context sampled'}
-                          </p>
-                        </div>
-                        <div className="rounded-button bg-white/[0.03] p-3">
-                          <p className="mb-1 flex items-center gap-1 text-xs font-mono uppercase tracking-widest text-gray-400">
-                            <AlertTriangle className="w-3 h-3 text-accent-amber" /> Confidence
-                          </p>
-                          <p className="text-xs text-gray-300 font-mono">{(a.confidence ?? 0) * 100}% · score {fmt(a.score ?? 0, 3)}</p>
-                        </div>
-                      </div>
-                      <p className="mt-3 text-xs text-gray-400">
-                        Suggested action: {a.severity === 'critical' ? 'Immediately investigate & correlate with weather/occupancy.' : a.severity === 'warning' ? 'Schedule a review within 48h.' : 'Monitor — likely benign drift.'}
-                      </p>
-                    </motion.div>
-                  )}
-                </motion.div>
+          {/* ── investigation panel ──────────────────────────── */}
+          <Panel
+            title="Investigation"
+            right={
+              selected && (
+                <span className="font-mono text-[10px] uppercase tracking-widest text-t-lo">
+                  {selected.id ? selected.id.slice(0, 8) : '—'}
+                </span>
               )
-            })}
-          </div>
+            }
+            className="min-h-0"
+          >
+            {run?.precision != null || run?.recall != null ? (
+              <div className="mb-3 flex flex-wrap items-center gap-2 rounded-button bg-panel2 px-3 py-2">
+                <SectionLabel>vs is_anomaly labels</SectionLabel>
+                {run.precision != null && (
+                  <MetricPill label="precision" value={`${fmt(run.precision * 100, 1)}%`} accent="text-emerald-600" />
+                )}
+                {run.recall != null && (
+                  <MetricPill label="recall" value={`${fmt(run.recall * 100, 1)}%`} accent="text-accent-cyan" />
+                )}
+                {run.precision == null && run.recall == null && (
+                  <span className="text-[11px] text-t-lo">no ground-truth labels in this dataset</span>
+                )}
+              </div>
+            ) : null}
 
-          {items.length > 12 && (
-            <p className="text-xs font-mono text-gray-500">showing the 12 most recent of {items.length} anomalies — the strip above covers the full window.</p>
-          )}
+            {!selected ? (
+              <p className="text-xs text-t-lo">Select an incident from the timeline or ledger.</p>
+            ) : (
+              <div className="space-y-3.5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span
+                    className={clsx(
+                      'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 font-mono text-[10px] uppercase tracking-widest',
+                      sevTone(selected.severity).chip,
+                    )}
+                  >
+                    {sevTone(selected.severity).label}
+                  </span>
+                  <MetricPill label="score" value={fmt(n(selected.score), 3)} />
+                  <MetricPill label="conf" value={`${fmt((n(selected.confidence) ?? 0) * 100, 1)}%`} />
+                  {selConfirmed ? (
+                    <StatusChip status="ok">confirmed</StatusChip>
+                  ) : (
+                    <StatusChip status="idle">unconfirmed</StatusChip>
+                  )}
+                </div>
 
-          {done && (
-            <AutoNext
-              to={datasetId ? `/benchmarks/${datasetId}` : '/library'}
-              label="Timeline clean — comparing models and peers"
-            />
-          )}
-        </Reveal>
+                <div className="flex items-center gap-3">
+                  <div className="w-24 shrink-0">
+                    <SectionLabel>confidence</SectionLabel>
+                  </div>
+                  <Bar
+                    value={(n(selected.confidence) ?? 0) * 100}
+                    className="flex-1"
+                    tone={sevTone(selected.severity).tone}
+                  />
+                  <span className="w-14 shrink-0 text-right font-mono text-[11px] text-t-mid">
+                    {fmt((n(selected.confidence) ?? 0) * 100, 1)}%
+                  </span>
+                </div>
+
+                <p className="text-sm leading-relaxed text-t-mid">
+                  {selected.description || 'No description recorded for this incident.'}
+                </p>
+
+                <div className="flex flex-wrap items-center gap-x-5 gap-y-1 font-mono text-[11px] text-t-lo">
+                  <span>
+                    asset <b className="ml-1 font-semibold text-t-hi">{selected.asset_id || '—'}</b>
+                  </span>
+                  <span>{selected.timestamp ? selected.timestamp.replace('T', ' ').slice(0, 19) : '—'}</span>
+                </div>
+
+                {/* root cause */}
+                <div className="rounded-card border border-border bg-panel2 p-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <SectionLabel>root cause</SectionLabel>
+                    <span className="rounded-button border border-border bg-panel px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-primary-500">
+                      {(selected.anomaly_type || 'anomaly').replace(/_/g, ' ')}
+                    </span>
+                    <span
+                      className={clsx(
+                        'ml-auto font-mono text-[11px] font-semibold',
+                        devTone,
+                      )}
+                    >
+                      Δ {deviation === null ? '—' : `${deviation > 0 ? '+' : ''}${fmt(deviation, 1)}%`}
+                    </span>
+                  </div>
+
+                  <div className="mt-2.5 grid grid-cols-2 gap-2">
+                    <div className="rounded-button border border-border bg-panel px-3 py-2">
+                      <SectionLabel>reading</SectionLabel>
+                      <p className="mt-0.5 font-mono text-sm font-semibold text-t-hi">
+                        {fmt(reading, 2)}
+                      </p>
+                    </div>
+                    <div className="rounded-button border border-border bg-panel px-3 py-2">
+                      <SectionLabel>expected</SectionLabel>
+                      <p className="mt-0.5 font-mono text-sm font-semibold text-t-mid">
+                        {fmt(expected, 2)}
+                      </p>
+                    </div>
+                  </div>
+
+                  {reading !== null && expected !== null && (
+                    <p className="mt-2 font-mono text-[11px] text-t-lo">
+                      absolute gap{' '}
+                      <span className="text-t-mid">
+                        {fmt(reading - expected, 2)}
+                      </span>{' '}
+                      · {fmt(ctx.nearby_readings?.length ?? 0, 0)} neighbour readings sampled
+                    </p>
+                  )}
+
+                  <div className="mt-2.5">
+                    <MiniSpark
+                      readings={(ctx.nearby_readings ?? []).map(v => n(v) ?? NaN)}
+                      current={reading}
+                      expected={expected}
+                    />
+                    <p className="mt-1 text-[10px] text-t-lo">
+                      dashed line = expected value · filled dot = the flagged reading
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant={selConfirmed ? 'secondary' : 'success'}
+                    gradient="emerald"
+                    disabled={confirmBusy === selected.id}
+                    onClick={() => toggleConfirm(selected)}
+                  >
+                    {confirmBusy === selected.id ? (
+                      'Saving…'
+                    ) : selConfirmed ? (
+                      <>
+                        <Minus className="h-4 w-4" /> Unconfirm
+                      </>
+                    ) : (
+                      <>
+                        <Check className="h-4 w-4" /> Confirm anomaly
+                      </>
+                    )}
+                  </Button>
+                  {selConfirmed && (
+                    <span className="text-[11px] text-t-lo">
+                      this reading is locked out of the next detection run
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+          </Panel>
+
+          {/* ── ledger ──────────────────────────────────────── */}
+          <Panel
+            title="Incident ledger"
+            right={
+              <span className="font-mono text-[10px] uppercase tracking-widest text-t-lo">
+                {fmt(items.length, 0)} of {fmt(scanned, 0)}
+              </span>
+            }
+            flush
+          >
+            <div className="overflow-x-auto">
+              <div className="min-w-[46rem]">
+                <div className="grid grid-cols-[minmax(0,5.5rem)_minmax(0,8.5rem)_minmax(0,1fr)_6rem_6rem_5.5rem_4.5rem] gap-3 border-b border-border px-4 py-2">
+                  {['id', 'timestamp', 'type', 'severity', 'score', 'conf', 'state'].map(h => (
+                    <SectionLabel key={h} className="truncate">
+                      {h}
+                    </SectionLabel>
+                  ))}
+                </div>
+                <div className="max-h-72 overflow-y-auto">
+                  {items.map(a => {
+                    const tone = sevTone(a.severity)
+                    const on = selected?.id === a.id
+                    const isOn = overrides[a.id] ?? Boolean(a.is_confirmed)
+                    return (
+                      <button
+                        key={a.id}
+                        type="button"
+                        onClick={() => setSelectedId(a.id)}
+                        className={clsx(
+                          'grid w-full grid-cols-[minmax(0,5.5rem)_minmax(0,8.5rem)_minmax(0,1fr)_6rem_6rem_5.5rem_4.5rem] items-center gap-3 border-b border-border px-4 py-2 text-left transition-colors last:border-0',
+                          on ? 'bg-primary-500/[0.06]' : 'hover:bg-panel2',
+                        )}
+                      >
+                        <span className="truncate font-mono text-[11px] text-t-lo">
+                          {a.id ? a.id.slice(0, 8) : '—'}
+                        </span>
+                        <span className="truncate font-mono text-[11px] text-t-mid">
+                          {a.timestamp ? a.timestamp.replace('T', ' ').slice(0, 16) : '—'}
+                        </span>
+                        <span className="truncate text-[11px] text-t-mid">
+                          {(a.anomaly_type || '—').replace(/_/g, ' ')}
+                        </span>
+                        <span
+                          className={clsx(
+                            'truncate rounded-button border px-1.5 py-0.5 text-center font-mono text-[10px] uppercase tracking-wider',
+                            tone.chip,
+                          )}
+                        >
+                          {tone.label}
+                        </span>
+                        <span className="flex items-center gap-1.5">
+                          <Bar value={(n(a.score) ?? 0) * 100} className="flex-1" tone="primary" />
+                          <span className="font-mono text-[10px] text-t-lo">
+                            {fmt((n(a.score) ?? 0) * 100, 0)}
+                          </span>
+                        </span>
+                        <span className="font-mono text-[11px] text-t-mid">
+                          {fmt((n(a.confidence) ?? 0) * 100, 0)}%
+                        </span>
+                        <span className="flex items-center justify-end">
+                          {isOn ? (
+                            <Check className="h-4 w-4 text-emerald-600" />
+                          ) : (
+                            <Minus className="h-4 w-4 text-t-lo" />
+                          )}
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            </div>
+          </Panel>
+        </>
       )}
 
-      <span onClick={() => { markCompleted('anomaly'); setActive(datasetId) }} className="hidden" />
-      </div>
+      <StoryFlow stageKey="anomaly" activeKey={activeStep} />
+
+      {items.length > 0 && (
+        <AutoNext
+          to={datasetId ? `/benchmarks/${datasetId}` : '/library'}
+          label="Anomalies reviewed — benchmarking the pipeline"
+        />
+      )}
+
+      {!items.length && !loading && (
+        <p className="flex items-center gap-2 text-[11px] text-t-lo">
+          <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
+          Nothing to investigate yet — the ledger stays empty until a detection run scores this
+          dataset.
+        </p>
+      )}
     </div>
   )
 }

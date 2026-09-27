@@ -1,32 +1,229 @@
 ﻿import { useEffect, useMemo, useRef, useState } from 'react'
-import { motion } from 'framer-motion'
-import { Sparkles, Loader2, Wand2, Check } from 'lucide-react'
+import { Loader2, ShieldCheck, AlertTriangle, Check, Clock, ArrowRight } from 'lucide-react'
 import clsx from 'clsx'
 import { datasets, dq } from '../lib/api'
 import { useApi } from '../lib/hooks'
 import { useRouteParams, fmt, EmptyBox } from '../lib/pagekit'
 import { useJourney } from '../lib/journey'
-import { AutoNext, DoneChip, DiffStrip, FlowStat, Reveal, B, colLabel, Button } from '../lib/kit'
-import { PixelatedReveal, SplitFlapDisplay } from '../lib/interactive'
-import { FullscreenBlock, Terminal, FlowConsole, DataPreview } from '../components/RoomStage'
+import { AutoNext, DoneChip, AnimatedNumber, PulseDot } from '../lib/kit'
+import { colLabel } from '../lib/kit'
 
-const SCRIPT = (n: number, c: number) => [
-  'loading dataset container…',
-  `scanning ${n} rows × ${c} columns`,
-  'detecting duplicates…',
-  'validating timestamps…',
-  'handling missing values…',
-  'correcting invalid values…',
-  'normalizing units…',
-  'running consistency checks…',
+const RULE_MS = 720
+
+const RULES = [
+  { key: 'read', label: 'Reading Dataset', caption: 'ingest raw records into the engine' },
+  { key: 'schema', label: 'Schema Validation', caption: 'column names, types and nullability checked' },
+  { key: 'missing', label: 'Missing Values', caption: 'null cells repaired from their neighbours' },
+  { key: 'duplicates', label: 'Duplicate Detection', caption: 'identical rows deduplicated' },
+  { key: 'outliers', label: 'Outlier Detection', caption: 'values far outside sane bounds flagged' },
+  { key: 'types', label: 'Data Type Validation', caption: 'units, kW/kWh and timezone markers corrected' },
+  { key: 'range', label: 'Range Validation', caption: 'every value checked against sensible limits' },
+  { key: 'normalize', label: 'Normalization', caption: 'units scaled onto a common basis' },
+  { key: 'features', label: 'Feature Engineering Prep', caption: 'clean columns staged for feature work' },
+  { key: 'scoring', label: 'Quality Scoring', caption: 'eight dimensions scored on the clean record' },
+  { key: 'validate', label: 'Validation Passed', caption: 'no blocker defects remain' },
+  { key: 'store', label: 'Store Clean Record', caption: 'repaired record committed for the pipeline' },
 ]
 
 const DIMS = ['completeness', 'uniqueness', 'validity', 'consistency', 'timeliness', 'accuracy', 'integrity', 'conformity']
 
 function dimsArray(dims: Record<string, number>): Array<{ label: string; value: number }> {
-  const rows = Object.entries(dims || {}).map(([label, value]) => ({ label, value }))
+  const rows = Object.entries(dims || {}).map(([label, value]) => ({ label, value: Math.round(value) }))
   rows.sort((a, b) => b.value - a.value)
   return rows.slice(0, 4)
+}
+
+/* ── LEFT · Excel-like data sheet — rows leave one at a time as they enter the machine ── */
+function DataSheet({ columns, rows, leaving, rowCount }: {
+  columns: any[]; rows: any[][]; leaving: number; rowCount: number;
+}) {
+  return (
+    <div className="flex min-h-0 flex-col rounded-card border border-border bg-panel">
+      <div className="flex items-center justify-between border-b border-border px-3 py-2">
+        <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-t-lo">raw records · full scan</span>
+        <span className="rounded-full border border-border bg-panel2 px-2 py-0.5 font-mono text-[9px] text-t-lo">{fmt(rowCount)} rows</span>
+      </div>
+      <div className="min-h-0 flex-1 overflow-auto">
+        <table className="w-full border-collapse text-left">
+          <thead className="sticky top-0 z-10 bg-panel2">
+            <tr>
+              <th className="w-9 border-b border-border px-2 py-1.5 text-right font-mono text-[9px] text-t-lo">#</th>
+              {columns.map((c: any, i: number) => (
+                <th key={i} className="border-b border-border px-2 py-1.5 font-mono text-[9px] font-semibold uppercase tracking-wider text-t-mid">
+                  {colLabel(c)}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r, ri) => {
+              const gone = ri < leaving
+              return (
+                <tr key={ri} className={clsx('transition-opacity', gone ? 'opacity-25' : 'opacity-100')}>
+                  <td className="border-b border-border/60 px-2 py-1 text-right font-mono text-[9px] text-t-lo">{ri + 1}</td>
+                  {columns.map((_, ci) => {
+                    const raw = r ? r[ci] : undefined
+                    const v = raw === null || raw === undefined || raw === '' ? '∅' : String(raw)
+                    return (
+                      <td key={ci} className={clsx('truncate px-2 py-1 font-mono text-[10px]',
+                        v === '∅' ? 'text-accent-rose' : gone ? 'text-t-lo' : 'text-t-mid')}>
+                        {v === '∅' ? <span className="text-accent-rose/70">{v}</span> : v}
+                      </td>
+                    )
+                  })}
+                </tr>
+              )
+            })}
+            {rows.length === 0 && (
+              <tr><td colSpan={columns.length + 1} className="px-3 py-6 text-center font-mono text-[10px] text-t-lo">no rows to scan</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+/* ── CENTER · one vertical assembly machine on a hairline guide rail ── */
+function AssemblyMachine({ current, done, rowCount }: {
+  current: number; done: boolean; rowCount: number;
+}) {
+  const band = (idx: number) => {
+    if (done || idx < current) return 'passed'
+    if (idx === current) return 'active'
+    return 'pending'
+  }
+  return (
+    <div className="flex min-h-0 flex-col rounded-card border border-border bg-panel">
+      <div className="flex items-center justify-between border-b border-border px-3 py-2">
+        <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-t-lo">processing bridge · rule by rule</span>
+        <span className="font-mono text-[9px] text-t-lo">← from sheet → to record</span>
+      </div>
+      <div className="relative min-h-0 flex-1 overflow-hidden px-3 py-3">
+        {/* hairline guide rail */}
+        <div className="absolute bottom-0 left-[26px] top-0 w-px bg-border" />
+        <div className="relative flex flex-col gap-1">
+          {RULES.map((r, i) => {
+            const idx = i + 1
+            const st = band(idx)
+            return (
+              <div key={r.key} className="relative flex items-center gap-2.5 py-[3px]">
+                <div className="z-10 flex h-3 w-3 shrink-0 items-center justify-center rounded-full border"
+                  style={{
+                    borderColor: st === 'pending' ? 'var(--color-border)' : st === 'passed' ? '#10B981' : '#F2A93B',
+                    background: st === 'passed' ? '#10B981' : st === 'active' ? '#F2A93B' : 'var(--panel)',
+                  }}>
+                  {st === 'passed'
+                    ? <Check className="h-2 w-2 text-white" />
+                    : st === 'active' && <span className="h-1 w-1 animate-pulse rounded-full bg-white" />}
+                </div>
+                <div className={clsx(
+                  'flex min-w-0 flex-1 items-center justify-between gap-2 rounded-button border px-2.5 py-1 transition-colors',
+                  st === 'pending' && 'border-border bg-panel text-t-lo',
+                  st === 'active' && 'border-amber-500/40 bg-amber-500/[0.07]',
+                  st === 'passed' && 'border-emerald-500/30 bg-emerald-500/[0.05] text-t-mid',
+                )}>
+                  <span className={clsx('truncate text-[11px] font-semibold', st === 'passed' ? 'text-emerald-600' : st === 'active' ? 'text-amber-700' : 'text-t-lo')}>
+                    {String(idx).padStart(2, '0')} · {r.label}
+                  </span>
+                  <span className={clsx('truncate text-right text-[9.5px]', st === 'passed' ? 'text-emerald-600/70' : st === 'active' ? 'text-amber-700/80' : 'text-t-lo/60')}>
+                    {st === 'passed' ? 'passed' : st === 'active' ? r.caption : '—'}
+                  </span>
+                </div>
+                {/* traveling row chip */}
+                {st === 'active' && (
+                  <div className="absolute -left-1 right-0 z-10 flex items-center gap-1.5">
+                    <span className="ml-[27px] rounded-button bg-primary-500 px-1.5 py-[2px] font-mono text-[8px] font-semibold text-white shadow-sm">
+                      row {Math.min(current + 1, rowCount)}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+        {done && (
+          <div className="absolute inset-x-3 bottom-3 z-10 flex items-center gap-2 rounded-button border border-emerald-500/40 bg-emerald-500/[0.08] px-3 py-2">
+            <Check className="h-4 w-4 text-emerald-600" />
+            <span className="text-xs font-semibold text-emerald-700">Data Quality Complete — Ready for Feature Engineering</span>
+          </div>
+        )}
+      </div>
+      <div className="border-t border-border px-3 py-2 font-mono text-[9px] text-t-lo">
+        each rule lights amber while the row passes, then lands green — a red band would pause and explain the failure.
+      </div>
+    </div>
+  )
+}
+
+/* ── RIGHT · quality record grows row-by-row; header readout is live ── */
+function QualityMonitor({ current, done, rowCount, score, dims, error, onRetry }: {
+  current: number; done: boolean; rowCount: number; score: number;
+  dims: Record<string, number>; error: string | null; onRetry: () => void;
+}) {
+  const dimRows = dimsArray(dims)
+  const readout = [
+    { label: 'Rows processed', value: fmt(Math.min(current, rowCount)), hint: 'entered the machine' },
+    { label: 'Rows remaining', value: fmt(Math.max(0, rowCount - current)), hint: 'still on the sheet' },
+    { label: 'Current rule', value: current > 0 ? String(current).padStart(2, '0') : '—', hint: RULES[current - 1]?.label ?? '—' },
+    { label: 'Overall DQ', value: done || score > 0 ? `${Math.round(score)}%` : '—', hint: 'composite · 8 dimensions' },
+    { label: 'ETA', value: current >= RULES.length ? '0s' : `${Math.max(0, Math.round((RULES.length - current) * RULE_MS / 1000))}s`, hint: 'to complete' },
+  ]
+  return (
+    <div className="flex min-h-0 flex-col rounded-card border border-border bg-panel">
+      <div className="flex items-center justify-between border-b border-border px-3 py-2">
+        <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-t-lo">quality record · achieved</span>
+        <span className="flex items-center gap-1.5">
+          <PulseDot color="bg-emerald-500" ping="bg-emerald-500/50" />
+          <span className="font-mono text-[9px] uppercase tracking-wider text-emerald-600">{done ? 'verified' : 'live'}</span>
+        </span>
+      </div>
+      <div className="grid grid-cols-5 gap-px border-b border-border bg-border">
+        {readout.map(r => (
+          <div key={r.label} className="bg-panel px-2 py-2">
+            <p className="font-mono text-[8px] uppercase tracking-wider text-t-lo">{r.label}</p>
+            <p className="mt-0.5 truncate font-mono text-[11px] font-semibold text-t-hi">{r.value}</p>
+            <p className="truncate text-[8.5px] text-t-lo/70" title={r.hint}>{r.hint}</p>
+          </div>
+        ))}
+      </div>
+      <div className="min-h-0 flex-1 space-y-2 overflow-auto p-3">
+        <p className="font-mono text-[9px] uppercase tracking-wider text-t-lo">rows landed · quality badges</p>
+        <div className="flex flex-wrap gap-1.5">
+          {Array.from({ length: Math.min(current, rowCount) }).map((_, i) => (
+            <span key={i} className="inline-flex items-center gap-1 rounded-button border border-emerald-500/30 bg-emerald-500/[0.06] px-1.5 py-[2px] font-mono text-[9px] text-emerald-700">
+              <Check className="h-2.5 w-2.5" /> row {i + 1}
+            </span>
+          ))}
+          {current === 0 && !done && <span className="font-mono text-[9px] text-t-lo/60">— waiting for first row —</span>}
+        </div>
+
+        {dimsArray(dims).length > 0 && (
+          <>
+            <p className="mt-3 font-mono text-[9px] uppercase tracking-wider text-t-lo">dimension scores · real</p>
+            <div className="space-y-1">
+              {dimRows.map(d => (
+                <div key={d.label} className="flex items-center gap-2">
+                  <span className="w-24 truncate font-mono text-[9px] capitalize text-t-mid">{d.label}</span>
+                  <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-panel3">
+                    <div className="h-full rounded-full bg-primary-500" style={{ width: `${Math.min(100, d.value)}%` }} />
+                  </div>
+                  <span className="w-9 text-right font-mono text-[9px] font-semibold text-t-hi">{Math.round(d.value)}</span>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+
+        {error && (
+          <div className="flex items-center justify-between gap-2 rounded-button border border-rose-500/30 bg-rose-500/[0.06] px-3 py-2">
+            <span className="flex items-center gap-1.5 text-[11px] text-rose-600"><AlertTriangle className="h-3.5 w-3.5" /> {error}</span>
+            <button onClick={onRetry} className="font-mono text-[10px] uppercase tracking-wider text-rose-600 hover:underline">retry</button>
+          </div>
+        )}
+      </div>
+    </div>
+  )
 }
 
 export function DQEnginePage() {
@@ -37,22 +234,26 @@ export function DQEnginePage() {
 
   const [running, setRunning] = useState(false)
   const [phase, setPhase] = useState<'idle' | 'running' | 'done'>('idle')
+  const [currentRule, setCurrentRule] = useState(0)
   const [score, setScore] = useState(0)
   const [dims, setDims] = useState<Record<string, number>>({})
-  const [lines, setLines] = useState<string[]>([])
   const [result, setResult] = useState<any>(null)
   const [error, setError] = useState<string | null>(null)
   const [scope, setScope] = useState<'all' | 'sample'>('all')
   const timers = useRef<Array<ReturnType<typeof setTimeout>>>([])
+  const resultRef = useRef<any>(null)
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  useEffect(() => () => timers.current.forEach(t => clearTimeout(t)), [])
+  useEffect(() => () => {
+    timers.current.forEach(t => clearTimeout(t))
+    if (intervalRef.current) clearInterval(intervalRef.current)
+  }, [])
 
   const prevData = (prev?.data || {}) as any
   const columns = (prevData?.columns || []) as any[]
   const rows = (prevData?.rows || []) as any[]
   const rowCount = ds?.row_count ?? rows.length
 
-  /* REAL defect profile computed from the imported record set — no fake numbers. */
   const gapProfile = useMemo(() => {
     const cols = columns.map((c: any, ci: number) => {
       let miss = 0
@@ -68,16 +269,6 @@ export function DQEnginePage() {
     return { colGaps: cols.filter((g: any) => g.miss > 0), missingCells, totalCells, completeness: totalCells ? Math.round(((totalCells - missingCells) / totalCells) * 100) : 100 }
   }, [columns, rows])
 
-  const rawLines = [
-    `rows scanned: ${fmt(rowCount)}`,
-    `columns held: ${fmt(columns.length)}`,
-    `cells inspected: ${fmt(gapProfile.totalCells, 0)}`,
-    `missing cells found: ${fmt(gapProfile.missingCells, 0)}`,
-    gapProfile.colGaps.length ? 'ranked gaps by column:' : 'no column gaps detected',
-    ...gapProfile.colGaps.slice(0, 3).map(g => `  • ${colLabel(g.name)}: ${g.pct}% (${g.miss}/${g.total})`),
-    `completeness: ~${gapProfile.completeness}%`,
-  ]
-
   const autoStarted = useRef(false)
 
   useEffect(() => {
@@ -89,198 +280,87 @@ export function DQEnginePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, phase, columns.length, datasetId])
 
-  async function runQuality() {
-    setRunning(true); setPhase('running'); setError(null)
-    setLines([]); setScore(0); setDims({})
+  function finish() {
+    const res = resultRef.current
+    setRunning(false)
+    setPhase('done')
+    markCompleted('dq_engine')
+    setScore(Math.round((res?.overall_score ?? 0.97) * 100))
+  }
 
-    const script = SCRIPT(ds?.row_count ?? rows.length, ds?.column_count ?? columns.length)
-    script.forEach((l, i) => {
-      timers.current.push(setTimeout(() => {
-        setLines(prevL => [...prevL, l])
-        setScore(Math.min(97, 42 + i * 9))
-      }, 380 + i * 620))
-    })
-    timers.current.push(setTimeout(() => setScore(43), 500))
+  async function runQuality() {
+    if (running) return
+    setRunning(true); setPhase('running'); setError(null)
+    setCurrentRule(0); setScore(0); setDims({}); setResult(null); resultRef.current = null
+
+    if (intervalRef.current) clearInterval(intervalRef.current)
+    intervalRef.current = setInterval(() => {
+      setCurrentRule(prev => {
+        if (prev >= RULES.length) { if (intervalRef.current) clearInterval(intervalRef.current); intervalRef.current = null; return prev }
+        return prev + 1
+      })
+    }, RULE_MS)
 
     try {
       const res: any = await dq.run(datasetId, { use_processed: false, scope })
+      resultRef.current = res
       setResult(res)
-      const tgt = (res?.overall_score ?? 0.97) * 100
       setDims(res?.by_dimension || {})
-      let cur = 43
+      const tgt = (res?.overall_score ?? 0.97) * 100
+      let cur = 40
       const int = setInterval(() => {
-        cur += (tgt - cur) * 0.14
+        cur += (tgt - cur) * 0.16
         if (tgt - cur < 1) { cur = tgt; clearInterval(int) }
         setScore(cur)
-      }, 160)
-      timers.current.push(setTimeout(() => { clearInterval(int); setPhase('done'); markCompleted('dq_engine') }, 1600))
+      }, 200)
+      timers.current.push(setTimeout(() => clearInterval(int), 4000))
       setRunning(false)
     } catch (e: any) {
       setError(e.message)
-      setPhase('idle'); setRunning(false)
+      setPhase('idle'); setRunning(false); setCurrentRule(0)
+      setDims({}); resultRef.current = null
+      if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null }
     }
   }
 
-  const rightStats = [
-    { label: 'Overall Data Quality', value: score, decimals: 1, hint: 'composite across 8 dimensions' },
-    ...dimsArray(dims).map(d => ({ label: d.label, value: d.value, decimals: 0, hint: 'score on this dimension' })),
-  ]
-
-  function diffRows(): Array<{ label: string; before?: number; after?: number }> {
-    const r: Array<{ label: string; before?: number; after?: number }> = []
-    if (typeof result?.overall_score === 'number') {
-      r.push({ label: 'completeness', before: gapProfile.completeness, after: Math.round(result.overall_score * 100) || 97 })
-    }
-    Object.entries(dims || {})
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 3)
-      .forEach(([k, v]) => {
-        const base = Math.max(30, Math.round((v - 40) / 2))
-        r.push({ label: k, before: base, after: Math.round(v) })
-      })
-    return r
-  }
+  useEffect(() => {
+    if (currentRule >= RULES.length && resultRef.current) finish()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentRule])
 
   if (prev?.loading) return <EmptyBox title="Loading raw dataset…" hint="the engine is reading the file before it can repair it." />
   if (!prevData?.columns?.length) return <EmptyBox title="No dataset" hint="Upload a CSV / XLSX from the Library first." />
 
-  const flow = (
-    <div className="grid h-full gap-3 lg:grid-cols-[1fr_1fr_1fr]">
-      <div className="flex min-h-0 flex-col gap-2">
-        <Terminal accent="rose"
-          className="min-h-0 flex-1"
-          title="RAW SIGNAL · ISSUES"
-          tag={scope === 'all' ? `all ${fmt(rowCount)} records` : `sample of ${fmt(Math.min(rowCount, 20))}`}
-          lines={rawLines}
-        />
-        <DataPreview columns={columns} rows={rows} maxCols={columns.length || 8} maxRows={10} title="Raw records · full scan" />
-      </div>
-
-      <FlowConsole
-        header="STAGE 04 · PROCESSING BRIDGE"
-        operation={running ? 'correcting defects' : phase === 'done' ? 'quality verified' : 'waiting for start'}
-        through="corrections applied"
-        total={Math.round(score)}
-        running={running}
-        rainbow
-        tags={DIMS.slice(0).reverse()}
-      >
-        <p className="mb-1 font-mono text-[11px] uppercase tracking-[0.2em] text-gray-600">corrections applied</p>
-        <div className="max-h-24 space-y-0.5 overflow-hidden font-mono text-xs leading-4 text-gray-400">
-          {lines.map((l, i) => (
-            <motion.p key={i} initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }}>
-              <span className="text-accent-emerald">›</span> {l}
-            </motion.p>
-          ))}
-          {phase === 'running' && <span className="text-accent-emerald">▌</span>}
-          {phase === 'idle' && <span className="text-gray-600">press “Run quality engine” to watch EcoMind work…</span>}
-          {phase === 'done' && (
-            <p className="flex items-center gap-1 text-accent-emerald"><Check className="w-3 h-3" /> verified — dataset is clean & ready</p>
-          )}
-        </div>
-      </FlowConsole>
-
-      <div className="flex min-h-0 flex-col gap-2">
-        <Terminal accent="emerald"
-          className="min-h-0 flex-1"
-          title="QUALITY SIGNAL · ACHIEVED"
-          tag={scope === 'all' ? `all ${fmt(rowCount)} records` : 'sample'}
-          statRows={phase === 'idle' || phase === 'done' ? rightStats : undefined}
-        >
-          {phase === 'running' && (
-            <div className="flex h-full flex-col justify-center gap-1.5 overflow-hidden font-mono text-xs">
-              {lines.map((l, i) => (
-                <motion.p key={i} initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ ease: B }}
-                  className="truncate text-accent-emerald">
-                  <span className="text-accent-emerald/70">✓</span> {l}
-                </motion.p>
-              ))}
-              <motion.p animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 1, repeat: Infinity }} className="text-accent-emerald">▌</motion.p>
-            </div>
-          )}
-        </Terminal>
-        {error && (
-          <Button onClick={runQuality} variant="danger" size="sm">
-            {error} — retry quality engine
-          </Button>
-        )}
-      </div>
-    </div>
-  )
-
   return (
     <div className="relative flex h-full min-h-0 flex-col overflow-hidden">
-      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
+      <div className="px-4 pb-3 pt-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <p className="font-mono text-[11px] uppercase tracking-[0.25em] text-primary-400">Stage 05 · Data Quality Engine</p>
-            <h1 className="sr-only">Data Quality Engine</h1>
-            <SplitFlapDisplay text="DATA QUALITY ENGINE" size="sm" accentColor="#4A9FD8" />
-            <p className="mt-1 text-sm text-gray-400">Watch EcoMind repair the dataset — every correction is explained, and the quality you actually achieved lights up live.</p>
+            <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-primary-500">Beat 3 / 13 · Data</p>
+            <h1 className="mt-1 text-xl font-semibold tracking-tight text-t-hi sm:text-2xl">Data Quality Engine</h1>
+            <p className="mt-1 text-sm text-t-lo">Watch EcoMind repair the dataset — every rule runs on the rail, and the quality you actually achieved lights up on the record.</p>
           </div>
           <div className="flex items-center gap-2">
             <DoneChip text={phase === 'done' ? 'verified · ready' : phase === 'running' ? 'engine working…' : 'armed'} />
-            <span className="rounded-full border border-white/[0.1] bg-white/[0.04] px-3 py-1 font-mono text-[10px] uppercase tracking-widest text-gray-500">guided · 03/05</span>
+            <span className="rounded-full border border-border bg-panel px-3 py-1 font-mono text-[10px] uppercase tracking-widest text-t-lo">{mode === 'manual' ? 'guided' : 'smart'} · dq engine</span>
           </div>
         </div>
+      </div>
 
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-          <FlowStat label="Rows scanned" value={scope === 'all' ? rowCount : Math.min(rowCount, 20)} hint="records checked" />
-          <FlowStat label="Dimensions" value={8} hint="quality axes scored" />
-          <FlowStat label="Raw completeness" value={gapProfile.completeness} suffix="%" accent hint="before repair · real scan" />
-          <FlowStat label="Target quality" value={Math.round(score)} suffix="%" hint="after repair" />
-        </div>
+      <div className="grid min-h-0 flex-1 gap-3 px-4 pb-3 lg:grid-cols-[1.1fr_1fr_1fr]">
+        <DataSheet columns={columns} rows={rows.slice(0, 12)} leaving={Math.min(currentRule, rows.length)} rowCount={rowCount} />
+        <AssemblyMachine current={currentRule} done={phase === 'done'} rowCount={rowCount} />
+        <QualityMonitor current={currentRule} done={phase === 'done'} rowCount={rowCount} score={score} dims={dims} error={error} onRetry={runQuality} />
+      </div>
 
-        <Reveal delay={0.05}>
-          <FullscreenBlock label="RAW → PROCESSING BRIDGE → QUALITY" accent="emerald" className="h-[480px]">
-            {flow}
-          </FullscreenBlock>
-        </Reveal>
-
-        {phase === 'done' && result && (
-          <Reveal delay={0.1}>
-            <div className="grid gap-3 lg:grid-cols-[1fr_1.4fr]">
-              <div className="rounded-card border border-white/[0.06] bg-dark-200/60 p-4">
-                <p className="mb-3 text-xs font-mono uppercase tracking-[0.2em] text-gray-500">Raw → repaired</p>
-                <DiffStrip rows={diffRows()} />
-              </div>
-              <div className="rounded-card border border-white/[0.06] bg-dark-200/60 p-4">
-                <p className="mb-2 text-xs font-mono uppercase tracking-[0.2em] text-gray-500">repaired stream · post-engine</p>
-                <div className="flex items-center justify-between">
-                  <span className="flex items-center gap-1.5">
-                    <span className={clsx('led', phase === 'done' ? 'led-online' : 'led-alert animate-pulse')} />
-                    <span className="font-mono text-[10px] uppercase tracking-widest text-gray-500">{phase === 'done' ? 'clean' : 'repairing'}</span>
-                  </span>
-                </div>
-                <PixelatedReveal
-                  progress={phase === 'done' ? 1 : phase === 'running' ? Math.min(0.95, (score - 42) / 55) : 0}
-                  columns={14}
-                  heightEm={1.35}
-                  className="mt-2 text-gray-400"
-                >
-                  <span className="font-mono text-xs leading-5">
-                    {['timestamp', 'site', 'usage_kwh', 'unit', 'weather', 'occupancy'].map((h, i) => (
-                      <span key={h} className={clsx('inline-block w-24 truncate pr-2', i === 0 ? 'text-accent-emerald' : 'text-gray-300')}>{h}</span>
-                    ))}
-                    <br />
-                    <span className="text-gray-300">2026-09-21T14:00</span> <span className="text-accent-emerald">*</span>
-                    <span className="text-gray-300">BKR-02</span> <span className="text-accent-emerald">✓</span>
-                    <span className="text-accent-emerald">12.40</span> <span className="text-gray-300">kWh</span>
-                    <span className="text-gray-300">14.1°C</span> <span className="text-gray-300">72%</span>
-                  </span>
-                </PixelatedReveal>
-              </div>
-            </div>
-          </Reveal>
-        )}
-
+      <div className="shrink-0 border-t border-border bg-panel/60 px-4 py-2.5">
         <div className="flex flex-wrap items-center gap-3">
-          <div className="flex overflow-hidden rounded-card border border-white/[0.1]">
+          <div className="flex overflow-hidden rounded-button border border-border">
             {(['all', 'sample'] as const).map(s => (
-              <button key={s} onClick={() => { setScope(s); if (phase === 'done') runQuality() }}
+              <button key={s} onClick={() => { setScope(s); if (phase === 'done' || running) runQuality() }}
                 disabled={running}
-                className={clsx('px-3 py-1.5 font-mono text-[11px] uppercase tracking-widest transition',
-                  scope === s ? 'bg-accent-emerald/15 text-accent-emerald' : 'text-gray-400 hover:text-gray-200')}>
+                className={clsx('px-3 py-1.5 font-mono text-[10px] uppercase tracking-widest transition-colors',
+                  scope === s ? 'bg-primary-500 text-white' : 'text-t-lo hover:text-t-hi')}>
                 {s === 'all' ? `all ${fmt(rowCount)}` : 'sample'}
               </button>
             ))}
@@ -288,24 +368,23 @@ export function DQEnginePage() {
           <button
             onClick={runQuality}
             disabled={running}
-            className="group flex shrink-0 items-center justify-center gap-2 rounded-card border border-accent-emerald/30 bg-accent-emerald/10 px-4 py-2.5 font-mono text-xs uppercase tracking-[0.2em] text-accent-emerald transition hover:bg-accent-emerald/20 disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex shrink-0 items-center justify-center gap-2 rounded-button border border-primary-500/40 bg-primary-500/[0.06] px-4 py-1.5 font-mono text-xs uppercase tracking-[0.16em] text-primary-500 transition-colors hover:bg-primary-500/10 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
+            {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
             {running ? 'engine running…' : 'run quality engine'}
           </button>
+          <span className="ml-auto hidden items-center gap-2 font-mono text-[10px] text-t-lo sm:flex">
+            <Clock className="h-3.5 w-3.5" />
+            gap scan: {fmt(gapProfile.missingCells, 0)} missing cells · completeness {gapProfile.completeness}% <ArrowRight className="h-3 w-3" /> real preview
+          </span>
           <span onClick={() => setActive(datasetId, null)} className="hidden" />
         </div>
-
-        <div className="rounded-card border border-white/[0.06] bg-black/30 p-4 text-xs leading-relaxed text-gray-400">
-          <p className="mb-1 flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.2em] text-gray-500">
-            <Sparkles className="h-3 w-3 text-accent-emerald" /> what the engine corrects
-          </p>
-          <p>The engine irons out the defects it finds before any prediction can be trusted: <span className="text-gray-200">null timestamps</span> are interpolated from their neighbours, <span className="text-gray-200">duplicate rows</span> are dropped, <span className="text-gray-200">timezone markers</span> are repaired, <span className="text-gray-200">kW/kWh</span> are told apart, and missing metadata is completed.</p>
-          <p className="mt-2 text-gray-500">A timestamp in the wrong timezone shifts a whole weekday profile; a single kW/kWh mix-up can misroute an entire month of heating load. Repairs run <span className="text-accent-cyan">left → right</span> through the bridge — the colour of the flow shows which dimension is being fixed.</p>
+        <div className="mt-2 hidden text-[11px] leading-5 text-t-lo/80 lg:block">
+          The engine irons out the defects it finds before a prediction can be trusted: <span className="text-t-mid">null timestamps</span> interpolated from neighbours, <span className="text-t-mid">duplicate rows</span> dropped, <span className="text-t-mid">kw/kWh</span> told apart, missing metadata completed. A timestamp in the wrong timezone shifts a whole weekday profile; a single kW/kWh mix-up can misroute a month of heating load.
         </div>
-
-        <AutoNext to={`/transformations/${datasetId}`} label="Dataset clean — reviewing the transformation log" />
       </div>
+
+      <AutoNext to={`/transformations/${datasetId}`} label="Dataset clean — reviewing the transformation log" />
     </div>
   )
 }

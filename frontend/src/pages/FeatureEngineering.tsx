@@ -1,205 +1,487 @@
 import { useEffect, useMemo, useState } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
-import { GitBranch, Play, Sparkles, Check } from 'lucide-react'
-import { useApi } from '../lib/hooks'
-import { useRouteParams, fmt, EmptyBox, ErrorBox } from '../lib/pagekit'
-import { useJourney } from '../lib/journey'
-import { StageBanner, Particles, Reveal, FlowStat, LiveBar, AutoNext, DoneChip, PulseDot, Button } from '../lib/kit'
+import { useNavigate } from '@tanstack/react-router'
+import { motion } from 'framer-motion'
+import { ChevronRight, GitBranch, Sparkles } from 'lucide-react'
 import clsx from 'clsx'
+import { datasets, features as featuresApi, type Feature, type PreviewPayload } from '../lib/api'
+import { useApi } from '../lib/hooks'
+import { useRouteParams, fmt } from '../lib/pagekit'
+import { useJourney } from '../lib/journey'
+import { AutoNext, Button, colLabel, normRows } from '../lib/kit'
+import { beatForStage } from '../lib/story'
+import {
+  Bar, EmptyState, LoadingState, MetricPill, Panel, SectionLabel, StageHeader,
+  Stat, StatusChip, StoryFlow,
+} from '../lib/stagekit'
+
+/* ── Author taxonomy ──────────────────────────────────────────────
+   The backend writes `created_by = actor_id or "system"` (see
+   feature_service.engineer), and the DB column defaults to "engineer"
+   — so machine-authored rows arrive as system / engineer, never the
+   literal "auto". Treat the whole machine set as auto.              */
+const AUTO_AUTHORS = new Set(['auto', 'system', 'engineer', 'automated', 'pipeline'])
+
+function isAutoAuthor(a?: string | null): boolean {
+  return AUTO_AUTHORS.has(String(a || '').toLowerCase())
+}
+
+function authorLabel(f: Feature): string {
+  return isAutoAuthor(f.created_by) ? 'auto' : (f.created_by || 'user')
+}
+
+/** importance_score is 0–1 from the API; normalise so bars read 0–100. */
+function impPct(f: Feature): number {
+  const v = Number(f?.importance_score)
+  if (!Number.isFinite(v)) return 0
+  const n = Math.abs(v)
+  return n > 1 ? Math.min(100, n) : n * 100
+}
+
+function shortId(id?: string | null): string {
+  return String(id || '—').slice(0, 8)
+}
+
+function shortName(name: string, len = 7): string {
+  return name.length > len ? `${name.slice(0, len - 1)}…` : name
+}
+
+/* ── Correlation explorer maths ─────────────────────────────────── */
+const MAX_COLS = 12
+const MAX_ROWS = 200
+const INK = '76, 95, 213' // primary-500
+
+interface Series { name: string; values: number[] }
+
+/** First ≤12 numeric preview columns, ≤200 rows, parsed to finite numbers. */
+function numericSeries(payload: PreviewPayload | null): Series[] {
+  if (!payload || !payload.columns?.length) return []
+  const matrix = normRows((payload.rows as any[]) || [], payload.columns)
+  const out: Series[] = []
+  for (let ci = 0; ci < payload.columns.length && out.length < MAX_COLS; ci++) {
+    const meta = payload.columns[ci]
+    const name = colLabel(meta)
+    if (!name) continue
+    const dtype = String((typeof meta === 'string' ? '' : meta?.data_type) || '').toLowerCase()
+    if (!/int|float|double|decimal|number/.test(dtype)) continue
+    const values: number[] = []
+    const limit = Math.min(matrix.length, MAX_ROWS)
+    for (let r = 0; r < limit; r++) {
+      const raw = matrix[r]?.[ci]
+      const v = typeof raw === 'number' ? raw : Number(raw)
+      values.push(Number.isFinite(v) ? v : NaN)
+    }
+    const valid = values.filter(v => Number.isFinite(v))
+    if (valid.length < 4 || new Set(valid).size < 2) continue
+    out.push({ name, values })
+  }
+  return out
+}
+
+function pearson(a: number[], b: number[]): number | null {
+  let n = 0, sa = 0, sb = 0
+  for (let i = 0; i < a.length; i++) {
+    const x = a[i], y = b[i]
+    if (!Number.isFinite(x) || !Number.isFinite(y)) continue
+    n++; sa += x; sb += y
+  }
+  if (n < 3) return null
+  const ma = sa / n, mb = sb / n
+  let num = 0, da = 0, db = 0
+  for (let i = 0; i < a.length; i++) {
+    const x = a[i], y = b[i]
+    if (!Number.isFinite(x) || !Number.isFinite(y)) continue
+    const dx = x - ma, dy = y - mb
+    num += dx * dy; da += dx * dx; db += dy * dy
+  }
+  const den = Math.sqrt(da * db)
+  if (!den) return null
+  return Math.max(-1, Math.min(1, num / den))
+}
+
+function cellBg(r: number | null): string | undefined {
+  if (r === null) return undefined
+  return `rgba(${INK}, ${(0.05 + 0.7 * Math.abs(r)).toFixed(3)})`
+}
 
 export function FeatureEngineeringPage() {
   const { datasetId } = useRouteParams()
+  const navigate = useNavigate()
   const { markCompleted, setActive } = useJourney()
-  const feats = useApi<any>(() => (datasetId ? (import('../lib/api').then(m => m.features.list(datasetId)) as any) : null), [datasetId])
-  const [visible, setVisible] = useState(0)
+  const beat = beatForStage('feature_engineering')
+
+  const emptyPreview = useMemo<PreviewPayload>(
+    () => ({ columns: [], rows: [], total_rows: 0, row_count: 0, column_count: 0 }),
+    [],
+  )
+
+  const feats = useApi<{ features: Feature[] }>(
+    async () => (datasetId ? featuresApi.list(datasetId) : { features: [] }),
+    [datasetId],
+  )
+  const preview = useApi<PreviewPayload>(
+    async () => (datasetId ? datasets.preview(datasetId, MAX_ROWS, 0) : emptyPreview),
+    [datasetId],
+  )
+
   const [busy, setBusy] = useState(false)
-  const [messages, setMessages] = useState<string[]>([])
-  const [done, setDone] = useState(false)
+  const [ran, setRan] = useState(false)
+  const [log, setLog] = useState<string[]>([])
+  const [newIds, setNewIds] = useState<Set<string>>(() => new Set())
 
-  const features = useMemo(() => (feats.data?.features || []) as any[], [feats.data])
+  const featureList = useMemo(() => feats.data?.features || [], [feats.data])
 
+  useEffect(() => { if (datasetId) setActive(datasetId) }, [datasetId, setActive])
   useEffect(() => {
-    if (!done || !features.length) return
-    markCompleted('feature_engineering')
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [done, features.length])
+    if (featureList.length) markCompleted('feature_engineering')
+  }, [featureList, markCompleted])
 
-  async function engineer() {
+  const isNew = (f: Feature) => newIds.has(f.id)
+
+  async function runEngineer() {
     if (!datasetId || busy) return
-    setBusy(true); setVisible(0); setMessages([]); setDone(false)
-    const { features: api, datasets } = await import('../lib/api')
-    const hint = await datasets.preview(datasetId, 1)
-    void hint
+    setBusy(true)
+    setLog([])
+    const before = new Set(featureList.map(f => f.id))
     try {
-      const res: any = await api.engineer(datasetId, { auto: true })
-      setMessages((res.messages || [
-        'analyzing raw columns…', 'building temporal features…',
-        'deriving consumption context…', 'finalizing feature set…',
-      ]) as string[])
-      ;(async () => {
-        const n = res.features?.length || 0
-        for (let i = 0; i <= n; i++) {
-          setVisible(i)
-          await new Promise(r => setTimeout(r, 260))
-        }
-        setDone(true)
-        feats.refetch()
-      })()
+      const res = await featuresApi.engineer(datasetId, { auto: true })
+      const incoming = res.features || []
+      setNewIds(new Set(incoming.filter(f => !before.has(f.id)).map(f => f.id)))
+      setLog(res.messages?.length ? res.messages : ['feature set already complete — no new features created'])
+      setRan(true)
+      await feats.refetch()
     } catch (e: any) {
-      setMessages(['engineer() failed — showing existing features instead', e?.message || ''])
-      setVisible(features.length)
-      setDone(true)
+      setLog([`engineer failed — ${e?.message || 'unknown error'}`])
     } finally {
       setBusy(false)
     }
   }
 
-  const shown = done ? features : features.slice(0, visible)
+  /* ── derived ─────────────────────────────────────────────────── */
+  const ranked = useMemo(
+    () => [...featureList].sort((a, b) => impPct(b) - impPct(a) || a.name.localeCompare(b.name)),
+    [featureList],
+  )
+  const autoCount = useMemo(() => featureList.filter(f => isAutoAuthor(f.created_by)).length, [featureList])
+  const topFeature = ranked[0] || null
+  const topPct = topFeature ? impPct(topFeature) : 0
+  const byAuthor = useMemo(
+    () => (autoCount === featureList.length && featureList.length > 0 ? 'auto' : 'user'),
+    [autoCount, featureList.length],
+  )
+  const sources = useMemo(
+    () => Array.from(new Set(featureList.flatMap(f => f.source_columns || []))).sort(),
+    [featureList],
+  )
+  const types = useMemo(
+    () => Array.from(new Set(featureList.map(f => f.feature_type || 'custom'))).sort(),
+    [featureList],
+  )
 
-  // importance_score arrives as 0–1 from the engineer backend; normalise
-  // defensively (some rows may carry it as 0–100) so bars never read empty.
-  const impOf = (f: any) => {
-    const v = Number(f?.importance_score)
-    if (v == null || Number.isNaN(v)) return 0
-    const n = Math.abs(v)
-    return n > 1 ? Math.min(100, Math.round(n)) : Math.round(n * 100)
+  const series = useMemo(() => numericSeries(preview.data), [preview.data])
+  const corr = useMemo(() => {
+    const m: (number | null)[][] = series.map(() => series.map(() => null))
+    for (let i = 0; i < series.length; i++) {
+      for (let j = i; j < series.length; j++) {
+        const r = i === j ? 1 : pearson(series[i].values, series[j].values)
+        m[i][j] = r
+        m[j][i] = r
+      }
+    }
+    return m
+  }, [series])
+
+  const headerRight = (
+    <>
+      {busy ? <StatusChip status="running">engineering</StatusChip>
+        : featureList.length ? <StatusChip status="ok">{featureList.length} features</StatusChip>
+          : <StatusChip status="idle">not run</StatusChip>}
+      <Button onClick={runEngineer} disabled={busy || !datasetId} variant="primary" size="sm">
+        <Sparkles className={clsx('h-4 w-4', busy && 'animate-pulse')} />
+        {busy ? 'Engineering…' : featureList.length ? 'Re-run feature engineering' : 'Run feature engineering'}
+      </Button>
+    </>
+  )
+
+  if (!datasetId) {
+    return (
+      <div className="flex min-h-0 flex-col gap-3 px-4 py-4">
+        <StageHeader
+          beat={beat.beat} chapter={beat.chapter}
+          title="Feature Engineering"
+          tagline="Generated, explainable energy features — every one with a source column and a reason."
+          icon={<GitBranch className="h-5 w-5" />}
+        />
+        <EmptyState
+          title="No dataset selected"
+          hint="Feature engineering derives from a registered dataset. Pick one from the library to continue."
+          action={<Button onClick={() => navigate({ to: '/library' })} variant="primary" size="sm">Open dataset library</Button>}
+        />
+      </div>
+    )
   }
 
-  const meanImp = features.length
-    ? Math.round(features.reduce((a: number, f: any) => a + impOf(f), 0) / features.length)
-    : 0
-
   return (
-    <div className="relative flex h-full min-h-0 flex-col overflow-hidden">
-      <div className="min-h-0 flex-1 space-y-6 overflow-y-auto pr-1">
-      <Particles count={12} />
-      <StageBanner
-        chapter="Stage 06 · Feature Engineering"
+    <div className="flex min-h-0 flex-col gap-3 px-4 py-4">
+      <StageHeader
+        beat={beat.beat}
+        chapter={beat.chapter}
         title="Feature Engineering"
-        tagline="EcoMind constructs explainable energy features — every one with a reason, a source and a purpose."
-        icon={<GitBranch className="h-6 w-6 text-accent-violet" />}
-        children={done
-          ? <DoneChip text="Features engineered" />
-          : <Button onClick={engineer} disabled={busy} size="md" gradient="violet"
-              className="h-11 px-6">
-              <Play className={`w-4 h-4 ${busy ? 'animate-pulse' : ''}`} /> {busy ? 'Engineering…' : 'Generate features'}
-            </Button>}
+        tagline="Raw columns become explainable energy features — temporal rhythms, lags and rolling context."
+        icon={<GitBranch className="h-5 w-5" />}
+        right={headerRight}
       />
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <FlowStat label="Features" value={shown.length} accent hint="engineered set" />
-        <FlowStat label="Importance signal" value={meanImp} suffix="%" hint="mean importance" />
-        <FlowStat label="Source columns" value={new Set(features.flatMap((f: any) => f.source_columns || [])).size} hint="raw columns used" />
-        <FlowStat label="Methods" value={new Set(features.map((f: any) => f.feature_type || 'custom')).size} hint="generation types" />
+      <div className="grid shrink-0 grid-cols-2 gap-3 lg:grid-cols-4">
+        <Stat label="Features generated" value={featureList.length} hint="rows in the active set" mono />
+        <Stat label="Auto-created" value={autoCount} hint="system / engineer authored" accent="emerald" mono />
+        <Stat
+          label="Top importance"
+          value={`${fmt(topPct, 1)}%`}
+          hint={topFeature ? topFeature.name : 'no features yet'}
+          accent="primary"
+          mono
+        />
+        <Stat label="Engineered by" value={byAuthor} hint={`${new Set(featureList.map(authorLabel)).size} author(s)`} mono />
       </div>
 
-      <Reveal delay={0.08}>
-        <div className="overflow-hidden rounded-card border border-accent-violet/25 bg-black/30">
-          <div className="flex items-center gap-2 border-b border-white/[0.06] bg-accent-violet/[0.06] px-4 py-2.5">
-            <span className="flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 rounded-full bg-accent-rose/70" />
-              <span className="h-2.5 w-2.5 rounded-full bg-accent-gold/70" />
-              <span className="h-2.5 w-2.5 rounded-full bg-accent-emerald/70" />
-            </span>
-            <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-accent-violet">why feature engineering?</p>
-            <span className="ml-auto font-mono text-[10px] uppercase tracking-widest text-gray-500">the question worth asking</span>
+      {log.length > 0 && (
+        <div className="shrink-0 rounded-card border border-border bg-panel2 px-3 py-2">
+          <div className="flex items-center justify-between gap-2">
+            <SectionLabel>engineer log</SectionLabel>
+            <span className="font-mono text-[10px] text-t-lo">{log.length} message(s)</span>
           </div>
-          <div className="grid gap-x-6 gap-y-3 px-4 py-4 text-xs leading-relaxed md:grid-cols-3">
-            <div>
-              <p className="mb-1 font-mono text-[10px] uppercase tracking-[0.2em] text-accent-rose">what it is</p>
-              <p className="text-gray-400">
-                Feature engineering transforms raw readings into <span className="text-gray-200">derived columns a model can actually learn from</span> — time slices, lags, rolling statistics and scaled profiles computed from the original stream.
-              </p>
-            </div>
-            <div>
-              <p className="mb-1 font-mono text-[10px] uppercase tracking-[0.2em] text-accent-gold">why it matters</p>
-              <p className="text-gray-400">
-                A bare kWh number cannot tell a model <span className="text-gray-200">whether it is a cold winter night or a warm workday</span>. Forecast skill lives in structure — hourly rhythm, weekday split, &nbsp;autocorrelation — which only engineered features expose.
-              </p>
-            </div>
-            <div>
-              <p className="mb-1 font-mono text-[10px] uppercase tracking-[0.2em] text-accent-emerald">how it looks here</p>
-              <p className="font-mono text-gray-400">
-                <span className="text-accent-cyan">Hour</span> → tariff &amp; occupancy rhythm · <span className="text-accent-cyan">Weekday</span> → weekend split · <span className="text-accent-cyan">Lag</span> / <span className="text-accent-cyan">Rolling</span> → short-term continuity · <span className="text-accent-cyan">Normalized</span> → shared scale.
-              </p>
-            </div>
-          </div>
-          <div className="border-t border-white/[0.06] bg-black/25 px-4 py-2.5 font-mono text-[11px] text-gray-500">
-            <span className="text-gray-400">case_:</span> a <span className="text-gray-300">10.3&nbsp;kWh</span> spike at 09:00 on a Tuesday is unreadable raw — but with features it becomes <span className="text-accent-cyan">Hour=9</span> + <span className="text-accent-cyan">Weekday=2</span> + <span className="text-accent-cyan">Lag=2.1</span> + <span className="text-accent-cyan">RollingMean=1.8</span> → the model recognises a morning peak and predicts the next interval correctly.
-          </div>
-        </div>
-      </Reveal>
-
-      {busy && (
-        <div className="glass-card p-4">
-          <div className="flex items-center gap-3">
-            <Sparkles className="w-4 h-4 text-accent-violet animate-pulse" />
-            <p className="text-sm text-gray-400">constructing feature graph…</p>
-          </div>
-          <div className="mt-3 space-y-1.5">
-            {messages.map((m, i) => (
-              <motion.p key={i} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }}
-                className="text-xs font-mono text-gray-400">
-                <span className="text-accent-violet">›</span> {m}
-              </motion.p>
+          <ul className="mt-1 space-y-0.5">
+            {log.map((m, i) => (
+              <motion.li
+                key={i}
+                initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.25, delay: i * 0.05 }}
+                className="truncate font-mono text-[11px] text-t-mid"
+              >
+                <span className="text-primary-500">›</span> {m}
+              </motion.li>
             ))}
-          </div>
+          </ul>
         </div>
       )}
 
-      {feats.error && <ErrorBox message={feats.error} onRetry={feats.refetch} />}
+      <div className="grid min-h-0 flex-1 gap-3 xl:grid-cols-12">
+        {/* ── Feature generation flow ─────────────────────────── */}
+        <Panel
+          className="xl:col-span-7"
+          title="feature generation flow"
+          right={<SectionLabel>{sources.length} source · {types.length} transform</SectionLabel>}
+        >
+          {feats.loading && <LoadingState label="Loading feature set…" />}
+          {feats.error && (
+            <EmptyState
+              title="Could not load the feature set"
+              hint={feats.error}
+              action={<Button onClick={feats.refetch} variant="outline" size="sm">Retry</Button>}
+            />
+          )}
+          {!feats.loading && !feats.error && featureList.length === 0 && (
+            <EmptyState
+              title="No features generated yet"
+              hint="Run feature engineering to derive temporal, lag and rolling features from this dataset."
+              action={<Button onClick={runEngineer} disabled={busy} variant="primary" size="sm">Run feature engineering</Button>}
+            />
+          )}
+          {featureList.length > 0 && (
+            <div className="flex items-stretch gap-2 overflow-x-auto pb-1">
+              <div className="flex min-w-[140px] flex-1 flex-col gap-1.5">
+                <SectionLabel>raw columns</SectionLabel>
+                <div className="flex flex-wrap gap-1.5">
+                  {sources.map(s => (
+                    <span key={s} className="rounded-button border border-border bg-panel2 px-2 py-1 font-mono text-[10px] text-t-mid">
+                      {s}
+                    </span>
+                  ))}
+                </div>
+              </div>
 
-      <Reveal delay={0.1}>
-        <div className="glass-card overflow-hidden">
-          <div className="px-4 py-3 border-b border-white/[0.06] flex items-center justify-between">
-            <p className="text-xs font-mono uppercase tracking-widest text-gray-400">engineered feature set</p>
-            <span className="text-xs font-mono text-gray-400">{shown.length} / {features.length || 9}</span>
-          </div>
-          <div className="divide-y divide-white/[0.04]">
-            <AnimatePresence initial={false}>
-              {shown.length === 0 && !busy && <p className="px-4 py-8 text-center text-sm text-gray-400">run the generator to build features…</p>}
-              {shown.map((f: any, i: number) => {
-                const imp = impOf(f)
-                return (
-                  <motion.div key={f.id || f.name || i}
-                    initial={{ opacity: 0, y: 10, scale: 0.99 }} animate={{ opacity: 1, y: 0, scale: 1 }}
-                    transition={{ duration: 0.3 }}
-                    className="grid sm:grid-cols-12 gap-3 items-center px-4 py-3.5 hover:bg-white/[0.02]">
-                    <div className="sm:col-span-4">
-                      <p className="font-display font-medium text-gray-100 flex items-center gap-2">
-                        {f.name}
-                        {done && i === 0 && <span className="rounded-button bg-emerald-500/10 px-1.5 py-0.5 text-[11px] text-accent-emerald">lead</span>}
-                      </p>
-                      <p className="text-xs font-mono text-gray-400 mt-0.5">{f.feature_type || 'custom'} · source: {(f.source_columns || []).join(', ') || 'derived'}</p>
+              <ChevronRight className="mt-7 h-4 w-4 shrink-0 text-t-lo" />
+
+              <div className="flex min-w-[120px] flex-1 flex-col gap-1.5">
+                <SectionLabel>transformations</SectionLabel>
+                <div className="flex flex-wrap gap-1.5">
+                  {types.map(t => (
+                    <span key={t} className="rounded-button border border-primary-500/30 bg-primary-500/[0.06] px-2 py-1 font-mono text-[10px] text-primary-500">
+                      {t}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              <ChevronRight className="mt-7 h-4 w-4 shrink-0 text-t-lo" />
+
+              <div className="flex min-w-[300px] flex-[1.4] flex-col gap-1.5">
+                <div className="flex items-center justify-between gap-2">
+                  <SectionLabel>generated features</SectionLabel>
+                  {newIds.size > 0 && <MetricPill label="new" value={newIds.size} accent="text-emerald-600" />}
+                </div>
+                <div className="grid gap-1.5 sm:grid-cols-2 2xl:grid-cols-3">
+                  {ranked.slice(0, 12).map(f => {
+                    const fresh = isNew(f) || isAutoAuthor(f.created_by)
+                    return (
+                      <div
+                        key={f.id}
+                        className={clsx(
+                          'rounded-button border border-border bg-panel2 px-2.5 py-2',
+                          fresh && 'border-l-2 border-l-accent-emerald',
+                        )}
+                      >
+                        <div className="flex items-start justify-between gap-1.5">
+                          <span className="truncate font-mono text-[11px] font-semibold text-t-hi" title={f.name}>{f.name}</span>
+                          {fresh && <MetricPill label="new" value="✓" accent="text-emerald-600" />}
+                        </div>
+                        <p className="mt-0.5 truncate text-[10px] text-t-lo" title={f.description}>{f.description || f.feature_type}</p>
+                        <Bar value={impPct(f)} tone={fresh ? 'emerald' : 'primary'} className="mt-1.5" />
+                        <div className="mt-1 flex items-center justify-between gap-1">
+                          <span className="truncate font-mono text-[9px] uppercase text-t-lo">{f.feature_type}</span>
+                          <span className="font-mono text-[10px] font-semibold text-primary-500">{fmt(impPct(f), 0)}%</span>
+                        </div>
+                      </div>
+                    )
+                  })}
+                  {ranked.length > 12 && (
+                    <div className="flex items-center rounded-button border border-dashed border-border px-2.5 py-2">
+                      <span className="font-mono text-[10px] text-t-lo">+{ranked.length - 12} more in the ranked list</span>
                     </div>
-                    <div className="sm:col-span-5">
-                      <LiveBar value={imp} max={100} delay={i * 0.05} barClassName="bg-gradient-to-r from-accent-violet to-primary-500" />
-                    </div>
-                    <p className="sm:col-span-2 font-mono text-sm text-gray-400">{imp}%</p>
-                    <p className="sm:col-span-1 text-right">
-                      <Check className="w-4 h-4 text-emerald-500/60" />
-                    </p>
-                    {f.description && (
-                      <p className="sm:col-span-12 text-xs text-gray-400 -mt-1">{f.description}</p>
-                    )}
-                  </motion.div>
-                )
-              })}
-            </AnimatePresence>
-          </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </Panel>
+
+        <div className="grid min-h-0 gap-3 xl:col-span-5 xl:grid-rows-2">
+          {/* ── Importance preview ────────────────────────────── */}
+          <Panel title="importance preview" right={<SectionLabel>ranked · {ranked.length}</SectionLabel>}>
+            {ranked.length === 0 ? (
+              <EmptyState title="Nothing to rank" hint="Importance is scored once features exist." />
+            ) : (
+              <div className="space-y-1.5">
+                {ranked.map((f, i) => {
+                  const pct = impPct(f)
+                  const fresh = isNew(f) || isAutoAuthor(f.created_by)
+                  return (
+                    <motion.div
+                      key={f.id}
+                      initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25, delay: Math.min(i, 12) * 0.03 }}
+                      className={clsx(
+                        'rounded-button border border-border bg-panel2 px-2.5 py-1.5',
+                        fresh && 'border-l-2 border-l-accent-emerald',
+                      )}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex min-w-0 items-center gap-1.5">
+                          <span className="shrink-0 font-mono text-[10px] text-t-lo">{String(i + 1).padStart(2, '0')}</span>
+                          <span className="truncate text-xs font-medium text-t-hi">{f.name}</span>
+                          <span className="shrink-0 rounded-full border border-border bg-panel3 px-1.5 py-px font-mono text-[9px] uppercase text-t-lo">
+                            {f.feature_type || 'custom'}
+                          </span>
+                        </div>
+                        <span className="shrink-0 font-mono text-xs font-semibold text-primary-500">{fmt(pct, 1)}%</span>
+                      </div>
+                      <div className="mt-1.5 flex items-center gap-2">
+                        <Bar value={pct} tone="primary" className="flex-1" />
+                        <span className="shrink-0 font-mono text-[9px] text-t-lo" title={f.id}>{shortId(f.id)}</span>
+                      </div>
+                    </motion.div>
+                  )
+                })}
+              </div>
+            )}
+          </Panel>
+
+          {/* ── Correlation explorer ─────────────────────────── */}
+          <Panel
+            title="correlation explorer"
+            right={<SectionLabel>{series.length}×{series.length} pearson</SectionLabel>}
+          >
+            {preview.loading && <LoadingState label="Profiling preview columns…" />}
+            {!preview.loading && series.length < 2 && (
+              <EmptyState
+                title="Not enough numeric columns"
+                hint="The correlation explorer needs at least two numeric preview columns with real variance. Re-run feature engineering or import a wider dataset."
+              />
+            )}
+            {series.length >= 2 && (
+              <div className="flex flex-col gap-2">
+                <div className="overflow-auto">
+                  <div
+                    className="grid gap-1"
+                    style={{ gridTemplateColumns: `minmax(64px, 88px) repeat(${series.length}, minmax(15px, 1fr))` }}
+                  >
+                    <div />
+                    {series.map(s => (
+                      <div key={`h-${s.name}`} className="truncate text-center font-mono text-[9px] text-t-lo" title={s.name}>
+                        {shortName(s.name)}
+                      </div>
+                    ))}
+                    {series.map((row, i) => (
+                      <FragmentRow key={row.name} row={row} matrix={corr} all={series} index={i} />
+                    ))}
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="font-mono text-[9px] text-t-lo">|r| 0.0</span>
+                  {[0, 1, 2, 3, 4, 5].map(k => (
+                    <span key={k} className="h-2.5 w-2.5 rounded-[2px]" style={{ background: `rgba(${INK}, ${(0.05 + 0.14 * k).toFixed(2)})` }} />
+                  ))}
+                  <span className="font-mono text-[9px] text-t-lo">1.0</span>
+                  <span className="ml-auto font-mono text-[9px] text-t-lo">
+                    {Math.min(series[0]?.values.length ?? 0, MAX_ROWS)} sampled rows · diagonal = self
+                  </span>
+                </div>
+              </div>
+            )}
+          </Panel>
         </div>
-      </Reveal>
+      </div>
 
-      {done && (
+      <div className="shrink-0">
+        <StoryFlow
+          stageKey="feature_engineering"
+          activeKey={busy ? 'processed' : ran ? 'produced' : featureList.length ? 'produced' : 'entered'}
+        />
+      </div>
+
+      {ran && featureList.length > 0 && datasetId && (
         <AutoNext
           to={`/prediction/${datasetId}`}
-          label="Feature set locked — entering the Prediction Engine"
+          label="Features engineered — running the prediction engine"
         />
       )}
-      <span onClick={() => setActive(datasetId)} className="hidden" />
-      {features.length === 0 && <span className="hidden">{fmt(0)}</span>}
-      </div>
     </div>
+  )
+}
+
+/** One correlation row: label + n cells. Diagonal is a recessed well. */
+function FragmentRow({
+  row, matrix, all, index,
+}: {
+  row: Series
+  matrix: (number | null)[][]
+  all: Series[]
+  index: number
+}) {
+  return (
+    <>
+      <div className="truncate font-mono text-[9px] text-t-lo" title={row.name}>{shortName(row.name)}</div>
+      {all.map((col, j) => {
+        const r = matrix[index]?.[j] ?? null
+        const self = index === j
+        return (
+          <div
+            key={`${row.name}-${col.name}`}
+            title={`${row.name} ↔ ${col.name}  r=${r === null ? 'n/a' : (r >= 0 ? '+' : '') + r.toFixed(2)}`}
+            className={clsx('aspect-square rounded-[2px]', self && 'bg-panel3')}
+            style={self ? undefined : { background: cellBg(r) }}
+          />
+        )
+      })}
+    </>
   )
 }
 

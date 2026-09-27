@@ -1,139 +1,398 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from '@tanstack/react-router'
 import { motion } from 'framer-motion'
-import { GitBranch, Sparkles } from 'lucide-react'
-import { explanations, models } from '../lib/api'
-import { useApi } from '../lib/hooks'
-import { useRouteParams, fmt, ErrorBox } from '../lib/pagekit'
-import { useJourney } from '../lib/journey'
-import { StageBanner, Particles, Reveal, LiveBar, FlowStat, AutoNext, DoneChip, Button } from '../lib/kit'
+import { ArrowRight, GitBranch, Sparkles, XCircle } from 'lucide-react'
 import clsx from 'clsx'
+import { explanations, models, predictions, type ExplainResult, type GlobalExplain } from '../lib/api'
+import { useApi } from '../lib/hooks'
+import { ErrorBox, fmt, n, useRouteParams } from '../lib/pagekit'
+import { useJourney } from '../lib/journey'
+import { AutoNext, Button, DoneChip } from '../lib/kit'
+import {
+  Bar,
+  EmptyState,
+  LoadingState,
+  MetricPill,
+  Panel,
+  SectionLabel,
+  StageHeader,
+  Stat,
+  StatusChip,
+  StoryFlow,
+} from '../lib/stagekit'
+import { beatForStage, storyForStage } from '../lib/story'
+
+/* ── Stage identity ─────────────────────────────────────────────── */
+const STAGE = 'shap'
+const BEAT = beatForStage(STAGE)
+const STORY = storyForStage(STAGE)
+
+type Method = 'tree' | 'kernel'
+const METHODS: Method[] = ['tree', 'kernel']
+const EASE = [0.16, 1, 0.3, 1] as [number, number, number, number]
+
+/* The client types global_importance as a number[] parallel to feature_names,
+   but the backend publishes {feature: mean |SHAP|} (plus expected_value and the
+   explainer method). Accept both shapes and normalize to rows. */
+type GlobalView = GlobalExplain & { expected_value?: number | null; method?: string | null }
+
+interface GlobalRow {
+  name: string
+  value: number
+}
+
+interface LocalRow {
+  name: string
+  shap: number
+  inputValue: number | null
+}
+
+function globalRows(g: GlobalView | null): GlobalRow[] {
+  if (!g) return []
+  const names = Array.isArray(g.feature_names) ? g.feature_names.filter(Boolean) : []
+  const gi = g.global_importance as unknown
+  if (Array.isArray(gi)) {
+    return names.map((name, i) => ({ name, value: n(gi[i]) ?? 0 }))
+  }
+  if (gi && typeof gi === 'object') {
+    const rec = gi as Record<string, unknown>
+    const byName: GlobalRow[] = []
+    for (const name of names) {
+      const v = n(rec[name])
+      if (v !== null) byName.push({ name, value: v })
+    }
+    if (names.length > 0 && byName.length === names.length) return byName
+    return Object.entries(rec)
+      .filter(([k, v]) => !k.startsWith('__') && n(v) !== null)
+      .map(([k, v]) => ({ name: k, value: n(v) as number }))
+  }
+  return []
+}
+
+function localRows(r: ExplainResult | null): LocalRow[] {
+  if (!r) return []
+  const top = Array.isArray(r.top_features) ? r.top_features : []
+  if (top.length) {
+    return top.map(t => ({ name: t.feature, shap: n(t.shap_value) ?? 0, inputValue: n(t.value) }))
+  }
+  const ex = r.explanation
+  const names = Array.isArray(ex?.feature_names) ? ex.feature_names : []
+  const vals = Array.isArray(ex?.shap_values) ? ex.shap_values : []
+  return names
+    .map((name, i) => ({ name, shap: n(vals[i]) ?? 0, inputValue: null }))
+    .sort((a, b) => Math.abs(b.shap) - Math.abs(a.shap))
+}
+
+/** stability_index is published on a 0–100 scale (same as the trust gate). */
+function stabilityMeta(v: number | null): { status: 'ok' | 'warn' | 'idle'; label: string; accent: 'emerald' | 'amber' } {
+  if (v === null) return { status: 'idle', label: 'not computed', accent: 'amber' }
+  if (v >= 75) return { status: 'ok', label: 'stable', accent: 'emerald' }
+  if (v >= 50) return { status: 'warn', label: 'settling', accent: 'amber' }
+  return { status: 'warn', label: 'noisy', accent: 'amber' }
+}
 
 export function SHAPExplainabilityPage() {
-  const { modelId } = useRouteParams()
+  const params = useRouteParams()
+  const routeModel = params.modelId
+  const navigate = useNavigate()
   const { datasetId, runId, setActive, markCompleted } = useJourney()
-  const placeholder = !modelId || modelId === '$modelId' || modelId === 'auto'
-  const [resolved, setResolved] = useState<string | null>(placeholder ? null : modelId)
 
-  const res = useApi<any>(async () => {
+  const placeholder = !routeModel || routeModel === '$modelId' || routeModel === 'auto'
+  const [resolved, setResolved] = useState<string | null>(placeholder ? null : routeModel)
+  const [method, setMethod] = useState<Method>('tree')
+
+  /* ── Global importance (GET /explanations/{model}/global) ──────── */
+  const globalRes = useApi<GlobalView | null>(async () => {
     let id = resolved
     if (!id) {
-      const ml = await models.list() as any
-      const mine = (ml?.models || []).filter((m: any) => m.id && (!datasetId || !m.dataset_id || m.dataset_id === datasetId))
+      const ml = await models.list()
+      const mine = (ml.models || []).filter(m => m.id && (!datasetId || !m.dataset_id || m.dataset_id === datasetId))
       if (!mine.length) return null
       id = mine[0].id
-      setResolved(id as string)
+      setResolved(id)
     }
-    return explanations.global(id as string, 15)
+    return (await explanations.global(id, 15)) as GlobalView
   }, [resolved, datasetId])
 
-  const noModel = placeholder && !resolved && !res.loading && !res.data
-  const g = res.data as any
-  const [revealed, setRevealed] = useState(0)
-  const [done, setDone] = useState(false)
+  const g = globalRes.data
+  const rows = useMemo<GlobalRow[]>(() => globalRows(g), [g])
+  const maxImp = useMemo(() => Math.max(1e-9, ...rows.map(r => Math.abs(r.value))), [rows])
 
+  /* ── Latest prediction id (needed for a local explanation) ─────── */
+  const predRes = useApi<string | null>(async () => {
+    if (!resolved) return null
+    // the client types this payload as chart points; the wire rows carry `id`.
+    const payload = await predictions.list(resolved) as any
+    const list: { id?: string }[] = Array.isArray(payload?.predictions) ? payload.predictions : []
+    return list[0]?.id ?? null
+  }, [resolved])
+  const predictionId = predRes.data ?? null
+
+  /* ── Local explanation (POST /explanations/{prediction}/explain) ─ */
+  const localRes = useApi<ExplainResult | null>(
+    () => (predictionId ? explanations.explain(predictionId, { method }) : Promise.resolve(null)),
+    [predictionId, method],
+  )
+  const local = localRes.data
+  const localR = useMemo<LocalRow[]>(() => localRows(local), [local])
+  const maxShap = useMemo(() => Math.max(1e-9, ...localR.map(r => Math.abs(r.shap))), [localR])
+
+  const stab = n(g?.stability_index)
+  const stabMeta = stabilityMeta(stab)
+  const baseValue = n(g?.base_value)
+  const expectedValue = n(g?.expected_value)
+  const computeMs = n(g?.computation_time_ms)
+
+  const busy = globalRes.loading || predRes.loading || localRes.loading
+  const hasGlobal = rows.length > 0
+  const awaiting = !g && !globalRes.loading && !globalRes.error
+  const noModel = awaiting && !resolved
+
+  /* A landed global explanation means the stage is done. */
   useEffect(() => {
-    if (g && g.feature_names?.length) {
-      let i = 0
-      const t = setInterval(() => {
-        i += 1
-        setRevealed(i)
-        if (i >= g.feature_names.length) { clearInterval(t); setTimeout(() => { setDone(true); markCompleted('shap') }, 1200) }
-      }, 220)
-      return () => clearInterval(t)
-    }
-  }, [g])
+    if (!hasGlobal) return
+    markCompleted(STAGE)
+    setActive(datasetId ?? undefined, runId ?? undefined, resolved ?? undefined)
+  }, [hasGlobal, datasetId, runId, resolved, markCompleted, setActive])
 
-  const names = (g?.feature_names || []) as string[]
-  const impObj = (g?.global_importance || {}) as Record<string, number>
-  const stability = (g?.stability_index ?? 0) as number
+  const activeKey = busy ? 'processed' : hasGlobal ? 'produced' : 'entered'
 
-  const rows = useMemo(() => names
-    .map((n) => ({ name: n, v: Number(impObj[n] || 0) }))
-    .sort((a, b) => Math.abs(b.v) - Math.abs(a.v)), [names, impObj])
-  const max = Math.max(0.0001, ...rows.map(r => Math.abs(r.v)))
+  /* ── Header controls ───────────────────────────────────────────── */
+  const methodPicker = (
+    <div className="inline-flex rounded-button border border-border bg-panel-2 p-0.5">
+      {METHODS.map(m => (
+        <button
+          key={m}
+          type="button"
+          disabled={localRes.loading}
+          onClick={() => setMethod(m)}
+          title={`Local explainer method — ${m}`}
+          className={clsx(
+            'rounded-button px-2.5 py-1 font-mono text-[10px] uppercase tracking-widest transition-colors disabled:opacity-50',
+            method === m ? 'bg-primary-500 text-white' : 'text-t-lo hover:text-t-hi',
+          )}
+        >
+          {m}
+        </button>
+      ))}
+    </div>
+  )
 
   return (
-    <div className="relative flex h-full min-h-0 flex-col overflow-hidden">
-      <div className="min-h-0 flex-1 space-y-6 overflow-y-auto pr-1">
-      <Particles count={16} />
-      <StageBanner
-        chapter="Stage 09 · SHAP Explainability"
-        title="Why the model decided what it decided"
-        tagline="Every prediction decomposes into contributions — nothing is a black box."
-        icon={<GitBranch className="h-6 w-6 text-accent-violet" />}
-        children={!g ? (
-          <Button onClick={res.refetch} disabled={res.loading} size="md" gradient="violet"
-            className="h-11 px-6">
-            <Sparkles className={`w-4 h-4 ${res.loading ? 'animate-spin' : ''}`} /> Compute global SHAP
-          </Button>
-        ) : <DoneChip text="Explanations ready" />}
+    <div className="flex min-h-0 flex-col gap-3 px-4 py-4">
+      <StageHeader
+        beat={BEAT.beat}
+        chapter={BEAT.chapter}
+        title="Contribution explorer"
+        tagline={`${BEAT.title} — ${STORY.happened}`}
+        icon={<GitBranch className="h-5 w-5 text-accent-violet" />}
+        right={
+          <>
+            {g ? <DoneChip text="Explanations ready" /> : <StatusChip status="idle">not computed</StatusChip>}
+            {methodPicker}
+          </>
+        }
       />
 
-      {res.error && <ErrorBox message={res.error} onRetry={res.refetch} />}
+      {globalRes.error && <ErrorBox message={globalRes.error} onRetry={globalRes.refetch} />}
+      {localRes.error && (
+        <div className="flex items-center gap-2 rounded-card border border-rose-500/30 bg-rose-500/[0.05] px-3.5 py-2.5 text-xs text-rose-600">
+          <XCircle className="h-4 w-4 shrink-0" />
+          <span className="min-w-0 flex-1 truncate">local explanation failed — {localRes.error}</span>
+          <Button size="xs" variant="outline" onClick={() => void localRes.refetch()} loading={localRes.loading}>Retry</Button>
+        </div>
+      )}
+
+      {globalRes.loading && !g && <LoadingState label="Computing global SHAP…" />}
+
+      {noModel && (
+        <EmptyState
+          title="No trained model to explain"
+          hint="Global SHAP decomposes a trained model. Train one in the Prediction Engine, then attributions appear here."
+          action={
+            <Button
+              size="md"
+              onClick={() => navigate({ to: datasetId ? `/prediction/${datasetId}` : '/library' })}
+            >
+              Open prediction engine <ArrowRight className="h-4 w-4" />
+            </Button>
+          }
+        />
+      )}
+
+      {awaiting && !noModel && !globalRes.error && (
+        <EmptyState
+          title="No explanation stored for this model yet"
+          hint={`${STORY.produced}. ${STORY.next}`}
+          action={<Button size="md" onClick={() => void globalRes.refetch()} loading={globalRes.loading}><Sparkles className="h-4 w-4" /> Compute global SHAP</Button>}
+        />
+      )}
 
       {g && (
         <>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <FlowStat label="Features" value={names.length} accent hint="ranked by |SHAP|" />
-            <FlowStat label="SHAP Stability" value={stability * 100} decimals={1} suffix="%" hint="repeatability across samples" />
-            <FlowStat label="Base value" value={g.base_value ?? 0} decimals={2} />
-            <FlowStat label="Expected value" value={g.expected_value ?? 0} decimals={2} />
+          {/* 1 · headline numbers */}
+          <div className="grid shrink-0 grid-cols-2 gap-3 lg:grid-cols-4">
+            <div className="rounded-button border border-border bg-panel px-3.5 py-2.5">
+              <SectionLabel>Stability index</SectionLabel>
+              <div className="mt-1 flex items-baseline justify-between gap-2">
+                <span className={clsx('font-mono text-base font-semibold', stabMeta.accent === 'emerald' ? 'text-emerald-600' : 'text-t-hi')}>
+                  {stab === null ? '—' : `${fmt(stab, 1)}%`}
+                </span>
+                <StatusChip status={stabMeta.status}>{stabMeta.label}</StatusChip>
+              </div>
+              <div className="mt-0.5 truncate text-[11px] text-t-lo">repeatability of feature attributions</div>
+            </div>
+            <Stat label="Base value" value={baseValue === null ? '—' : fmt(baseValue, 3)} mono hint="explainer origin" accent="primary" />
+            <Stat label="Expected value" value={expectedValue === null ? '—' : fmt(expectedValue, 3)} mono hint="mean model output" accent="cyan" />
+            <Stat label="Computation" value={computeMs === null ? '—' : `${fmt(computeMs, 1)} ms`} mono hint="last global pass" />
           </div>
 
-          <Reveal delay={0.1}>
-            <div className="glass-panel overflow-hidden">
-              <div className="border-b border-white/[0.06] px-5 py-3 text-xs font-mono uppercase tracking-widest text-gray-400">
-                Global feature importance →
-              </div>
-              <div className="space-y-2.5 p-5">
-                {rows.slice(0, revealed).map((r, i) => {
-                  const positive = r.v >= 0
-                  return (
-                    <motion.div key={r.name} initial={{ opacity: 0, x: 24 }} animate={{ opacity: 1, x: 0 }}
-                      transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}>
-                      <div className="mb-1 flex items-center justify-between text-xs">
-                        <span className="font-mono text-gray-300">{r.name}</span>
-                        <span className={clsx('font-mono text-sm', positive ? 'text-accent-emerald' : 'text-accent-rose')}>
-                          {positive ? '+' : ''}{fmt(r.v, 4)}
-                        </span>
-                      </div>
-                      <div className="h-2 w-full overflow-hidden rounded-full bg-white/[0.06]">
-                        <motion.div
-                          initial={{ width: 0 }}
-                          animate={{ width: `${(Math.abs(r.v) / max) * 100}%` }}
-                          transition={{ duration: 0.8, delay: i * 0.05, ease: [0.16, 1, 0.3, 1] }}
-                          className={clsx('h-full rounded-full', positive ? 'bg-gradient-to-r from-emerald-500 to-accent-emerald' : 'bg-gradient-to-r from-rose-500 to-accent-rose')}
-                        />
-                      </div>
-                    </motion.div>
-                  )
-                })}
-                {revealed < rows.length && (
-                  <motion.p animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 1.3, repeat: Infinity }}
-                    className="text-xs font-mono text-primary-400">
-                    decomposing…
-                  </motion.p>
-                )}
-              </div>
-            </div>
-          </Reveal>
+          <div className="flex shrink-0 flex-wrap items-center gap-1.5">
+            <SectionLabel>context</SectionLabel>
+            <MetricPill label="model" value={resolved || '—'} />
+            <MetricPill label="prediction" value={predictionId || '—'} />
+            <MetricPill label="method" value={method} />
+            {g.method && <MetricPill label="global explainer" value={g.method} />}
+          </div>
 
-          {done && (
+          {/* 2 · global importance + 3 · local waterfall */}
+          <div className="grid gap-3 xl:grid-cols-2">
+            <Panel
+              title="Global feature importance"
+              right={
+                <div className="flex shrink-0 items-center gap-2">
+                  <span className="flex items-center gap-1 font-mono text-[10px] text-t-lo">
+                    <span className="h-1.5 w-1.5 rounded-full bg-accent-gold" /> top 5
+                  </span>
+                  <SectionLabel>{rows.length} features · mean |SHAP|</SectionLabel>
+                </div>
+              }
+            >
+              {rows.length === 0 ? (
+                <EmptyState title="No global importance returned" hint="This payload carried no feature contributions." />
+              ) : (
+                <div className="space-y-2.5">
+                  {rows.map((r, i) => (
+                    <div key={r.name} title={`${r.name} · mean |SHAP| ${fmt(r.value, 5)}`}>
+                      <div className="mb-1 flex items-center justify-between gap-3">
+                        <span className="flex min-w-0 items-center gap-1.5">
+                          {i < 5 && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-accent-gold" />}
+                          <span className="truncate font-mono text-xs text-t-mid">{r.name}</span>
+                        </span>
+                        <span className="shrink-0 font-mono text-xs font-semibold text-t-hi">{fmt(r.value, 4)}</span>
+                      </div>
+                      <Bar value={Math.abs(r.value)} max={maxImp} tone="primary" className="bg-panel-3" />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Panel>
+
+            <Panel
+              title="Local explanation · ranked influence"
+              right={
+                <Button size="xs" variant="secondary" onClick={() => void localRes.refetch()} loading={localRes.loading}>
+                  {!localRes.loading && <Sparkles className="h-3.5 w-3.5" />} Recompute
+                </Button>
+              }
+            >
+              {!predictionId && !predRes.loading ? (
+                <EmptyState
+                  title="No prediction recorded for this model"
+                  hint="A local explanation decomposes one stored prediction. Run the Prediction Engine first."
+                  action={
+                    <Button size="sm" variant="secondary" onClick={() => navigate({ to: datasetId ? `/prediction/${datasetId}` : '/library' })}>
+                      Open prediction engine <ArrowRight className="h-3.5 w-3.5" />
+                    </Button>
+                  }
+                />
+              ) : predRes.loading || (localRes.loading && !local) ? (
+                <LoadingState label={`Explaining the latest prediction with the ${method} explainer…`} />
+              ) : localR.length === 0 ? (
+                <EmptyState title="No feature contributions in this explanation" hint="Recompute, or run a fresh prediction to get a decomposable row." />
+              ) : (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <SectionLabel>pushes prediction up →</SectionLabel>
+                    <SectionLabel>← pushes prediction down</SectionLabel>
+                  </div>
+                  {localR.map(r => {
+                    const positive = r.shap >= 0
+                    const width = `${(Math.abs(r.shap) / maxShap) * 50}%`
+                    const signed = `${positive ? '+' : '−'}${fmt(Math.abs(r.shap), 4)}`
+                    const input = r.inputValue === null ? '—' : fmt(r.inputValue, 3)
+                    return (
+                      <div
+                        key={`${method}-${r.name}`}
+                        title={`${r.name} — SHAP ${signed} · input value ${input}`}
+                        className="grid grid-cols-[minmax(0,140px)_minmax(0,1fr)_96px] items-center gap-2.5"
+                      >
+                        <div className="min-w-0 text-right">
+                          <p className="truncate text-xs font-medium text-t-hi">{r.name}</p>
+                          <p className="truncate font-mono text-[10px] text-t-lo">input {input}</p>
+                        </div>
+                        <div className="relative h-2.5 overflow-hidden rounded-button bg-panel-3">
+                          <span className="absolute left-1/2 top-0 h-full w-px -translate-x-1/2 bg-border" />
+                          <motion.div
+                            className={clsx(
+                              'absolute top-0 h-full',
+                              positive ? 'left-1/2 rounded-r-full bg-emerald-500' : 'right-1/2 rounded-l-full bg-rose-500',
+                            )}
+                            initial={{ width: '0%' }}
+                            animate={{ width }}
+                            transition={{ duration: 0.5, ease: EASE }}
+                          />
+                        </div>
+                        <div className="flex items-center justify-end gap-1.5">
+                          <span className={clsx('font-mono text-xs font-semibold', positive ? 'text-emerald-600' : 'text-rose-600')}>
+                            {signed}
+                          </span>
+                          <span
+                            className={clsx(
+                              'rounded-full border px-1.5 py-0.5 font-mono text-[10px] leading-none',
+                              positive
+                                ? 'border-emerald-500/30 bg-emerald-500/[0.06] text-emerald-600'
+                                : 'border-rose-500/30 bg-rose-500/[0.06] text-rose-600',
+                            )}
+                          >
+                            {positive ? '+' : '−'}
+                          </span>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </Panel>
+          </div>
+
+          {/* 4 · narrative */}
+          <Panel
+            title="Narrative"
+            right={<SectionLabel>local · {method}</SectionLabel>}
+          >
+            {localRes.loading && !local ? (
+              <LoadingState label="Writing the explanation narrative…" />
+            ) : local?.narrative ? (
+              <p className="text-sm leading-relaxed text-t-mid">{local.narrative}</p>
+            ) : (
+              <EmptyState
+                title="No narrative available"
+                hint="The narrative is written when a local explanation is computed for a stored prediction."
+              />
+            )}
+          </Panel>
+
+          <StoryFlow stageKey={STAGE} activeKey={activeKey} />
+
+          {hasGlobal && !predRes.loading && !localRes.loading && (
             <AutoNext
               to={datasetId ? `/anomalies/${datasetId}` : '/library'}
-              label="Why-tree explained — scanning the timeline for anomalies"
+              label="Explanations ready — screening for anomalies"
             />
           )}
         </>
       )}
-
-      {noModel && (
-        <p className="py-10 text-center text-sm text-gray-400">
-          No trained model found. Train one in the <span className="text-gray-200">Prediction Engine</span> stage, then compute global SHAP here.
-        </p>
-      )}
-      <span onClick={() => { markCompleted('shap'); setActive(datasetId, runId, resolved || modelId) }} className="hidden" />
-      </div>
     </div>
   )
 }

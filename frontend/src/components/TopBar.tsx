@@ -144,7 +144,7 @@ export function TopBar() {
         </button>
         <div className="flex items-center gap-2">
           <div className={clsx('relative flex h-8 w-8 items-center justify-center rounded-glass border',
-            stage ? 'border-primary-500/40 bg-primary-500/10 shadow-[0_0_14px_rgba(76,95,213,0.35)]' : 'border-white/[0.06] bg-white/[0.03]')}>
+            stage ? 'border-primary-500/40 bg-primary-500/10' : 'border-white/[0.06] bg-white/[0.03]')}>
             {stage ? (
               <span className="font-mono text-xs font-bold text-primary-300">{stage.index}</span>
             ) : (
@@ -164,9 +164,9 @@ export function TopBar() {
         {stage && (
           <div className="flex items-center gap-1">
             {WORKFLOW.filter(s => s.index < stage.index && openStageStatuses[s.key] === 'done').map(s => (
-              <span key={s.key} className="h-1 w-4 rounded-full bg-accent-emerald/70 shadow-[0_0_6px_rgba(74,194,154,0.5)]" />
+              <span key={s.key} className="h-1 w-4 rounded-full bg-accent-emerald/70" />
             ))}
-            <span className="h-1 w-4 animate-pulse rounded-full bg-primary-400 shadow-[0_0_8px_rgba(76,95,213,0.6)]" />
+            <span className="h-1 w-4 animate-pulse rounded-full bg-primary-400" />
             <span className="h-1 w-4 rounded-full bg-white/[0.08]" />
           </div>
         )}
@@ -234,21 +234,23 @@ export function TopBar() {
           {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
         </button>
 
-        {/* execution mode — sits beside dark mode, the only place it lives */}
-        <div className="hidden items-center gap-0.5 rounded-full border border-white/[0.08] bg-white/[0.03] p-0.5 md:flex">
+        {/* execution mode — Smart runs the whole journey, Guided pauses for review */}
+        <div className="hidden items-center gap-0.5 rounded-full border border-border bg-panel p-0.5 md:flex">
           <button
             onClick={() => useJourney.getState().setMode('auto')}
+            title="Smart — run the whole workflow automatically"
             className={clsx('inline-flex items-center gap-1 rounded-full px-2.5 py-1 font-mono text-[11px] font-semibold uppercase tracking-widest transition-all',
-              mode === 'auto' ? 'bg-gradient-to-r from-primary-500 to-accent-cyan text-white shadow-[0_0_10px_rgba(76,95,213,0.45)]' : 'text-gray-400 hover:text-gray-200')}
+              mode === 'auto' ? 'bg-primary-500 text-white' : 'text-t-lo hover:text-t-mid')}
           >
-            <Zap className="h-3 w-3" /> auto
+            <Zap className="h-3 w-3" /> smart
           </button>
           <button
             onClick={() => useJourney.getState().setMode('manual')}
+            title="Guided — pause at each stage for review, continue when you decide"
             className={clsx('inline-flex items-center gap-1 rounded-full px-2.5 py-1 font-mono text-[11px] font-semibold uppercase tracking-widest transition-all',
-              mode === 'manual' ? 'bg-gradient-to-r from-accent-amber to-primary-500 text-white shadow-[0_0_10px_rgba(216,166,72,0.45)]' : 'text-gray-400 hover:text-gray-200')}
+              mode === 'manual' ? 'bg-accent-amber text-white' : 'text-t-lo hover:text-t-mid')}
           >
-            <Footprints className="h-3 w-3" /> step
+            <Footprints className="h-3 w-3" /> guided
           </button>
         </div>
 
@@ -261,7 +263,7 @@ export function TopBar() {
           >
             <Bell className="w-4 h-4" />
             {unseenCount > 0 && (
-              <span className="absolute -right-0.5 -top-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-primary-500 text-[8px] font-bold text-white shadow-[0_0_8px_rgba(76,95,213,0.6)]">
+              <span className="absolute -right-0.5 -top-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-primary-500 text-[8px] font-bold text-white">
                 {unseenCount}
               </span>
             )}

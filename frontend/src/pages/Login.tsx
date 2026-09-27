@@ -70,7 +70,7 @@ export function LoginPage() {
         initial={{ opacity: 0, y: 18 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, ease: 'easeOut' }}
-        className="relative grid w-full max-w-5xl overflow-hidden rounded-glass border border-white/[0.08] bg-white/[0.03] shadow-[0_0_80px_rgba(76,95,213,0.18)] backdrop-blur-xl lg:grid-cols-[1.05fr_1fr]"
+        className="relative grid w-full max-w-5xl overflow-hidden rounded-glass border border-white/[0.08] bg-white/[0.03] shadow-[0_8px_24px_rgba(20,28,48,0.12)] backdrop-blur-xl lg:grid-cols-[1.05fr_1fr]"
       >
         {/* left brand panel */}
         <div className="relative hidden flex-col justify-between gap-8 overflow-hidden border-r border-white/[0.06] p-10 lg:flex">
@@ -207,7 +207,7 @@ export function LoginPage() {
               type="submit"
               loading={busy}
               disabled={busy}
-              className="phys-key w-full rounded-button bg-gradient-to-r from-primary-500 to-accent-cyan py-2.5 text-sm font-semibold text-white shadow-[0_0_24px_rgba(76,95,213,0.35)] transition-all hover:shadow-[0_0_38px_rgba(76,95,213,0.6)] disabled:opacity-60"
+              className="phys-key w-full rounded-button bg-primary-500 py-2.5 text-sm font-semibold text-white transition-all hover:brightness-110 disabled:opacity-60"
             >
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogIn className="h-4 w-4" />}
               {busy ? 'Signing in…' : 'Enter mission control'}

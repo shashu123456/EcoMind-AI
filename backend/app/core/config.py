@@ -1,8 +1,10 @@
 from pathlib import Path
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_prefix="ECOMIND_", env_file=".env")
+
     app_name: str = "EcoMind AI"
     port: int = 8000
     secret_key: str = "eco-mind-dev-secret-change-me"

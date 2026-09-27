@@ -96,7 +96,7 @@ export function LibraryPage() {
           <button
             onClick={() => fileRef.current?.click()}
             disabled={uploading}
-            className="inline-flex items-center justify-center gap-2 rounded-button bg-gradient-to-r from-primary-500 to-accent-cyan px-5 py-2.5 text-sm font-semibold text-white shadow-[0_0_18px_rgba(76,95,213,0.3)] transition-all hover:shadow-[0_0_28px_rgba(76,95,213,0.5)] disabled:opacity-60"
+            className="inline-flex items-center justify-center gap-2 rounded-button bg-primary-500 px-5 py-2.5 text-sm font-semibold text-white transition-all hover:brightness-110 disabled:opacity-60"
           >
             {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
             {uploading ? 'Streaming into library…' : 'Upload CSV / XLSX'}

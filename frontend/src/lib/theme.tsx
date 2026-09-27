@@ -16,7 +16,7 @@ function initialTheme(): Theme {
     const stored = localStorage.getItem(THEME_KEY)
     if (stored === 'light' || stored === 'dark') return stored
   } catch { /* storage unavailable */ }
-  return 'dark'
+  return 'light'
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {

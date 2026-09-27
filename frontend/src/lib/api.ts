@@ -331,6 +331,7 @@ export interface RecEvidence {
 
 export interface Rec {
   id: string
+  dataset_id?: string
   category: string
   title: string
   description: string
@@ -339,7 +340,9 @@ export interface Rec {
   estimated_savings_percent: number
   confidence: number
   status: string
+  implementation_difficulty?: string
   supporting_evidence: RecEvidence
+  created_at?: string | null
 }
 
 export interface RecList {

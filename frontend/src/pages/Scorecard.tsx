@@ -25,7 +25,7 @@ export default function Scorecard() {
           <p className="font-display text-6xl font-bold tracking-tight text-gray-50">
             <AnimatedNumber value={STAGE_SCORE_OVERALL.score} decimals={1} suffix="/10" />
           </p>
-          <LiveBar value={STAGE_SCORE_OVERALL.score * 10} className="max-w-[180px]" barClassName="bg-gradient-to-r from-primary-500 to-accent-cyan" />
+          <LiveBar value={STAGE_SCORE_OVERALL.score * 10} className="max-w-[180px]" barClassName="bg-primary-500" />
           <p className="mt-2 text-center text-xs leading-5 text-gray-500">{STAGE_SCORE_OVERALL.strong}</p>
         </div>
         <div className="glass-panel flex flex-col items-center justify-center gap-2 p-6 text-center">
@@ -54,10 +54,10 @@ export default function Scorecard() {
               </span>
             </div>
             <LiveBar value={r.score * 10} barClassName={r.score >= 9
-              ? 'bg-gradient-to-r from-accent-emerald to-accent-cyan'
+              ? 'bg-accent-emerald'
               : r.score >= 8
-                ? 'bg-gradient-to-r from-accent-amber to-accent-emerald'
-                : 'bg-gradient-to-r from-accent-rose to-accent-amber'} />
+                ? 'bg-accent-amber'
+                : 'bg-accent-rose'} />
             <p className="rounded-card border border-white/[0.06] bg-black/40 px-3 py-2 font-mono text-[11px] leading-4 text-primary-200/90">
               <span className="text-gray-600">say this · </span>{r.strong}
             </p>
@@ -69,7 +69,7 @@ export default function Scorecard() {
         <p className="text-sm text-gray-400">
           Walk the whole pipeline in one sitting — every stage is interactive and backed by real data.
         </p>
-        <Link to="/dashboard" className="inline-flex items-center gap-2 rounded-button bg-gradient-to-r from-primary-500 to-accent-cyan px-4 py-2 text-sm font-bold uppercase tracking-wider text-white shadow-[0_0_24px_rgba(76,95,213,0.4)] transition-all hover:shadow-[0_0_36px_rgba(76,95,213,0.6)]">
+        <Link to="/dashboard" className="inline-flex items-center gap-2 rounded-button bg-primary-500 px-4 py-2 text-sm font-bold uppercase tracking-wider text-white transition-all hover:brightness-110">
           open the demo
         </Link>
       </div>

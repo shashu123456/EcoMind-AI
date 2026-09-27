@@ -12,6 +12,7 @@ import { WORKFLOW, useJourney, stagePath, MILESTONES, milestoneProgress, progres
 import type { WorkflowStage } from '../lib/journey'
 import { soundEnabled, setSoundEnabled } from '../lib/sound'
 import { B } from '../lib/kit'
+import { beatForStage } from '../lib/story'
 
 export const STAGE_ICONS: Record<string, React.ComponentType<any>> = {
   library: Database, import: Upload, schema_discovery: ScanSearch,
@@ -66,36 +67,10 @@ export function ProcessRail() {
   const navigate = useNavigate()
   const { datasetId, runId, modelId, stageStatuses } = useJourney()
   const [collapsed, setCollapsed] = useState(false)
-  const [railW, setRailW] = useState(320)
-  const [dragging, setDragging] = useState(false)
 
   useEffect(() => {
     try { localStorage.setItem('ecomind_rail', collapsed ? 'off' : 'on') } catch { /* ignore */ }
   }, [collapsed])
-
-  useEffect(() => {
-    try {
-      const saved = Number(localStorage.getItem('ecomind_rail_w') || 320)
-      setRailW(Math.max(248, Math.min(400, saved)))
-    } catch { /* ignore */ }
-  }, [])
-
-  useEffect(() => {
-    try { localStorage.setItem('ecomind_rail_w', String(railW)) } catch { /* ignore */ }
-  }, [railW])
-
-  const onResizeStart = (e: React.PointerEvent) => {
-    e.preventDefault()
-    setDragging(true)
-    const move = (ev: PointerEvent) => setRailW(Math.max(248, Math.min(400, ev.clientX)))
-    const up = () => {
-      setDragging(false)
-      window.removeEventListener('pointermove', move)
-      window.removeEventListener('pointerup', up)
-    }
-    window.addEventListener('pointermove', move)
-    window.addEventListener('pointerup', up)
-  }
 
   const routeKey = routeKeyFor(location.pathname)
   const doneCount = progressStats(stageStatuses).done
@@ -150,7 +125,7 @@ export function ProcessRail() {
               ? 'border-white/[0.06] bg-white/[0.02] text-gray-600'
               : 'border-white/[0.10] bg-white/[0.03]',
         )}
-        style={active && !done ? { borderColor: `${color}99`, background: `${color}1f`, boxShadow: `0 0 16px ${color}44`, color } : undefined}
+        style={active && !done ? { borderColor: `${color}99`, background: `${color}1f`, color } : undefined}
       >
         {done ? <Check className="h-3.5 w-3.5" strokeWidth={3} /> : active ? <Icon className="h-3.5 w-3.5" style={{ color }} /> : locked ? <Lock className="h-3 w-3" /> : <span>{stage.index}</span>}
         {active && !done && <span className="absolute -inset-px rounded-lg" style={{ border: `1px solid ${color}55` }} />}
@@ -170,13 +145,13 @@ export function ProcessRail() {
                 ? 'border-transparent hover:bg-white/[0.04]'
                 : 'border-transparent opacity-60',
         )}
-        style={active ? { borderColor: `${color}44`, boxShadow: `0 4px 20px ${color}18` } : undefined}
+        style={active ? { borderColor: `${color}44` } : undefined}
         onClick={() => nozzle(key)}
       >
         {/* phase-colour accent bar */}
         <span
           className="absolute bottom-2 left-0 top-2 w-[3px] rounded-full"
-          style={{ background: color, opacity: done ? 0.9 : ready ? 0.7 : 0.25, boxShadow: active ? `0 0 8px ${color}66` : undefined }}
+          style={{ background: color, opacity: done ? 0.9 : ready ? 0.7 : 0.25 }}
         />
         <span className="flex items-center gap-2">
           {bubble}
@@ -192,7 +167,7 @@ export function ProcessRail() {
             </span>
           </span>
           {!done && (
-            <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: color, boxShadow: active ? `0 0 8px ${color}88` : undefined, opacity: locked ? 0.3 : 1 }} />
+            <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: color, opacity: locked ? 0.3 : 1 }} />
           )}
         </span>
         <span className="mt-1 flex flex-wrap items-center gap-x-1 font-mono text-[9.5px] leading-none tracking-tight text-gray-500">
@@ -234,8 +209,7 @@ export function ProcessRail() {
   /* collapsed slim rail: a labelled icon stack, not plain dots */
   if (collapsed) {
     return (
-      <nav className="flex w-14 shrink-0 flex-col items-center gap-1 overflow-y-auto border-r border-white/[0.06] bg-surface/40 py-3 backdrop-blur-sm">
-        <div className="h-[3px] w-full shrink-0 bg-gradient-to-r from-sky-400 via-accent-cyan to-accent-emerald opacity-80" />
+      <nav className="flex w-14 shrink-0 flex-col items-center gap-1 overflow-y-auto border-r border-border bg-panel/60 py-3 backdrop-blur-sm">
         <button
           onClick={() => setCollapsed(false)}
           title="Expand pipeline"
@@ -262,7 +236,6 @@ export function ProcessRail() {
               style={{
                 borderColor: active || done ? `${color}66` : 'rgba(255,255,255,0.08)',
                 background: active ? `${color}22` : done ? `${color}1a` : 'rgba(255,255,255,0.03)',
-                boxShadow: active && !done ? `0 0 16px ${color}44` : undefined,
               }}
             >
               {done
@@ -292,41 +265,21 @@ export function ProcessRail() {
   }
 
   return (
-    <nav className={clsx('relative flex shrink-0 flex-col border-r border-white/[0.06] bg-surface/40 backdrop-blur-sm', dragging ? 'transition-none' : 'transition-[width] duration-100')}
-      style={{ width: collapsed ? 48 : railW }}>
-      {/* aurora signature strip */}
-      <div className="h-[3px] w-full bg-gradient-to-r from-sky-400 via-accent-cyan to-accent-emerald opacity-80" />
-      {/* resize handle */}
-      {!collapsed && (
-        <div
-          role="slider"
-          aria-label="Resize pipeline rail"
-          aria-orientation="vertical"
-          aria-valuemin={248}
-          aria-valuemax={400}
-          aria-valuenow={railW}
-          onPointerDown={onResizeStart}
-          className={clsx('absolute -right-[3px] top-0 z-20 h-full w-[7px] cursor-col-resize touch-none',
-            'group flex items-center justify-center',
-            dragging ? 'bg-primary-500/40' : 'hover:bg-primary-500/20')}
-        >
-          <span className={clsx('h-10 w-[3px] rounded-full transition-colors', dragging ? 'bg-primary-400' : 'bg-white/[0.14] group-hover:bg-primary-400/70')} />
-        </div>
-      )}
+    <nav className="relative flex w-[272px] shrink-0 flex-col border-r border-border bg-panel/60 backdrop-blur-sm">
       {/* rail header */}
-      <div className="flex items-center justify-between gap-2 border-b border-white/[0.06] px-3 py-3">
+      <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-3">
         <div className="min-w-0">
-          <p className="font-mono text-[9px] uppercase tracking-[0.24em] text-gray-500">pipeline</p>
-          <p className="font-display text-sm font-semibold text-gray-100">Mission flow</p>
+          <p className="font-mono text-[9px] uppercase tracking-[0.24em] text-t-lo">workflow story</p>
+          <p className="text-sm font-semibold text-t-hi">Mission flow</p>
         </div>
         <div className="flex items-center gap-1">
-          <span className="rounded-full border border-white/[0.08] bg-white/[0.03] px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-widest text-primary-400">
+          <span className="rounded-full border border-border bg-panel px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-widest text-primary-500">
             {doneCount}/{PIPELINE_TOTAL}
           </span>
           <button
             onClick={() => setCollapsed(true)}
-            title="Collapse pipeline"
-            className="rounded-button p-1.5 text-gray-400 transition-colors hover:bg-white/[0.06] hover:text-gray-200"
+            title="Collapse story"
+            className="rounded-button p-1.5 text-t-lo transition-colors hover:bg-panel2 hover:text-t-hi"
           >
             <PanelLeftClose className="h-4 w-4" />
           </button>
@@ -334,14 +287,14 @@ export function ProcessRail() {
       </div>
 
       {/* overall progress */}
-      <div className="border-b border-white/[0.06] px-3 py-2.5">
-        <div className="flex items-center justify-between font-mono text-[9px] uppercase tracking-widest text-gray-500">
+      <div className="border-b border-border px-3 py-2.5">
+        <div className="flex items-center justify-between font-mono text-[9px] uppercase tracking-widest text-t-lo">
           <span>journey progress</span>
           <span>{Math.round(pct)}%</span>
         </div>
-        <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-white/[0.06]">
+        <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-panel3">
           <motion.div
-            className="h-full rounded-full bg-gradient-to-r from-primary-500 via-accent-cyan to-accent-emerald shadow-[0_0_10px_rgba(76,95,213,0.5)]"
+            className="h-full rounded-full bg-primary-500"
             initial={{ width: 0 }}
             animate={{ width: `${pct}%` }}
             transition={{ duration: 0.9, ease: B }}
@@ -363,21 +316,21 @@ export function ProcessRail() {
                     'flex h-[18px] items-center justify-center rounded-full px-1.5 font-mono text-[9px] font-bold',
                     prog.done === prog.total
                       ? 'bg-accent-emerald/15 text-accent-emerald'
-                      : 'bg-white/[0.05] text-gray-400',
+                      : 'bg-panel2 text-t-lo',
                   )}
-                  style={mActive && prog.done !== prog.total ? { background: `${mColor}1f`, color: mColor, boxShadow: `0 0 10px ${mColor}22` } : undefined}
+                  style={mActive && prog.done !== prog.total ? { background: `${mColor}1f`, color: mColor } : undefined}
                 >
                   {String(mi + 1).padStart(2, '0')}
                 </span>
                 <span
-                  className={clsx('font-mono text-[9.5px] font-semibold uppercase tracking-[0.18em]', mActive ? 'text-gray-100' : 'text-gray-500')}
+                  className={clsx('font-mono text-[9.5px] font-semibold uppercase tracking-[0.18em]', mActive ? 'text-t-hi' : 'text-t-lo')}
                   style={mActive ? { color: mColor } : undefined}
                 >
                   {m.short}
                 </span>
                 <span className="ml-auto font-mono text-[9px] text-gray-600">{prog.done}/{prog.total}</span>
               </div>
-              <div className="rounded-button border border-white/[0.05] bg-white/[0.02] p-2">
+              <div className="rounded-button border border-border bg-panel p-2">
                 {m.stages.map((key, i) => node(WORKFLOW.find(s => s.key === key)!, i, m.stages.length))}
               </div>
               {mi < MILESTONES.length - 1 && (
@@ -392,10 +345,10 @@ export function ProcessRail() {
       </div>
 
       {/* rail footer */}
-      <div className="space-y-1 border-t border-white/[0.06] p-2.5">
+      <div className="space-y-1 border-t border-border p-2.5">
         <Link
           to="/reports"
-          className="flex items-center gap-2 rounded-button border border-white/[0.08] bg-white/[0.03] px-2.5 py-2 text-[11px] font-medium text-gray-300 transition-colors hover:border-accent-rose/40 hover:bg-accent-rose/10 hover:text-accent-rose"
+          className="flex items-center gap-2 rounded-button border border-border bg-panel px-2.5 py-2 text-[11px] font-medium text-t-mid transition-colors hover:border-accent-rose/40 hover:bg-accent-rose/10 hover:text-accent-rose"
         >
           <FileDown className="h-3.5 w-3.5" /> Export audit report
         </Link>
@@ -403,7 +356,7 @@ export function ProcessRail() {
           <Link
             to="/scorecard"
             title="Per-stage examiner ratings"
-            className="flex flex-1 items-center gap-2 rounded-button border border-white/[0.06] px-2.5 py-1.5 text-[11px] text-gray-400 transition-colors hover:bg-white/[0.04] hover:text-gray-200"
+            className="flex flex-1 items-center gap-2 rounded-button border border-border px-2.5 py-1.5 text-[11px] text-t-lo transition-colors hover:bg-panel2 hover:text-t-hi"
           >
             <Award className="h-3.5 w-3.5 text-accent-gold" /> Scorecard
           </Link>

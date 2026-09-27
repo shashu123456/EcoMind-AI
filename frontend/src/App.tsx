@@ -3,7 +3,6 @@ import { Outlet, useLocation, useNavigate } from '@tanstack/react-router'
 import { AnimatePresence, motion } from 'framer-motion'
 import { AppShell } from './components/AppShell'
 import { WORKFLOW, MILESTONES, startWorkflowPolling, useJourney } from './lib/journey'
-import { PageRipple, firePageRipple } from './lib/kit'
 import { ToastPane, toast } from './lib/toast'
 import { playStageDone, playJourneyDone, soundEnabled } from './lib/sound'
 
@@ -41,24 +40,26 @@ export function App() {
     return () => stop()
   }, [])
 
-  useEffect(() => {
-    firePageRipple({ x: window.innerWidth / 2, y: window.innerHeight * 0.35 })
-  }, [location.pathname])
-
   return (
     <AppShell>
-      <PageRipple />
       <ToastPane />
       <AnimatePresence mode="popLayout">
         <motion.div
-          key={location.pathname}
-          initial={{ opacity: 0, scale: 0.985 }}
-          animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, scale: 0.985 }}
-          transition={{ duration: 0.35, ease: 'easeOut' }}
-          className="min-h-full"
+          key={`root:${location.pathname}`}
+          initial={false}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0, transition: { duration: 0.18, ease: 'easeIn' } }}
+          className="flex h-full flex-col"
         >
-          <Outlet />
+          <motion.div
+            key={location.pathname}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.22, ease: 'easeOut' }}
+            className="min-h-full flex-1"
+          >
+            <Outlet />
+          </motion.div>
         </motion.div>
       </AnimatePresence>
     </AppShell>

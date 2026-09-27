@@ -16,6 +16,22 @@ export default {
         surface: {
           DEFAULT: 'var(--panel)', light: 'var(--panel2)', lighter: 'var(--panel3)', dark: 'var(--bg)',
         },
+        // Ink / panel tokens — drive light & dark chrome from --t-* and --panel* vars.
+        t: {
+          hi: 'rgb(var(--t-hi-rgb) / <alpha-value>)',
+          mid: 'rgb(var(--t-mid-rgb) / <alpha-value>)',
+          lo: 'rgb(var(--t-lo-rgb) / <alpha-value>)',
+        },
+        panel: {
+          DEFAULT: 'rgb(var(--panel-rgb) / <alpha-value>)',
+          2: 'rgb(var(--panel2-rgb) / <alpha-value>)',
+          3: 'rgb(var(--panel3-rgb) / <alpha-value>)',
+        },
+        panel2: 'rgb(var(--panel2-rgb) / <alpha-value>)',
+        panel3: 'rgb(var(--panel3-rgb) / <alpha-value>)',
+        border: {
+          DEFAULT: 'rgb(var(--color-border-rgb) / <alpha-value>)',
+        },
         // Brand — royal suite (deep indigo-blue identity, gold highlights).
         primary: {
           DEFAULT: '#4C5FD5',
@@ -24,17 +40,17 @@ export default {
           800: '#27307A', 900: '#1F2660',
         },
         accent: {
-          emerald: '#5B6FE0',
-          cyan: '#4A9FD8',
-          gold: '#D8A648',
-          amber: '#D8A648',
-          rose: '#C2335A',
-          violet: '#8D7BD8',
+          emerald: 'rgb(var(--color-accent-emerald-rgb) / <alpha-value>)',
+          cyan: 'rgb(var(--color-accent-cyan-rgb) / <alpha-value>)',
+          gold: 'rgb(var(--color-accent-gold-rgb) / <alpha-value>)',
+          amber: 'rgb(var(--color-accent-amber-rgb) / <alpha-value>)',
+          rose: 'rgb(var(--color-accent-rose-rgb) / <alpha-value>)',
+          violet: 'rgb(var(--color-accent-violet-rgb) / <alpha-value>)',
         },
       },
       fontFamily: {
-        display: ['Rajdhani', 'sans-serif'],
-        body: ['Outfit', 'sans-serif'],
+        display: ['Inter', 'sans-serif'],
+        body: ['Inter', 'sans-serif'],
         mono: ['JetBrains Mono', 'monospace'],
       },
       borderRadius: {
