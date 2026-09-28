@@ -263,7 +263,7 @@ export function BenchmarkingPage() {
       >
         <span
           className={clsx(
-            'truncate font-mono text-[10px] uppercase tracking-[0.2em]',
+            'truncate text-[10px] font-semibold uppercase tracking-[0.12em]',
             on ? 'text-primary-500' : 'text-t-lo',
           )}
         >
@@ -373,7 +373,7 @@ export function BenchmarkingPage() {
                 <button
                   type="button"
                   onClick={() => exportLeaderboard(rows, metrics)}
-                  className="rounded-button border border-border bg-panel2 px-2.5 py-1 font-mono text-[10px] uppercase tracking-widest text-t-mid transition-colors hover:bg-panel3 hover:text-t-hi"
+                  className="rounded-button border border-border bg-panel2 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-t-mid transition-colors hover:bg-panel3 hover:text-t-hi"
                   title="Download leaderboard as CSV"
                 >
                   export csv
@@ -429,7 +429,7 @@ export function BenchmarkingPage() {
                           </span>
                           {won && <Check className="h-3.5 w-3.5 shrink-0 text-accent-emerald" />}
                         </span>
-                        <span className="block min-w-0 truncate rounded-button border border-border bg-panel2 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-t-lo">
+                        <span className="block min-w-0 truncate rounded-button border border-border bg-panel2 px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">
                           {algLabel(r.algorithm)}
                         </span>
                         {metrics.map(m => {
@@ -459,12 +459,12 @@ export function BenchmarkingPage() {
                           {r.error ? (
                             <span
                               title={r.error}
-                              className="inline-flex max-w-full items-center gap-1 rounded-full border border-accent-rose/30 bg-accent-rose/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-accent-rose"
+                              className="inline-flex max-w-full items-center gap-1 rounded-full border border-accent-rose/30 bg-accent-rose/10 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-accent-rose"
                             >
                               failed
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1 rounded-full border border-border bg-panel2 px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-t-lo">
+                            <span className="inline-flex items-center gap-1 rounded-full border border-border bg-panel2 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">
                               <Check className="h-3 w-3" /> scored
                             </span>
                           )}
@@ -491,7 +491,7 @@ export function BenchmarkingPage() {
             <Panel
               title="Top-performance comparison"
               right={
-                <span className="font-mono text-[10px] uppercase tracking-widest text-t-lo">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">
                   {fmt(podium.length, 0)} contenders
                 </span>
               }
@@ -501,7 +501,7 @@ export function BenchmarkingPage() {
                   <div key={m}>
                     <div className="flex items-baseline justify-between gap-2">
                       <SectionLabel>{m}</SectionLabel>
-                      <span className="font-mono text-[9px] uppercase tracking-widest text-t-lo">
+                      <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-t-lo">
                         {HIGHER_BETTER.has(m) ? '↑ better' : '↓ better'}
                       </span>
                     </div>
@@ -558,7 +558,7 @@ export function BenchmarkingPage() {
             <Panel
               title="Best-model selection"
               right={
-                <span className="font-mono text-[10px] uppercase tracking-widest text-t-lo">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">
                   {picked ? 'your pick' : 'auto · rank 1'}
                 </span>
               }
@@ -567,7 +567,7 @@ export function BenchmarkingPage() {
                 <span className="text-sm font-semibold text-t-hi">
                   {selected.name ?? selected.model_id ?? '—'}
                 </span>
-                <span className="rounded-button border border-border bg-panel2 px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-t-lo">
+                <span className="rounded-button border border-border bg-panel2 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">
                   {algLabel(selected.algorithm)}
                 </span>
                 <MetricPill label="total" value={fmt(n(selected.total_score) ?? 0, 1)} accent="text-accent-emerald" />
@@ -604,7 +604,7 @@ export function BenchmarkingPage() {
           <Panel
             title="Historical comparison"
             right={
-              <span className="font-mono text-[10px] uppercase tracking-widest text-t-lo">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">
                 {fmt(runs.length, 0)} stored run{runs.length === 1 ? '' : 's'}
               </span>
             }
@@ -642,7 +642,7 @@ export function BenchmarkingPage() {
                       <span className="truncate font-mono text-[11px] text-t-mid">
                         {b.created_at ? b.created_at.slice(0, 10) : '—'}
                       </span>
-                      <span className="truncate font-mono text-[10px] uppercase tracking-wider text-t-lo">
+                      <span className="truncate text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">
                         {(b.methodology || 'time_series_split').replace(/_/g, ' ')}
                       </span>
                       <span className="font-mono text-[11px] text-t-mid">

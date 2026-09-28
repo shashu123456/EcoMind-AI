@@ -243,7 +243,7 @@ function Working() {
           transition={{ duration: 1.15, repeat: Infinity, ease: 'easeInOut' }}
         />
       </div>
-      <span className="shrink-0 font-mono text-[10px] uppercase tracking-widest text-t-lo">
+      <span className="shrink-0 text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">
         anomalies · dq · shap drivers
       </span>
     </div>
@@ -261,7 +261,7 @@ function Evidence({ rec }: { rec: RecRow }) {
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 font-mono text-[10px] uppercase tracking-widest text-t-lo">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">
         {rec.implementation_difficulty && <span>implementation · {rec.implementation_difficulty}</span>}
         <span>issued {whenText(rec.created_at)}</span>
         <span title={rec.id || undefined}>id {shortId(rec.id || null)}</span>
@@ -605,7 +605,7 @@ export function RecommendationsPage() {
           <MetricPill label="categories" value={fmt(groups.length, 0)} />
           <MetricPill label="headline" value={humanKey(top?.category ?? '—')} accent="text-accent-amber" />
           <span
-            className="max-w-[22rem] truncate font-mono text-[10px] uppercase tracking-widest text-t-lo"
+            className="max-w-[22rem] truncate text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo"
             title={ctx.data?.id ?? datasetId}
           >
             {ctx.data
@@ -652,7 +652,7 @@ export function RecommendationsPage() {
             title={view === 'grouped' ? 'action feed · grouped by category' : 'action feed · ranked'}
             right={
               <div className="flex items-center gap-2">
-                <span className="font-mono text-[10px] uppercase tracking-widest text-t-lo">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">
                   {view === 'grouped'
                     ? `${fmt(groups.length, 0)} categor${groups.length === 1 ? 'y' : 'ies'} · ${fmt(items.length, 0)} actions`
                     : `rank 01–${fmt(items.length, 0)}`}
@@ -664,7 +664,7 @@ export function RecommendationsPage() {
                       type="button"
                       onClick={() => setView(v)}
                       className={cn(
-                        'rounded-button px-2 py-0.5 font-mono text-[9px] uppercase tracking-widest transition-colors',
+                        'rounded-button px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] transition-colors',
                         view === v ? 'bg-primary-500 text-white' : 'text-t-lo hover:text-t-hi',
                       )}
                     >
@@ -737,7 +737,7 @@ export function RecommendationsPage() {
             <Panel
               title="headline action"
               right={
-                <span className="font-mono text-[10px] uppercase tracking-widest text-t-lo">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">
                   {shortId(top?.id ?? null)}
                 </span>
               }
@@ -747,12 +747,12 @@ export function RecommendationsPage() {
               ) : (
                 <div className="space-y-3">
                   <div className="flex flex-wrap items-center gap-1.5">
-                    <span className={cn('inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 font-mono text-[10px] uppercase tracking-widest', prioOf(top.priority).chip)}>
+                    <span className={cn('inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em]', prioOf(top.priority).chip)}>
                       {prioOf(top.priority).icon}
                       {prioOf(top.priority).label}
                     </span>
                     <StatusChip status={statusOf(top.status).state}>{statusOf(top.status).label}</StatusChip>
-                    <span className="rounded-button border border-border bg-panel2 px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-t-mid">
+                    <span className="rounded-button border border-border bg-panel2 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-t-mid">
                       {humanKey(top.category)}
                     </span>
                   </div>
@@ -799,7 +799,7 @@ export function RecommendationsPage() {
             <Panel
               title="savings impact by category"
               right={
-                <span className="font-mono text-[10px] uppercase tracking-widest text-t-lo">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">
                   {fmt(totalKwh, 0)} kWh total
                 </span>
               }
@@ -834,7 +834,7 @@ export function RecommendationsPage() {
             <Panel
               title="status tracker"
               right={
-                <span className="font-mono text-[10px] uppercase tracking-widest text-t-lo">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">
                   {fmt(closedCount, 0)}/{fmt(items.length, 0)} closed
                 </span>
               }
@@ -871,7 +871,7 @@ export function RecommendationsPage() {
       {hasData && (
         <div className="flex shrink-0 items-center gap-2">
           <TrendingDown className="h-3.5 w-3.5 shrink-0 text-t-lo" />
-          <span className="font-mono text-[10px] uppercase tracking-widest text-t-lo">
+          <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">
             next · executive intelligence consolidates this brief with every prior stage
           </span>
         </div>
@@ -926,22 +926,22 @@ function ActionRow({
           <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <span className="min-w-0 truncate text-[13px] font-semibold text-t-hi">{rec.title}</span>
             {isTop && (
-              <span className="shrink-0 rounded-button border border-primary-500/35 bg-primary-500/[0.07] px-1.5 py-px font-mono text-[9px] uppercase tracking-widest text-primary-500">
+              <span className="shrink-0 rounded-button border border-primary-500/35 bg-primary-500/[0.07] px-1.5 py-px text-[10px] font-semibold uppercase tracking-[0.12em] text-primary-500">
                 headline
               </span>
             )}
-            <span className="ml-auto flex shrink-0 items-center gap-1 font-mono text-[9px] uppercase tracking-widest text-t-lo">
+            <span className="ml-auto flex shrink-0 items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-t-lo">
               {evidenceCount > 0 ? `${fmt(evidenceCount, 0)} evidence` : 'no evidence'}
               <ChevronDown className={cn('h-3 w-3 transition-transform', open ? 'rotate-180 text-t-mid' : 'text-t-lo')} />
             </span>
           </span>
 
           <span className="mt-1.5 flex flex-wrap items-center gap-1.5">
-            <span className={cn('inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 font-mono text-[9px] uppercase tracking-widest', prio.chip)}>
+            <span className={cn('inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em]', prio.chip)}>
               {prio.icon}
               {prio.label}
             </span>
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-panel2 px-2 py-0.5 font-mono text-[9px] uppercase tracking-widest text-t-mid">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-panel2 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-t-mid">
               <span className={cn('h-1.5 w-1.5 rounded-full', prio.dot)} />
               {humanKey(rec.category)}
             </span>
@@ -960,7 +960,7 @@ function ActionRow({
             <span className="font-mono text-[13px] font-semibold text-accent-emerald">
               {fmt(rec.estimated_savings_kwh, 0)}
             </span>
-            <span className="font-mono text-[9px] uppercase tracking-widest text-t-lo">kWh</span>
+            <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-t-lo">kWh</span>
             <span className="font-mono text-[10px] text-t-lo">· {fmt(rec.estimated_savings_percent, 1)}%</span>
           </span>
           <span className="w-full max-w-[9rem] sm:w-[8.5rem]">

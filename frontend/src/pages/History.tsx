@@ -498,7 +498,7 @@ export function HistoryPage() {
                   </button>
                 )}
               </div>
-              <span className="font-mono text-[10px] uppercase tracking-widest text-t-lo">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">
                 {fmt(visibleRuns.length, 0)} / {fmt(runList.length, 0)}
               </span>
             </>
@@ -570,7 +570,7 @@ export function HistoryPage() {
                             <span className="min-w-0">
                               <span className="flex items-center gap-1.5">
                                 {liveRunId === run.id && (
-                                  <span className="rounded-button border border-primary-500/40 bg-primary-500/[0.06] px-1.5 py-px font-mono text-[9px] uppercase tracking-widest text-primary-500">
+                                  <span className="rounded-button border border-primary-500/40 bg-primary-500/[0.06] px-1.5 py-px text-[10px] font-semibold uppercase tracking-[0.12em] text-primary-500">
                                     active
                                   </span>
                                 )}
@@ -596,7 +596,7 @@ export function HistoryPage() {
                             <span className="min-w-0">
                               <StatusChip status={t}>{key(run.status) || 'unknown'}</StatusChip>
                               {reopening === run.id && (
-                                <span className="mt-1 block font-mono text-[10px] uppercase tracking-widest text-primary-500">opening…</span>
+                                <span className="mt-1 block text-[11px] font-semibold uppercase tracking-[0.14em] text-primary-500">opening…</span>
                               )}
                             </span>
 
@@ -716,7 +716,7 @@ export function HistoryPage() {
                     onClick={() => setRegFilter(f.key)}
                     aria-pressed={regFilter === f.key}
                     className={cn(
-                      'rounded-button px-2 py-1 font-mono text-[10px] uppercase tracking-widest transition-colors',
+                      'rounded-button px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] transition-colors',
                       regFilter === f.key ? 'bg-primary-500 text-white' : 'text-t-lo hover:text-t-hi',
                     )}
                   >
@@ -756,11 +756,11 @@ export function HistoryPage() {
                         <span className="shrink-0 font-mono text-[10px] text-t-lo">{head.algorithm}</span>
                       )}
                       {current && (
-                        <span className="inline-flex shrink-0 items-center gap-1 font-mono text-[10px] uppercase tracking-widest text-primary-500">
+                        <span className="inline-flex shrink-0 items-center gap-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-primary-500">
                           <ShieldCheck className="h-3 w-3" /> v{fmt(n(current.version) ?? 0, 0)} current
                         </span>
                       )}
-                      <span className="ml-auto shrink-0 font-mono text-[10px] uppercase tracking-widest text-t-lo">
+                      <span className="ml-auto shrink-0 text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">
                         {fmt(shelf.entries.length, 0)} version{shelf.entries.length === 1 ? '' : 's'}
                       </span>
                     </div>
@@ -790,7 +790,7 @@ export function HistoryPage() {
                                   v{fmt(n(entry.version) ?? 0, 0)}
                                 </span>
                                 {entry.is_current && (
-                                  <span className="rounded-button border border-primary-500/40 bg-primary-500/[0.06] px-1.5 py-px font-mono text-[10px] uppercase tracking-widest text-primary-500">
+                                  <span className="rounded-button border border-primary-500/40 bg-primary-500/[0.06] px-1.5 py-px text-[11px] font-semibold uppercase tracking-[0.14em] text-primary-500">
                                     current
                                   </span>
                                 )}
@@ -817,7 +817,7 @@ export function HistoryPage() {
                               {perf.r2 !== null && (
                                 <div className="mt-2 flex items-center gap-2">
                                   <Bar value={perf.r2 * 100} className="flex-1" tone={perf.r2 >= 0 ? 'emerald' : 'rose'} />
-                                  <span className="shrink-0 font-mono text-[10px] uppercase tracking-widest text-t-lo">fit</span>
+                                  <span className="shrink-0 text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">fit</span>
                                 </div>
                               )}
                             </>

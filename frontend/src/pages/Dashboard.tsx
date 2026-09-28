@@ -120,7 +120,7 @@ export function DashboardPage() {
       {/* ── 1 · Intro + Start panel ── */}
       <div className="grid items-start gap-8 lg:grid-cols-[1.25fr_1fr]">
         <div>
-          <div className="inline-flex items-center gap-2 rounded-full border border-border bg-panel px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.28em] text-primary-500">
+          <div className="inline-flex items-center gap-2 rounded-full border border-border bg-panel px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-primary-500">
             <PulseDot color="bg-primary-500" ping="bg-primary-500/60" />
             mission control
           </div>
@@ -163,7 +163,7 @@ export function DashboardPage() {
         </div>
 
         <div className="rounded-card border border-border bg-panel p-5 shadow-[0_1px_2px_rgba(20,28,48,.05),0_8px_24px_rgba(20,28,48,.07)]">
-          <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-t-lo">operation mode</p>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">operation mode</p>
           <div className="mt-3 space-y-2.5">
             <ModeCard
               value="auto"
@@ -210,7 +210,7 @@ export function DashboardPage() {
       <section>
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-t-lo">01 · the data</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">01 · the data</p>
             <h2 className="mt-1 text-lg font-semibold tracking-tight text-t-hi">Choose your dataset</h2>
           </div>
           <span className="rounded-full border border-border bg-panel px-2.5 py-1 font-mono text-[10px] text-t-lo">
@@ -255,7 +255,7 @@ export function DashboardPage() {
                     </span>
                     <span className="min-w-0 flex-1 truncate text-sm font-semibold text-t-hi">{d.name}</span>
                     {d.source_type && (
-                      <span className="rounded-full border border-border bg-panel3 px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider text-t-lo">{d.source_type}</span>
+                      <span className="rounded-full border border-border bg-panel3 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-t-lo">{d.source_type}</span>
                     )}
                   </span>
                   <span className="line-clamp-2 w-full text-xs leading-5 text-t-lo">{d.description || 'No description'}</span>
@@ -289,7 +289,7 @@ export function DashboardPage() {
       <section>
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-t-lo">02 · the pipeline</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">02 · the pipeline</p>
             <h2 className="mt-1 text-lg font-semibold tracking-tight text-t-hi">One pipeline, thirteen beats</h2>
             <p className="mt-1 max-w-xl text-sm leading-6 text-t-mid">
               Raw Data to Report. Every beat is a working stage — watch each one run on the left,
@@ -317,7 +317,7 @@ export function DashboardPage() {
                     <span className="flex h-5 w-5 items-center justify-center rounded-md bg-panel2 font-mono text-[9px] font-semibold text-t-lo">{beat.beat}</span>
                     <Icon className="h-3.5 w-3.5 text-t-lo" />
                   </span>
-                  <span className="font-mono text-[8.5px] uppercase tracking-[0.16em] text-t-lo">{beat.chapter}</span>
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-t-lo">{beat.chapter}</span>
                   <span className="text-[11px] font-semibold leading-tight text-t-mid">{beat.title}</span>
                 </button>
               )

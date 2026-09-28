@@ -260,11 +260,11 @@ export function AutomatedPage() {
               <span className="truncate font-mono text-[11px] font-semibold uppercase tracking-wider text-gray-200">{st.short}</span>
               <span className="ml-auto">
                 {s.state === 'active' && (
-                  <span className="flex items-center gap-1 font-mono text-[9px] uppercase tracking-widest text-accent-amber">
+                  <span className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-accent-amber">
                     <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-accent-amber" /> live
                   </span>
                 )}
-                {s.state === 'done' && <span className="font-mono text-[9px] uppercase tracking-widest text-accent-emerald">✓ done</span>}
+                {s.state === 'done' && <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-accent-emerald">✓ done</span>}
               </span>
             </div>
 
@@ -315,7 +315,7 @@ export function AutomatedPage() {
             <p className="flex items-center gap-2 font-display text-sm font-bold text-gray-100">
               Automation Deck <Rocket className="h-3.5 w-3.5 text-primary-400" />
             </p>
-            <p className="font-mono text-[9.5px] uppercase tracking-[0.18em] text-gray-500">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-t-lo">
               13-stage explainable pipeline · one live board
             </p>
           </div>
@@ -327,7 +327,7 @@ export function AutomatedPage() {
           <Database className="h-3 w-3 text-accent-cyan" /> dataset · {dsName ? short(dsName) : '—'}
         </div>
 
-        <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.16em] text-gray-400">
+        <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">
           {running ? (
             <>
               <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-accent-amber" />
@@ -403,7 +403,7 @@ export function AutomatedPage() {
                 <p className="font-display text-base font-bold text-gray-100">
                   Automation complete — all {CORE_WORKFLOW.length} stages green
                 </p>
-                <p className="mt-0.5 font-mono text-[10px] uppercase tracking-[0.16em] text-gray-400">
+                <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">
                   run {runId ? short(runId) : '—'} · every terminal resolved against the live backend · pipeline fully explainable
                 </p>
               </div>

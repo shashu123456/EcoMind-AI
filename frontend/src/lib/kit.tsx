@@ -219,7 +219,7 @@ export function DiffStrip({ rows, accentBefore = 'bg-accent-gold', accentAfter =
         return (
           <div key={r.label} className="space-y-1">
             <div className="flex items-center justify-between">
-              <span className="font-mono text-[10px] uppercase tracking-wider text-gray-500">{r.label}</span>
+              <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-500">{r.label}</span>
               <span className="font-mono text-[10px] text-gray-400">
                 {b !== null ? `${fmtNum(b, 1)}${suffix} → ` : '— → '}
                 <span className="text-accent-emerald">{a !== null ? fmtNum(a, 1) + suffix : '—'}</span>
@@ -631,7 +631,7 @@ export function StreamTable({ columns, rows, speed = 60, live = true, exportable
         {exportable && safeRows.length > 0 && (
           <button
             onClick={() => downloadCSV(columns, safeRows, filename)}
-            className="shrink-0 rounded-button border border-white/[0.08] bg-white/[0.03] px-2.5 py-1 font-mono text-[9px] uppercase tracking-widest text-primary-300 transition-colors hover:border-primary-500/40 hover:bg-primary-500/10"
+            className="shrink-0 rounded-button border border-white/[0.08] bg-white/[0.03] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-primary-300 transition-colors hover:border-primary-500/40 hover:bg-primary-500/10"
             title="Download all loaded rows as CSV"
           >
             export csv
@@ -759,13 +759,13 @@ export function Console({
         <span className="h-2.5 w-2.5 rounded-full bg-accent-rose/80" />
         <span className="h-2.5 w-2.5 rounded-full bg-accent-gold/80" />
         <span className="h-2.5 w-2.5 rounded-full bg-accent-emerald/80" />
-        <span className="ml-1 truncate font-mono text-[9px] uppercase tracking-[0.22em] text-[var(--term-lo)]">{title}</span>
+        <span className="ml-1 truncate text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--term-lo)]">{title}</span>
         <span className="ml-auto flex shrink-0 items-center gap-1">
           {onClear && (
             <button
               onClick={onClear}
               title="Clear console"
-              className="rounded px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-widest text-[var(--term-lo)] transition-colors hover:bg-white/10 hover:text-[var(--term-hi)]"
+              className="rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--term-lo)] transition-colors hover:bg-white/10 hover:text-[var(--term-hi)]"
             >
               clear
             </button>
@@ -773,14 +773,14 @@ export function Console({
           <button
             onClick={copy}
             title="Copy console output"
-            className="rounded px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-widest text-[var(--term-lo)] transition-colors hover:bg-white/10 hover:text-[var(--term-hi)]"
+            className="rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--term-lo)] transition-colors hover:bg-white/10 hover:text-[var(--term-hi)]"
           >
             {copied ? 'copied' : 'copy'}
           </button>
           <button
             onClick={() => setFull(f => !f)}
             title={full ? 'Exit fullscreen' : 'Fullscreen'}
-            className="rounded px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-widest text-[var(--term-lo)] transition-colors hover:bg-white/10 hover:text-[var(--term-hi)]"
+            className="rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--term-lo)] transition-colors hover:bg-white/10 hover:text-[var(--term-hi)]"
           >
             {full ? 'exit' : 'max'}
           </button>
@@ -814,7 +814,7 @@ export function Console({
       </div>
       <button
         onClick={() => setFull(false)}
-        className="absolute right-4 top-4 rounded-button border border-white/15 px-3 py-1.5 font-mono text-[10px] uppercase tracking-widest text-white transition-colors hover:bg-white/10"
+        className="absolute right-4 top-4 rounded-button border border-white/15 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-white transition-colors hover:bg-white/10"
       >
         esc · close
       </button>
@@ -896,7 +896,7 @@ export function AutoNext({
               <PulseDot color="bg-accent-gold" ping="bg-accent-gold/60" />
               <Footprints className="ml-2 h-4 w-4 text-accent-gold" />
             </span>
-            <span className="hidden items-center gap-1.5 rounded-button border border-accent-gold/30 bg-accent-gold/10 px-2 py-1 font-mono text-[10px] uppercase tracking-widest text-accent-gold sm:inline-flex">
+            <span className="hidden items-center gap-1.5 rounded-button border border-accent-gold/30 bg-accent-gold/10 px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-accent-gold sm:inline-flex">
               step-by-step
             </span>
           </>
@@ -970,7 +970,7 @@ export function JourneyNav({
               <PulseDot color="bg-accent-gold" ping="bg-accent-gold/60" />
               <Footprints className="ml-2 h-4 w-4 text-accent-gold" />
             </span>
-            <span className="hidden items-center gap-1.5 rounded-button border border-accent-gold/30 bg-accent-gold/10 px-2 py-1 font-mono text-[10px] uppercase tracking-widest text-accent-gold sm:inline-flex">
+            <span className="hidden items-center gap-1.5 rounded-button border border-accent-gold/30 bg-accent-gold/10 px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-accent-gold sm:inline-flex">
               guided mode
             </span>
           </>
@@ -1034,7 +1034,7 @@ function StageScoreChip({ title }: { title: string }) {
   const tone = r.score >= 9 ? 'text-accent-emerald border-accent-emerald/40' : r.score >= 8 ? 'text-accent-gold border-accent-gold/40' : 'text-accent-rose border-accent-rose/40'
   return (
     <span title={`${r.why}\nPresent: ${r.strong}`}
-      className={clsx('inline-flex shrink-0 cursor-help items-center gap-2 rounded-button border bg-black/50 px-2.5 py-1 font-mono text-[10px] uppercase tracking-widest', tone)}>
+      className={clsx('inline-flex shrink-0 cursor-help items-center gap-2 rounded-button border bg-black/50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em]', tone)}>
       <span className="flex items-center gap-0.5" aria-hidden>
         {Array.from({ length: 10 }, (_, i) => (
           <span key={i} className={clsx('h-2 w-[3px] rounded-full', i < r.score ? 'bg-current shadow-[0_0_4px_currentColor]' : 'bg-white/[0.08]')} />

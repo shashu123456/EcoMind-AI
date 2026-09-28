@@ -114,7 +114,7 @@ function RoleChip({ role, declared }: { role: RoleKind; declared: boolean }) {
     <span
       title={declared ? 'role reported by the schema' : 'role derived from the semantic type'}
       className={clsx(
-        'inline-flex items-baseline gap-1.5 rounded-button border px-2 py-[3px] font-mono text-[10px] uppercase tracking-wider',
+        'inline-flex items-baseline gap-1.5 rounded-button border px-2 py-[3px] text-[11px] font-semibold uppercase tracking-[0.14em]',
         ROLE_BOX[role],
       )}
     >
@@ -309,7 +309,7 @@ function Inventory({
             </span>
           ))}
         </div>
-        <span className="shrink-0 font-mono text-[9px] uppercase tracking-widest text-t-lo">
+        <span className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.12em] text-t-lo">
           {headerCols.length || fields.length} fields
         </span>
       </div>
@@ -327,7 +327,7 @@ function Inventory({
                     onClick={() => onSort(h.key)}
                     title={`Sort by ${h.label}`}
                     className={clsx(
-                      'inline-flex items-center gap-1 font-mono text-[9px] uppercase tracking-[0.2em] transition-colors',
+                      'inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.12em] transition-colors',
                       h.align === 'right' && 'flex-row-reverse',
                       active ? 'text-primary-500' : 'text-t-lo hover:text-t-hi',
                     )}
@@ -363,7 +363,7 @@ function Inventory({
                     <KindMark kind={f.kind} />
                     <span className="truncate font-mono text-[11px] font-semibold text-t-hi" title={f.name}>{f.name}</span>
                     {f.recast && (
-                      <span title={`re-cast from ${f.declared}`} className="shrink-0 rounded-full border border-accent-cyan/30 bg-accent-cyan/[0.06] px-1.5 font-mono text-[8px] uppercase tracking-widest text-accent-cyan">
+                      <span title={`re-cast from ${f.declared}`} className="shrink-0 rounded-full border border-accent-cyan/30 bg-accent-cyan/[0.06] px-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-accent-cyan">
                         recast
                       </span>
                     )}
@@ -545,7 +545,7 @@ function ColumnProfile({ field, totalRows }: { field: Field; totalRows: number }
       <div className="space-y-1.5">
         <div className="flex items-center justify-between gap-2">
           <SectionLabel>statistics</SectionLabel>
-          <span className="font-mono text-[9px] uppercase tracking-widest text-t-lo">{statPairs.length} reported</span>
+          <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-t-lo">{statPairs.length} reported</span>
         </div>
         {statPairs.length === 0 ? (
           <p className="text-[11px] text-t-lo">the API returned no statistics block for this column.</p>
@@ -553,7 +553,7 @@ function ColumnProfile({ field, totalRows }: { field: Field; totalRows: number }
           <div className="grid grid-cols-2 gap-1.5">
             {statPairs.map(([k, label]) => (
               <div key={k} className="flex items-baseline justify-between gap-2 rounded-button border border-border bg-panel2 px-2.5 py-1">
-                <span className="truncate font-mono text-[9px] uppercase tracking-wider text-t-lo">{label}</span>
+                <span className="truncate text-[10px] font-semibold uppercase tracking-[0.12em] text-t-lo">{label}</span>
                 <span className="shrink-0 font-mono text-[11px] font-semibold text-t-hi">{statValue(stats[k])}</span>
               </div>
             ))}
@@ -687,7 +687,7 @@ function CoverageSurvey({
             <div className="flex items-center justify-between gap-2">
               <span className="flex items-center gap-1.5">
                 <span className={clsx('h-1.5 w-1.5 rounded-full', b.tone === 'emerald' ? 'bg-accent-emerald' : b.tone === 'cyan' ? 'bg-accent-cyan' : b.tone === 'amber' ? 'bg-accent-amber' : 'bg-accent-rose')} aria-hidden />
-                <span className={clsx('font-mono text-[10px] uppercase tracking-wider', TONE_TEXT[b.tone])}>{b.label}</span>
+                <span className={clsx('text-[11px] font-semibold uppercase tracking-[0.14em]', TONE_TEXT[b.tone])}>{b.label}</span>
                 <span className="font-mono text-[9px] text-t-lo">{b.note}</span>
               </span>
               <span className="shrink-0 font-mono text-[11px] font-semibold text-t-hi">
@@ -709,7 +709,7 @@ function CoverageSurvey({
         <div className="space-y-1.5 border-t border-border pt-2.5">
           <div className="flex items-center justify-between gap-2">
             <SectionLabel>preview missing_summary</SectionLabel>
-            <span className="font-mono text-[9px] uppercase tracking-widest text-t-lo">sample window</span>
+            <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-t-lo">sample window</span>
           </div>
           <div className="grid grid-cols-2 gap-1.5">
             {previewKeys.slice(0, 8).map(k => (
@@ -752,7 +752,7 @@ function RoleMap({ fields }: { fields: Field[] }) {
         {groups.map(g => (
           <div key={g.role} className={clsx('rounded-button border px-2.5 py-2', ROLE_BOX[g.role])}>
             <div className="flex items-center justify-between gap-2">
-              <span className={clsx('font-mono text-[10px] uppercase tracking-widest', ROLE_TEXT[g.role])}>{g.role}</span>
+              <span className={clsx('text-[11px] font-semibold uppercase tracking-[0.14em]', ROLE_TEXT[g.role])}>{g.role}</span>
               <span className="font-mono text-[11px] font-semibold text-t-hi">{fmt(g.fields.length, 0)}</span>
             </div>
             <p className="mt-1 truncate font-mono text-[10px] text-t-mid" title={g.fields.map(f => f.name).join(', ')}>
@@ -766,7 +766,7 @@ function RoleMap({ fields }: { fields: Field[] }) {
       <div className="space-y-1.5 border-t border-border pt-2.5">
         <div className="flex items-center justify-between gap-2">
           <SectionLabel>detected semantic types</SectionLabel>
-          <span className="font-mono text-[9px] uppercase tracking-widest text-t-lo">{semanticKinds.length} distinct</span>
+          <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-t-lo">{semanticKinds.length} distinct</span>
         </div>
         <div className="flex flex-wrap gap-1.5">
           {semanticKinds.map(s => {
@@ -826,7 +826,7 @@ function SourceSample({
               style={{ gridTemplateColumns: `repeat(${cols.length}, minmax(72px, 1fr))` }}
             >
               {cols.map(c => (
-                <span key={c} className="truncate font-mono text-[9px] uppercase tracking-wider text-t-lo" title={c}>{c}</span>
+                <span key={c} className="truncate text-[10px] font-semibold uppercase tracking-[0.12em] text-t-lo" title={c}>{c}</span>
               ))}
             </div>
             {shown.map((row, ri) => (
@@ -891,7 +891,7 @@ function DiscoveryLog({
           ['elapsed', elapsedMs === null ? '—' : `${fmt(elapsedMs, 0)} ms`],
         ].map(([k, v]) => (
           <div key={k} className="flex items-baseline justify-between gap-2 border-b border-border pb-1.5 last:border-0">
-            <dt className="shrink-0 font-mono text-[9px] uppercase tracking-widest text-t-lo">{k}</dt>
+            <dt className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.12em] text-t-lo">{k}</dt>
             <dd className="min-w-0 truncate text-right font-mono text-[11px] text-t-hi" title={v}>{v}</dd>
           </div>
         ))}

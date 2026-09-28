@@ -34,7 +34,7 @@ export function ActivityMonitor() {
             Activity
           </h2>
         </div>
-        <span className="shrink-0 font-mono text-[10px] uppercase tracking-widest text-t-lo">
+        <span className="shrink-0 text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">
           live
         </span>
       </div>

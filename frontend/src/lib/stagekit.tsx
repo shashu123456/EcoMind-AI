@@ -10,7 +10,7 @@ import { storyForStage, beatForStage } from './story'
 
 export function SectionLabel({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <span className={clsx('font-mono text-[10px] uppercase tracking-[0.2em] text-t-lo', className)}>
+    <span className={clsx('text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo', className)}>
       {children}
     </span>
   )
@@ -104,7 +104,7 @@ export function StatusChip({ status, children }: { status: 'ok' | 'running' | 'w
   } as const
   const [box, dot] = map[status]
   return (
-    <span className={clsx('inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 font-mono text-[10px] uppercase tracking-widest', box)}>
+    <span className={clsx('inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em]', box)}>
       <span className={clsx('h-1.5 w-1.5 rounded-full', status === 'running' && 'animate-pulse', dot)} />
       {children}
     </span>

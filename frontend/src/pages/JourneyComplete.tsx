@@ -251,7 +251,7 @@ const doneCount = Object.values(stageStatuses).filter(s => s === 'done').length
 function ScoreCell({ label, value, digits, suffix = '' }: { label: string; value?: number; digits: number; suffix?: string }) {
   return (
     <div className="rounded-button border border-white/[0.08] bg-white/[0.03] px-3 py-2">
-      <p className="font-mono text-[10px] uppercase tracking-widest text-gray-500">{label}</p>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-500">{label}</p>
       <p className="mt-0.5 font-mono text-sm text-gray-200">
         {value != null ? value.toFixed(digits) + suffix : '—'}
       </p>

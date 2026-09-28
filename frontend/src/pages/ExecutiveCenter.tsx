@@ -563,7 +563,7 @@ export function ExecutiveCenterPage() {
                     {verdictLabel(summary.verdict, summary.trustScore)}
                   </StatusChip>
                   {summary.runStatus && (
-                    <span className="rounded-full border border-border bg-panel2 px-2.5 py-1 font-mono text-[10px] uppercase tracking-widest text-t-lo">
+                    <span className="rounded-full border border-border bg-panel2 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">
                       run {summary.runStatus.replace(/_/g, ' ')}
                     </span>
                   )}
@@ -597,7 +597,7 @@ export function ExecutiveCenterPage() {
                   </span>
                 </div>
 
-                <p className="mt-2 font-mono text-[10px] uppercase tracking-widest text-t-lo">
+                <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">
                   {dataset?.name || 'dataset'} · {shortId(datasetId)}
                   {journeyRun ? ` · run ${shortId(journeyRun)}` : ''}
                 </p>
@@ -659,7 +659,7 @@ export function ExecutiveCenterPage() {
               className="min-h-0 xl:col-span-7"
               title="briefing"
               right={
-                <span className="font-mono text-[10px] uppercase tracking-widest text-t-lo">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">
                   ai.executive · {summary.actions.length} finding{summary.actions.length === 1 ? '' : 's'}
                 </span>
               }
@@ -679,7 +679,7 @@ export function ExecutiveCenterPage() {
                           >
                             <span
                               className={cn(
-                                'shrink-0 rounded-full border px-2 py-0.5 font-mono text-[9px] uppercase tracking-widest',
+                                'shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em]',
                                 prio.chip,
                               )}
                             >
@@ -692,7 +692,7 @@ export function ExecutiveCenterPage() {
                               {a.savingsKwh === null ? '—' : `${fmt(a.savingsKwh, 1)} kWh`}
                               {a.savingsPct === null ? '' : ` · ${fmt(a.savingsPct, 1)}%`}
                             </span>
-                            <span className="shrink-0 font-mono text-[10px] uppercase tracking-wider text-t-lo">
+                            <span className="shrink-0 text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">
                               {a.category}
                             </span>
                           </div>
@@ -773,7 +773,7 @@ export function ExecutiveCenterPage() {
               title="analysis timeline"
               right={
                 stages.length > 0 ? (
-                  <span className="font-mono text-[10px] uppercase tracking-widest text-t-lo">
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">
                     {fmt(stagesRun, 0)} timed · {fmt(totalMs, 0)} ms
                   </span>
                 ) : undefined
@@ -833,7 +833,7 @@ export function ExecutiveCenterPage() {
                     )
                   })}
                   {hiddenStages > 0 && (
-                    <p className="font-mono text-[10px] uppercase tracking-widest text-t-lo">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">
                       + {fmt(hiddenStages, 0)} earlier stage{hiddenStages === 1 ? '' : 's'} in the run record
                     </p>
                   )}
@@ -907,7 +907,7 @@ export function ExecutiveCenterPage() {
             <Panel
               title="benchmark standings"
               right={
-                <span className="font-mono text-[10px] uppercase tracking-widest text-t-lo">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">
                   {latestBenchmark
                     ? `${titleize(latestBenchmark.methodology || 'benchmark')} · ${fmt(latestBenchmark.model_count ?? 0, 0)} models`
                     : `${fmt(standings.length, 0)} scored`}
@@ -956,7 +956,7 @@ export function ExecutiveCenterPage() {
               {winnerName && (
                 <div className="mt-3 flex items-center gap-2 border-t border-border pt-2.5">
                   <Crown className="h-3.5 w-3.5 shrink-0 text-primary-500" />
-                  <span className="font-mono text-[10px] uppercase tracking-widest text-t-lo">winner</span>
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">winner</span>
                   <span className="min-w-0 flex-1 truncate text-[12px] font-medium text-t-hi">{winnerName}</span>
                   <span className="shrink-0 font-mono text-[10px] text-t-lo">{shortId(winnerId)}</span>
                 </div>
@@ -966,7 +966,7 @@ export function ExecutiveCenterPage() {
             <Panel
               title="registered models"
               right={
-                <span className="font-mono text-[10px] uppercase tracking-widest text-t-lo">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">
                   {fmt(datasetModels.length, 0)} on dataset
                 </span>
               }
@@ -998,7 +998,7 @@ export function ExecutiveCenterPage() {
                 </div>
               )}
               {datasetModels.length > 5 && (
-                <p className="mt-2 font-mono text-[10px] uppercase tracking-widest text-t-lo">
+                <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">
                   + {fmt(datasetModels.length - 5, 0)} more on this dataset
                 </p>
               )}
@@ -1014,7 +1014,7 @@ export function ExecutiveCenterPage() {
                 supportingLoading ? (
                   <StatusChip status="running">loading actions</StatusChip>
                 ) : actions.length > 0 ? (
-                  <span className="font-mono text-[10px] uppercase tracking-widest text-t-lo">
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">
                     {fmt(actions.length, 0)} actions · {fmt(actionKwh, 0)} kWh
                   </span>
                 ) : undefined
@@ -1047,7 +1047,7 @@ export function ExecutiveCenterPage() {
                           </span>
                           <span
                             className={cn(
-                              'shrink-0 rounded-full border px-2 py-0.5 font-mono text-[9px] uppercase tracking-widest',
+                              'shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em]',
                               prio.chip,
                             )}
                           >
@@ -1066,7 +1066,7 @@ export function ExecutiveCenterPage() {
                           <span className="font-mono text-[11px] text-t-mid">
                             {n(r.estimated_savings_percent) === null ? '—' : `${fmt(n(r.estimated_savings_percent), 1)}% below baseline`}
                           </span>
-                          <span className="font-mono text-[10px] uppercase tracking-wider text-t-lo">
+                          <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">
                             {titleize(r.category || 'general')}
                           </span>
                           {r.status && <span className="font-mono text-[10px] text-t-lo">{r.status}</span>}
@@ -1090,7 +1090,7 @@ export function ExecutiveCenterPage() {
               className="min-h-0 xl:col-span-5"
               title="exposure & evidence"
               right={
-                <span className="font-mono text-[10px] uppercase tracking-widest text-t-lo">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">
                   {latestBenchmark ? `benchmarked ${clockText(latestBenchmark.created_at)}` : 'no benchmark'}
                 </span>
               }
@@ -1171,7 +1171,7 @@ export function ExecutiveCenterPage() {
           <div className="flex shrink-0 flex-wrap items-center justify-between gap-3">
             <div className="flex min-w-0 items-center gap-2">
               <FileText className="h-3.5 w-3.5 shrink-0 text-t-lo" />
-              <span className="font-mono text-[10px] uppercase tracking-widest text-t-lo">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">
                 next · report generation turns this briefing into audit-ready deliverables
               </span>
             </div>

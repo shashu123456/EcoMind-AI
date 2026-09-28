@@ -101,11 +101,11 @@ export function TopBar() {
     if (hydratedRef.current) return
     if (Object.keys(openStageStatuses).length === 0) return
     hydratedRef.current = true
+    // Any status present in the first snapshot predates this session —
+    // mark it seen so the badge only counts completions from now on.
     setSeen(s => {
       const next = { ...s }
-      Object.entries(openStageStatuses).forEach(([k, st]) => {
-        if (st === 'done' || st === 'locked') next[k] = true
-      })
+      Object.keys(openStageStatuses).forEach(k => { next[k] = true })
       return next
     })
   }, [openStageStatuses])

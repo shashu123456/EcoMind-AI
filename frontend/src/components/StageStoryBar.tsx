@@ -52,7 +52,7 @@ export function StageStoryBar() {
     <footer className="hidden shrink-0 border-t border-border bg-panel/70 backdrop-blur-md lg:block">
       <div className="flex items-stretch gap-6 px-5 py-3">
         <div className="flex w-[190px] shrink-0 flex-col justify-center border-r border-border/70 pr-6">
-          <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-t-lo">
+          <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-t-lo">
             {isMission ? 'Overview' : `Beat ${beat.beat} / 13 — ${beat.chapter}`}
           </span>
           <span className="mt-0.5 truncate text-[13px] font-semibold tracking-tight text-t-hi">
@@ -62,7 +62,7 @@ export function StageStoryBar() {
         <div className="grid min-w-0 flex-1 grid-cols-5 gap-4">
           {QUESTIONS.map(({ q, get }) => (
             <div key={q} className="min-w-0">
-              <div className="font-mono text-[9px] uppercase tracking-widest text-t-lo">{q}</div>
+              <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-t-lo">{q}</div>
               <p
                 className={cn(
                   'mt-0.5 line-clamp-2 text-[11px] leading-snug text-t-mid',

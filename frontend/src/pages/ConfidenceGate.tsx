@@ -356,7 +356,7 @@ export function ConfidenceGatePage() {
               title="Confidence breakdown"
               className={clsx('transition-colors', reviewing && 'border-accent-amber/50')}
               right={
-                <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-t-lo">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">
                   {factors.length} of 4 signals
                 </span>
               }
@@ -387,7 +387,7 @@ export function ConfidenceGatePage() {
 
               {Object.keys(weights).length > 0 && (
                 <div className="mt-4 flex flex-wrap items-center gap-1.5 border-t border-border pt-3">
-                  <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-t-lo">published weights</span>
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">published weights</span>
                   {Object.entries(weights).map(([k, v]) => {
                     const w = n(v) ?? 0
                     return (
@@ -451,7 +451,7 @@ export function ConfidenceGatePage() {
               </p>
               {missing.length > 0 && (
                 <div className="mt-2.5 flex flex-wrap items-center gap-1.5 border-t border-border pt-2.5">
-                  <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-t-lo">weight redistributed from</span>
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">weight redistributed from</span>
                   {missing.map(m => (
                     <span key={m} className="rounded-button border border-border bg-panel-2 px-2 py-0.5 font-mono text-[10px] text-t-lo">
                       {humanize(m)}

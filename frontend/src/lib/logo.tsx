@@ -60,7 +60,7 @@ export function EcoMindLockup({ size = 26, sub = 'adaptive · explainable · ene
           ecoMind <span className="text-accent-gold">AI</span>
         </span>
         {sub && (
-          <span className="font-mono text-[9px] uppercase tracking-[0.16em] text-accent-gold/60">
+          <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-accent-gold/70">
             {sub}
           </span>
         )}

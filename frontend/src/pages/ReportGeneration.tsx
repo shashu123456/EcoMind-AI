@@ -297,7 +297,7 @@ function FlowNode({ state, label, detail }: { state: FlowState; label: string; d
     <li className="flex items-start gap-2.5">
       <span className={cn('mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full', FLOW_DOT[state])} aria-hidden />
       <div className="min-w-0">
-        <p className={cn('font-mono text-[10px] uppercase tracking-widest', state === 'idle' ? 'text-t-lo' : 'text-t-mid')}>
+        <p className={cn('text-[11px] font-semibold uppercase tracking-[0.14em]', state === 'idle' ? 'text-t-lo' : 'text-t-mid')}>
           {label}
         </p>
         <p className="truncate text-[11px] text-t-lo" title={detail}>{detail}</p>
@@ -658,7 +658,7 @@ export function ReportGenerationPage() {
           title="deliverable gallery"
           flush
           right={
-            <span className="font-mono text-[10px] uppercase tracking-widest text-t-lo">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">
               {fmt(items.length, 0)} file{items.length === 1 ? '' : 's'} · newest first
             </span>
           }
@@ -891,7 +891,7 @@ export function ReportGenerationPage() {
                     type="button"
                     disabled={busy}
                     onClick={() => setPickedSections(ALL_TITLES)}
-                    className="font-mono text-[10px] uppercase tracking-widest text-primary-500 transition-colors hover:text-t-hi disabled:opacity-50"
+                    className="text-[11px] font-semibold uppercase tracking-[0.14em] text-primary-500 transition-colors hover:text-t-hi disabled:opacity-50"
                   >
                     all
                   </button>
@@ -899,7 +899,7 @@ export function ReportGenerationPage() {
                     type="button"
                     disabled={busy}
                     onClick={() => setPickedSections([])}
-                    className="font-mono text-[10px] uppercase tracking-widest text-t-lo transition-colors hover:text-t-hi disabled:opacity-50"
+                    className="text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo transition-colors hover:text-t-hi disabled:opacity-50"
                   >
                     none
                   </button>
@@ -909,7 +909,7 @@ export function ReportGenerationPage() {
               <div className="space-y-1.5">
                 {GROUP_ORDER.map(g => (
                   <div key={g} className="flex flex-wrap items-center gap-1.5">
-                    <span className="w-[6.5rem] shrink-0 font-mono text-[9px] uppercase tracking-widest text-t-lo">
+                    <span className="w-[6.5rem] shrink-0 text-[10px] font-semibold uppercase tracking-[0.12em] text-t-lo">
                       {GROUP_LABEL[g]}
                     </span>
                     {SECTION_LIBRARY.filter(s => s.group === g).map(s => {
@@ -1002,7 +1002,7 @@ export function ReportGenerationPage() {
                 onClick={reread}
                 disabled={reloading || dlId !== null}
                 title="GET /reports/{id} — re-read this record from the server"
-                className="inline-flex items-center gap-1.5 rounded-button border border-border bg-panel2 px-2 py-1 font-mono text-[10px] uppercase tracking-widest text-t-lo transition-colors hover:text-t-hi disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 rounded-button border border-border bg-panel2 px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo transition-colors hover:text-t-hi disabled:opacity-50"
               >
                 <RefreshCw className={cn('h-3 w-3', reloading && 'animate-spin')} />
                 {reloading ? 'reading' : 're-read'}
@@ -1072,13 +1072,13 @@ export function ReportGenerationPage() {
 
               <div className="space-y-1 rounded-button border border-border bg-panel2 px-2.5 py-2">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="font-mono text-[10px] uppercase tracking-widest text-t-lo">stored file</span>
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">stored file</span>
                   <span className="truncate font-mono text-[10px] text-t-mid" title={openReport.file_path ?? undefined}>
                     {openReport.file_path || 'path not recorded'}
                   </span>
                 </div>
                 <div className="flex items-center justify-between gap-2">
-                  <span className="font-mono text-[10px] uppercase tracking-widest text-t-lo">dataset</span>
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">dataset</span>
                   <span className="truncate font-mono text-[10px] text-t-mid">
                     {shortId(openReport.dataset_id)}
                     {openReport.dataset_id === datasetId ? ' · in context' : ''}
@@ -1091,13 +1091,13 @@ export function ReportGenerationPage() {
                 {previewUrl && openReport.id === selected?.id ? (
                   <div className="overflow-hidden rounded-button border border-border">
                     <div className="flex items-center justify-between gap-2 border-b border-border bg-panel2 px-2.5 py-1.5">
-                      <span className="font-mono text-[10px] uppercase tracking-widest text-t-lo">
+                      <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">
                         preview · {formatOf(openReport).toUpperCase()}
                       </span>
                       <button
                         type="button"
                         onClick={closePreview}
-                        className="font-mono text-[10px] uppercase tracking-widest text-t-lo transition-colors hover:text-t-hi"
+                        className="text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo transition-colors hover:text-t-hi"
                       >
                         close
                       </button>
@@ -1154,7 +1154,7 @@ export function ReportGenerationPage() {
           title="delivery ledger"
           flush
           right={
-            <span className="font-mono text-[10px] uppercase tracking-widest text-t-lo">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">
               last {fmt(ledger.length, 0)} · {fmt(items.length, 0)} total
             </span>
           }

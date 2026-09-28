@@ -168,7 +168,7 @@ export function SHAPExplainabilityPage() {
           onClick={() => setMethod(m)}
           title={`Local explainer method — ${m}`}
           className={clsx(
-            'rounded-button px-2.5 py-1 font-mono text-[10px] uppercase tracking-widest transition-colors disabled:opacity-50',
+            'rounded-button px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] transition-colors disabled:opacity-50',
             method === m ? 'bg-primary-500 text-white' : 'text-t-lo hover:text-t-hi',
           )}
         >

@@ -324,7 +324,7 @@ export function AnomalyDetectionPage() {
                   onClick={() => setMethod(m)}
                   title={`Detection method: ${m.replace(/_/g, ' ')}`}
                   className={clsx(
-                    'rounded-button px-2.5 py-1 font-mono text-[10px] uppercase tracking-widest transition-colors disabled:opacity-50',
+                    'rounded-button px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] transition-colors disabled:opacity-50',
                     method === m ? 'bg-primary-500' : 'text-t-lo hover:text-t-hi',
                   )}
                 >
@@ -409,7 +409,7 @@ export function AnomalyDetectionPage() {
                 ))}
             </div>
           )}
-          <span className="ml-auto font-mono text-[10px] uppercase tracking-widest text-t-lo">
+          <span className="ml-auto text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">
             {fmt(confirmedCount, 0)} confirmed
           </span>
         </div>
@@ -439,14 +439,14 @@ export function AnomalyDetectionPage() {
                 {SEVERITY_ORDER.map(k => (
                   <span
                     key={k}
-                    className="inline-flex items-center gap-1 font-mono text-[9px] uppercase tracking-wider text-t-lo"
+                    className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-t-lo"
                     title={`severity ${sevTone(k).label}`}
                   >
                     <span className={clsx('h-1.5 w-1.5 rounded-full', sevTone(k).dot)} />
                     {sevTone(k).label}
                   </span>
                 ))}
-                <span className="font-mono text-[9px] uppercase tracking-widest text-t-lo">
+                <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-t-lo">
                   · dot size = confidence
                 </span>
               </div>
@@ -461,7 +461,7 @@ export function AnomalyDetectionPage() {
                     <div key={key} className="flex items-center gap-3">
                       <div className="flex w-28 shrink-0 items-center gap-1.5">
                         <span className={clsx('h-2 w-2 shrink-0 rounded-full', tone.dot)} />
-                        <span className="truncate font-mono text-[10px] uppercase tracking-wider text-t-lo">
+                        <span className="truncate text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">
                           {tone.label}
                         </span>
                         <span className="ml-auto font-mono text-[10px] text-t-mid">
@@ -529,7 +529,7 @@ export function AnomalyDetectionPage() {
             title="Investigation"
             right={
               selected && (
-                <span className="font-mono text-[10px] uppercase tracking-widest text-t-lo">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">
                   {selected.id ? selected.id.slice(0, 8) : '—'}
                 </span>
               )
@@ -558,7 +558,7 @@ export function AnomalyDetectionPage() {
                 <div className="flex flex-wrap items-center gap-2">
                   <span
                     className={clsx(
-                      'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 font-mono text-[10px] uppercase tracking-widest',
+                      'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em]',
                       sevTone(selected.severity).chip,
                     )}
                   >
@@ -602,7 +602,7 @@ export function AnomalyDetectionPage() {
                 <div className="rounded-card border border-border bg-panel2 p-3">
                   <div className="flex flex-wrap items-center gap-2">
                     <SectionLabel>root cause</SectionLabel>
-                    <span className="rounded-button border border-border bg-panel px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-primary-500">
+                    <span className="rounded-button border border-border bg-panel px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-primary-500">
                       {(selected.anomaly_type || 'anomaly').replace(/_/g, ' ')}
                     </span>
                     <span
@@ -686,7 +686,7 @@ export function AnomalyDetectionPage() {
           <Panel
             title="Incident ledger"
             right={
-              <span className="font-mono text-[10px] uppercase tracking-widest text-t-lo">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">
                 {fmt(items.length, 0)} of {fmt(scanned, 0)}
               </span>
             }
@@ -727,7 +727,7 @@ export function AnomalyDetectionPage() {
                         </span>
                         <span
                           className={clsx(
-                            'truncate rounded-button border px-1.5 py-0.5 text-center font-mono text-[10px] uppercase tracking-wider',
+                            'truncate rounded-button border px-1.5 py-0.5 text-center text-[11px] font-semibold uppercase tracking-[0.14em]',
                             tone.chip,
                           )}
                         >

@@ -86,12 +86,12 @@ export function LoginPage() {
             <EcoMindLogo size={42} />
             <div>
               <EcoMindWordmark size={24} />
-              <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.22em] text-gray-500">grid intelligence console</p>
+              <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">grid intelligence console</p>
             </div>
           </div>
 
           <div className="relative">
-            <p className="mb-1 font-mono text-[10px] uppercase tracking-[0.28em] text-accent-cyan">adaptive · explainable · energy</p>
+            <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-accent-cyan">adaptive · explainable · energy</p>
             <h1 className="font-display text-3xl font-bold leading-tight tracking-tight">
               Understand every kilowatt,<br />
               <span className="text-accent-cyan">explain every decision.</span>
@@ -110,7 +110,7 @@ export function LoginPage() {
                     {String(i + 1).padStart(2, '0')}
                   </span>
                   <span className="text-sm font-medium text-gray-300">{m.short}</span>
-                  <span className="font-mono text-[10px] uppercase tracking-widest text-gray-600">
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-600">
                     {m.stages.map(k => WORKFLOW.find(w => w.key === k)?.path.split('/')[1]).join(' · ')}
                   </span>
                   {i < MILESTONES.length - 1 && (
@@ -123,7 +123,7 @@ export function LoginPage() {
 
           <div className="relative flex items-center justify-between border-t border-white/[0.06] pt-4">
             <p className="font-mono text-[10px] tracking-[0.2em] text-gray-600">13-stage explainable pipeline</p>
-            <p className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-widest text-accent-emerald">
+            <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-accent-emerald">
               <span className="relative flex h-1.5 w-1.5">
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent-emerald/60" />
                 <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-accent-emerald" />
@@ -142,7 +142,7 @@ export function LoginPage() {
             </div>
             <div className="flex items-center gap-2">
               <span className={cn('led', busy ? 'led-alert animate-pulse' : 'led-online')} />
-              <span className={cn('font-mono text-[10px] uppercase tracking-[0.18em]', busy ? 'text-gray-400' : 'text-green-400')}>
+              <span className={cn('text-[11px] font-semibold uppercase tracking-[0.14em]', busy ? 'text-gray-400' : 'text-green-400')}>
                 {busy ? 'handshake…' : 'system on'}
               </span>
             </div>
@@ -151,11 +151,11 @@ export function LoginPage() {
           <div className="mb-7 hidden items-center justify-between lg:flex">
             <div className="flex items-center gap-2">
               <span className={cn('led', busy ? 'led-alert animate-pulse' : 'led-online')} />
-              <span className={cn('font-mono text-[10px] uppercase tracking-[0.18em]', busy ? 'text-gray-400' : 'text-green-400')}>
+              <span className={cn('text-[11px] font-semibold uppercase tracking-[0.14em]', busy ? 'text-gray-400' : 'text-green-400')}>
                 {busy ? 'handshake…' : 'system on'}
               </span>
             </div>
-            <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-gray-600">operator access</p>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-t-lo">operator access</p>
           </div>
 
           <p className="mb-1 font-display text-xl font-semibold tracking-tight">Sign in to the console</p>

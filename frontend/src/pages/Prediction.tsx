@@ -507,10 +507,10 @@ export function PredictionPage() {
                 <table className="w-full text-left text-[11px]">
                   <thead>
                     <tr className="border-b border-border">
-                      <th className="py-1.5 pr-2 font-mono text-[9px] uppercase tracking-widest text-t-lo">timestamp</th>
-                      <th className="py-1.5 pr-2 text-right font-mono text-[9px] uppercase tracking-widest text-t-lo">actual</th>
-                      <th className="py-1.5 pr-2 text-right font-mono text-[9px] uppercase tracking-widest text-t-lo">predicted</th>
-                      <th className="py-1.5 text-right font-mono text-[9px] uppercase tracking-widest text-t-lo">Δ</th>
+                      <th className="py-1.5 pr-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-t-lo">timestamp</th>
+                      <th className="py-1.5 pr-2 text-right text-[10px] font-semibold uppercase tracking-[0.12em] text-t-lo">actual</th>
+                      <th className="py-1.5 pr-2 text-right text-[10px] font-semibold uppercase tracking-[0.12em] text-t-lo">predicted</th>
+                      <th className="py-1.5 text-right text-[10px] font-semibold uppercase tracking-[0.12em] text-t-lo">Δ</th>
                     </tr>
                   </thead>
                   <tbody>

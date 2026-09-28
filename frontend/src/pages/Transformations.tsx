@@ -624,7 +624,7 @@ export function TransformationsPage() {
         <Panel
           title="rule execution timeline"
           right={
-            <span className="font-mono text-[10px] uppercase tracking-widest text-t-lo">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">
               {applied.some(t => t.applied_at) ? 'from applied_at stamps' : 'replay order'}
             </span>
           }
@@ -663,7 +663,7 @@ export function TransformationsPage() {
                         title={`${opLabel(t.operation)} · ${whenText(t.applied_at)} · ${fmt(t.rows_affected ?? 0, 0)} rows`}
                       >
                         <span className={cn('h-2.5 w-2.5 rounded-full border-2 bg-panel transition-transform group-hover:scale-125', tone, on ? 'scale-125 border-primary-400' : 'border-transparent')} />
-                        <span className={cn('mt-0.5 max-w-full truncate font-mono text-[8.5px] uppercase tracking-wide', on ? 'text-t-hi' : 'text-t-lo')}>
+                        <span className={cn('mt-0.5 max-w-full truncate text-[10px] font-semibold uppercase tracking-[0.12em]', on ? 'text-t-hi' : 'text-t-lo')}>
                           {t.operation?.replace(/_/g, ' ')}
                         </span>
                         <span className="font-mono text-[8px] text-t-lo/70">
@@ -718,7 +718,7 @@ export function TransformationsPage() {
             className="flex min-h-0 flex-col xl:col-span-7"
             title="applied transformation ledger"
             right={
-              <span className="font-mono text-[10px] uppercase tracking-widest text-t-lo">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">
                 replay order · {fmt(items.length, 0)} step{items.length === 1 ? '' : 's'}
               </span>
             }
@@ -767,7 +767,7 @@ export function TransformationsPage() {
                         {t.applied !== false
                           ? <StatusChip status="ok">applied</StatusChip>
                           : <StatusChip status="idle">staged</StatusChip>}
-                        {isLast && <span className="font-mono text-[9px] uppercase tracking-widest text-t-lo">latest</span>}
+                        {isLast && <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-t-lo">latest</span>}
                         <span className="ml-auto shrink-0 font-mono text-[10px] text-t-lo" title={t.applied_at ?? undefined}>
                           {whenText(t.applied_at)}
                         </span>
@@ -801,7 +801,7 @@ export function TransformationsPage() {
                       <span className="font-mono text-[13px] font-semibold text-t-hi">
                         {fmt(nz(t.rows_affected) ?? 0, 0)}
                       </span>
-                      <span className="font-mono text-[9px] uppercase tracking-widest text-t-lo">rows</span>
+                      <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-t-lo">rows</span>
                       <span className="font-mono text-[9px] text-t-lo" title={t.id ?? undefined}>{shortId(t.id)}</span>
                     </span>
                   </button>
@@ -828,7 +828,7 @@ export function TransformationsPage() {
                       type="button"
                       onClick={() => setSheetView(v)}
                       className={cn(
-                        'rounded-button px-2 py-0.5 font-mono text-[9px] uppercase tracking-widest transition-colors',
+                        'rounded-button px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] transition-colors',
                         sheetView === v ? 'bg-primary-500 text-white' : 'text-t-lo hover:text-t-hi',
                       )}
                     >
@@ -894,7 +894,7 @@ export function TransformationsPage() {
             <Panel
               title="change summary"
               right={
-                <span className="font-mono text-[10px] uppercase tracking-widest text-t-lo">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">
                   {diff.source === 'server' ? 'apply diff_summary' : diff.source === 'snapshot' ? 'from snapshots' : 'nothing selected'}
                 </span>
               }
@@ -1056,7 +1056,7 @@ export function TransformationsPage() {
                         type="button"
                         disabled={busy}
                         onClick={() => setPicked(target)}
-                        className="font-mono text-[10px] uppercase tracking-widest text-primary-500 transition-colors hover:text-t-hi disabled:opacity-50"
+                        className="text-[11px] font-semibold uppercase tracking-[0.14em] text-primary-500 transition-colors hover:text-t-hi disabled:opacity-50"
                       >
                         all
                       </button>
@@ -1064,7 +1064,7 @@ export function TransformationsPage() {
                         type="button"
                         disabled={busy}
                         onClick={() => setPicked([])}
-                        className="font-mono text-[10px] uppercase tracking-widest text-t-lo transition-colors hover:text-t-hi disabled:opacity-50"
+                        className="text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo transition-colors hover:text-t-hi disabled:opacity-50"
                       >
                         none
                       </button>
@@ -1175,7 +1175,7 @@ export function TransformationsPage() {
       {items.length > 0 && datasetId && (
         <div className="flex shrink-0 items-center gap-2">
           <ArrowRight className="h-3.5 w-3.5 shrink-0 text-t-lo" />
-          <span className="font-mono text-[10px] uppercase tracking-widest text-t-lo">
+          <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">
             next · feature engineering derives from this processed frame
           </span>
         </div>
@@ -1204,7 +1204,7 @@ function SnapshotSheet({
     <div className="flex min-w-0 flex-col overflow-hidden rounded-button border border-border bg-panel2">
       <div className="flex items-center justify-between gap-2 border-b border-border px-2.5 py-1.5">
         <SectionLabel>{label}</SectionLabel>
-        <span className="shrink-0 font-mono text-[9px] uppercase tracking-widest text-t-lo">{fmt(entries.length, 0)} cols</span>
+        <span className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.12em] text-t-lo">{fmt(entries.length, 0)} cols</span>
       </div>
       <div className="max-h-44 overflow-y-auto">
         <table className="w-full border-collapse text-left">
@@ -1242,7 +1242,7 @@ function SnapshotSheet({
                   <td className="px-1.5 py-1 text-right font-mono text-[10px] text-t-lo">
                     {e.unique === null ? '—' : fmt(e.unique, 0)}
                   </td>
-                  <td className="px-1.5 py-1 text-right font-mono text-[9px] uppercase text-accent-emerald" title={fields.join(' · ') || 'unchanged'}>
+                  <td className="px-1.5 py-1 text-right text-[10px] font-semibold uppercase tracking-[0.12em] text-accent-emerald" title={fields.join(' · ') || 'unchanged'}>
                     {moved ? fields[0] : '—'}
                   </td>
                 </tr>
@@ -1285,7 +1285,7 @@ function RowSheet({
     <div className="flex min-w-0 flex-col overflow-hidden rounded-button border border-border bg-panel2">
       <div className="flex items-center justify-between gap-2 border-b border-border px-2.5 py-1.5">
         <SectionLabel>{label}</SectionLabel>
-        <span className="shrink-0 font-mono text-[9px] uppercase tracking-widest text-t-lo">
+        <span className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.12em] text-t-lo">
           {body ? `${fmt(body.matrix.length, 0)}×${fmt(body.cols.length, 0)}` : 'empty'}
         </span>
       </div>
@@ -1338,7 +1338,7 @@ function BarRow({
   return (
     <div className="space-y-1">
       <div className="flex items-baseline justify-between gap-2">
-        <span className="font-mono text-[10px] uppercase tracking-wider text-t-lo">{label}</span>
+        <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">{label}</span>
         <span className="font-mono text-[10px] text-t-mid">{caption}</span>
       </div>
       <Bar value={value} max={max} tone={tone} />

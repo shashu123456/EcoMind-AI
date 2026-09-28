@@ -337,7 +337,7 @@ export function FeatureEngineeringPage() {
                         <p className="mt-0.5 truncate text-[10px] text-t-lo" title={f.description}>{f.description || f.feature_type}</p>
                         <Bar value={impPct(f)} tone={fresh ? 'emerald' : 'primary'} className="mt-1.5" />
                         <div className="mt-1 flex items-center justify-between gap-1">
-                          <span className="truncate font-mono text-[9px] uppercase text-t-lo">{f.feature_type}</span>
+                          <span className="truncate text-[10px] font-semibold uppercase tracking-[0.12em] text-t-lo">{f.feature_type}</span>
                           <span className="font-mono text-[10px] font-semibold text-primary-500">{fmt(impPct(f), 0)}%</span>
                         </div>
                       </div>
@@ -377,7 +377,7 @@ export function FeatureEngineeringPage() {
                         <div className="flex min-w-0 items-center gap-1.5">
                           <span className="shrink-0 font-mono text-[10px] text-t-lo">{String(i + 1).padStart(2, '0')}</span>
                           <span className="truncate text-xs font-medium text-t-hi">{f.name}</span>
-                          <span className="shrink-0 rounded-full border border-border bg-panel3 px-1.5 py-px font-mono text-[9px] uppercase text-t-lo">
+                          <span className="shrink-0 rounded-full border border-border bg-panel3 px-1.5 py-px text-[10px] font-semibold uppercase tracking-[0.12em] text-t-lo">
                             {f.feature_type || 'custom'}
                           </span>
                         </div>
