@@ -565,31 +565,57 @@ function ColumnProfile({ field, totalRows }: { field: Field; totalRows: number }
       <div className="space-y-1.5">
         <SectionLabel>{numericSamples.length > 1 ? 'sampled spread' : 'observed values'}</SectionLabel>
         {numericSamples.length > 1 ? (
-          <>
-            <div className="flex h-16 items-end gap-[3px] rounded-button border border-border bg-panel2 px-2 py-1.5">
-              {numericSamples.map((v, i) => {
-                const lo = Math.min(...numericSamples)
-                const hi = Math.max(...numericSamples)
-                const span = hi - lo
-                const pct = span > 0 ? ((v - lo) / span) * 100 : 55
-                return (
-                  <motion.span
-                    key={i}
-                    initial={{ height: 0 }}
-                    animate={{ height: `${Math.max(6, pct)}%` }}
-                    transition={{ duration: 0.45, delay: Math.min(i, 12) * 0.025, ease: EASE }}
-                    title={fmtSample(v, 24)}
-                    className="min-w-[4px] flex-1 rounded-t-[2px] bg-primary-500"
-                  />
-                )
-              })}
-            </div>
-            <div className="flex items-center justify-between font-mono text-[9px] text-t-lo">
-              <span>min {fmt(Math.min(...numericSamples), 4)}</span>
-              <span>{numericSamples.length} sampled</span>
-              <span>max {fmt(Math.max(...numericSamples), 4)}</span>
-            </div>
-          </>
+          (() => {
+            /* binned distribution — a real histogram, not a value sparkline */
+            const lo = Math.min(...numericSamples)
+            const hi = Math.max(...numericSamples)
+            const span = hi - lo
+            const BINS = 12
+            const bins = Array.from({ length: BINS }, () => 0)
+            for (const v of numericSamples) {
+              const b = span > 0 ? Math.min(BINS - 1, Math.floor(((v - lo) / span) * BINS)) : 0
+              bins[b] += 1
+            }
+            const peak = Math.max(...bins, 1)
+            const mean = num(stats.mean)
+            const median = num(stats['50%'] ?? stats.median)
+            const mark = (v: number, color: string, label: string) =>
+              Number.isFinite(v) && span > 0 ? (
+                <span
+                  className="pointer-events-none absolute bottom-1 top-1 w-px"
+                  style={{ left: `${((v - lo) / span) * 100}%`, background: color }}
+                  title={`${label} ${fmt(v, 4)}`}
+                />
+              ) : null
+            return (
+              <>
+                <div className="rounded-button border border-border bg-panel2 px-2 py-1.5">
+                  <div className="relative flex h-14 items-end gap-[2px]">
+                    {bins.map((c, i) => (
+                      <motion.span
+                        key={i}
+                        initial={{ height: 0 }}
+                        animate={{ height: `${Math.max(4, (c / peak) * 100)}%` }}
+                        transition={{ duration: 0.4, delay: i * 0.03, ease: EASE }}
+                        title={`bin ${i + 1}: ${c} sample${c === 1 ? '' : 's'} · ${fmt(lo + (span * i) / BINS, 3)} → ${fmt(lo + (span * (i + 1)) / BINS, 3)}`}
+                        className={clsx('min-w-[4px] flex-1 rounded-t-[2px]', c > 0 ? 'bg-primary-500' : 'bg-white/[0.05]')}
+                      />
+                    ))}
+                    {mark(mean, '#F2A93B', 'mean')}
+                    {mark(median, '#34D399', 'median')}
+                  </div>
+                </div>
+                <div className="flex items-center justify-between font-mono text-[9px] text-t-lo">
+                  <span>min {fmt(lo, 4)}</span>
+                  <span className="flex items-center gap-2">
+                    <span className="inline-flex items-center gap-1"><span className="h-2 w-px bg-[#F2A93B]" /> mean {Number.isFinite(mean) ? fmt(mean, 3) : '—'}</span>
+                    <span className="inline-flex items-center gap-1"><span className="h-2 w-px bg-[#34D399]" /> median {Number.isFinite(median) ? fmt(median, 3) : '—'}</span>
+                  </span>
+                  <span>max {fmt(hi, 4)}</span>
+                </div>
+              </>
+            )
+          })()
         ) : distinct.length === 0 ? (
           <p className="text-[11px] text-t-lo">no sample values were captured for this column.</p>
         ) : (

@@ -619,6 +619,74 @@ export function TransformationsPage() {
         />
       </div>
 
+      {/* ── chain timeline · when each rule fired ──────────────── */}
+      {applied.length > 0 && (
+        <Panel
+          title="rule execution timeline"
+          right={
+            <span className="font-mono text-[10px] uppercase tracking-widest text-t-lo">
+              {applied.some(t => t.applied_at) ? 'from applied_at stamps' : 'replay order'}
+            </span>
+          }
+        >
+          {(() => {
+            const stamped = applied.filter(t => t.applied_at).length
+            const useClock = stamped >= 2
+            const times = useClock
+              ? applied.map(t => new Date(t.applied_at as string).getTime()).filter(Number.isFinite)
+              : applied.map((_, i) => i)
+            const t0 = times[0]
+            const span = Math.max(...times, useClock ? 1 : applied.length - 1) - (useClock ? t0 : 0) || 1
+            const OP_TONE: Record<string, string> = {
+              normalize: 'bg-cyan-500', fill_missing: 'bg-amber-500', drop_duplicates: 'bg-rose-500',
+              resample: 'bg-primary-500', outlier: 'bg-rose-400', rename: 'bg-emerald-500',
+            }
+            return (
+              <div className="relative mt-1 px-1 pb-1">
+                <div className="h-px w-full bg-border" />
+                <div className="relative h-14">
+                  {applied.map((t, i) => {
+                    const on = t.id === selectedId
+                    const pos = useClock
+                      ? ((new Date(t.applied_at as string).getTime() - t0) / span) * 100
+                      : (i / Math.max(1, applied.length - 1)) * 100
+                    const tone = OP_TONE[t.operation] || 'bg-t-lo'
+                    return (
+                      <button
+                        key={t.id || i}
+                        type="button"
+                        onClick={() => setSelectedId(t.id)}
+                        className={cn(
+                          'group absolute top-0 flex h-14 w-16 -translate-x-1/2 flex-col items-center justify-start outline-none',
+                        )}
+                        style={{ left: `${Math.min(97, Math.max(3, pos))}%` }}
+                        title={`${opLabel(t.operation)} · ${whenText(t.applied_at)} · ${fmt(t.rows_affected ?? 0, 0)} rows`}
+                      >
+                        <span className={cn('h-2.5 w-2.5 rounded-full border-2 bg-panel transition-transform group-hover:scale-125', tone, on ? 'scale-125 border-primary-400' : 'border-transparent')} />
+                        <span className={cn('mt-0.5 max-w-full truncate font-mono text-[8.5px] uppercase tracking-wide', on ? 'text-t-hi' : 'text-t-lo')}>
+                          {t.operation?.replace(/_/g, ' ')}
+                        </span>
+                        <span className="font-mono text-[8px] text-t-lo/70">
+                          {useClock ? clockText(t.applied_at) : `#${i + 1}`}
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+                {useClock && (
+                  <div className="flex justify-between font-mono text-[9px] text-t-lo/70">
+                    <span>{clockText(applied.find(t => t.applied_at)?.applied_at)}</span>
+                    <span>click a node to inspect its before | after evidence</span>
+                    <span>{clockText([...applied].reverse().find(t => t.applied_at)?.applied_at)}</span>
+                    <span />
+                  </div>
+  )}
+              </div>
+            )
+          })()}
+        </Panel>
+      )}
+
       {resolving && <LoadingState label="Resolving the dataset for this run…" />}
 
       {loading && <LoadingState label="Reading the transformation ledger…" />}

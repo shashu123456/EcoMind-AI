@@ -5,6 +5,7 @@ import {
   Play, RefreshCw, Table2,
 } from 'lucide-react'
 import { datasets, reports, type Report } from '../lib/api'
+import { API_BASE } from '../lib/api'
 import { useApi } from '../lib/hooks'
 import { fmt, n } from '../lib/pagekit'
 import { useJourney } from '../lib/journey'
@@ -244,6 +245,43 @@ function Sweep({ label, elapsedMs }: { label: string; elapsedMs: number }) {
   )
 }
 
+/* ── CSV preview: fetch the blob text and show the head rows in the mono grid ── */
+function PreparedCsvPreview({ url }: { url: string }) {
+  const [rows, setRows] = useState<string[][] | null>(null)
+  const [err, setErr] = useState<string | null>(null)
+  useEffect(() => {
+    let alive = true
+    fetch(url)
+      .then(r => r.text())
+      .then(t => {
+        if (!alive) return
+        const lines = t.split(/\r?\n/).filter(l => l.length > 0).slice(0, 24)
+        setRows(lines.map(l => l.split(',')))
+      })
+      .catch(() => alive && setErr('the csv could not be parsed for preview'))
+    return () => { alive = false }
+  }, [url])
+  if (err) return <p className="px-3 py-3 font-mono text-[10px] text-rose-500">{err}</p>
+  if (!rows) return <p className="px-3 py-3 font-mono text-[10px] text-t-lo">parsing csv…</p>
+  const width = Math.max(...rows.map(r => r.length), 1)
+  return (
+    <div className="max-h-[420px] overflow-auto">
+      <div
+        className="grid gap-x-3 bg-panel px-3 py-2 font-mono text-[10px] text-t-mid"
+        style={{ gridTemplateColumns: `repeat(${width}, minmax(0, 1fr))` }}
+      >
+        {rows.map((r, ri) =>
+          r.map((cell, ci) => (
+            <span key={`${ri}-${ci}`} className={cn('truncate', ri === 0 && 'font-semibold text-t-hi')}>
+              {cell}
+            </span>
+          )),
+        )}
+      </div>
+    </div>
+  )
+}
+
 /* ── One node of the production flow. State comes from the real request. */
 type FlowState = 'done' | 'active' | 'idle' | 'fail'
 
@@ -305,6 +343,9 @@ export function ReportGenerationPage() {
   const [reloading, setReloading] = useState(false)
   const [dlId, setDlId] = useState<string | null>(null)
   const [dlError, setDlError] = useState<string | null>(null)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const [previewLoading, setPreviewLoading] = useState(false)
+  const [previewError, setPreviewError] = useState<string | null>(null)
 
   /* live elapsed clock — real wall time of the in-flight request */
   useEffect(() => {
@@ -388,6 +429,36 @@ export function ReportGenerationPage() {
   function openDoc(r: ReportRow) {
     setSelectedId(r.id)
     setInspected(null)
+    if (previewUrl) URL.revokeObjectURL(previewUrl)
+    setPreviewUrl(null)
+    setPreviewError(null)
+  }
+
+  /* ── live file preview — the real stored bytes, auth-fetched into an iframe ──
+     PDF renders natively; HTML renders as the document; CSV renders as text. */
+  async function openPreview(r: ReportRow) {
+    if (previewLoading) return
+    setPreviewLoading(true)
+    setPreviewError(null)
+    try {
+      const token = localStorage.getItem('ecomind_token')
+      const res = await fetch(`${API_BASE}/reports/${r.id}/download`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+      if (!res.ok) throw new Error(`the file could not be read (${res.status})`)
+      const blob = await res.blob()
+      setPreviewUrl(URL.createObjectURL(blob))
+    } catch (e: any) {
+      setPreviewError(e?.message || 'preview unavailable')
+    } finally {
+      setPreviewLoading(false)
+    }
+  }
+
+  function closePreview() {
+    if (previewUrl) URL.revokeObjectURL(previewUrl)
+    setPreviewUrl(null)
+    setPreviewError(null)
   }
 
   async function reread() {
@@ -1013,6 +1084,50 @@ export function ReportGenerationPage() {
                     {openReport.dataset_id === datasetId ? ' · in context' : ''}
                   </span>
                 </div>
+              </div>
+
+              {/* live file preview — real bytes, rendered in-app */}
+              <div className="space-y-2">
+                {previewUrl && openReport.id === selected?.id ? (
+                  <div className="overflow-hidden rounded-button border border-border">
+                    <div className="flex items-center justify-between gap-2 border-b border-border bg-panel2 px-2.5 py-1.5">
+                      <span className="font-mono text-[10px] uppercase tracking-widest text-t-lo">
+                        preview · {formatOf(openReport).toUpperCase()}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={closePreview}
+                        className="font-mono text-[10px] uppercase tracking-widest text-t-lo transition-colors hover:text-t-hi"
+                      >
+                        close
+                      </button>
+                    </div>
+                    {formatOf(openReport) === 'csv' ? (
+                      <PreparedCsvPreview url={previewUrl} />
+                    ) : (
+                      <iframe
+                        src={previewUrl}
+                        title={`Preview of ${titleOf(openReport)}`}
+                        className="h-[420px] w-full bg-white"
+                      />
+                    )}
+                  </div>
+                ) : (
+                  <Button
+                    size="xs"
+                    variant="secondary"
+                    onClick={() => openPreview(openReport)}
+                    disabled={previewLoading || dlId !== null}
+                    title="Fetch the stored file and render it here — no download needed"
+                  >
+                    {previewLoading ? 'reading file…' : 'Preview file'}
+                  </Button>
+                )}
+                {previewError && (
+                  <p className="rounded-button border border-rose-500/30 bg-rose-500/[0.06] px-2.5 py-1.5 font-mono text-[10px] text-rose-500">
+                    {previewError}
+                  </p>
+                )}
               </div>
 
               <div className="flex flex-wrap items-center gap-2">

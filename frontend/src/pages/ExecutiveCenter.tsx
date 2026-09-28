@@ -443,6 +443,22 @@ export function ExecutiveCenterPage() {
   const pipelinePct = totalStages ? pct(((completed ?? 0) / totalStages) * 100) : 0
   const gateFactors = summary.gate
 
+  /* deployment readiness — derived strictly from real pipeline evidence:
+     trust gate score × pipeline completion. No invented thresholds: the 60
+     floor mirrors the confidence gate's own review threshold. */
+  const deployment = (() => {
+    const t = summary.trustScore
+    const st = (summary.runStatus || '').toLowerCase()
+    const complete = st === 'completed' || st === 'complete'
+    if (t !== null && t >= 75 && complete)
+      return { status: 'READY', hint: `trust ${fmt(t, 0)} · run complete — cleared for deployment`, accent: 'emerald' as const }
+    if (t !== null && t >= 60)
+      return { status: 'CONDITIONAL', hint: complete ? `trust ${fmt(t, 0)} — review gate factors before rollout` : `trust ${fmt(t, 0)} · pipeline still running`, accent: 'amber' as const }
+    if (t !== null)
+      return { status: 'HOLD', hint: `trust ${fmt(t, 0)} below the review floor — not deployable`, accent: 'rose' as const }
+    return { status: 'NOT GATED', hint: 'no confidence evaluation on this dataset yet', accent: 'amber' as const }
+  })()
+
   const hero = (
     <StageHeader
       beat={BEAT.beat}
@@ -617,6 +633,20 @@ export function ExecutiveCenterPage() {
                       ? `${fmt(actions.length, 0)} action${actions.length === 1 ? '' : 's'}`
                       : `${fmt(savingsPct, 1)}% across ${fmt(actions.length, 0)} action${actions.length === 1 ? '' : 's'}`
                   }
+                  mono
+                />
+                <Stat
+                  label="Energy forecast"
+                  value={summary.forecastKwh === null ? '—' : `${fmt(summary.forecastKwh, 0)} kWh`}
+                  hint={summary.co2Kg === null ? 'best-model projection' : `≈ ${fmt(summary.co2Kg, 0)} kg CO₂ · $${fmt(summary.cost ?? 0, 0)}`}
+                  accent="cyan"
+                  mono
+                />
+                <Stat
+                  label="Deployment status"
+                  value={deployment.status}
+                  hint={deployment.hint}
+                  accent={deployment.accent}
                   mono
                 />
               </div>

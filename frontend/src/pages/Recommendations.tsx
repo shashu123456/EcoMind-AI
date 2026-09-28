@@ -542,7 +542,7 @@ export function RecommendationsPage() {
       />
 
       {/* ── headline strip ─────────────────────────────────────────── */}
-      <div className="grid shrink-0 grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid shrink-0 grid-cols-2 gap-3 lg:grid-cols-5">
         <Stat
           label="Projected savings"
           value={`${fmt(totalKwh, 0)} kWh`}
@@ -551,16 +551,25 @@ export function RecommendationsPage() {
           mono
         />
         <Stat
-          label="Reduction potential"
-          value={`${fmt(totalPct, 1)}%`}
-          hint="of modelled consumption"
+          label="CO₂ avoided"
+          value={`${fmt(totalKwh * 0.5, 0)} kg`}
+          hint={`0.5 kg CO₂e per kWh · ≈ ${fmt(totalKwh * 0.5 * 12, 0)} kg / year`}
           accent="cyan"
           mono
         />
         <Stat
-          label="Open actions"
-          value={fmt(openCount, 0)}
-          hint={hasData ? `${fmt(closedCount, 0)} already accepted or done` : 'nothing briefed yet'}
+          label="Cost impact · year"
+          value={`$${fmt(totalKwh * 12 * 0.12, 0)}`}
+          hint={`at $0.12/kWh · ${fmt(totalPct, 1)}% of consumption`}
+          accent="amber"
+          mono
+        />
+        <Stat
+          label="Action plan"
+          value={items.length ? `${fmt(openCount, 0)} open · ${fmt(items.length, 0)} total` : '—'}
+          hint={hasData
+            ? `start with ${ranked[0]?.category?.replace(/_/g, ' ') ?? 'top priority'} — priority × savings`
+            : 'draft the brief to build the plan'}
           accent="primary"
           mono
         />
