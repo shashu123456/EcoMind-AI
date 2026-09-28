@@ -119,9 +119,14 @@ export function AutomatedPage() {
 
   const dsName = useMemo(() => datasetId, [datasetId])
 
-  /* guard: automation needs a dataset */
+  /* guard: automation needs a dataset — but give the journey store a
+     moment to resolve the active dataset (async poll) before bouncing. */
   useEffect(() => {
-    if (!datasetId) navigate({ to: '/library' } as any)
+    if (datasetId) return
+    const t = setTimeout(() => {
+      if (!useJourney.getState().datasetId) navigate({ to: '/library' } as any)
+    }, 1200)
+    return () => clearTimeout(t)
   }, [datasetId, navigate])
 
   const mark = (key: string, state: Station['state']) => {
