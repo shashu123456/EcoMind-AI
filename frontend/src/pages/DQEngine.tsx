@@ -5,7 +5,7 @@ import { datasets, dq } from '../lib/api'
 import { useApi } from '../lib/hooks'
 import { useRouteParams, fmt, EmptyBox } from '../lib/pagekit'
 import { useJourney } from '../lib/journey'
-import { AutoNext, DoneChip, AnimatedNumber, PulseDot } from '../lib/kit'
+import { AutoNext, DoneChip, AnimatedNumber, PulseDot, normRows } from '../lib/kit'
 import { colLabel } from '../lib/kit'
 
 const RULE_MS = 720
@@ -251,7 +251,9 @@ export function DQEnginePage() {
 
   const prevData = (prev?.data || {}) as any
   const columns = (prevData?.columns || []) as any[]
-  const rows = (prevData?.rows || []) as any[]
+  // Preview rows arrive as dicts keyed by column name — normalize to
+  // column-aligned arrays so the sheet renders real values.
+  const rows = normRows((prevData?.rows || []) as any[], columns)
   const rowCount = ds?.row_count ?? rows.length
 
   const gapProfile = useMemo(() => {
@@ -347,7 +349,7 @@ export function DQEnginePage() {
         </div>
       </div>
 
-      <div className="grid min-h-0 flex-1 gap-3 px-4 pb-3 lg:grid-cols-[1.1fr_1fr_1fr]">
+      <div className="grid min-h-0 flex-1 gap-3 px-4 pb-3 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)_minmax(0,1fr)]">
         <DataSheet columns={columns} rows={rows.slice(0, 12)} leaving={Math.min(currentRule, rows.length)} rowCount={rowCount} />
         <AssemblyMachine current={currentRule} done={phase === 'done'} rowCount={rowCount} />
         <QualityMonitor current={currentRule} done={phase === 'done'} rowCount={rowCount} score={score} dims={dims} error={error} onRetry={runQuality} />
