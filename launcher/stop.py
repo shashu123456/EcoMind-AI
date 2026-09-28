@@ -30,6 +30,9 @@ def main():
         if not svc.get("enabled", False):
             continue
         pid = started.get(svc["id"])
+        if pid == -1:
+            print(f"  [..] {svc['title']} was already running before launch - leaving it alone.")
+            continue
         if pid and str(pid) != "True":
             targets.append((svc["title"], int(pid), svc.get("port")))
 

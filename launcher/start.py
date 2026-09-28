@@ -20,7 +20,7 @@ from launcher.checks import run_checks, render_checks
 from launcher.processes import (
     port_in_use, http_ok, pid_alive, kill_tree, start_service,
     write_pid_map, clear_pid_map, write_launcher_pid, read_launcher_pid,
-    clear_launcher_pid, tail_log, pid_dir,
+    clear_launcher_pid, tail_log, pid_dir, our_launcher_alive, LAUNCHER_MARKER,
 )
 
 log = get_logger()
@@ -39,10 +39,14 @@ def _banner():
 
 def _check_duplicate() -> bool:
     mine = read_launcher_pid()
-    if mine and mine != os.getpid() and pid_alive(mine):
-        print(f"[!] Another launcher instance is already running (pid {mine}).")
+    if mine and mine != os.getpid() and our_launcher_alive(mine, LAUNCHER_MARKER):
+        print(f"[!] Another EcoMind launcher is already running (pid {mine}).")
         print("    Use Stop_EcoMind.bat first, or let it keep monitoring.")
         return True
+    # Stale pid file: the process exited, or Windows recycled the pid onto an
+    # unrelated exe (e.g. TextInputHost.exe). Clear it and continue.
+    if mine:
+        clear_launcher_pid()
     write_launcher_pid(os.getpid())
     return False
 
@@ -72,7 +76,12 @@ def _start_services(cfg) -> dict:
             continue
         # Port pre-check: if our own process holds it, skip.
         if port_in_use(svc["port"]):
-            print(f"[!] {svc['title']} port {svc['port']} already in use - skipping start.")
+            url = svc.get("health_url", "")
+            if url and http_ok(url):
+                print(f"[OK] {svc['title']} already running and healthy on port {svc['port']} - reusing it.")
+                started[svc["id"]] = -1  # -1 = external/pre-existing, nothing to spawn
+                continue
+            print(f"[!] {svc['title']} port {svc['port']} already in use by another program - skipping start.")
             started[f"{svc['id']}-skipped"] = True
             continue
         pid = start_service(svc)
@@ -91,6 +100,10 @@ def _wait_ready(cfg, started, timeout: int, poll: float) -> bool:
         if not svc.get("enabled", False):
             continue
         if f"{svc['id']}-skipped" in started:
+            continue
+        # Pre-existing healthy services (pid -1) are ready by definition.
+        if started.get(svc["id"]) == -1:
+            print(f"[OK] {svc['title']} already healthy (pre-existing).")
             continue
         url = svc.get("health_url", "")
         title = svc["title"]
@@ -121,7 +134,7 @@ def _monitor(cfg, started, interval: float):
                 if not svc.get("enabled", False):
                     continue
                 pid = started.get(svc["id"])
-                if pid and not pid_alive(pid):
+                if pid and pid != -1 and not pid_alive(pid):
                     print(f"[!] {svc['title']} (pid {pid}) stopped unexpectedly.")
             time.sleep(interval)
     except KeyboardInterrupt:
@@ -139,8 +152,6 @@ def main():
     rows = run_checks()
     text, all_ok = render_checks(rows)
     print(text)
-    from launcher.checks import run_checks as rc2
-    _ = rc2  # noqa
     failed = [r for r in rows if not r["ok"]]
     if failed:
         print("\n[FAIL] The following requirements are not met:")

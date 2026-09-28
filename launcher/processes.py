@@ -13,6 +13,14 @@ from launcher.config import project_root, python_executable, load_config
 
 PID_DIR_NAME = "launcher-pids"
 
+# Markers placed on our own command lines so "is this really our process?"
+# stays reliable even after Windows recycles a PID.
+LAUNCHER_MARKER = "launcher.start"
+SPAWN_MARKER = "spawn.py"
+
+BACKEND_TITLE = "EcoMind Backend"
+FRONTEND_TITLE = "EcoMind Frontend"
+
 
 def pid_dir() -> Path:
     cfg = load_config()
@@ -39,16 +47,40 @@ def http_ok(url: str, timeout: float = 3.0) -> bool:
         return False
 
 
-def pid_alive(pid: int) -> bool:
+def _wmic_cmdline(pid: int) -> str:
     try:
-        subprocess.run(["tasklist", "/FI", f"PID eq {pid}", "/NH"],
-                       capture_output=True, text=True, timeout=10)
-        return _pid_running(pid)
+        r = subprocess.run(
+            ["wmic", "process", "where", f"ProcessId={pid}", "get", "CommandLine", "/format:list"],
+            capture_output=True, text=True, timeout=15,
+        )
+        if r.returncode == 0:
+            for line in r.stdout.splitlines():
+                if line.startswith("CommandLine="):
+                    return line.split("=", 1)[1]
     except Exception:
-        return False
+        pass
+    return ""
 
 
-def _pid_running(pid: int) -> bool:
+def _cmdline(pid: int) -> str:
+    """Command line of a pid, empty string if it cannot be determined."""
+    # Prefer PowerShell (present on all supported Windows versions).
+    try:
+        r = subprocess.run(
+            ["powershell", "-NoProfile", "-Command",
+             f"(Get-CimInstance Win32_Process -Filter \"ProcessId={pid}\").CommandLine"],
+            capture_output=True, text=True, timeout=20,
+        )
+        if r.returncode == 0:
+            out = (r.stdout or "").strip()
+            if out:
+                return out
+    except Exception:
+        pass
+    return _wmic_cmdline(pid)
+
+
+def pid_alive(pid: int) -> bool:
     try:
         out = subprocess.run(["tasklist", "/FI", f"PID eq {pid}", "/NH"],
                              capture_output=True, text=True, timeout=10).stdout or ""
@@ -58,6 +90,20 @@ def _pid_running(pid: int) -> bool:
     except Exception:
         return False
     return False
+
+
+def our_launcher_alive(pid: int, marker: str = LAUNCHER_MARKER) -> bool:
+    """True only if pid is a python process whose command line contains marker.
+
+    Plain `pid_alive` matches ANY process with that pid (taskkill-style), which
+    broke the launcher after Windows recycled the pid onto an unrelated exe.
+    """
+    if not pid or not pid_alive(pid):
+        return False
+    cmdline = _cmdline(pid).lower()
+    if "python" not in cmdline:
+        return False
+    return marker.lower() in cmdline
 
 
 def kill_tree(pid: int) -> bool:
@@ -109,7 +155,7 @@ def clear_launcher_pid():
         f.unlink()
 
 
-def _cmdline(service: dict, py: str) -> list[str]:
+def _service_command(service: dict, py: str) -> list[str]:
     cmd = list(service.get("command", []))
     return [py if c == "python" else c for c in cmd]
 
@@ -124,17 +170,17 @@ def start_service(service: dict) -> int | None:
     log_file = logs_dir / service.get("log", f"{service['id']}.log")
     root = str(project_root())
 
-    cmd = _cmdline(service, py)
-    root = str(project_root())
+    cmd = _service_command(service, py)
     spawn = str(Path(__file__).resolve().parent / "spawn.py")
 
     env = dict(os.environ)
     for k, v in (service.get("env") or {}).items():
         env[k] = str(v).replace("{root}", root)
 
+    title = service.get("title", service["id"])
     try:
         proc = subprocess.Popen(
-            [py, "-u", spawn, str(log_file), service["title"], str(cwd), "--", *cmd],
+            [py, "-u", spawn, str(log_file), title, str(cwd), "--", *cmd],
             cwd=str(cwd),
             env=env,
             creationflags=subprocess.CREATE_NEW_CONSOLE,
