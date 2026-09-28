@@ -157,7 +157,7 @@ export function LibraryPage() {
                 >
                   {launching === d.id || runningJourney === d.id ? <Loader2 className="w-3 h-3 animate-spin" /> :
                     mode === 'auto' ? <Zap className="w-3 h-3" /> : <Footprints className="w-3 h-3" />}
-                  {launching === d.id ? 'Starting journey…' : runningJourney === d.id ? 'Running journey…' : mode === 'auto' ? 'Run full journey' : 'Start step-by-step'}
+                  <span className="whitespace-nowrap">{launching === d.id ? 'Starting…' : runningJourney === d.id ? 'Running…' : mode === 'auto' ? 'Run journey' : 'Run guided'}</span>
                 </Button>
                 <Link to="/import/$datasetId" params={{ datasetId: d.id }} onClick={() => setActive(d.id)}
                   className="text-xs px-3 py-1.5 rounded-button bg-primary-500/10 text-primary-400 hover:bg-primary-500/20 font-medium">
