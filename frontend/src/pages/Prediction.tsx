@@ -345,8 +345,8 @@ export function PredictionPage() {
       )}
 
       {error && (
-        <div className="flex shrink-0 items-center justify-between gap-3 rounded-card border border-rose-500/30 bg-rose-500/[0.05] px-3 py-2">
-          <p className="truncate text-xs text-rose-600">{error}</p>
+        <div className="flex shrink-0 items-center justify-between gap-3 rounded-card border border-accent-rose/30 bg-accent-rose/10 px-3 py-2">
+          <p className="truncate text-xs text-accent-rose">{error}</p>
           <Button onClick={runForecast} variant="outline" size="xs">Retry</Button>
         </div>
       )}
@@ -459,14 +459,14 @@ export function PredictionPage() {
                   <div className="flex items-center gap-2">
                     <span className="w-14 shrink-0 font-mono text-[10px] text-t-lo">explained</span>
                     <Bar value={Math.max(0, Math.min(100, (num(metrics.r2) ?? 0) * 100))} tone="emerald" className="flex-1" />
-                    <span className="w-12 shrink-0 text-right font-mono text-[10px] font-semibold text-emerald-600">
+                    <span className="w-12 shrink-0 text-right font-mono text-[10px] font-semibold text-accent-emerald">
                       {fmt((num(metrics.r2) ?? 0) * 100, 1)}%
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="w-14 shrink-0 font-mono text-[10px] text-t-lo">residual</span>
                     <Bar value={Math.max(0, Math.min(100, (1 - (num(metrics.r2) ?? 0)) * 100))} tone="rose" className="flex-1" />
-                    <span className="w-12 shrink-0 text-right font-mono text-[10px] font-semibold text-rose-600">
+                    <span className="w-12 shrink-0 text-right font-mono text-[10px] font-semibold text-accent-rose">
                       {fmt((1 - (num(metrics.r2) ?? 0)) * 100, 1)}%
                     </span>
                   </div>
@@ -524,7 +524,7 @@ export function PredictionPage() {
                           <td className="py-1.5 pr-2 font-mono text-t-lo">{stamp(p.timestamp, false)}</td>
                           <td className="py-1.5 pr-2 text-right font-mono text-t-hi">{fmt(a, 2)}</td>
                           <td className="py-1.5 pr-2 text-right font-mono text-t-mid">{fmt(v, 2)}</td>
-                          <td className={clsx('py-1.5 text-right font-mono font-semibold', Math.abs(d) <= tol ? 'text-emerald-600' : 'text-accent-rose')}>
+                          <td className={clsx('py-1.5 text-right font-mono font-semibold', Math.abs(d) <= tol ? 'text-accent-emerald' : 'text-accent-rose')}>
                             {d >= 0 ? '+' : ''}{fmt(d, 2)}
                           </td>
                         </tr>

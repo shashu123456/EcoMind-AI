@@ -648,7 +648,7 @@ export function HistoryPage() {
                                 </div>
 
                                 {run.error_message && (
-                                  <p className="rounded-button border border-rose-500/30 bg-rose-500/[0.05] px-2.5 py-1.5 text-[12px] leading-5 text-rose-500">
+                                  <p className="rounded-button border border-accent-rose/30 bg-accent-rose/10 px-2.5 py-1.5 text-[12px] leading-5 text-accent-rose">
                                     {run.error_message}
                                   </p>
                                 )}
@@ -809,7 +809,7 @@ export function HistoryPage() {
                           {perf.known > 0 ? (
                             <>
                               <div className="mt-2 flex flex-wrap gap-1.5">
-                                <MetricPill label="r²" value={fmt(perf.r2, 4)} accent="text-emerald-600" />
+                                <MetricPill label="r²" value={fmt(perf.r2, 4)} accent="text-accent-emerald" />
                                 <MetricPill label="rmse" value={fmt(perf.rmse, 3)} />
                                 <MetricPill label="mae" value={fmt(perf.mae, 3)} />
                                 <MetricPill label="mape" value={fmt(perf.mape, 2)} />

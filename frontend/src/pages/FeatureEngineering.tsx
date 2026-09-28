@@ -317,7 +317,7 @@ export function FeatureEngineeringPage() {
               <div className="flex min-w-[300px] flex-[1.4] flex-col gap-1.5">
                 <div className="flex items-center justify-between gap-2">
                   <SectionLabel>generated features</SectionLabel>
-                  {newIds.size > 0 && <MetricPill label="new" value={newIds.size} accent="text-emerald-600" />}
+                  {newIds.size > 0 && <MetricPill label="new" value={newIds.size} accent="text-accent-emerald" />}
                 </div>
                 <div className="grid gap-1.5 sm:grid-cols-2 2xl:grid-cols-3">
                   {ranked.slice(0, 12).map(f => {
@@ -332,7 +332,7 @@ export function FeatureEngineeringPage() {
                       >
                         <div className="flex items-start justify-between gap-1.5">
                           <span className="truncate font-mono text-[11px] font-semibold text-t-hi" title={f.name}>{f.name}</span>
-                          {fresh && <MetricPill label="new" value="✓" accent="text-emerald-600" />}
+                          {fresh && <MetricPill label="new" value="✓" accent="text-accent-emerald" />}
                         </div>
                         <p className="mt-0.5 truncate text-[10px] text-t-lo" title={f.description}>{f.description || f.feature_type}</p>
                         <Bar value={impPct(f)} tone={fresh ? 'emerald' : 'primary'} className="mt-1.5" />

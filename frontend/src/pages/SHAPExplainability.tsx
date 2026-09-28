@@ -196,7 +196,7 @@ export function SHAPExplainabilityPage() {
 
       {globalRes.error && <ErrorBox message={globalRes.error} onRetry={globalRes.refetch} />}
       {localRes.error && (
-        <div className="flex items-center gap-2 rounded-card border border-rose-500/30 bg-rose-500/[0.05] px-3.5 py-2.5 text-xs text-rose-600">
+        <div className="flex items-center gap-2 rounded-card border border-accent-rose/30 bg-accent-rose/10 px-3.5 py-2.5 text-xs text-accent-rose">
           <XCircle className="h-4 w-4 shrink-0" />
           <span className="min-w-0 flex-1 truncate">local explanation failed — {localRes.error}</span>
           <Button size="xs" variant="outline" onClick={() => void localRes.refetch()} loading={localRes.loading}>Retry</Button>
@@ -235,7 +235,7 @@ export function SHAPExplainabilityPage() {
             <div className="rounded-button border border-border bg-panel px-3.5 py-2.5">
               <SectionLabel>Stability index</SectionLabel>
               <div className="mt-1 flex items-baseline justify-between gap-2">
-                <span className={clsx('font-mono text-base font-semibold', stabMeta.accent === 'emerald' ? 'text-emerald-600' : 'text-t-hi')}>
+                <span className={clsx('font-mono text-base font-semibold', stabMeta.accent === 'emerald' ? 'text-accent-emerald' : 'text-t-hi')}>
                   {stab === null ? '—' : `${fmt(stab, 1)}%`}
                 </span>
                 <StatusChip status={stabMeta.status}>{stabMeta.label}</StatusChip>
@@ -336,7 +336,7 @@ export function SHAPExplainabilityPage() {
                           <motion.div
                             className={clsx(
                               'absolute top-0 h-full',
-                              positive ? 'left-1/2 rounded-r-full bg-emerald-500' : 'right-1/2 rounded-l-full bg-rose-500',
+                              positive ? 'left-1/2 rounded-r-full bg-accent-emerald' : 'right-1/2 rounded-l-full bg-accent-rose',
                             )}
                             initial={{ width: '0%' }}
                             animate={{ width }}
@@ -344,15 +344,15 @@ export function SHAPExplainabilityPage() {
                           />
                         </div>
                         <div className="flex items-center justify-end gap-1.5">
-                          <span className={clsx('font-mono text-xs font-semibold', positive ? 'text-emerald-600' : 'text-rose-600')}>
+                          <span className={clsx('font-mono text-xs font-semibold', positive ? 'text-accent-emerald' : 'text-accent-rose')}>
                             {signed}
                           </span>
                           <span
                             className={clsx(
                               'rounded-full border px-1.5 py-0.5 font-mono text-[10px] leading-none',
                               positive
-                                ? 'border-emerald-500/30 bg-emerald-500/[0.06] text-emerald-600'
-                                : 'border-rose-500/30 bg-rose-500/[0.06] text-rose-600',
+                                ? 'border-accent-emerald/30 bg-accent-emerald/10 text-accent-emerald'
+                                : 'border-accent-rose/30 bg-accent-rose/10 text-accent-rose',
                             )}
                           >
                             {positive ? '+' : '−'}

@@ -131,24 +131,32 @@ export function DashboardPage() {
             EcoMind runs your dataset through a 13-stage explainable pipeline — every transformation,
             every model, every verdict is shown, proven, and ready for audit. No black boxes.
           </p>
-          <div className="mt-6 flex flex-wrap items-center gap-2">
-            {WORKFLOW.slice(0, 13).map((s, i) => {
-              const Icon = STAGE_ICONS[s.key]
-              if (i >= 13) return null
+          <div className="mt-7 flex flex-wrap items-center gap-x-1 gap-y-2" role="navigation" aria-label="Pipeline beats">
+            {STORY_BEATS.map((beat, i) => {
+              const stage = WORKFLOW.find(s => s.key === BEAT_STAGE[i])
+              if (!stage) return null
+              const done = useJourney.getState().stageStatuses[stage.key] === 'done'
+              const Icon = STAGE_ICONS[stage.key]
               return (
-                <button
-                  key={s.key}
-                  onClick={() => goToBeat(s.key)}
-                  disabled={!effectiveId}
-                  title={`${i + 1}. ${s.label}`}
-                  className={clsx(
-                    'flex h-9 min-w-9 items-center justify-center gap-1 rounded-button border px-2 transition-colors',
-                    effectiveId ? 'border-border bg-panel text-t-mid hover:border-primary-500/50 hover:text-primary-500' : 'border-border bg-panel opacity-50',
-                  )}
-                >
-                  <span className="font-mono text-[9px] text-t-lo">{i + 1}</span>
-                  <Icon className="h-3.5 w-3.5" />
-                </button>
+                <span key={beat.beat} className="flex items-center gap-1">
+                  {i > 0 && <span className="h-px w-2.5 bg-border" aria-hidden />}
+                  <button
+                    onClick={() => goToBeat(stage.key)}
+                    disabled={!effectiveId}
+                    title={`Beat ${beat.beat} · ${stage.label} — ${beat.title}`}
+                    aria-label={`Beat ${beat.beat}: ${stage.label}`}
+                    className={clsx(
+                      'flex h-7 w-7 items-center justify-center rounded-full border text-[10px] font-semibold transition-colors',
+                      done
+                        ? 'border-accent-emerald/40 bg-accent-emerald/10 text-accent-emerald'
+                        : effectiveId
+                          ? 'border-border bg-panel text-t-lo hover:border-primary-500/40 hover:text-primary-500'
+                          : 'border-border bg-panel text-t-lo opacity-50',
+                    )}
+                  >
+                    {done ? <Check className="h-3 w-3" strokeWidth={3} /> : <Icon className="h-3.5 w-3.5" />}
+                  </button>
+                </span>
               )
             })}
           </div>

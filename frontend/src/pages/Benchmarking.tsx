@@ -427,7 +427,7 @@ export function BenchmarkingPage() {
                           <span className="truncate text-[13px] font-semibold text-t-hi">
                             {r.name ?? r.model_id ?? `Model ${rank}`}
                           </span>
-                          {won && <Check className="h-3.5 w-3.5 shrink-0 text-emerald-600" />}
+                          {won && <Check className="h-3.5 w-3.5 shrink-0 text-accent-emerald" />}
                         </span>
                         <span className="block min-w-0 truncate rounded-button border border-border bg-panel2 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-t-lo">
                           {algLabel(r.algorithm)}
@@ -450,7 +450,7 @@ export function BenchmarkingPage() {
                         <span
                           className={clsx(
                             'text-right font-mono text-sm font-semibold',
-                            won ? 'text-emerald-600' : 'text-t-hi',
+                            won ? 'text-accent-emerald' : 'text-t-hi',
                           )}
                         >
                           {fmt(total, 1)}
@@ -459,7 +459,7 @@ export function BenchmarkingPage() {
                           {r.error ? (
                             <span
                               title={r.error}
-                              className="inline-flex max-w-full items-center gap-1 rounded-full border border-rose-500/30 bg-rose-500/[0.07] px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-rose-500"
+                              className="inline-flex max-w-full items-center gap-1 rounded-full border border-accent-rose/30 bg-accent-rose/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-accent-rose"
                             >
                               failed
                             </span>
@@ -570,7 +570,7 @@ export function BenchmarkingPage() {
                 <span className="rounded-button border border-border bg-panel2 px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-t-lo">
                   {algLabel(selected.algorithm)}
                 </span>
-                <MetricPill label="total" value={fmt(n(selected.total_score) ?? 0, 1)} accent="text-emerald-600" />
+                <MetricPill label="total" value={fmt(n(selected.total_score) ?? 0, 1)} accent="text-accent-emerald" />
                 <MetricPill label="rank" value={fmt(n(selected.rank) ?? 1, 0)} />
                 {selected.model_id && (
                   <MetricPill label="model id" value={selected.model_id.slice(0, 8)} />
@@ -584,7 +584,7 @@ export function BenchmarkingPage() {
                       key={m}
                       label={m}
                       value={v === null ? '—' : fmt(v, 3)}
-                      accent={HIGHER_BETTER.has(m) ? 'text-emerald-600' : 'text-accent-cyan'}
+                      accent={HIGHER_BETTER.has(m) ? 'text-accent-emerald' : 'text-accent-cyan'}
                     />
                   )
                 })}
@@ -652,7 +652,7 @@ export function BenchmarkingPage() {
                         {winnerOf(b) ? (
                           <span
                             title={winnerOf(b) ?? undefined}
-                            className="inline-flex max-w-full items-center gap-1 rounded-button border border-emerald-500/30 bg-emerald-500/[0.07] px-2 py-0.5 font-mono text-[10px] text-emerald-600"
+                            className="inline-flex max-w-full items-center gap-1 rounded-button border border-accent-emerald/30 bg-accent-emerald/10 px-2 py-0.5 font-mono text-[10px] text-accent-emerald"
                           >
                             <Trophy className="h-3 w-3 shrink-0" />
                             <span className="truncate">{winnerOf(b)}</span>

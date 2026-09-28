@@ -10,8 +10,13 @@ import { firePageRipple } from '../lib/kit'
 import { EcoMindLockup } from '../lib/logo'
 
 function stageForPath(pathname: string) {
+  // Match on the first path segment so parameterized stage templates
+  // (/dq/$datasetId) resolve against concrete URLs (/dq/970d…).
   const base = '/' + (pathname.split('/')[1] || '')
-  return WORKFLOW.find(s => s.path.split('$')[0] === base || s.path === base)
+  return WORKFLOW.find(s => {
+    const root = '/' + (s.path.split('/').filter(Boolean)[0] || '')
+    return root === base
+  })
 }
 
 export function TopBar() {
@@ -29,8 +34,18 @@ export function TopBar() {
   const bellRef = useRef<HTMLDivElement>(null)
   const [backend, setBackend] = useState<HealthPayload | null>(null)
   const [backendDown, setBackendDown] = useState(false)
-  const [seen, setSeen] = useState<Record<string, boolean>>({})
+  // Notifications that existed before this page load count as seen — the
+  // badge only surfaces fresh completions from this session.
+  const [seen, setSeen] = useState<Record<string, boolean>>(() => {
+    const initial: Record<string, boolean> = {}
+    const statuses = useJourney.getState().stageStatuses
+    Object.entries(statuses).forEach(([k, st]) => { if (st === 'done') initial[k] = true })
+    return initial
+  })
   const [copiedRun, setCopiedRun] = useState(false)
+  // Statuses that arrive on the first store hydration are pre-existing —
+  // mark them seen so the badge only counts fresh completions this session.
+  const hydratedRef = useRef(false)
   let user: any = null
   try { user = JSON.parse(localStorage.getItem('ecomind_user') || 'null') } catch { /* ignore */ }
 
@@ -82,6 +97,19 @@ export function TopBar() {
 
   const unseenCount = notifications.filter(n => n.stage && !seen[n.stage.key]).length
 
+  useEffect(() => {
+    if (hydratedRef.current) return
+    if (Object.keys(openStageStatuses).length === 0) return
+    hydratedRef.current = true
+    setSeen(s => {
+      const next = { ...s }
+      Object.entries(openStageStatuses).forEach(([k, st]) => {
+        if (st === 'done' || st === 'locked') next[k] = true
+      })
+      return next
+    })
+  }, [openStageStatuses])
+
   // mark everything as "seen" only when the popover is actually opened —
   // so the bell badge counts fresh stage completions instead of always showing 0
   useEffect(() => {
@@ -123,65 +151,67 @@ export function TopBar() {
   }
 
   const chips = [
-    { label: 'dataset', value: datasetId ? datasetId.slice(0, 8) : null, cls: 'text-[#4A9FD8]', title: datasetId ? `dataset ${datasetId}` : '' },
-    { label: 'run', value: runId ? runId.slice(0, 8) : null, cls: 'text-primary-400', title: runId ? `run ${runId}` : '' },
-    { label: 'model', value: modelId ? modelId.slice(0, 8) : null, cls: 'text-[#5B6FE0]', title: modelId ? `model ${modelId}` : '' },
+    { label: 'dataset', value: datasetId ? datasetId.slice(0, 8) : null, title: datasetId ? `Active dataset ${datasetId}` : '' },
+    { label: 'run', value: runId ? runId.slice(0, 8) : null, title: runId ? `Active run ${runId}` : '' },
+    { label: 'model', value: modelId ? modelId.slice(0, 8) : null, title: modelId ? `Active model ${modelId}` : '' },
   ].filter(c => c.value)
 
   return (
-    <header className="relative z-40 flex h-14 shrink-0 items-center justify-between gap-4 border-b border-white/[0.06] bg-surface/60 px-4 backdrop-blur-md">
-      {/* brand + active-stage light follows the rail */}
+    <header className="relative z-40 flex h-14 shrink-0 items-center justify-between gap-4 border-b border-border bg-panel/80 px-4 backdrop-blur-md">
+      {/* brand + active-stage context */}
       <div className="flex min-w-0 items-center gap-3">
         <EcoMindLockup size={24} sub={''} className="shrink-0" />
-        <span className="h-6 w-px bg-white/[0.08]" />
+        <span className="h-6 w-px bg-border" />
         <button
           onClick={() => goHome(true)}
           title="Front page"
           aria-label="Front page"
-          className="group flex h-8 w-8 shrink-0 items-center justify-center rounded-button border border-white/[0.08] bg-white/[0.03] transition-colors hover:border-primary-500/40 hover:bg-primary-500/10"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-button text-t-lo transition-colors hover:bg-panel2 hover:text-t-hi"
         >
-          <Home className="h-4 w-4 text-primary-400 transition-transform group-hover:-translate-y-0.5" />
+          <Home className="h-4 w-4" />
         </button>
         <div className="flex items-center gap-2">
-          <div className={clsx('relative flex h-8 w-8 items-center justify-center rounded-glass border',
-            stage ? 'border-primary-500/40 bg-primary-500/10' : 'border-white/[0.06] bg-white/[0.03]')}>
-            {stage ? (
-              <span className="font-mono text-xs font-bold text-primary-300">{stage.index}</span>
-            ) : (
-              <span className="font-mono text-[9px] text-gray-500">═</span>
-            )}
-            {openStageStatuses[stage?.key || ''] === 'active' && <span className="absolute -right-0.5 -top-0.5 h-2 w-2 animate-ping rounded-full bg-accent-emerald" />}
+          <div className={clsx('relative flex h-8 w-8 items-center justify-center rounded-md border font-mono text-xs font-semibold',
+            stage ? 'border-primary-500/30 bg-primary-500/[0.08] text-primary-500' : 'border-border bg-panel2 text-t-lo')}>
+            {stage ? stage.index : '—'}
           </div>
           <div className="min-w-0">
-            <h1 className="truncate font-display text-[15px] font-semibold tracking-tight text-gray-100">{title}</h1>
+            <h1 className="truncate text-[14px] font-semibold tracking-tight text-t-hi">{title}</h1>
             {stage && (
-              <p className="truncate font-mono text-[10px] uppercase tracking-widest text-gray-500">
-                {milestone?.short} › stage {stage.index}/{PIPELINE_TOTAL} {stage.key === 'shap' ? '· needs dataset' : stage.requires === 'dataset' ? '· needs dataset' : stage.requires === 'run' ? '· needs run' : stage.requires === 'model' ? '· needs model' : ''}
+              <p className="truncate text-[11px] text-t-lo">
+                Stage {stage.index} of {PIPELINE_TOTAL}
+                {milestone ? ` · ${milestone.short}` : ''}
               </p>
             )}
           </div>
         </div>
         {stage && (
-          <div className="flex items-center gap-1">
-            {WORKFLOW.filter(s => s.index < stage.index && openStageStatuses[s.key] === 'done').map(s => (
-              <span key={s.key} className="h-1 w-4 rounded-full bg-accent-emerald/70" />
+          <div className="hidden items-center gap-1 xl:flex" aria-hidden>
+            {WORKFLOW.map(s => (
+              <span
+                key={s.key}
+                className={clsx('h-1 w-3 rounded-full transition-colors',
+                  openStageStatuses[s.key] === 'done'
+                    ? 'bg-accent-emerald/70'
+                    : s.index === stage.index
+                      ? 'bg-primary-500'
+                      : 'bg-border')}
+              />
             ))}
-            <span className="h-1 w-4 animate-pulse rounded-full bg-primary-400" />
-            <span className="h-1 w-4 rounded-full bg-white/[0.08]" />
           </div>
         )}
-        <span className="hidden items-center gap-2 md:flex">
+        <span className="hidden items-center gap-1.5 lg:flex">
           {chips.map(c => (
-            <span key={c.label} title={c.title} className={clsx('rounded-full border border-white/[0.08] bg-white/[0.03] px-2 py-0.5 font-mono text-[11px] tracking-wider', c.cls)}>
-              {c.label}.{c.value}
+            <span key={c.label} title={c.title} className="rounded-full bg-panel2 px-2 py-0.5 font-mono text-[11px] tabular-nums text-t-lo">
+              {c.label}·{c.value}
             </span>
           ))}
           {runId && (
             <button
               onClick={copyRunId}
               title={copiedRun ? 'Copied!' : 'Copy run id'}
-              className={clsx('flex items-center gap-1 rounded-full border px-2 py-0.5 font-mono text-[11px] tracking-wider transition-colors',
-                copiedRun ? 'border-accent-emerald/50 bg-accent-emerald/10 text-accent-emerald' : 'border-accent-gold/30 bg-accent-gold/[0.06] text-accent-gold hover:border-accent-gold/60 hover:bg-accent-gold/15')}
+              className={clsx('flex items-center gap-1 rounded-full px-2 py-0.5 font-mono text-[11px] tabular-nums transition-colors',
+                copiedRun ? 'bg-accent-emerald/10 text-accent-emerald' : 'bg-panel2 text-t-lo hover:text-t-hi')}
             >
               <Copy className="h-3 w-3" /> {copiedRun ? 'copied' : 'copy'}
             </button>
@@ -191,7 +221,7 @@ export function TopBar() {
               onClick={jumpNext}
               disabled={!datasetId}
               title={`Jump to next un-done stage: ${nextStage.label}`}
-              className="flex items-center gap-1 rounded-full border border-accent-emerald/30 bg-accent-emerald/[0.06] px-2 py-0.5 font-mono text-[11px] tracking-wider text-accent-emerald transition-colors hover:border-accent-emerald/60 hover:bg-accent-emerald/15 disabled:opacity-50"
+              className="flex items-center gap-1 rounded-full bg-primary-500/[0.08] px-2 py-0.5 font-mono text-[11px] text-primary-500 transition-colors hover:bg-primary-500/[0.14] disabled:opacity-50"
             >
               <ArrowRight className="h-3 w-3" /> next
             </button>
@@ -199,7 +229,7 @@ export function TopBar() {
         </span>
       </div>
 
-      <div className="flex shrink-0 items-center gap-2">
+      <div className="flex shrink-0 items-center gap-1.5">
         <button
           onClick={() => {
             setBackend(null)
@@ -210,47 +240,49 @@ export function TopBar() {
             backendDown
               ? 'Backend unreachable — reconnect to continue'
               : backend
-                ? `Backend online · CPU ${backend.system?.cpu_percent ?? '—'}% · Mem ${backend.system?.memory_percent ?? '—'}% · API worker ${backend.system?.python_cpu_percent ?? '—'}%`
+                ? `Backend online · CPU ${backend.system?.cpu_percent ?? '—'}% · Memory ${backend.system?.memory_percent ?? '—'}%`
                 : 'Checking backend…'
           }
-          className="group flex items-center gap-1.5 rounded-full border border-white/[0.08] bg-white/[0.03] px-2.5 py-1 transition-colors hover:bg-white/[0.06]"
+          className="flex items-center gap-1.5 rounded-full px-2 py-1 transition-colors hover:bg-panel2"
         >
           <span className={clsx('relative flex h-2 w-2')}>
             {!backend && !backendDown && (
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400/60" />
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent-amber/60" />
             )}
             <span className={clsx('relative inline-flex h-2 w-2 rounded-full',
-              backendDown ? 'bg-accent-rose' : backend ? 'bg-emerald-400' : 'bg-amber-400')} />
+              backendDown ? 'bg-accent-rose' : backend ? 'bg-accent-emerald' : 'bg-accent-amber')} />
           </span>
           {backend && backend.system && (
-            <span className="flex items-center gap-1 font-mono text-[10px] tracking-wider text-gray-300">
-              <Cpu className="h-3 w-3 text-primary-400" />
+            <span className="hidden items-center gap-1 font-mono text-[10px] tabular-nums text-t-lo md:flex">
+              <Cpu className="h-3 w-3" />
               {Math.round(backend.system.cpu_percent)}%
             </span>
           )}
-          {backendDown && <span className="font-mono text-[10px] tracking-wider text-accent-rose">offline</span>}
+          {backendDown && <span className="font-mono text-[10px] text-accent-rose">offline</span>}
         </button>
-        <button onClick={toggleTheme} title="Toggle theme" className="p-1.5 text-gray-400 hover:text-gray-200 transition-colors rounded-lg hover:bg-white/[0.03]">
-          {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+        <button onClick={toggleTheme} title="Toggle theme" aria-label="Toggle theme" className="rounded-button p-1.5 text-t-lo transition-colors hover:bg-panel2 hover:text-t-hi">
+          {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
         </button>
 
         {/* execution mode — Smart runs the whole journey, Guided pauses for review */}
-        <div className="hidden items-center gap-0.5 rounded-full border border-border bg-panel p-0.5 md:flex">
+        <div className="hidden items-center gap-0.5 rounded-lg bg-panel2 p-0.5 md:flex">
           <button
             onClick={() => useJourney.getState().setMode('auto')}
             title="Smart — run the whole workflow automatically"
-            className={clsx('inline-flex items-center gap-1 rounded-full px-2.5 py-1 font-mono text-[11px] font-semibold uppercase tracking-widest transition-all',
-              mode === 'auto' ? 'bg-primary-500 text-white' : 'text-t-lo hover:text-t-mid')}
+            aria-pressed={mode === 'auto'}
+            className={clsx('inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-[11px] font-medium transition-all',
+              mode === 'auto' ? 'bg-panel text-t-hi shadow-sm' : 'text-t-lo hover:text-t-mid')}
           >
-            <Zap className="h-3 w-3" /> smart
+            <Zap className="h-3 w-3" /> Smart
           </button>
           <button
             onClick={() => useJourney.getState().setMode('manual')}
             title="Guided — pause at each stage for review, continue when you decide"
-            className={clsx('inline-flex items-center gap-1 rounded-full px-2.5 py-1 font-mono text-[11px] font-semibold uppercase tracking-widest transition-all',
-              mode === 'manual' ? 'bg-accent-amber text-white' : 'text-t-lo hover:text-t-mid')}
+            aria-pressed={mode === 'manual'}
+            className={clsx('inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-[11px] font-medium transition-all',
+              mode === 'manual' ? 'bg-panel text-t-hi shadow-sm' : 'text-t-lo hover:text-t-mid')}
           >
-            <Footprints className="h-3 w-3" /> guided
+            <Footprints className="h-3 w-3" /> Guided
           </button>
         </div>
 
@@ -259,9 +291,11 @@ export function TopBar() {
           <button
             onClick={() => setOpen(o => !o)}
             title="Stage notifications"
-            className={clsx('relative p-1.5 transition-colors rounded-lg hover:bg-white/[0.03]', open ? 'text-primary-300' : 'text-gray-400 hover:text-gray-200')}
+            aria-label={`Notifications${unseenCount ? ` — ${unseenCount} unseen` : ''}`}
+            aria-expanded={open}
+            className={clsx('relative rounded-button p-1.5 transition-colors hover:bg-panel2', open ? 'text-t-hi' : 'text-t-lo hover:text-t-hi')}
           >
-            <Bell className="w-4 h-4" />
+            <Bell className="h-4 w-4" />
             {unseenCount > 0 && (
               <span className="absolute -right-0.5 -top-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-primary-500 text-[8px] font-bold text-white">
                 {unseenCount}
@@ -269,28 +303,28 @@ export function TopBar() {
             )}
           </button>
           {open && (
-            <div className="absolute right-0 top-9 z-[300] w-80 rounded-glass border border-white/[0.08] bg-surface-light/95 p-3 shadow-glass backdrop-blur-xl">
+            <div className="absolute right-0 top-9 z-[300] w-80 rounded-card border border-border bg-panel p-3 shadow-[var(--shadow-floating)]">
               <div className="mb-2 flex items-center justify-between">
-                <p className="font-mono text-xs uppercase tracking-[0.2em] text-gray-400">journey pulse</p>
-                <span className="font-mono text-[10px] text-gray-500">{doneCount}/{PIPELINE_TOTAL} done</span>
+                <p className="text-[12px] font-semibold text-t-hi">Activity</p>
+                <span className="font-mono text-[10px] tabular-nums text-t-lo">{doneCount}/{PIPELINE_TOTAL} stages done</span>
               </div>
               {notifications.length === 0 ? (
-                <p className="py-3 text-center text-xs text-gray-500">No completed stages yet. Run the journey to see progress here.</p>
+                <p className="py-3 text-center text-xs text-t-lo">No completed stages yet. Run the journey to see progress here.</p>
               ) : (
-                <div className="max-h-72 space-y-1.5 overflow-y-auto">
+                <div className="max-h-72 space-y-1 overflow-y-auto">
                   {notifications.map(n => (
                     <div
                       key={n.id}
-                      className={clsx('flex items-center gap-2 rounded-button border px-3 py-2',
-                        n.kind === 'done' ? 'border-accent-emerald/20 bg-accent-emerald/[0.06]' : 'border-accent-rose/20 bg-accent-rose/[0.06]')}
+                      className={clsx('flex items-center gap-2 rounded-button px-2.5 py-2',
+                        n.kind === 'done' ? 'bg-accent-emerald/[0.07]' : 'bg-accent-rose/[0.07]')}
                     >
                       {n.kind === 'done'
                         ? <Check className="h-3.5 w-3.5 shrink-0 text-accent-emerald" />
                         : <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-accent-rose" />}
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-xs text-gray-200">{n.stage?.label}</p>
-                        <p className={clsx('font-mono text-[10px] uppercase tracking-widest', n.kind === 'done' ? 'text-accent-emerald' : 'text-accent-rose')}>
-                          {n.kind === 'done' ? 'stage completed' : 'stage errored — check history'}
+                        <p className="truncate text-xs font-medium text-t-hi">{n.stage?.label}</p>
+                        <p className={clsx('text-[11px]', n.kind === 'done' ? 'text-accent-emerald' : 'text-accent-rose')}>
+                          {n.kind === 'done' ? 'Completed' : 'Needs attention'}
                         </p>
                       </div>
                     </div>
@@ -306,53 +340,55 @@ export function TopBar() {
           <button
             onClick={() => setMenuRefOpen(o => !o)}
             aria-expanded={menuRefOpen}
-            className={clsx('p-1.5 rounded-lg transition-colors', menuRefOpen ? 'text-primary-300 bg-white/[0.04]' : 'text-gray-400 hover:text-gray-200 hover:bg-white/[0.03]')}
+            aria-label="Settings"
+            className={clsx('rounded-button p-1.5 transition-colors hover:bg-panel2', menuRefOpen ? 'text-t-hi' : 'text-t-lo hover:text-t-hi')}
           >
-            <Settings className="w-4 h-4" />
+            <Settings className="h-4 w-4" />
           </button>
           {menuRefOpen && (
-            <div className="absolute right-0 top-9 z-[300] w-72 rounded-glass border border-white/[0.08] bg-surface-light/95 p-4 shadow-glass backdrop-blur-xl">
-              <p className="mb-3 font-mono text-xs uppercase tracking-[0.2em] text-gray-400">System settings</p>
-
-              <div className="mb-4 space-y-1.5">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2">
-                    {theme === 'dark' ? <Moon className="h-3.5 w-3.5 text-primary-400" /> : <Sun className="h-3.5 w-3.5 text-accent-gold" />}
-                    <p className="text-xs text-gray-300">Appearance</p>
-                  </div>
-                  <button onClick={toggleTheme}
-                    className={clsx('rounded-full border px-3 py-1 font-mono text-xs uppercase tracking-wider transition-colors',
-                      theme === 'dark'
-                        ? 'border-primary-500/40 bg-primary-500/10 text-primary-300'
-                        : 'border-white/[0.1] bg-white/[0.03] text-gray-400')}>
-                    {theme === 'dark' ? 'Dark' : 'Light'} mode
-                  </button>
-                </div>
-                <p className="text-xs leading-3 text-gray-400">Terminals follow the theme — dark monitors in dark mode, light ink consoles in light mode.</p>
-              </div>
+            <div className="absolute right-0 top-9 z-[300] w-72 rounded-card border border-border bg-panel p-4 shadow-[var(--shadow-floating)]">
+              <p className="mb-3 text-[12px] font-semibold text-t-hi">Settings</p>
 
               <div className="space-y-1.5">
-                <div className="flex items-center gap-2">
-                  <Zap className="h-3.5 w-3.5 text-primary-400" />
-                  <p className="text-xs text-gray-300">Pipeline run</p>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    {theme === 'dark' ? <Moon className="h-3.5 w-3.5 text-t-mid" /> : <Sun className="h-3.5 w-3.5 text-t-mid" />}
+                    <p className="text-xs text-t-mid">Theme</p>
+                  </div>
+                  <button onClick={toggleTheme}
+                    className="rounded-full bg-panel2 px-3 py-1 text-xs font-medium text-t-mid transition-colors hover:text-t-hi">
+                    {theme === 'dark' ? 'Dark' : 'Light'}
+                  </button>
                 </div>
-                <p className="text-xs leading-3 text-gray-400">Use the toggle next to dark mode to switch between automated and step-by-step runs.</p>
+
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <Zap className="h-3.5 w-3.5 text-t-mid" />
+                    <p className="text-xs text-t-mid">Execution mode</p>
+                  </div>
+                  <span className="text-xs font-medium text-t-hi">{mode === 'auto' ? 'Smart' : 'Guided'}</span>
+                </div>
+                <p className="text-[11px] leading-relaxed text-t-lo">
+                  {mode === 'auto'
+                    ? 'Smart runs every stage automatically — you audit the evidence after.'
+                    : 'Guided pauses at each stage so you can review before continuing.'}
+                </p>
               </div>
 
-              <div className="mt-4 border-t border-white/[0.06] pt-3">
-                <p className="text-xs leading-3 text-gray-400">Tip: any data table has a CSV export button for a clean copy.</p>
+              <div className="mt-4 border-t border-border pt-3">
+                <p className="text-[11px] leading-relaxed text-t-lo">Every data table has a CSV export for a clean copy of the underlying records.</p>
               </div>
             </div>
           )}
         </div>
-        <div className="flex items-center gap-2">
-          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary-500/20">
-            <User className="w-3.5 h-3.5 text-primary-400" />
+        <div className="ml-1 flex items-center gap-2">
+          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary-500/[0.12]">
+            <User className="h-3.5 w-3.5 text-primary-500" />
           </div>
-          {user?.email && <span className="hidden text-xs text-gray-400 lg:block">{user.email}</span>}
+          {user?.email && <span className="hidden text-xs text-t-mid lg:block">{user.email}</span>}
         </div>
-        <button onClick={signOut} title="Sign out" className="p-1.5 text-gray-400 hover:text-accent-rose transition-colors rounded-lg hover:bg-white/[0.03]">
-          <LogOut className="w-4 h-4" />
+        <button onClick={signOut} title="Sign out" aria-label="Sign out" className="rounded-button p-1.5 text-t-lo transition-colors hover:bg-panel2 hover:text-accent-rose">
+          <LogOut className="h-4 w-4" />
         </button>
       </div>
     </header>

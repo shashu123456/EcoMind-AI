@@ -37,6 +37,8 @@ export const ACTIVITY_CATEGORIES: ActivityCategory[] = ['Data', 'Models', 'Infer
 interface ActivityState {
   events: ActivityEvent[]
   push: (ev: Omit<ActivityEvent, 'id' | 'at'>) => void
+  /** System heartbeat: refreshes the latest heartbeat in place instead of spamming the feed. */
+  heartbeat: (ev: Omit<ActivityEvent, 'id' | 'at'>) => void
   clear: () => void
 }
 
@@ -52,6 +54,16 @@ export const useActivityStore = create<ActivityState>((set) => ({
     set((s) => ({
       events: [{ ...ev, id: `a${++eventSeq}`, at: Date.now() }, ...s.events].slice(0, 60),
     })),
+  heartbeat: (ev) =>
+    set((s) => {
+      const latest = s.events[0]
+      // Same recurring heartbeat → refresh its timestamp in place so the
+      // stream stays a readable event log, not a wall of duplicates.
+      if (latest && latest.stage === ev.stage && latest.description === ev.description) {
+        return { events: [{ ...latest, at: Date.now() }, ...s.events.slice(1)] }
+      }
+      return { events: [{ ...ev, id: `a${++eventSeq}`, at: Date.now() }, ...s.events].slice(0, 60) }
+    }),
   clear: () => set({ events: [] }),
 }))
 
@@ -145,19 +157,19 @@ export function useActivityFeedBus() {
 
     seed()
     const t = setInterval(() => {
-      // lightweight health heartbeat every 20s
+      // lightweight health heartbeat every 20s (deduped in the store)
       health.check().then((h) => {
         if (!mounted) return
         const cpu = h.system?.cpu_percent
-        push({
+        useActivityStore.getState().heartbeat({
           category: 'System',
           stage: 'Platform',
           status: h.status === 'ok' ? 'ok' : 'warn',
           description: h.status === 'ok'
-            ? `Heartbeat OK · CPU ${cpu == null ? '—' : `${Math.round(cpu)}%`}`
+            ? (cpu == null ? 'Backend online' : `Backend online · CPU ${Math.round(cpu)}%`)
             : `Heartbeat ${h.status || 'degraded'}`,
           rows: '—',
-          duration: h.uptime_s == null ? '—' : `${Math.round(h.uptime_s)}s`,
+          duration: h.uptime_s == null ? '—' : `${Math.round(h.uptime_s)}s uptime`,
         })
       }).catch(() => { /* ignore transient */ })
     }, 20000)

@@ -75,7 +75,7 @@ function ReadWriteTerminal({
         {!done && typing >= L.length && (
           <div className="mt-1 text-gray-300">
             <span className="text-gray-300">$ stream rows --batch 3</span>
-            <div className="text-[#7CFCB0]">
+            <div className="text-accent-emerald">
               <span className="text-gray-500">← </span>
               <span>{Math.min(streamed, total)}</span>
               <span className="text-gray-400">/{total} rows</span>
@@ -87,10 +87,10 @@ function ReadWriteTerminal({
         {done && typing >= L.length && (
           <div className="mt-1 space-y-0.5">
             <div className="text-accent-emerald">← committed ✓</div>
-            <div className="text-[#7CFCB0]">✓ wrote {total} rows · {cols.length || '—'} cols → dataset</div>
+            <div className="text-accent-emerald">✓ wrote {total} rows · {cols.length || '—'} cols → dataset</div>
           </div>
         )}
-        <span className={clsx('ml-1 inline-block h-3 w-[7px] translate-y-0.5 bg-[#7CFCB0]', cursor === 0 ? 'opacity-100' : 'opacity-0')} />
+        <span className={clsx('ml-1 inline-block h-3 w-[7px] translate-y-0.5 bg-accent-emerald', cursor === 0 ? 'opacity-100' : 'opacity-0')} />
       </div>
     </div>
   )

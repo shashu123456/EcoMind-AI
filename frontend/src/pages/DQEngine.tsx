@@ -40,8 +40,8 @@ function DataSheet({ columns, rows, leaving, rowCount }: {
   return (
     <div className="flex min-h-0 flex-col rounded-card border border-border bg-panel">
       <div className="flex items-center justify-between border-b border-border px-3 py-2">
-        <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-t-lo">raw records · full scan</span>
-        <span className="rounded-full border border-border bg-panel2 px-2 py-0.5 font-mono text-[9px] text-t-lo">{fmt(rowCount)} rows</span>
+        <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">Raw records</span>
+        <span className="rounded-full bg-panel2 px-2 py-0.5 font-mono text-[10px] tabular-nums text-t-lo">{fmt(rowCount)} rows</span>
       </div>
       <div className="min-h-0 flex-1 overflow-auto">
         <table className="w-full border-collapse text-left">
@@ -96,8 +96,8 @@ function AssemblyMachine({ current, done, rowCount }: {
   return (
     <div className="flex min-h-0 flex-col rounded-card border border-border bg-panel">
       <div className="flex items-center justify-between border-b border-border px-3 py-2">
-        <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-t-lo">processing bridge · rule by rule</span>
-        <span className="font-mono text-[9px] text-t-lo">← from sheet → to record</span>
+        <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">Repair rules</span>
+        <span className="text-[10px] text-t-lo">sheet → record</span>
       </div>
       <div className="relative min-h-0 flex-1 overflow-hidden px-3 py-3">
         {/* hairline guide rail */}
@@ -110,8 +110,8 @@ function AssemblyMachine({ current, done, rowCount }: {
               <div key={r.key} className="relative flex items-center gap-2.5 py-[3px]">
                 <div className="z-10 flex h-3 w-3 shrink-0 items-center justify-center rounded-full border"
                   style={{
-                    borderColor: st === 'pending' ? 'var(--color-border)' : st === 'passed' ? '#10B981' : '#F2A93B',
-                    background: st === 'passed' ? '#10B981' : st === 'active' ? '#F2A93B' : 'var(--panel)',
+                    borderColor: st === 'pending' ? 'var(--color-border)' : st === 'passed' ? 'var(--color-accent-emerald)' : 'var(--color-accent-amber)',
+                    background: st === 'passed' ? 'var(--color-accent-emerald)' : st === 'active' ? 'var(--color-accent-amber)' : 'var(--panel)',
                   }}>
                   {st === 'passed'
                     ? <Check className="h-2 w-2 text-white" />
@@ -120,13 +120,13 @@ function AssemblyMachine({ current, done, rowCount }: {
                 <div className={clsx(
                   'flex min-w-0 flex-1 items-center justify-between gap-2 rounded-button border px-2.5 py-1 transition-colors',
                   st === 'pending' && 'border-border bg-panel text-t-lo',
-                  st === 'active' && 'border-amber-500/40 bg-amber-500/[0.07]',
-                  st === 'passed' && 'border-emerald-500/30 bg-emerald-500/[0.05] text-t-mid',
+                  st === 'active' && 'border-accent-amber/40 bg-accent-amber/10',
+                  st === 'passed' && 'border-accent-emerald/30 bg-accent-emerald/10 text-t-mid',
                 )}>
-                  <span className={clsx('truncate text-[11px] font-semibold', st === 'passed' ? 'text-emerald-600' : st === 'active' ? 'text-amber-700' : 'text-t-lo')}>
+                  <span className={clsx('truncate text-[11px] font-semibold', st === 'passed' ? 'text-accent-emerald' : st === 'active' ? 'text-accent-amber' : 'text-t-lo')}>
                     {String(idx).padStart(2, '0')} · {r.label}
                   </span>
-                  <span className={clsx('truncate text-right text-[9.5px]', st === 'passed' ? 'text-emerald-600/70' : st === 'active' ? 'text-amber-700/80' : 'text-t-lo/60')}>
+                  <span className={clsx('truncate text-right text-[9.5px]', st === 'passed' ? 'text-accent-emerald/80' : st === 'active' ? 'text-accent-amber/90' : 'text-t-lo/60')}>
                     {st === 'passed' ? 'passed' : st === 'active' ? r.caption : '—'}
                   </span>
                 </div>
@@ -143,14 +143,14 @@ function AssemblyMachine({ current, done, rowCount }: {
           })}
         </div>
         {done && (
-          <div className="absolute inset-x-3 bottom-3 z-10 flex items-center gap-2 rounded-button border border-emerald-500/40 bg-emerald-500/[0.08] px-3 py-2">
-            <Check className="h-4 w-4 text-emerald-600" />
-            <span className="text-xs font-semibold text-emerald-700">Data Quality Complete — Ready for Feature Engineering</span>
+          <div className="absolute inset-x-3 bottom-3 z-10 flex items-center gap-2 rounded-button border border-accent-emerald/30 bg-accent-emerald/[0.08] px-3 py-2">
+            <Check className="h-4 w-4 text-accent-emerald" />
+            <span className="text-xs font-semibold text-accent-emerald">Quality checks complete — ready for feature engineering</span>
           </div>
         )}
       </div>
-      <div className="border-t border-border px-3 py-2 font-mono text-[9px] text-t-lo">
-        each rule lights amber while the row passes, then lands green — a red band would pause and explain the failure.
+      <div className="border-t border-border px-3 py-2 text-[10.5px] leading-relaxed text-t-lo">
+        Each rule lights amber while the row passes, then lands green — a red band would pause and explain the failure.
       </div>
     </div>
   )
@@ -172,26 +172,26 @@ function QualityMonitor({ current, done, rowCount, score, dims, error, onRetry }
   return (
     <div className="flex min-h-0 flex-col rounded-card border border-border bg-panel">
       <div className="flex items-center justify-between border-b border-border px-3 py-2">
-        <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-t-lo">quality record · achieved</span>
+        <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">Quality record</span>
         <span className="flex items-center gap-1.5">
-          <PulseDot color="bg-emerald-500" ping="bg-emerald-500/50" />
-          <span className="font-mono text-[9px] uppercase tracking-wider text-emerald-600">{done ? 'verified' : 'live'}</span>
+          <PulseDot color="bg-accent-emerald" ping="bg-accent-emerald/50" />
+          <span className="text-[10px] font-medium uppercase tracking-wider text-accent-emerald">{done ? 'verified' : 'live'}</span>
         </span>
       </div>
       <div className="grid grid-cols-5 gap-px border-b border-border bg-border">
         {readout.map(r => (
           <div key={r.label} className="bg-panel px-2 py-2">
-            <p className="font-mono text-[8px] uppercase tracking-wider text-t-lo">{r.label}</p>
+            <p className="text-[9px] font-medium uppercase tracking-wider text-t-lo">{r.label}</p>
             <p className="mt-0.5 truncate font-mono text-[11px] font-semibold text-t-hi">{r.value}</p>
             <p className="truncate text-[8.5px] text-t-lo/70" title={r.hint}>{r.hint}</p>
           </div>
         ))}
       </div>
       <div className="min-h-0 flex-1 space-y-2 overflow-auto p-3">
-        <p className="font-mono text-[9px] uppercase tracking-wider text-t-lo">rows landed · quality badges</p>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-t-lo">Rows landed</p>
         <div className="flex flex-wrap gap-1.5">
           {Array.from({ length: Math.min(current, rowCount) }).map((_, i) => (
-            <span key={i} className="inline-flex items-center gap-1 rounded-button border border-emerald-500/30 bg-emerald-500/[0.06] px-1.5 py-[2px] font-mono text-[9px] text-emerald-700">
+            <span key={i} className="inline-flex items-center gap-1 rounded-button border border-accent-emerald/30 bg-accent-emerald/10 px-1.5 py-[2px] font-mono text-[9px] text-accent-emerald">
               <Check className="h-2.5 w-2.5" /> row {i + 1}
             </span>
           ))}
@@ -200,7 +200,7 @@ function QualityMonitor({ current, done, rowCount, score, dims, error, onRetry }
 
         {dimsArray(dims).length > 0 && (
           <>
-            <p className="mt-3 font-mono text-[9px] uppercase tracking-wider text-t-lo">dimension scores · real</p>
+            <p className="mt-3 text-[10px] font-semibold uppercase tracking-wider text-t-lo">Dimension scores</p>
             <div className="space-y-1">
               {dimRows.map(d => (
                 <div key={d.label} className="flex items-center gap-2">
@@ -216,9 +216,9 @@ function QualityMonitor({ current, done, rowCount, score, dims, error, onRetry }
         )}
 
         {error && (
-          <div className="flex items-center justify-between gap-2 rounded-button border border-rose-500/30 bg-rose-500/[0.06] px-3 py-2">
-            <span className="flex items-center gap-1.5 text-[11px] text-rose-600"><AlertTriangle className="h-3.5 w-3.5" /> {error}</span>
-            <button onClick={onRetry} className="font-mono text-[10px] uppercase tracking-wider text-rose-600 hover:underline">retry</button>
+          <div className="flex items-center justify-between gap-2 rounded-button border border-accent-rose/30 bg-accent-rose/10 px-3 py-2">
+            <span className="flex items-center gap-1.5 text-[11px] text-accent-rose"><AlertTriangle className="h-3.5 w-3.5" /> {error}</span>
+            <button onClick={onRetry} className="text-[11px] font-medium text-accent-rose hover:underline">Retry</button>
           </div>
         )}
       </div>
@@ -336,13 +336,13 @@ export function DQEnginePage() {
       <div className="px-4 pb-3 pt-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-primary-500">Beat 3 / 13 · Data</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-primary-500">Stage 3 · Data quality</p>
             <h1 className="mt-1 text-xl font-semibold tracking-tight text-t-hi sm:text-2xl">Data Quality Engine</h1>
             <p className="mt-1 text-sm text-t-lo">Watch EcoMind repair the dataset — every rule runs on the rail, and the quality you actually achieved lights up on the record.</p>
           </div>
           <div className="flex items-center gap-2">
             <DoneChip text={phase === 'done' ? 'verified · ready' : phase === 'running' ? 'engine working…' : 'armed'} />
-            <span className="rounded-full border border-border bg-panel px-3 py-1 font-mono text-[10px] uppercase tracking-widest text-t-lo">{mode === 'manual' ? 'guided' : 'smart'} · dq engine</span>
+            <span className="rounded-full bg-panel2 px-2.5 py-1 text-[10px] font-medium uppercase tracking-wider text-t-lo">{mode === 'manual' ? 'Guided' : 'Smart'} · Quality Engine</span>
           </div>
         </div>
       </div>
@@ -359,7 +359,7 @@ export function DQEnginePage() {
             {(['all', 'sample'] as const).map(s => (
               <button key={s} onClick={() => { setScope(s); if (phase === 'done' || running) runQuality() }}
                 disabled={running}
-                className={clsx('px-3 py-1.5 font-mono text-[10px] uppercase tracking-widest transition-colors',
+                className={clsx('px-3 py-1.5 text-[11px] font-medium transition-colors',
                   scope === s ? 'bg-primary-500 text-white' : 'text-t-lo hover:text-t-hi')}>
                 {s === 'all' ? `all ${fmt(rowCount)}` : 'sample'}
               </button>
@@ -368,7 +368,7 @@ export function DQEnginePage() {
           <button
             onClick={runQuality}
             disabled={running}
-            className="flex shrink-0 items-center justify-center gap-2 rounded-button border border-primary-500/40 bg-primary-500/[0.06] px-4 py-1.5 font-mono text-xs uppercase tracking-[0.16em] text-primary-500 transition-colors hover:bg-primary-500/10 disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex shrink-0 items-center justify-center gap-2 rounded-button border border-primary-500/40 bg-primary-500/[0.06] px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-primary-500 transition-colors hover:bg-primary-500/10 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
             {running ? 'engine running…' : 'run quality engine'}

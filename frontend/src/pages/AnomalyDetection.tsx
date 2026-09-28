@@ -48,16 +48,16 @@ type SevTone = { label: string; dot: string; text: string; chip: string; tone: B
 const SEV: Record<string, SevTone> = {
   critical: {
     label: 'Critical',
-    dot: 'bg-rose-500',
-    text: 'text-rose-500',
-    chip: 'border-rose-500/30 bg-rose-500/[0.07] text-rose-500',
+    dot: 'bg-accent-rose',
+    text: 'text-accent-rose',
+    chip: 'border-accent-rose/30 bg-accent-rose/10 text-accent-rose',
     tone: 'rose',
   },
   high: {
     label: 'High',
-    dot: 'bg-amber-500',
-    text: 'text-amber-500',
-    chip: 'border-amber-500/30 bg-amber-500/[0.07] text-amber-500',
+    dot: 'bg-accent-amber',
+    text: 'text-accent-amber',
+    chip: 'border-accent-amber/30 bg-accent-amber/10 text-accent-amber',
     tone: 'amber',
   },
   medium: {
@@ -69,9 +69,9 @@ const SEV: Record<string, SevTone> = {
   },
   low: {
     label: 'Low',
-    dot: 'bg-cyan-500',
+    dot: 'bg-accent-cyan',
     text: 'text-cyan-500',
-    chip: 'border-cyan-500/30 bg-cyan-500/[0.07] text-cyan-500',
+    chip: 'border-cyan-500/30 bg-accent-cyan/[0.07] text-cyan-500',
     tone: 'cyan',
   },
 }
@@ -298,10 +298,10 @@ export function AnomalyDetectionPage() {
     deviation === null || deviation === 0
       ? 'text-t-mid'
       : deviation > 20
-        ? 'text-rose-500'
+        ? 'text-accent-rose'
         : deviation > 0
-          ? 'text-amber-500'
-          : 'text-emerald-600'
+          ? 'text-accent-amber'
+          : 'text-accent-emerald'
   const selConfirmed = selected ? overrides[selected.id] ?? Boolean(selected.is_confirmed) : false
   const activeStep = busy ? 'processed' : items.length ? 'produced' : 'entered'
 
@@ -540,7 +540,7 @@ export function AnomalyDetectionPage() {
               <div className="mb-3 flex flex-wrap items-center gap-2 rounded-button bg-panel2 px-3 py-2">
                 <SectionLabel>vs is_anomaly labels</SectionLabel>
                 {run.precision != null && (
-                  <MetricPill label="precision" value={`${fmt(run.precision * 100, 1)}%`} accent="text-emerald-600" />
+                  <MetricPill label="precision" value={`${fmt(run.precision * 100, 1)}%`} accent="text-accent-emerald" />
                 )}
                 {run.recall != null && (
                   <MetricPill label="recall" value={`${fmt(run.recall * 100, 1)}%`} accent="text-accent-cyan" />
@@ -744,7 +744,7 @@ export function AnomalyDetectionPage() {
                         </span>
                         <span className="flex items-center justify-end">
                           {isOn ? (
-                            <Check className="h-4 w-4 text-emerald-600" />
+                            <Check className="h-4 w-4 text-accent-emerald" />
                           ) : (
                             <Minus className="h-4 w-4 text-t-lo" />
                           )}
@@ -770,7 +770,7 @@ export function AnomalyDetectionPage() {
 
       {!items.length && !loading && (
         <p className="flex items-center gap-2 text-[11px] text-t-lo">
-          <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
+          <AlertTriangle className="h-3.5 w-3.5 text-accent-amber" />
           Nothing to investigate yet — the ledger stays empty until a detection run scores this
           dataset.
         </p>

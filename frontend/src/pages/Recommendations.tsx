@@ -171,13 +171,13 @@ const NEUTRAL_PRI: PriTone = {
 const PRIORITY: Record<string, PriTone> = {
   critical: {
     label: 'Critical', icon: <Zap className="h-3 w-3" />,
-    chip: 'border-rose-500/30 bg-rose-500/[0.07] text-rose-600',
-    text: 'text-rose-600', dot: 'bg-rose-500', tone: 'rose', weight: 0,
+    chip: 'border-accent-rose/30 bg-accent-rose/10 text-accent-rose',
+    text: 'text-accent-rose', dot: 'bg-accent-rose', tone: 'rose', weight: 0,
   },
   high: {
     label: 'High', icon: <Zap className="h-3 w-3" />,
-    chip: 'border-amber-500/30 bg-amber-500/[0.07] text-amber-600',
-    text: 'text-amber-600', dot: 'bg-amber-500', tone: 'amber', weight: 1,
+    chip: 'border-accent-amber/30 bg-accent-amber/10 text-accent-amber',
+    text: 'text-accent-amber', dot: 'bg-accent-amber', tone: 'amber', weight: 1,
   },
   medium: {
     label: 'Medium', icon: <Target className="h-3 w-3" />,
@@ -186,8 +186,8 @@ const PRIORITY: Record<string, PriTone> = {
   },
   low: {
     label: 'Low', icon: <ShieldCheck className="h-3 w-3" />,
-    chip: 'border-cyan-500/30 bg-cyan-500/[0.07] text-cyan-600',
-    text: 'text-cyan-600', dot: 'bg-cyan-500', tone: 'cyan', weight: 3,
+    chip: 'border-cyan-500/30 bg-accent-cyan/[0.07] text-cyan-600',
+    text: 'text-cyan-600', dot: 'bg-accent-cyan', tone: 'cyan', weight: 3,
   },
 }
 
@@ -765,7 +765,7 @@ export function RecommendationsPage() {
                   <div className="grid grid-cols-2 gap-2">
                     <div className="rounded-button border border-border bg-panel2 px-3 py-2">
                       <SectionLabel>savings</SectionLabel>
-                      <p className="mt-0.5 font-mono text-sm font-semibold text-emerald-600">
+                      <p className="mt-0.5 font-mono text-sm font-semibold text-accent-emerald">
                         {fmt(top.estimated_savings_kwh, 0)} kWh
                       </p>
                     </div>
@@ -957,7 +957,7 @@ function ActionRow({
 
         <span className="col-start-2 flex flex-wrap items-center gap-x-3 gap-y-1 sm:col-start-3 sm:flex-col sm:items-end sm:gap-1">
           <span className="flex items-center gap-1.5">
-            <span className="font-mono text-[13px] font-semibold text-emerald-600">
+            <span className="font-mono text-[13px] font-semibold text-accent-emerald">
               {fmt(rec.estimated_savings_kwh, 0)}
             </span>
             <span className="font-mono text-[9px] uppercase tracking-widest text-t-lo">kWh</span>

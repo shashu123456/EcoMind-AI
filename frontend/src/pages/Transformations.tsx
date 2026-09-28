@@ -638,8 +638,8 @@ export function TransformationsPage() {
             const t0 = times[0]
             const span = Math.max(...times, useClock ? 1 : applied.length - 1) - (useClock ? t0 : 0) || 1
             const OP_TONE: Record<string, string> = {
-              normalize: 'bg-cyan-500', fill_missing: 'bg-amber-500', drop_duplicates: 'bg-rose-500',
-              resample: 'bg-primary-500', outlier: 'bg-rose-400', rename: 'bg-emerald-500',
+              normalize: 'bg-accent-cyan', fill_missing: 'bg-accent-amber', drop_duplicates: 'bg-accent-rose',
+              resample: 'bg-primary-500', outlier: 'bg-accent-rose', rename: 'bg-accent-emerald',
             }
             return (
               <div className="relative mt-1 px-1 pb-1">
@@ -1142,7 +1142,7 @@ export function TransformationsPage() {
             </p>
             <div className="flex shrink-0 items-center gap-2">
               {applyError && (
-                <span className="flex items-center gap-1.5 text-[11px] text-rose-600">
+                <span className="flex items-center gap-1.5 text-[11px] text-accent-rose">
                   <AlertTriangle className="h-3.5 w-3.5" /> {applyError}
                 </span>
               )}

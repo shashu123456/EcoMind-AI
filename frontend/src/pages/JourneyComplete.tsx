@@ -41,7 +41,7 @@ const { data: gate } = useApi(
   const g: any = gate?.gate || gate || {}
   const trustPct = g?.trust_score ?? 0
   const verdict = g?.verdict ?? (trustPct >= 60 ? 'high_trust' : 'low_trust')
-  const trustColor = trustPct >= 80 ? '#10B981' : trustPct >= 60 ? '#F59E0B' : '#F43F5E'
+  const trustColor = trustPct >= 80 ? 'var(--color-accent-emerald)' : trustPct >= 60 ? 'var(--color-accent-amber)' : 'var(--color-accent-rose)'
 
   const list = Array.isArray(modelsData) ? modelsData : modelsData?.models || []
   const ranked = useMemo(
@@ -111,11 +111,11 @@ const doneCount = Object.values(stageStatuses).filter(s => s === 'done').length
                 <DoneChip text={`${doneCount}/15 stages done`} />
                 <DoneChip text={runId ? `run ${String(runId).slice(0, 8)}` : 'final results'} />
                 {isHigh ? (
-                  <span className="flex items-center gap-1.5 rounded-full border border-accent-emerald/30 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-accent-emerald">
+                  <span className="flex items-center gap-1.5 rounded-full border border-accent-emerald/30 bg-accent-emerald/10 px-3 py-1 text-xs font-medium text-accent-emerald">
                     <CheckCircle2 className="h-3.5 w-3.5" /> {verdict}
                   </span>
                 ) : (
-                  <span className="flex items-center gap-1.5 rounded-full border border-accent-rose/30 bg-rose-500/10 px-3 py-1 text-xs font-medium text-accent-rose">
+                  <span className="flex items-center gap-1.5 rounded-full border border-accent-rose/30 bg-accent-rose/10 px-3 py-1 text-xs font-medium text-accent-rose">
                     {verdict}
                   </span>
                 )}
@@ -160,7 +160,7 @@ const doneCount = Object.values(stageStatuses).filter(s => s === 'done').length
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <p className="font-display text-lg font-semibold text-accent-emerald">{best.algorithm ?? 'model'}</p>
-                  <span className="rounded-full border border-accent-emerald/30 bg-emerald-500/10 px-2.5 py-0.5 text-[10px] font-mono uppercase tracking-wider text-accent-emerald">winner</span>
+                  <span className="rounded-full border border-accent-emerald/30 bg-accent-emerald/10 px-2.5 py-0.5 text-[10px] font-mono uppercase tracking-wider text-accent-emerald">winner</span>
                 </div>
                 <div className="grid grid-cols-3 gap-2">
                   <ScoreCell label="R²" value={r2} digits={4} />
@@ -187,7 +187,7 @@ const doneCount = Object.values(stageStatuses).filter(s => s === 'done').length
                     <p className="font-display text-base font-semibold text-gray-100">{topRec.title ?? topRec.category ?? 'Action'}</p>
                     <p className="mt-0.5 text-xs text-gray-400">implementation · {topRec.implementation_difficulty ?? 'moderate · configuration + validation'}</p>
                   </div>
-                  <span className="shrink-0 rounded-full border border-accent-gold/30 bg-amber-500/10 px-2.5 py-0.5 text-[10px] font-mono uppercase tracking-wider text-accent-gold">
+                  <span className="shrink-0 rounded-full border border-accent-gold/30 bg-accent-amber/10 px-2.5 py-0.5 text-[10px] font-mono uppercase tracking-wider text-accent-gold">
                     {Number(topRec.savings_percent || 0).toFixed(1)}% saving
                   </span>
                 </div>

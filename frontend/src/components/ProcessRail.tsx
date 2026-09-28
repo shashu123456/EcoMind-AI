@@ -4,7 +4,7 @@ import {
   Database, Upload, ScanSearch, ShieldCheck, Wand2, Cpu,
   BrainCircuit, Gauge, Lightbulb, AlertTriangle, Trophy,
   Target, Briefcase, FileText, History, Check, Lock,
-  FileDown, PanelLeftClose, PanelLeft, ChevronDown, Volume2, VolumeX, Award,
+  FileDown, PanelLeftClose, PanelLeft, Volume2, VolumeX, Award,
 } from 'lucide-react'
 import clsx from 'clsx'
 import { useEffect, useState } from 'react'
@@ -12,7 +12,6 @@ import { WORKFLOW, useJourney, stagePath, MILESTONES, milestoneProgress, progres
 import type { WorkflowStage } from '../lib/journey'
 import { soundEnabled, setSoundEnabled } from '../lib/sound'
 import { B } from '../lib/kit'
-import { beatForStage } from '../lib/story'
 
 export const STAGE_ICONS: Record<string, React.ComponentType<any>> = {
   library: Database, import: Upload, schema_discovery: ScanSearch,
@@ -22,35 +21,30 @@ export const STAGE_ICONS: Record<string, React.ComponentType<any>> = {
   recommendation: Target, executive_center: Briefcase, report: FileText, history_registry: History,
 }
 
-/* Per-stage accent hue — each pipeline phase gets its own colour family so
-   the flow reads as clearly separated sky → violet → blue → green → amber → rose. */
-export const STAGE_COLORS: Record<string, string> = {
-  library: '#38BDF8', import: '#0EA5E9',
-  schema_discovery: '#8B7CF6', dq_engine: '#7C6DF6',
-  transformation: '#4C5FD5', feature_engineering: '#5B6FE0',
-  prediction: '#10B981', confidence_gate: '#14B8A6',
-  shap: '#F2A93B', anomaly: '#F87171', benchmarking: '#E89B3C', recommendation: '#D08C2B',
-  executive_center: '#A78BFA', report: '#7C6DF6', history_registry: '#8B7CF6',
-}
+/* One calm accent for the whole rail — hierarchy comes from state
+   (done / active / locked), not from a rainbow of stage hues. */
+export const STAGE_COLORS: Record<string, string> = Object.fromEntries(
+  Object.keys(STAGE_ICONS).map((k) => [k, '#4C5FD5']),
+)
 
-/* The "under the hood" detail shown on every node — the backend API /
-   model powering each stage, so the rail reads as the full pipeline map. */
-const STAGE_ENGINE: Record<string, { api: string; engine: string }> = {
-  library: { api: 'GET /datasets', engine: 'storage' },
-  import: { api: 'POST /import', engine: 'CSV · Excel' },
-  schema_discovery: { api: 'GET /schema', engine: 'auto-type' },
-  dq_engine: { api: 'POST /dq/run', engine: '8-dim repair' },
-  transformation: { api: 'POST /transform', engine: 'raw → clean' },
-  feature_engineering: { api: 'POST /features', engine: 'AI features' },
-  prediction: { api: 'POST /train', engine: 'XGBoost · LightGBM' },
-  confidence_gate: { api: 'POST /confidence', engine: 'trust gate' },
-  shap: { api: 'GET /shap/{model}', engine: 'TreeExplainer' },
-  anomaly: { api: 'POST /anomalies', engine: 'deviation scan' },
-  benchmarking: { api: 'GET /benchmarks', engine: 'percentile rank' },
-  recommendation: { api: 'POST /recommend', engine: 'evidence-weighted' },
-  executive_center: { api: 'GET /executive', engine: 'CEO briefing' },
-  report: { api: 'POST /report', engine: 'PDF · HTML · CSV' },
-  history_registry: { api: 'GET /runs', engine: 'versions + verdicts' },
+/* The engine behind each stage — shown as a single quiet tag so the rail
+   reads as a pipeline map without API jargon. */
+const STAGE_ENGINE: Record<string, string> = {
+  library: 'catalog',
+  import: 'CSV · Excel',
+  schema_discovery: 'auto-type profiling',
+  dq_engine: '12-rule repair',
+  transformation: 'raw → clean',
+  feature_engineering: 'AI features',
+  prediction: 'XGBoost · LightGBM',
+  confidence_gate: 'trust gate',
+  shap: 'TreeExplainer',
+  anomaly: 'deviation scan',
+  benchmarking: 'percentile rank',
+  recommendation: 'evidence-weighted',
+  executive_center: 'briefing',
+  report: 'PDF · HTML · CSV',
+  history_registry: 'versions',
 }
 
 function statusFor(stageStatuses: Record<string, string>, key: string): string {
@@ -100,127 +94,72 @@ export function ProcessRail() {
     navigate({ to: pathFor(stage) as any })
   }
 
-  const node = (stage: WorkflowStage, idx: number, total: number) => {
+  const node = (stage: WorkflowStage) => {
     const key = stage.key
     const st = statusFor(stageStatuses, key)
     const ready = stageReady(key)
     const active = key === routeKey
     const Icon = STAGE_ICONS[key]
-    const meta = STAGE_ENGINE[key]
-    const isLast = idx === total - 1
+    const engine = STAGE_ENGINE[key]
     const reqName = stage.requires === 'dataset' ? 'dataset' : stage.requires === 'run' ? 'run' : stage.requires === 'model' ? 'model' : null
 
-    const color = STAGE_COLORS[key]
-    const nextColor = !isLast ? STAGE_COLORS[WORKFLOW[idx + 1].key] : null
     const done = st === 'done'
     const locked = st === 'locked'
 
-    const bubble = (
-      <span
-        className={clsx(
-          'relative flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-lg border font-mono text-[10px] font-bold transition-all',
-          done
-            ? 'border-accent-emerald/50 bg-accent-emerald/15 text-accent-emerald'
-            : locked
-              ? 'border-white/[0.06] bg-white/[0.02] text-gray-600'
-              : 'border-white/[0.10] bg-white/[0.03]',
-        )}
-        style={active && !done ? { borderColor: `${color}99`, background: `${color}1f`, color } : undefined}
-      >
-        {done ? <Check className="h-3.5 w-3.5" strokeWidth={3} /> : active ? <Icon className="h-3.5 w-3.5" style={{ color }} /> : locked ? <Lock className="h-3 w-3" /> : <span>{stage.index}</span>}
-        {active && !done && <span className="absolute -inset-px rounded-lg" style={{ border: `1px solid ${color}55` }} />}
-      </span>
-    )
-
-    const body = (
-      <span
-        title={`${stage.description}\n${locked ? `Locked — needs a ${reqName} first` : meta ? `${meta.api} · ${meta.engine}` : ''}`}
-        className={clsx(
-          'group relative flex min-w-0 flex-1 cursor-pointer flex-col overflow-hidden rounded-button border px-2.5 py-2 pl-3.5 text-left transition-all',
-          active
-            ? 'bg-white/[0.05]'
-            : done
-              ? 'border-transparent hover:bg-accent-emerald/[0.05]'
-              : ready
-                ? 'border-transparent hover:bg-white/[0.04]'
-                : 'border-transparent opacity-60',
-        )}
-        style={active ? { borderColor: `${color}44` } : undefined}
-        onClick={() => nozzle(key)}
-      >
-        {/* phase-colour accent bar */}
-        <span
-          className="absolute bottom-2 left-0 top-2 w-[3px] rounded-full"
-          style={{ background: color, opacity: done ? 0.9 : ready ? 0.7 : 0.25 }}
-        />
-        <span className="flex items-center gap-2">
-          {bubble}
-          <span className="min-w-0 flex-1">
-            <span className="flex items-center gap-1.5">
-              <span
-                className={clsx('truncate text-[12px] font-semibold leading-tight', done ? 'text-gray-100' : 'text-gray-300')}
-                style={active && !done ? { color } : undefined}
-              >
-                {stage.short}
-              </span>
-              {locked && <Lock className="h-3 w-3 shrink-0 text-gray-500" />}
-            </span>
-          </span>
-          {!done && (
-            <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: color, opacity: locked ? 0.3 : 1 }} />
-          )}
-        </span>
-        <span className="mt-1 flex flex-wrap items-center gap-x-1 font-mono text-[9.5px] leading-none tracking-tight text-gray-500">
-          <span className={clsx('rounded border px-1 py-[1px]', active ? 'border-white/[0.14]' : 'border-white/[0.08]')}>{locked ? `needs ${reqName}` : meta.api}</span>
-          <span className="text-gray-600">·</span>
-          <span className={clsx('rounded border px-1 py-[1px]', active ? 'border-white/[0.14]' : 'border-white/[0.08]')}>{locked ? '—' : meta.engine}</span>
-        </span>
-      </span>
-    )
-
     return (
-      <div key={key} className="relative">
-        <div className="flex gap-2.5">
-          <div className="flex w-[22px] flex-col items-center">
-            {/* phase-colour flowing connector line + arrow to next node */}
-            {!isLast && (
-              <div className="relative mt-1 flex flex-1 flex-col items-center">
-                <span
-                  className="w-[2px] transition-colors"
-                  style={{
-                    height: '100%',
-                    background: nextColor ? `linear-gradient(180deg, ${color}55, ${nextColor}55)` : undefined,
-                    opacity: done ? 0.85 : 0.4,
-                  }}
-                />
-                <span
-                  className="absolute bottom-0 h-0 w-0 border-l-[3px] border-r-[3px] border-t-[4px] border-l-transparent border-r-transparent"
-                  style={{ borderTopColor: nextColor ?? color }}
-                />
-              </div>
-            )}
-          </div>
-          {body}
-        </div>
-      </div>
+      <button
+        key={key}
+        title={`${stage.label}${locked ? ` — needs a ${reqName} first` : ''}`}
+        onClick={() => nozzle(key)}
+        className={clsx(
+          'group relative flex w-full items-center gap-2.5 rounded-button py-1.5 pl-2 pr-2 text-left transition-colors',
+          active ? 'bg-primary-500/[0.07]' : ready ? 'hover:bg-panel2' : 'cursor-default opacity-55 hover:bg-panel2/50',
+        )}
+      >
+        {active && (
+          <span className="absolute bottom-1.5 left-0 top-1.5 w-[2px] rounded-full bg-primary-500" />
+        )}
+        <span
+          className={clsx(
+            'relative flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-md border font-mono text-[10px] font-semibold transition-colors',
+            done
+              ? 'border-accent-emerald/35 bg-accent-emerald/10 text-accent-emerald'
+              : active
+                ? 'border-primary-500/40 bg-primary-500/10 text-primary-500'
+                : 'border-border bg-panel2 text-t-lo',
+          )}
+        >
+          {done ? <Check className="h-3 w-3" strokeWidth={3} /> : locked ? <Lock className="h-3 w-3" /> : <Icon className="h-3.5 w-3.5" />}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className={clsx(
+            'block truncate text-[12.5px] font-medium leading-tight',
+            active ? 'text-t-hi' : done ? 'text-t-mid' : 'text-t-mid',
+          )}>
+            {stage.short}
+          </span>
+          <span className="mt-0.5 block truncate font-mono text-[10px] leading-none text-t-lo">
+            {locked ? `needs ${reqName}` : engine}
+          </span>
+        </span>
+      </button>
     )
   }
 
   /* collapsed slim rail: a labelled icon stack, not plain dots */
   if (collapsed) {
     return (
-      <nav className="flex w-14 shrink-0 flex-col items-center gap-1 overflow-y-auto border-r border-border bg-panel/60 py-3 backdrop-blur-sm">
+      <nav className="flex w-14 shrink-0 flex-col items-center gap-1 overflow-y-auto border-r border-border bg-panel/70 py-3">
         <button
           onClick={() => setCollapsed(false)}
           title="Expand pipeline"
-          className="mb-1.5 rounded-button border border-white/[0.08] bg-white/[0.03] p-2 text-gray-300 transition-colors hover:border-accent-cyan/40 hover:text-accent-cyan"
+          className="mb-1.5 rounded-button border border-border bg-panel p-2 text-t-mid transition-colors hover:text-t-hi"
         >
           <PanelLeft className="h-4 w-4" />
         </button>
         {WORKFLOW.map(s => {
           const st = statusFor(stageStatuses, s.key)
           const active = s.key === routeKey
-          const color = STAGE_COLORS[s.key]
           const done = st === 'done'
           const locked = st === 'locked'
           const Icon = STAGE_ICONS[s.key]
@@ -230,32 +169,27 @@ export function ProcessRail() {
               title={`${s.label}${locked ? ' (locked)' : ''}`}
               onClick={() => nozzle(s.key)}
               className={clsx(
-                'relative flex h-9 w-9 shrink-0 items-center justify-center rounded-button border transition-all',
-                locked && 'opacity-40',
+                'relative flex h-9 w-9 shrink-0 items-center justify-center rounded-button border transition-colors',
+                active
+                  ? 'border-primary-500/40 bg-primary-500/10 text-primary-500'
+                  : done
+                    ? 'border-accent-emerald/25 bg-accent-emerald/[0.08] text-accent-emerald'
+                    : clsx('border-border bg-panel text-t-lo', locked && 'opacity-40'),
               )}
-              style={{
-                borderColor: active || done ? `${color}66` : 'rgba(255,255,255,0.08)',
-                background: active ? `${color}22` : done ? `${color}1a` : 'rgba(255,255,255,0.03)',
-              }}
             >
-              {done
-                ? <Check className="h-4 w-4 text-accent-emerald" strokeWidth={3} />
-                : <Icon className="h-4 w-4" style={{ color }} />}
-              {active && !done && (
-                <span className="absolute -inset-px rounded-button border" style={{ borderColor: `${color}88` }} />
-              )}
+              {done ? <Check className="h-4 w-4" strokeWidth={3} /> : <Icon className="h-4 w-4" />}
             </button>
           )
         })}
-        <div className="mt-auto flex w-full shrink-0 flex-col items-center gap-1.5 border-t border-white/[0.06] pt-2">
-          <span className="rounded-full border border-white/[0.08] bg-white/[0.03] px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-primary-400"
+        <div className="mt-auto flex w-full shrink-0 flex-col items-center gap-1.5 border-t border-border pt-2">
+          <span className="rounded-full bg-panel3 px-2 py-0.5 font-mono text-[10px] font-semibold text-t-mid"
             title={`${doneCount} of ${PIPELINE_TOTAL} stages complete`}>
             {doneCount}/{PIPELINE_TOTAL}
           </span>
           <button
             onClick={() => setSoundEnabled(!soundEnabled())}
             title={soundEnabled() ? 'Mute stage sounds' : 'Enable stage sounds'}
-            className="rounded-button p-1.5 text-gray-400 transition-colors hover:bg-white/[0.06] hover:text-gray-200"
+            className="rounded-button p-1.5 text-t-lo transition-colors hover:bg-panel2 hover:text-t-hi"
           >
             {soundEnabled() ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
           </button>
@@ -265,80 +199,63 @@ export function ProcessRail() {
   }
 
   return (
-    <nav className="relative flex w-[272px] shrink-0 flex-col border-r border-border bg-panel/60 backdrop-blur-sm">
+    <nav className="relative flex w-[264px] shrink-0 flex-col border-r border-border bg-panel/70">
       {/* rail header */}
-      <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-3">
+      <div className="flex items-center justify-between gap-2 px-4 pb-3 pt-4">
         <div className="min-w-0">
-          <p className="font-mono text-[9px] uppercase tracking-[0.24em] text-t-lo">workflow story</p>
-          <p className="text-sm font-semibold text-t-hi">Mission flow</p>
+          <p className="font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-t-lo">Pipeline</p>
+          <p className="mt-0.5 text-[13px] font-semibold tracking-tight text-t-hi">
+            {doneCount === PIPELINE_TOTAL ? 'All stages complete' : `${PIPELINE_TOTAL - doneCount} stage${PIPELINE_TOTAL - doneCount === 1 ? '' : 's'} remaining`}
+          </p>
         </div>
-        <div className="flex items-center gap-1">
-          <span className="rounded-full border border-border bg-panel px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-widest text-primary-500">
-            {doneCount}/{PIPELINE_TOTAL}
-          </span>
-          <button
-            onClick={() => setCollapsed(true)}
-            title="Collapse story"
-            className="rounded-button p-1.5 text-t-lo transition-colors hover:bg-panel2 hover:text-t-hi"
-          >
-            <PanelLeftClose className="h-4 w-4" />
-          </button>
-        </div>
+        <button
+          onClick={() => setCollapsed(true)}
+          title="Collapse pipeline"
+          className="rounded-button p-1.5 text-t-lo transition-colors hover:bg-panel2 hover:text-t-hi"
+        >
+          <PanelLeftClose className="h-4 w-4" />
+        </button>
       </div>
 
       {/* overall progress */}
-      <div className="border-b border-border px-3 py-2.5">
-        <div className="flex items-center justify-between font-mono text-[9px] uppercase tracking-widest text-t-lo">
-          <span>journey progress</span>
-          <span>{Math.round(pct)}%</span>
+      <div className="px-4 pb-3">
+        <div className="flex items-center justify-between font-mono text-[10px] tabular-nums text-t-lo">
+          <span>{doneCount}/{PIPELINE_TOTAL} done</span>
+          <span className="font-semibold text-t-mid">{Math.round(pct)}%</span>
         </div>
-        <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-panel3">
+        <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-panel3">
           <motion.div
             className="h-full rounded-full bg-primary-500"
             initial={{ width: 0 }}
             animate={{ width: `${pct}%` }}
-            transition={{ duration: 0.9, ease: B }}
+            transition={{ duration: 0.7, ease: B }}
           />
         </div>
       </div>
 
-      {/* scrollable milestone flow */}
-      <div className="scroll-design flex-1 overflow-y-auto px-2.5 py-3">
+      {/* milestone flow */}
+      <div className="flex-1 overflow-y-auto px-2.5 pb-3">
         {MILESTONES.map((m, mi) => {
           const prog = milestoneProgress(stageStatuses, m)
           const mActive = m.stages.some(k => k === routeKey)
-          const mColor = STAGE_COLORS[m.stages[0]]
           return (
-            <div key={m.key} className="mb-4 last:mb-0">
-              <div className="mb-1.5 flex items-center gap-2 px-1.5">
-                <span
-                  className={clsx(
-                    'flex h-[18px] items-center justify-center rounded-full px-1.5 font-mono text-[9px] font-bold',
-                    prog.done === prog.total
-                      ? 'bg-accent-emerald/15 text-accent-emerald'
-                      : 'bg-panel2 text-t-lo',
-                  )}
-                  style={mActive && prog.done !== prog.total ? { background: `${mColor}1f`, color: mColor } : undefined}
-                >
-                  {String(mi + 1).padStart(2, '0')}
-                </span>
-                <span
-                  className={clsx('font-mono text-[9.5px] font-semibold uppercase tracking-[0.18em]', mActive ? 'text-t-hi' : 'text-t-lo')}
-                  style={mActive ? { color: mColor } : undefined}
-                >
+            <div key={m.key} className="mb-1">
+              <div className={clsx(
+                'flex items-center gap-2 px-1.5 pb-1 pt-3',
+                mi === 0 && 'pt-1',
+              )}>
+                <span className={clsx(
+                  'font-mono text-[10px] font-semibold uppercase tracking-[0.14em]',
+                  mActive ? 'text-primary-500' : 'text-t-lo',
+                )}>
                   {m.short}
                 </span>
-                <span className="ml-auto font-mono text-[9px] text-gray-600">{prog.done}/{prog.total}</span>
+                <span className="h-px flex-1 bg-border" />
+                <span className="font-mono text-[10px] tabular-nums text-t-lo">{prog.done}/{prog.total}</span>
               </div>
-              <div className="rounded-button border border-border bg-panel p-2">
-                {m.stages.map((key, i) => node(WORKFLOW.find(s => s.key === key)!, i, m.stages.length))}
+              <div className="flex flex-col">
+                {m.stages.map(key => node(WORKFLOW.find(s => s.key === key)!))}
               </div>
-              {mi < MILESTONES.length - 1 && (
-                <div className="flex h-5 items-center justify-center gap-1.5 text-[9px] font-mono uppercase tracking-widest text-gray-600">
-                  <ChevronDown className="h-3 w-3" />
-                  <span>pipeline phase</span>
-                </div>
-              )}
             </div>
           )
         })}
@@ -348,25 +265,25 @@ export function ProcessRail() {
       <div className="space-y-1 border-t border-border p-2.5">
         <Link
           to="/reports"
-          className="flex items-center gap-2 rounded-button border border-border bg-panel px-2.5 py-2 text-[11px] font-medium text-t-mid transition-colors hover:border-accent-rose/40 hover:bg-accent-rose/10 hover:text-accent-rose"
+          className="flex items-center gap-2 rounded-button px-2.5 py-2 text-[12px] font-medium text-t-mid transition-colors hover:bg-panel2 hover:text-t-hi"
         >
-          <FileDown className="h-3.5 w-3.5" /> Export audit report
+          <FileDown className="h-3.5 w-3.5" /> Export report
         </Link>
         <div className="flex items-center gap-1">
           <Link
             to="/scorecard"
             title="Per-stage examiner ratings"
-            className="flex flex-1 items-center gap-2 rounded-button border border-border px-2.5 py-1.5 text-[11px] text-t-lo transition-colors hover:bg-panel2 hover:text-t-hi"
+            className="flex flex-1 items-center gap-2 rounded-button px-2.5 py-1.5 text-[12px] text-t-lo transition-colors hover:bg-panel2 hover:text-t-hi"
           >
-            <Award className="h-3.5 w-3.5 text-accent-gold" /> Scorecard
+            <Award className="h-3.5 w-3.5" /> Scorecard
           </Link>
           <button
             onClick={() => setSoundEnabled(!soundEnabled())}
             title={soundEnabled() ? 'Mute stage sounds' : 'Enable stage sounds'}
-            className={clsx('rounded-button border px-2.5 py-1.5 transition-colors',
+            className={clsx('rounded-button p-1.5 transition-colors',
               soundEnabled()
-                ? 'border-accent-emerald/25 bg-accent-emerald/10 text-accent-emerald hover:bg-accent-emerald/20'
-                : 'border-white/[0.06] text-gray-500 hover:bg-white/[0.04]')}
+                ? 'text-accent-emerald hover:bg-panel2'
+                : 'text-t-lo hover:bg-panel2 hover:text-t-hi')}
           >
             {soundEnabled() ? <Volume2 className="h-3.5 w-3.5" /> : <VolumeX className="h-3.5 w-3.5" />}
           </button>

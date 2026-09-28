@@ -52,19 +52,19 @@ const BAND: Record<Band, {
   pass: {
     label: 'Trusted — decision released',
     Icon: CheckCircle2, chip: 'ok', accent: 'emerald',
-    border: 'border-emerald-500/30', wash: 'bg-emerald-500/[0.05]',
+    border: 'border-accent-emerald/30', wash: 'bg-accent-emerald/10',
     advice: 'Every signal cleared its threshold. The model may act on this dataset.',
   },
   review: {
     label: 'Trusted with caveats',
     Icon: AlertTriangle, chip: 'warn', accent: 'amber',
-    border: 'border-amber-500/30', wash: 'bg-amber-500/[0.05]',
+    border: 'border-accent-amber/30', wash: 'bg-accent-amber/10',
     advice: 'At least one signal is soft or missing. Read the breakdown before continuing.',
   },
   fail: {
     label: 'Not trusted — hold the decision',
     Icon: XCircle, chip: 'warn', accent: 'rose',
-    border: 'border-rose-500/30', wash: 'bg-rose-500/[0.05]',
+    border: 'border-accent-rose/30', wash: 'bg-accent-rose/10',
     advice: 'Trust is below the 60-point decision threshold. Strengthen the weakest signal first.',
   },
 }
@@ -104,7 +104,7 @@ function TrustDonut({ value, tone }: { value: number; tone: 'emerald' | 'amber' 
   const cx = SIZE / 2
   const cy = SIZE / 2
   const frac = Math.max(0, Math.min(1, value / 100))
-  const stroke = tone === 'emerald' ? '#10B981' : tone === 'amber' ? '#D8A648' : tone === 'rose' ? '#C2335A' : '#8A94A8'
+  const stroke = tone === 'emerald' ? 'var(--color-accent-emerald)' : tone === 'amber' ? 'var(--color-accent-amber)' : tone === 'rose' ? 'var(--color-accent-rose)' : 'var(--t-lo)'
   return (
     <svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`} className="shrink-0" role="img" aria-label={`Trust score ${fmt(value, 1)} of 100`}>
       <circle cx={cx} cy={cy} r={R} fill="none" stroke="var(--panel3, #E4E8F0)" strokeWidth={STROKE} />
@@ -260,7 +260,7 @@ export function ConfidenceGatePage() {
 
       {res.error && <ErrorBox message={res.error} onRetry={res.refetch} />}
       {actionError && (
-        <div className="flex items-center gap-2 rounded-card border border-rose-500/30 bg-rose-500/[0.05] px-3.5 py-2.5 text-xs text-rose-600">
+        <div className="flex items-center gap-2 rounded-card border border-accent-rose/30 bg-accent-rose/10 px-3.5 py-2.5 text-xs text-accent-rose">
           <XCircle className="h-4 w-4 shrink-0" />
           <span className="min-w-0 flex-1 truncate">{actionError}</span>
           <Button size="xs" variant="outline" onClick={() => void evaluate()} loading={busy}>Retry</Button>
@@ -304,12 +304,12 @@ export function ConfidenceGatePage() {
           >
             <div className="flex min-w-0 items-start gap-3.5">
               <span className={clsx('flex h-10 w-10 shrink-0 items-center justify-center rounded-button border bg-panel',
-                style.border, style.accent === 'emerald' ? 'text-emerald-600' : style.accent === 'amber' ? 'text-amber-600' : 'text-rose-600')}>
+                style.border, style.accent === 'emerald' ? 'text-accent-emerald' : style.accent === 'amber' ? 'text-accent-amber' : 'text-accent-rose')}>
                 <VerdictIcon className="h-5 w-5" />
               </span>
               <div className="min-w-0 flex-1">
                 <p className={clsx('text-lg font-semibold tracking-tight',
-                  style.accent === 'emerald' ? 'text-emerald-600' : style.accent === 'amber' ? 'text-amber-600' : 'text-rose-600')}>
+                  style.accent === 'emerald' ? 'text-accent-emerald' : style.accent === 'amber' ? 'text-accent-amber' : 'text-accent-rose')}>
                   {style.label}
                 </p>
                 {reasoning?.explanation && <p className="mt-0.5 text-sm text-t-mid">{reasoning.explanation}</p>}
@@ -354,7 +354,7 @@ export function ConfidenceGatePage() {
           <div ref={breakdownRef}>
             <Panel
               title="Confidence breakdown"
-              className={clsx('transition-colors', reviewing && 'border-amber-500/50')}
+              className={clsx('transition-colors', reviewing && 'border-accent-amber/50')}
               right={
                 <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-t-lo">
                   {factors.length} of 4 signals
@@ -377,7 +377,7 @@ export function ConfidenceGatePage() {
                       </p>
                     </div>
                     <span className={clsx('text-right font-mono text-sm font-semibold',
-                      f.value >= 75 ? 'text-emerald-600' : f.value >= 50 ? 'text-amber-600' : 'text-rose-600')}>
+                      f.value >= 75 ? 'text-accent-emerald' : f.value >= 50 ? 'text-accent-amber' : 'text-accent-rose')}>
                       {fmt(f.value, 1)}%
                     </span>
                   </div>

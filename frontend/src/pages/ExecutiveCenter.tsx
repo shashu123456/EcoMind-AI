@@ -221,8 +221,8 @@ function trustTone(score: number | null): 'emerald' | 'amber' | 'rose' {
 }
 
 const PRIORITY: Record<string, { label: string; chip: string; bar: BarTone }> = {
-  critical: { label: 'Critical', chip: 'border-rose-500/30 bg-rose-500/[0.07] text-rose-500', bar: 'rose' },
-  high: { label: 'High', chip: 'border-amber-500/30 bg-amber-500/[0.07] text-amber-500', bar: 'amber' },
+  critical: { label: 'Critical', chip: 'border-accent-rose/30 bg-accent-rose/10 text-accent-rose', bar: 'rose' },
+  high: { label: 'High', chip: 'border-accent-amber/30 bg-accent-amber/10 text-accent-amber', bar: 'amber' },
   medium: { label: 'Medium', chip: 'border-accent-cyan/30 bg-accent-cyan/[0.06] text-accent-cyan', bar: 'cyan' },
   low: { label: 'Low', chip: 'border-border bg-panel2 text-t-lo', bar: 'primary' },
 }
@@ -756,8 +756,8 @@ export function ExecutiveCenterPage() {
                   <SectionLabel>04 · what it is worth</SectionLabel>
                   <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
                     <MetricPill label="forecast" value={summary.forecastKwh === null ? '—' : `${fmt(summary.forecastKwh, 1)} kWh`} />
-                    <MetricPill label="co₂" value={summary.co2Kg === null ? '—' : `${fmt(summary.co2Kg, 1)} kg`} accent="text-emerald-600" />
-                    <MetricPill label="cost" value={summary.cost === null ? '—' : fmt(summary.cost, 2)} accent="text-amber-600" />
+                    <MetricPill label="co₂" value={summary.co2Kg === null ? '—' : `${fmt(summary.co2Kg, 1)} kg`} accent="text-accent-emerald" />
+                    <MetricPill label="cost" value={summary.cost === null ? '—' : fmt(summary.cost, 2)} accent="text-accent-amber" />
                     <MetricPill label="savings" value={savingsKwh === null ? '—' : `${fmt(savingsKwh, 0)} kWh`} accent="text-primary-500" />
                   </div>
                   <p className="mt-2 font-mono text-[10px] leading-relaxed text-t-lo">
@@ -798,9 +798,9 @@ export function ExecutiveCenterPage() {
                           <span
                             className={cn(
                               'relative z-10 mt-1.5 flex h-5 w-5 items-center justify-center rounded-full border bg-panel font-mono text-[9px]',
-                              tone.status === 'ok' ? 'border-emerald-500/50 text-emerald-600'
+                              tone.status === 'ok' ? 'border-accent-emerald/50 text-accent-emerald'
                                 : tone.status === 'running' ? 'border-primary-500/50 text-primary-500'
-                                  : tone.status === 'warn' ? 'border-amber-500/50 text-amber-600'
+                                  : tone.status === 'warn' ? 'border-accent-amber/50 text-accent-amber'
                                     : 'border-border text-t-lo',
                             )}
                           >
@@ -882,7 +882,7 @@ export function ExecutiveCenterPage() {
                 })}
 
                 {gateFactors && gateFactors.missing.length > 0 && (
-                  <p className="flex items-start gap-1.5 font-mono text-[10px] leading-relaxed text-amber-600">
+                  <p className="flex items-start gap-1.5 font-mono text-[10px] leading-relaxed text-accent-amber">
                     <AlertTriangle className="mt-px h-3 w-3 shrink-0" />
                     not yet computed: {gateFactors.missing.map(titleize).join(', ')}
                   </p>
@@ -1152,7 +1152,7 @@ export function ExecutiveCenterPage() {
                 </div>
 
                 <div className="flex items-center gap-2 border-t border-border pt-2.5">
-                  <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
+                  <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-accent-emerald" />
                   <p className="min-w-0 flex-1 text-[12px] leading-relaxed text-t-lo">
                     {summary.trustScore === null
                       ? 'No gate verdict on record — decisions stay provisional until the confidence stage runs.'

@@ -261,7 +261,7 @@ function PreparedCsvPreview({ url }: { url: string }) {
       .catch(() => alive && setErr('the csv could not be parsed for preview'))
     return () => { alive = false }
   }, [url])
-  if (err) return <p className="px-3 py-3 font-mono text-[10px] text-rose-500">{err}</p>
+  if (err) return <p className="px-3 py-3 font-mono text-[10px] text-accent-rose">{err}</p>
   if (!rows) return <p className="px-3 py-3 font-mono text-[10px] text-t-lo">parsing csv…</p>
   const width = Math.max(...rows.map(r => r.length), 1)
   return (
@@ -286,10 +286,10 @@ function PreparedCsvPreview({ url }: { url: string }) {
 type FlowState = 'done' | 'active' | 'idle' | 'fail'
 
 const FLOW_DOT: Record<FlowState, string> = {
-  done: 'bg-emerald-600',
+  done: 'bg-accent-emerald',
   active: 'bg-primary-500',
   idle: 'bg-panel3',
-  fail: 'bg-rose-500',
+  fail: 'bg-accent-rose',
 }
 
 function FlowNode({ state, label, detail }: { state: FlowState; label: string; detail: string }) {
@@ -638,14 +638,14 @@ export function ReportGenerationPage() {
       {busy && <Sweep label="assembling document" elapsedMs={elapsed} />}
 
       {runError && (
-        <div className="flex items-center gap-2.5 rounded-card border border-rose-500/30 bg-rose-500/[0.05] px-3.5 py-2.5 text-xs text-rose-600">
+        <div className="flex items-center gap-2.5 rounded-card border border-accent-rose/30 bg-accent-rose/10 px-3.5 py-2.5 text-xs text-accent-rose">
           <AlertTriangle className="h-4 w-4 shrink-0" />
           <span className="min-w-0 truncate">{runError}</span>
         </div>
       )}
 
       {dlError && (
-        <div className="flex items-center gap-2.5 rounded-card border border-amber-500/30 bg-amber-500/[0.06] px-3.5 py-2.5 text-xs text-amber-600">
+        <div className="flex items-center gap-2.5 rounded-card border border-accent-amber/30 bg-accent-amber/10 px-3.5 py-2.5 text-xs text-accent-amber">
           <AlertTriangle className="h-4 w-4 shrink-0" />
           <span className="min-w-0 truncate">{dlError}</span>
         </div>
@@ -1124,7 +1124,7 @@ export function ReportGenerationPage() {
                   </Button>
                 )}
                 {previewError && (
-                  <p className="rounded-button border border-rose-500/30 bg-rose-500/[0.06] px-2.5 py-1.5 font-mono text-[10px] text-rose-500">
+                  <p className="rounded-button border border-accent-rose/30 bg-accent-rose/10 px-2.5 py-1.5 font-mono text-[10px] text-accent-rose">
                     {previewError}
                   </p>
                 )}
@@ -1227,7 +1227,7 @@ export function ReportGenerationPage() {
                     className={cn(
                       'inline-flex items-center gap-1 rounded-button border px-1.5 py-px font-mono text-[9px]',
                       on
-                        ? 'border-emerald-500/30 bg-emerald-500/[0.06] text-emerald-600'
+                        ? 'border-accent-emerald/30 bg-accent-emerald/10 text-accent-emerald'
                         : 'border-dashed border-border bg-panel text-t-lo',
                     )}
                   >
@@ -1253,7 +1253,7 @@ export function ReportGenerationPage() {
         />
       ) : (
         <p className="flex shrink-0 items-center gap-2 text-[11px] text-t-lo">
-          <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
+          <AlertTriangle className="h-3.5 w-3.5 text-accent-amber" />
           Nothing to hand over yet — compile at least one report before continuing to History &amp;
           Model Registry.
         </p>
