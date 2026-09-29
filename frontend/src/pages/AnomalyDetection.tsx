@@ -16,14 +16,14 @@ import { beatForStage } from '../lib/story'
 import {
   Bar,
   EmptyState,
+  Hero,
   LoadingState,
   MetricPill,
-  Panel,
   SectionLabel,
   StageHeader,
-  Stat,
   StatusChip,
-  StoryFlow,
+  Advanced,
+  ResultSummary,
 } from '../lib/stagekit'
 import { AutoNext, Button } from '../lib/kit'
 
@@ -346,34 +346,6 @@ export function AnomalyDetectionPage() {
         }
       />
 
-      {/* ── top strip ───────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat
-          label="Detected"
-          value={fmt(detected, 0)}
-          hint={`${fmt(items.length - confirmedCount, 0)} awaiting triage`}
-          accent="rose"
-        />
-        <Stat
-          label="Total scanned"
-          value={fmt(scanned, 0)}
-          hint={run ? 'this detection run' : `${fmt(listTotal, 0)} stored incidents`}
-        />
-        <Stat
-          label="Avg confidence"
-          value={avgConfidence === null ? '—' : `${fmt(avgConfidence * 100, 1)}%`}
-          hint="across the incident set"
-          accent="primary"
-          mono
-        />
-        <Stat
-          label="Elapsed"
-          value={run?.elapsed_ms != null ? `${fmt(run.elapsed_ms, 0)}` : '—'}
-          hint={run?.elapsed_ms != null ? 'ms · last detect call' : 'run a detection to measure'}
-          mono
-        />
-      </div>
-
       {busy && <Working label="scanning timeline" />}
       {!busy && error && <StatusChip status="warn">{error}</StatusChip>}
 
@@ -431,27 +403,21 @@ export function AnomalyDetectionPage() {
 
       {items.length > 0 && (
         <>
-          {/* ── severity timeline ────────────────────────────── */}
-          <Panel
-            title="Severity timeline"
-            right={
+          {/* ── Level 2 · hero: severity timeline ────────────── */}
+          <Hero>
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-2.5">
+              <SectionLabel>Severity timeline</SectionLabel>
               <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1">
                 {SEVERITY_ORDER.map(k => (
-                  <span
-                    key={k}
-                    className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-t-lo"
-                    title={`severity ${sevTone(k).label}`}
-                  >
+                  <span key={k} className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-t-lo">
                     <span className={clsx('h-1.5 w-1.5 rounded-full', sevTone(k).dot)} />
                     {sevTone(k).label}
                   </span>
                 ))}
-                <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-t-lo">
-                  · dot size = confidence
-                </span>
+                <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-t-lo">· dot size = confidence</span>
               </div>
-            }
-          >
+            </div>
+            <div className="p-4">
             {timelineReady ? (
               <div className="space-y-2">
                 {sevKeys.map(key => {
@@ -522,19 +488,14 @@ export function AnomalyDetectionPage() {
                 incidents, so work from the ledger below instead.
               </p>
             )}
-          </Panel>
+            </div>
+          </Hero>
 
-          {/* ── investigation panel ──────────────────────────── */}
-          <Panel
-            title="Investigation"
-            right={
-              selected && (
-                <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">
-                  {selected.id ? selected.id.slice(0, 8) : '—'}
-                </span>
-              )
-            }
-            className="min-h-0"
+          {/* ── Level 3 · investigation (expanded when an incident is picked) ── */}
+          <Advanced
+            label={selected ? `Investigation · ${selected.id ? selected.id.slice(0, 8) : ''}` : 'Investigation'}
+            hint={selected ? undefined : 'select an incident from the timeline'}
+            defaultOpen
           >
             {run?.precision != null || run?.recall != null ? (
               <div className="mb-3 flex flex-wrap items-center gap-2 rounded-button bg-panel2 px-3 py-2">
@@ -680,17 +641,12 @@ export function AnomalyDetectionPage() {
                 </div>
               </div>
             )}
-          </Panel>
+          </Advanced>
 
-          {/* ── ledger ──────────────────────────────────────── */}
-          <Panel
-            title="Incident ledger"
-            right={
-              <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">
-                {fmt(items.length, 0)} of {fmt(scanned, 0)}
-              </span>
-            }
-            flush
+          {/* ── Level 3 · incident ledger ────────────────────── */}
+          <Advanced
+            label="Incident ledger"
+            hint={`${fmt(items.length, 0)} of ${fmt(scanned, 0)} incidents`}
           >
             <div className="overflow-x-auto">
               <div className="min-w-[46rem]">
@@ -755,11 +711,22 @@ export function AnomalyDetectionPage() {
                 </div>
               </div>
             </div>
-          </Panel>
+          </Advanced>
         </>
       )}
 
-      <StoryFlow stageKey="anomaly" activeKey={activeStep} />
+      <ResultSummary
+        verdict={
+          items.length === 0
+            ? 'No incidents on record — run detection to screen the timeline.'
+            : `${fmt(detected, 0)} incidents flagged across ${fmt(scanned, 0)} scanned readings — ${fmt(confirmedCount, 0)} confirmed for the next run.`
+        }
+        facts={[
+          { label: 'Critical', value: fmt(countOf('critical'), 0) },
+          { label: 'Medium', value: fmt(countOf('medium'), 0) },
+          { label: 'Confirmed', value: fmt(confirmedCount, 0) },
+        ]}
+      />
 
       {items.length > 0 && (
         <AutoNext

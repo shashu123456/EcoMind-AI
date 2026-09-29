@@ -15,12 +15,12 @@ import {
   EmptyState,
   LoadingState,
   MetricPill,
-  Panel,
+  Hero,
   SectionLabel,
   StageHeader,
-  Stat,
   StatusChip,
-  StoryFlow,
+  Advanced,
+  ResultSummary,
 } from '../lib/stagekit'
 import { AutoNext, Button, downloadCSV } from '../lib/kit'
 
@@ -303,44 +303,6 @@ export function BenchmarkingPage() {
         }
       />
 
-      {/* ── top strip ───────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat
-          label="Models benchmarked"
-          value={fmt(rows.length || n(latest?.model_count) || 0, 0)}
-          hint={
-            rows.length
-              ? `across ${fmt(podium.length, 0)} podium slots`
-              : latest
-                ? 'in the latest stored run'
-                : 'no run yet'
-          }
-        />
-        <Stat
-          label="Winner"
-          value={<span className="block truncate">{winnerName}</span>}
-          hint={winnerHint}
-          accent="emerald"
-        />
-        <Stat
-          label="Methodology"
-          value={<span className="block break-words">{methodology.replace(/_/g, ' ')}</span>}
-          hint={`${fmt(compared.length, 0)} metrics compared`}
-        />
-        <Stat
-          label="Run date"
-          value={<span className="block truncate">{runDate ?? '—'}</span>}
-          hint={
-            run?.elapsed_ms != null
-              ? `${fmt(run.elapsed_ms, 0)} ms · last run`
-              : latest
-                ? 'latest stored run'
-                : 'no benchmark stored'
-          }
-          mono
-        />
-      </div>
-
       {busy && <Running label="scoring contenders" />}
       {!busy && error && <StatusChip status="warn">{error}</StatusChip>}
 
@@ -366,9 +328,9 @@ export function BenchmarkingPage() {
         <>
           {/* ── enterprise leaderboard ─────────────────────────── */}
           {rows.length > 0 && (
-            <Panel
-              title="Enterprise leaderboard"
-              right={
+            <Hero>
+              <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
+                <SectionLabel>Enterprise leaderboard</SectionLabel>
                 <button
                   type="button"
                   onClick={() => exportLeaderboard(rows, metrics)}
@@ -377,9 +339,7 @@ export function BenchmarkingPage() {
                 >
                   export csv
                 </button>
-              }
-              flush
-            >
+              </div>
               <div className="overflow-x-auto">
                 <div className="min-w-[52rem]">
                   <div
@@ -482,19 +442,12 @@ export function BenchmarkingPage() {
                   </div>
                 </div>
               </div>
-            </Panel>
+            </Hero>
           )}
 
           {/* ── top-performance highlight ──────────────────────── */}
           {podium.length > 0 && metrics.length > 0 && (
-            <Panel
-              title="Top-performance comparison"
-              right={
-                <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">
-                  {fmt(podium.length, 0)} contenders
-                </span>
-              }
-            >
+            <Advanced label="Top-performance comparison" hint={`${fmt(podium.length, 0)} contenders`}>
               <div className="grid gap-x-6 gap-y-4 sm:grid-cols-2 xl:grid-cols-3">
                 {metrics.map(m => (
                   <div key={m}>
@@ -549,19 +502,12 @@ export function BenchmarkingPage() {
                   </div>
                 ))}
               </div>
-            </Panel>
+            </Advanced>
           )}
 
           {/* ── best-model selection ───────────────────────────── */}
           {selected && (
-            <Panel
-              title="Best-model selection"
-              right={
-                <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">
-                  {picked ? 'your pick' : 'auto · rank 1'}
-                </span>
-              }
-            >
+            <Advanced label="Best-model selection" hint={picked ? 'your pick' : 'auto · rank 1'} defaultOpen>
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-sm font-semibold text-t-hi">
                   {selected.name ?? selected.model_id ?? '—'}
@@ -596,19 +542,11 @@ export function BenchmarkingPage() {
                     : 'The leaderboard carries algorithm names, not model ids — promotion to the active registry entry happens on the next stage.'}
                 </span>
               </p>
-            </Panel>
+            </Advanced>
           )}
 
           {/* ── historical comparison ──────────────────────────── */}
-          <Panel
-            title="Historical comparison"
-            right={
-              <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">
-                {fmt(runs.length, 0)} stored run{runs.length === 1 ? '' : 's'}
-              </span>
-            }
-            flush={hasHistory}
-          >
+          <Advanced label="Historical comparison" hint={`${fmt(runs.length, 0)} stored run${runs.length === 1 ? '' : 's'}`}>
             {hasHistory ? (
               <div className="overflow-x-auto">
                 <div className="min-w-[40rem]">
@@ -689,11 +627,22 @@ export function BenchmarkingPage() {
                 No stored runs yet — the run above will be recorded against this dataset.
               </p>
             )}
-          </Panel>
+          </Advanced>
         </>
       )}
 
-      <StoryFlow stageKey="benchmarking" activeKey={activeStep} />
+      <ResultSummary
+        verdict={
+          winnerName
+            ? `${winnerName} wins the benchmark — trained on identical features and the same chronological split, ranked on ${fmt(compared.length, 0)} metrics.`
+            : 'Run the benchmark: every contender trains on the same split and is ranked head-to-head.'
+        }
+        facts={[
+          { label: 'Models', value: fmt(rows.length || n(latest?.model_count) || 0, 0) },
+          { label: 'Method', value: methodology.replace(/_/g, ' ') },
+          { label: 'Winner', value: winnerName || '—' },
+        ]}
+      />
 
       {rows.length > 0 && (
         <AutoNext

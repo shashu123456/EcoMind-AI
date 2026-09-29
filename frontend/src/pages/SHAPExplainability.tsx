@@ -11,14 +11,14 @@ import { AutoNext, Button, DoneChip } from '../lib/kit'
 import {
   Bar,
   EmptyState,
+  Hero,
   LoadingState,
   MetricPill,
-  Panel,
   SectionLabel,
   StageHeader,
-  Stat,
   StatusChip,
-  StoryFlow,
+  Advanced,
+  QualityRating,
 } from '../lib/stagekit'
 import { beatForStage, storyForStage } from '../lib/story'
 
@@ -61,34 +61,40 @@ function globalRows(g: GlobalView | null): GlobalRow[] {
       const v = n(rec[name])
       if (v !== null) byName.push({ name, value: v })
     }
-    if (names.length > 0 && byName.length === names.length) return byName
-    return Object.entries(rec)
-      .filter(([k, v]) => !k.startsWith('__') && n(v) !== null)
-      .map(([k, v]) => ({ name: k, value: n(v) as number }))
+    /* include any keys the names list missed so nothing is dropped */
+    for (const [k, v] of Object.entries(rec)) {
+      if (n(v) !== null && !byName.some(r => r.name === k)) byName.push({ name: k, value: n(v) as number })
+    }
+    return byName
   }
   return []
 }
 
-function localRows(r: ExplainResult | null): LocalRow[] {
-  if (!r) return []
-  const top = Array.isArray(r.top_features) ? r.top_features : []
-  if (top.length) {
-    return top.map(t => ({ name: t.feature, shap: n(t.shap_value) ?? 0, inputValue: n(t.value) }))
+function localRows(local: ExplainResult | null): LocalRow[] {
+  const raw = (local?.top_features ?? null) as unknown
+  if (!raw) return []
+  if (Array.isArray(raw)) {
+    return (raw as any[])
+      .map(r => ({
+        name: String(r.feature ?? r.name ?? ''),
+        shap: n(r.shap ?? r.value) ?? 0,
+        inputValue: n(r.input ?? r.input_value),
+      }))
+      .filter(r => r.name)
   }
-  const ex = r.explanation
-  const names = Array.isArray(ex?.feature_names) ? ex.feature_names : []
-  const vals = Array.isArray(ex?.shap_values) ? ex.shap_values : []
-  return names
-    .map((name, i) => ({ name, shap: n(vals[i]) ?? 0, inputValue: null }))
-    .sort((a, b) => Math.abs(b.shap) - Math.abs(a.shap))
+  if (typeof raw === 'object') {
+    return Object.entries(raw as Record<string, unknown>)
+      .map(([name, v]) => ({ name, shap: n(v) ?? 0, inputValue: null as number | null }))
+      .sort((a, b) => Math.abs(b.shap) - Math.abs(a.shap))
+  }
+  return []
 }
 
-/** stability_index is published on a 0–100 scale (same as the trust gate). */
-function stabilityMeta(v: number | null): { status: 'ok' | 'warn' | 'idle'; label: string; accent: 'emerald' | 'amber' } {
-  if (v === null) return { status: 'idle', label: 'not computed', accent: 'amber' }
-  if (v >= 75) return { status: 'ok', label: 'stable', accent: 'emerald' }
-  if (v >= 50) return { status: 'warn', label: 'settling', accent: 'amber' }
-  return { status: 'warn', label: 'noisy', accent: 'amber' }
+function stabilityMeta(stab: number | null): { label: string; status: 'ok' | 'warn' } {
+  if (stab === null) return { label: 'not computed', status: 'warn' }
+  return stab >= 75
+    ? { label: 'stable', status: 'ok' }
+    : { label: 'noisy', status: 'warn' }
 }
 
 export function SHAPExplainabilityPage() {
@@ -155,11 +161,13 @@ export function SHAPExplainabilityPage() {
     setActive(datasetId ?? undefined, runId ?? undefined, resolved ?? undefined)
   }, [hasGlobal, datasetId, runId, resolved, markCompleted, setActive])
 
-  const activeKey = busy ? 'processed' : hasGlobal ? 'produced' : 'entered'
+  const topFeature = rows[0]
+  const top2Share = rows.length >= 2
+    ? ((rows[0].value + rows[1].value) / Math.max(1e-9, rows.reduce((a, r) => a + Math.abs(r.value), 0))) * 100
+    : 0
 
-  /* ── Header controls ───────────────────────────────────────────── */
   const methodPicker = (
-    <div className="inline-flex rounded-button border border-border bg-panel-2 p-0.5">
+    <div className="inline-flex rounded-button border border-border bg-panel2 p-0.5">
       {METHODS.map(m => (
         <button
           key={m}
@@ -179,13 +187,14 @@ export function SHAPExplainabilityPage() {
   )
 
   return (
-    <div className="flex min-h-0 flex-col gap-3 px-4 py-4">
+    <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-4 py-4">
+      {/* Level 1 — one sentence */}
       <StageHeader
         beat={BEAT.beat}
         chapter={BEAT.chapter}
-        title="Contribution explorer"
-        tagline={`${BEAT.title} — ${STORY.happened}`}
-        icon={<GitBranch className="h-5 w-5 text-accent-violet" />}
+        title="Why the model decided"
+        tagline="Ranks which inputs drove the model's behaviour — for the whole portfolio and for the latest prediction."
+        icon={<GitBranch className="h-5 w-5" />}
         right={
           <>
             {g ? <DoneChip text="Explanations ready" /> : <StatusChip status="idle">not computed</StatusChip>}
@@ -230,44 +239,13 @@ export function SHAPExplainabilityPage() {
 
       {g && (
         <>
-          {/* 1 · headline numbers */}
-          <div className="grid shrink-0 grid-cols-2 gap-3 lg:grid-cols-4">
-            <div className="rounded-button border border-border bg-panel px-3.5 py-2.5">
-              <SectionLabel>Stability index</SectionLabel>
-              <div className="mt-1 flex items-baseline justify-between gap-2">
-                <span className={clsx('font-mono text-base font-semibold', stabMeta.accent === 'emerald' ? 'text-accent-emerald' : 'text-t-hi')}>
-                  {stab === null ? '—' : `${fmt(stab, 1)}%`}
-                </span>
-                <StatusChip status={stabMeta.status}>{stabMeta.label}</StatusChip>
-              </div>
-              <div className="mt-0.5 truncate text-[11px] text-t-lo">repeatability of feature attributions</div>
+          {/* Level 2 — the one hero: global importance ranking */}
+          <Hero>
+            <div className="flex items-center justify-between border-b border-border px-5 py-2.5">
+              <SectionLabel>What drives the model</SectionLabel>
+              <span className="font-mono text-[10px] text-t-lo">{rows.length} features · mean |SHAP|</span>
             </div>
-            <Stat label="Base value" value={baseValue === null ? '—' : fmt(baseValue, 3)} mono hint="explainer origin" accent="primary" />
-            <Stat label="Expected value" value={expectedValue === null ? '—' : fmt(expectedValue, 3)} mono hint="mean model output" accent="cyan" />
-            <Stat label="Computation" value={computeMs === null ? '—' : `${fmt(computeMs, 1)} ms`} mono hint="last global pass" />
-          </div>
-
-          <div className="flex shrink-0 flex-wrap items-center gap-1.5">
-            <SectionLabel>context</SectionLabel>
-            <MetricPill label="model" value={resolved || '—'} />
-            <MetricPill label="prediction" value={predictionId || '—'} />
-            <MetricPill label="method" value={method} />
-            {g.method && <MetricPill label="global explainer" value={g.method} />}
-          </div>
-
-          {/* 2 · global importance + 3 · local waterfall */}
-          <div className="grid gap-3 xl:grid-cols-2">
-            <Panel
-              title="Global feature importance"
-              right={
-                <div className="flex shrink-0 items-center gap-2">
-                  <span className="flex items-center gap-1 font-mono text-[10px] text-t-lo">
-                    <span className="h-1.5 w-1.5 rounded-full bg-accent-gold" /> top 5
-                  </span>
-                  <SectionLabel>{rows.length} features · mean |SHAP|</SectionLabel>
-                </div>
-              }
-            >
+            <div className="max-h-[460px] overflow-y-auto p-5">
               {rows.length === 0 ? (
                 <EmptyState title="No global importance returned" hint="This payload carried no feature contributions." />
               ) : (
@@ -275,26 +253,47 @@ export function SHAPExplainabilityPage() {
                   {rows.map((r, i) => (
                     <div key={r.name} title={`${r.name} · mean |SHAP| ${fmt(r.value, 5)}`}>
                       <div className="mb-1 flex items-center justify-between gap-3">
-                        <span className="flex min-w-0 items-center gap-1.5">
-                          {i < 5 && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-accent-gold" />}
+                        <span className="flex min-w-0 items-center gap-2">
+                          <span className={clsx('w-5 shrink-0 text-right font-mono text-[10px]', i < 3 ? 'font-semibold text-primary-500' : 'text-t-lo/60')}>
+                            {String(i + 1).padStart(2, '0')}
+                          </span>
                           <span className="truncate font-mono text-xs text-t-mid">{r.name}</span>
                         </span>
                         <span className="shrink-0 font-mono text-xs font-semibold text-t-hi">{fmt(r.value, 4)}</span>
                       </div>
-                      <Bar value={Math.abs(r.value)} max={maxImp} tone="primary" className="bg-panel-3" />
+                      <Bar value={Math.abs(r.value)} max={maxImp} tone="primary" />
                     </div>
                   ))}
                 </div>
               )}
-            </Panel>
+            </div>
+          </Hero>
 
-            <Panel
-              title="Local explanation · ranked influence"
-              right={
-                <Button size="xs" variant="secondary" onClick={() => void localRes.refetch()} loading={localRes.loading}>
-                  {!localRes.loading && <Sparkles className="h-3.5 w-3.5" />} Recompute
-                </Button>
-              }
+          {/* verdict line */}
+          <div className="flex flex-wrap items-center gap-x-8 gap-y-3 rounded-card border border-border bg-panel px-5 py-4">
+            <p className="min-w-0 flex-1 text-[15px] font-medium leading-snug text-t-hi">
+              {topFeature
+                ? `"${topFeature.name}" is the model's dominant input, and the top two features carry ${fmt(top2Share, 0)}% of its total attention.`
+                : 'The model returned no feature contributions to rank.'}
+            </p>
+            <div className="flex flex-wrap items-center gap-x-7 gap-y-2">
+              <div>
+                <SectionLabel>Stability</SectionLabel>
+                <div className="mt-0.5"><QualityRating score={stab ?? 0} label="" /></div>
+              </div>
+              <div>
+                <SectionLabel>Model</SectionLabel>
+                <div className="mt-0.5 font-mono text-sm font-semibold text-t-hi">{resolved ? resolved.slice(0, 8) : '—'}</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Level 3 — local waterfall, narrative, numbers: hidden until asked */}
+          <div className="shrink-0 space-y-2">
+            <Advanced
+              label="Latest prediction, explained"
+              hint={localR.length ? `${localR.length} contributions` : predictionId ? 'available' : 'run a prediction first'}
+              defaultOpen={false}
             >
               {!predictionId && !predRes.loading ? (
                 <EmptyState
@@ -302,7 +301,7 @@ export function SHAPExplainabilityPage() {
                   hint="A local explanation decomposes one stored prediction. Run the Prediction Engine first."
                   action={
                     <Button size="sm" variant="secondary" onClick={() => navigate({ to: datasetId ? `/prediction/${datasetId}` : '/library' })}>
-                      Open prediction engine <ArrowRight className="h-3.5 w-3.5" />
+                      Open prediction engine <ArrowRight className="h-4 w-4" />
                     </Button>
                   }
                 />
@@ -331,7 +330,7 @@ export function SHAPExplainabilityPage() {
                           <p className="truncate text-xs font-medium text-t-hi">{r.name}</p>
                           <p className="truncate font-mono text-[10px] text-t-lo">input {input}</p>
                         </div>
-                        <div className="relative h-2.5 overflow-hidden rounded-button bg-panel-3">
+                        <div className="relative h-2.5 overflow-hidden rounded-button bg-panel3">
                           <span className="absolute left-1/2 top-0 h-full w-px -translate-x-1/2 bg-border" />
                           <motion.div
                             className={clsx(
@@ -347,43 +346,28 @@ export function SHAPExplainabilityPage() {
                           <span className={clsx('font-mono text-xs font-semibold', positive ? 'text-accent-emerald' : 'text-accent-rose')}>
                             {signed}
                           </span>
-                          <span
-                            className={clsx(
-                              'rounded-full border px-1.5 py-0.5 font-mono text-[10px] leading-none',
-                              positive
-                                ? 'border-accent-emerald/30 bg-accent-emerald/10 text-accent-emerald'
-                                : 'border-accent-rose/30 bg-accent-rose/10 text-accent-rose',
-                            )}
-                          >
-                            {positive ? '+' : '−'}
-                          </span>
                         </div>
                       </div>
                     )
                   })}
                 </div>
               )}
-            </Panel>
+
+              {local?.narrative && (
+                <p className="mt-4 border-t border-border pt-3 text-sm leading-relaxed text-t-mid">{local.narrative}</p>
+              )}
+            </Advanced>
+
+            <Advanced label="Explainer numbers" hint={computeMs !== null ? `${fmt(computeMs, 1)} ms compute` : undefined}>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <MetricPill label="stability" value={stab === null ? '—' : `${fmt(stab, 1)}%`} />
+                <MetricPill label="base value" value={baseValue === null ? '—' : fmt(baseValue, 3)} />
+                <MetricPill label="expected value" value={expectedValue === null ? '—' : fmt(expectedValue, 3)} />
+                <MetricPill label="compute" value={computeMs === null ? '—' : `${fmt(computeMs, 1)} ms`} />
+                <MetricPill label="method" value={g.method ?? method} />
+              </div>
+            </Advanced>
           </div>
-
-          {/* 4 · narrative */}
-          <Panel
-            title="Narrative"
-            right={<SectionLabel>local · {method}</SectionLabel>}
-          >
-            {localRes.loading && !local ? (
-              <LoadingState label="Writing the explanation narrative…" />
-            ) : local?.narrative ? (
-              <p className="text-sm leading-relaxed text-t-mid">{local.narrative}</p>
-            ) : (
-              <EmptyState
-                title="No narrative available"
-                hint="The narrative is written when a local explanation is computed for a stored prediction."
-              />
-            )}
-          </Panel>
-
-          <StoryFlow stageKey={STAGE} activeKey={activeKey} />
 
           {hasGlobal && !predRes.loading && !localRes.loading && (
             <AutoNext
