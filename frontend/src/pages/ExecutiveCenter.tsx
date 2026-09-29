@@ -14,7 +14,7 @@ import { useJourney } from '../lib/journey'
 import { beatForStage } from '../lib/story'
 import {
   Bar, EmptyState, LoadingState, MetricPill, Panel, SectionLabel, StageHeader,
-  Stat, StatusChip, StoryFlow,
+  StatusChip, Advanced, ResultSummary, Hero, Stat,
 } from '../lib/stagekit'
 import { AutoNext, Button } from '../lib/kit'
 import { cn } from '../lib/cn'
@@ -516,9 +516,6 @@ export function ExecutiveCenterPage() {
             </Button>
           }
         />
-        <div className="shrink-0">
-          <StoryFlow stageKey={STAGE_KEY} activeKey="entered" />
-        </div>
       </div>
     )
   }
@@ -554,7 +551,7 @@ export function ExecutiveCenterPage() {
       {datasetId && hasBriefing && (
         <>
           {/* ── verdict hero ─────────────────────────────────────────── */}
-          <section className="overflow-hidden rounded-card border border-border bg-panel shadow-[0_1px_2px_rgba(20,28,48,.05),0_8px_24px_rgba(20,28,48,.07)]">
+          <Hero>
             <div className="grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
               <div className="border-b border-border p-5 lg:border-b-0 lg:border-r">
                 <div className="flex flex-wrap items-center gap-2">
@@ -651,7 +648,7 @@ export function ExecutiveCenterPage() {
                 />
               </div>
             </div>
-          </section>
+          </Hero>
 
           {/* ── briefing narrative + analysis timeline ───────────────── */}
           <div className="grid gap-3 xl:grid-cols-12">
@@ -768,16 +765,9 @@ export function ExecutiveCenterPage() {
               </div>
             </Panel>
 
-            <Panel
-              className="min-h-0 xl:col-span-5"
-              title="analysis timeline"
-              right={
-                stages.length > 0 ? (
-                  <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">
-                    {fmt(stagesRun, 0)} timed · {fmt(totalMs, 0)} ms
-                  </span>
-                ) : undefined
-              }
+            <Advanced
+              label="Analysis timeline"
+              hint={stages.length > 0 ? `${fmt(stagesRun, 0)} timed · ${fmt(totalMs, 0)} ms` : undefined}
             >
               {stages.length === 0 ? (
                 <p className="text-[12px] text-t-lo">
@@ -839,19 +829,12 @@ export function ExecutiveCenterPage() {
                   )}
                 </div>
               )}
-            </Panel>
+            </Advanced>
           </div>
 
           {/* ── trust composition · standings · registered models ──────── */}
           <div className="grid gap-3 lg:grid-cols-3">
-            <Panel
-              title="trust composition"
-              right={
-                <StatusChip status={trustChip(summary.trustScore)}>
-                  {summary.trustScore === null ? 'no gate' : `${fmt(summary.trustScore, 1)} / 100`}
-                </StatusChip>
-              }
-            >
+            <Advanced label="Trust composition" hint={summary.trustScore === null ? 'no gate' : `${fmt(summary.trustScore, 1)} / 100`}>
               <div className="space-y-2.5">
                 {FACTOR_ROWS.map(f => {
                   const value =
@@ -902,18 +885,9 @@ export function ExecutiveCenterPage() {
                   </p>
                 )}
               </div>
-            </Panel>
+            </Advanced>
 
-            <Panel
-              title="benchmark standings"
-              right={
-                <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">
-                  {latestBenchmark
-                    ? `${titleize(latestBenchmark.methodology || 'benchmark')} · ${fmt(latestBenchmark.model_count ?? 0, 0)} models`
-                    : `${fmt(standings.length, 0)} scored`}
-                </span>
-              }
-            >
+            <Advanced label="Benchmark standings" hint={latestBenchmark ? `${titleize(latestBenchmark.methodology || 'benchmark')} · ${fmt(latestBenchmark.model_count ?? 0, 0)} models` : `${fmt(standings.length, 0)} scored`}>
               {standings.length === 0 ? (
                 <p className="text-[12px] text-t-lo">
                   {latestBenchmark
@@ -961,16 +935,9 @@ export function ExecutiveCenterPage() {
                   <span className="shrink-0 font-mono text-[10px] text-t-lo">{shortId(winnerId)}</span>
                 </div>
               )}
-            </Panel>
+            </Advanced>
 
-            <Panel
-              title="registered models"
-              right={
-                <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">
-                  {fmt(datasetModels.length, 0)} on dataset
-                </span>
-              }
-            >
+            <Advanced label="Registered models" hint={`${fmt(datasetModels.length, 0)} on dataset`}>
               {rankedModels.length === 0 ? (
                 <p className="text-[12px] text-t-lo">
                   No model has been trained on this dataset yet — the prediction stage registers them here.
@@ -1002,24 +969,22 @@ export function ExecutiveCenterPage() {
                   + {fmt(datasetModels.length - 5, 0)} more on this dataset
                 </p>
               )}
-            </Panel>
+            </Advanced>
           </div>
 
           {/* ── action register + exposure ───────────────────────────── */}
           <div className="grid gap-3 xl:grid-cols-12">
-            <Panel
-              className="min-h-0 xl:col-span-7"
-              title="action register"
-              right={
-                supportingLoading ? (
+            <Hero className="xl:col-span-7">
+              <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-2.5">
+                <SectionLabel>Action register</SectionLabel>
+                {supportingLoading ? (
                   <StatusChip status="running">loading actions</StatusChip>
                 ) : actions.length > 0 ? (
                   <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">
                     {fmt(actions.length, 0)} actions · {fmt(actionKwh, 0)} kWh
                   </span>
-                ) : undefined
-              }
-            >
+                ) : undefined}
+              </div>
               {actions.length === 0 ? (
                 <p className="text-[12px] text-t-lo">
                   No recommendations on record for this dataset — the recommendation stage turns anomalies and SHAP
@@ -1084,17 +1049,10 @@ export function ExecutiveCenterPage() {
                   })}
                 </div>
               )}
-            </Panel>
+            </Hero>
 
-            <Panel
-              className="min-h-0 xl:col-span-5"
-              title="exposure & evidence"
-              right={
-                <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">
-                  {latestBenchmark ? `benchmarked ${clockText(latestBenchmark.created_at)}` : 'no benchmark'}
-                </span>
-              }
-            >
+            <Advanced label="Exposure & evidence" hint={latestBenchmark ? `benchmarked ${clockText(latestBenchmark.created_at)}` : 'no benchmark'}>
+              <div className="-m-4">
               <div className="space-y-3">
                 <div className="grid grid-cols-2 gap-2">
                   <div className="rounded-button border border-border bg-panel2 px-2.5 py-2">
@@ -1160,30 +1118,26 @@ export function ExecutiveCenterPage() {
                   </p>
                 </div>
               </div>
-            </Panel>
+            </div></Advanced>
           </div>
 
-          {/* ── 5 questions + the next beat ──────────────────────────── */}
-          <div className="shrink-0">
-            <StoryFlow stageKey={STAGE_KEY} activeKey="produced" />
-          </div>
-
-          <div className="flex shrink-0 flex-wrap items-center justify-between gap-3">
-            <div className="flex min-w-0 items-center gap-2">
-              <FileText className="h-3.5 w-3.5 shrink-0 text-t-lo" />
-              <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">
-                next · report generation turns this briefing into audit-ready deliverables
-              </span>
-            </div>
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={() => navigate({ to: '/reports' })}
-              title="Open Report Generation"
-            >
-              <Sparkles className="h-3.5 w-3.5" /> Open reports
-            </Button>
-          </div>
+          <ResultSummary
+        verdict={
+          summary.trustScore === null
+            ? 'The briefing is assembled — run the confidence gate to attach a trust verdict to every figure.'
+            : `${verdictLabel(summary.verdict, summary.trustScore)} at ${fmt(summary.trustScore, 1)}/100 — ${summary.bestName ? `${summary.bestName} leads at R² ${fmt(summary.bestR2, 3)}` : 'no model registered'}, ${fmt(summary.anomalyTotal ?? 0, 0)} anomalies watched, ${savingsKwh === null ? 'no savings estimate' : `${fmt(savingsKwh, 0)} kWh savings quantified`}.`
+        }
+        facts={[
+          { label: 'Trust', value: summary.trustScore === null ? '—' : fmt(summary.trustScore, 1) },
+          { label: 'Data quality', value: summary.dqScore === null ? '—' : fmt(summary.dqScore, 1) },
+          { label: 'Forecast', value: summary.forecastKwh === null ? '—' : `${fmt(summary.forecastKwh, 0)} kWh` },
+        ]}
+        right={
+          <Button size="sm" variant="secondary" onClick={() => navigate({ to: '/reports' })}>
+            <FileText className="h-3.5 w-3.5" /> Open reports
+          </Button>
+        }
+      />
 
           <div className="shrink-0">
             <AutoNext to="/reports" label="Briefing assembled — generating audit-ready reports" />
