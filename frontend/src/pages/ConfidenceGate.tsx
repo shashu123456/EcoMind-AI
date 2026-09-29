@@ -10,13 +10,13 @@ import { AutoNext, Button, DoneChip } from '../lib/kit'
 import {
   Bar,
   EmptyState,
+  Hero,
   LoadingState,
   MetricPill,
-  Panel,
+  SectionLabel,
   StageHeader,
-  Stat,
   StatusChip,
-  StoryFlow,
+  Advanced,
 } from '../lib/stagekit'
 import { beatForStage, storyForStage } from '../lib/story'
 import clsx from 'clsx'
@@ -46,25 +46,25 @@ const BAND: Record<Band, {
   chip: 'ok' | 'warn'
   accent: 'emerald' | 'amber' | 'rose'
   border: string
-  wash: string
+  text: string
   advice: string
 }> = {
   pass: {
     label: 'Trusted — decision released',
     Icon: CheckCircle2, chip: 'ok', accent: 'emerald',
-    border: 'border-accent-emerald/30', wash: 'bg-accent-emerald/10',
+    border: 'border-accent-emerald/40', text: 'text-accent-emerald',
     advice: 'Every signal cleared its threshold. The model may act on this dataset.',
   },
   review: {
     label: 'Trusted with caveats',
     Icon: AlertTriangle, chip: 'warn', accent: 'amber',
-    border: 'border-accent-amber/30', wash: 'bg-accent-amber/10',
+    border: 'border-accent-amber/40', text: 'text-accent-amber',
     advice: 'At least one signal is soft or missing. Read the breakdown before continuing.',
   },
   fail: {
     label: 'Not trusted — hold the decision',
     Icon: XCircle, chip: 'warn', accent: 'rose',
-    border: 'border-accent-rose/30', wash: 'bg-accent-rose/10',
+    border: 'border-accent-rose/40', text: 'text-accent-rose',
     advice: 'Trust is below the 60-point decision threshold. Strengthen the weakest signal first.',
   },
 }
@@ -97,8 +97,8 @@ const EASE = [0.16, 1, 0.3, 1] as [number, number, number, number]
 
 /* Pure-SVG radial trust score. The stroke sweeps once on arrival. */
 function TrustDonut({ value, tone }: { value: number; tone: 'emerald' | 'amber' | 'rose' | 'idle' }) {
-  const SIZE = 168
-  const STROKE = 13
+  const SIZE = 190
+  const STROKE = 14
   const R = (SIZE - STROKE) / 2 - 4
   const C = 2 * Math.PI * R
   const cx = SIZE / 2
@@ -130,10 +130,10 @@ function TrustDonut({ value, tone }: { value: number; tone: 'emerald' | 'amber' 
           />
         )
       })}
-      <text x={cx} y={cy + 4} textAnchor="middle" className="fill-t-hi font-mono" style={{ fontSize: 34, fontWeight: 600 }}>
+      <text x={cx} y={cy + 4} textAnchor="middle" className="fill-t-hi font-mono" style={{ fontSize: 38, fontWeight: 600 }}>
         {fmt(value, 1)}
       </text>
-      <text x={cx} y={cy + 24} textAnchor="middle" className="fill-t-lo font-mono" style={{ fontSize: 11 }}>% of 100</text>
+      <text x={cx} y={cy + 26} textAnchor="middle" className="fill-t-lo font-mono" style={{ fontSize: 11 }}>% of 100</text>
     </svg>
   )
 }
@@ -155,7 +155,6 @@ export function ConfidenceGatePage() {
 
   const [busy, setBusy] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
-  const [reviewing, setReviewing] = useState(false)
 
   const trustPct = n(gate?.trust_score) ?? 0
   const band = bandOf(gate?.verdict, trustPct)
@@ -186,18 +185,6 @@ export function ConfidenceGatePage() {
       return { key: k, label: FACTOR_META[k]?.label ?? humanize(k), hint: FACTOR_META[k]?.hint ?? '', value: v, weight: w }
     })
   }, [gate, weights])
-
-  const signal = useMemo(() => {
-    const map: Record<string, number | null> = {}
-    for (const f of factors) map[f.key] = f.value
-    const seeded: Record<string, number | null> = {
-      prediction_confidence: map.prediction_confidence ?? n(gate?.prediction_confidence),
-      dq_score: map.dq_score ?? n(gate?.dq_score),
-      model_relevance: map.model_relevance ?? n(gate?.model_relevance),
-      shap_stability: map.shap_stability ?? n(gate?.shap_stability),
-    }
-    return seeded
-  }, [factors, gate])
 
   /* trust_score = Σ weight × signal, published by reasoning.weights */
   const contribution = useMemo(
@@ -236,24 +223,22 @@ export function ConfidenceGatePage() {
   }
 
   const openReview = () => {
-    setReviewing(true)
-    breakdownRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-    window.setTimeout(() => setReviewing(false), 2600)
+    const wrap = breakdownRef.current
+    const details = wrap?.querySelector('details')
+    if (details) details.open = true
+    wrap?.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }
 
-  const stat = (label: string, key: string) => {
-    const v = signal[key]
-    const t = toneOf(v)
-    return <Stat key={key} label={label} value={v === null ? '—' : `${fmt(v, 1)}%`} mono hint={FACTOR_META[key]?.hint} accent={t === 'idle' ? undefined : t} />
-  }
+  const present = factors.filter(f => f.value !== null).length
 
   return (
-    <div className="flex min-h-0 flex-col gap-3 px-4 py-4">
+    <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-4 py-4">
+      {/* Level 1 — one sentence */}
       <StageHeader
         beat={BEAT.beat}
         chapter={BEAT.chapter}
-        title="Trust, earned before a decision is allowed"
-        tagline={`${BEAT.title} — ${STORY.happened}`}
+        title="AI Confidence Gate"
+        tagline="Grades how much the pipeline's verdict can be trusted before any decision is made."
         icon={<ShieldCheck className="h-5 w-5" />}
         right={gate ? <DoneChip text="Trust assessed" /> : <StatusChip status="idle">not evaluated</StatusChip>}
       />
@@ -287,79 +272,57 @@ export function ConfidenceGatePage() {
 
       {gate && (
         <>
-          {/* 1 · Executive verdict banner */}
-          <Panel
-            className={clsx(style.border, style.wash, 'shadow-[0_1px_2px_rgba(20,28,48,.05),0_8px_24px_rgba(20,28,48,.07)]')}
-            title="Executive verdict"
-            right={
-              <div className="flex items-center gap-2">
-                <StatusChip status={busy ? 'running' : style.chip}>
-                  {busy ? 're-evaluating' : band === 'pass' ? 'trusted' : band === 'review' ? 'review' : 'blocked'}
-                </StatusChip>
-                <Button size="sm" variant="secondary" onClick={() => void evaluate()} loading={busy}>
-                  {!busy && <RotateCw className="h-3.5 w-3.5" />} Re-evaluate
-                </Button>
-              </div>
-            }
-          >
-            <div className="flex min-w-0 items-start gap-3.5">
-              <span className={clsx('flex h-10 w-10 shrink-0 items-center justify-center rounded-button border bg-panel',
-                style.border, style.accent === 'emerald' ? 'text-accent-emerald' : style.accent === 'amber' ? 'text-accent-amber' : 'text-accent-rose')}>
-                <VerdictIcon className="h-5 w-5" />
-              </span>
+          {/* Level 2 — the one hero: the trust verdict */}
+          <Hero>
+            <div className="flex items-center justify-between border-b border-border px-5 py-2.5">
+              <SectionLabel>Executive verdict</SectionLabel>
+              <Button size="sm" variant="secondary" onClick={() => void evaluate()} loading={busy}>
+                {!busy && <RotateCw className="h-3.5 w-3.5" />} Re-evaluate
+              </Button>
+            </div>
+            <div className="flex flex-col items-center gap-6 px-5 py-6 sm:flex-row sm:items-center sm:gap-8">
+              <TrustDonut value={trustPct} tone={toneOf(trustPct)} />
               <div className="min-w-0 flex-1">
-                <p className={clsx('text-lg font-semibold tracking-tight',
-                  style.accent === 'emerald' ? 'text-accent-emerald' : style.accent === 'amber' ? 'text-accent-amber' : 'text-accent-rose')}>
-                  {style.label}
-                </p>
-                {reasoning?.explanation && <p className="mt-0.5 text-sm text-t-mid">{reasoning.explanation}</p>}
-                <p className="mt-1 text-xs text-t-lo">{style.advice}</p>
-                <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                  <MetricPill label="trust" value={`${fmt(trustPct, 1)}/100`} />
-                  <MetricPill label="verdict" value={gate.verdict ?? '—'} />
-                  {gate.workflow_run_id && <MetricPill label="run" value={String(gate.workflow_run_id).slice(0, 8)} />}
-                  <span className="font-mono text-[11px] text-t-lo">{gate.created_at ? new Date(gate.created_at).toLocaleString() : 'no timestamp'}</span>
+                <div className="flex items-center gap-2.5">
+                  <VerdictIcon className={`h-6 w-6 shrink-0 ${style.text}`} />
+                  <p className={`text-xl font-semibold tracking-tight ${style.text}`}>{style.label}</p>
                 </div>
+                {reasoning?.explanation && <p className="mt-2 text-sm leading-relaxed text-t-mid">{reasoning.explanation}</p>}
+                <p className="mt-1.5 text-sm text-t-lo">{style.advice}</p>
+                <p className="mt-3 text-[11px] text-t-lo">
+                  Ticks mark the decision thresholds — 60 to review, 80 to pass.
+                </p>
               </div>
             </div>
-          </Panel>
+          </Hero>
 
-          {/* 2 · Dominant trust score + the four signals */}
-          <div className="grid gap-3 lg:grid-cols-[260px_minmax(0,1fr)]">
-            <Panel title="Trust score" flush>
-              <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 p-4">
-                <TrustDonut value={trustPct} tone={toneOf(trustPct)} />
-                <p className="text-center text-[11px] leading-snug text-t-lo">
-                  Ticks mark the backend thresholds — 60 to review, 80 to pass.
-                </p>
-                <div className="mt-1 w-full rounded-button border border-border bg-panel-2 px-3 py-2 text-center">
-                  <p className="font-mono text-[11px] text-t-mid">
-                    Σ of listed contributions <span className="font-semibold text-t-hi">{fmt(contribution, 1)}</span>
-                    {fullyWeighted ? ' pts' : ' pts (partial)'}
-                  </p>
-                  <p className="mt-0.5 font-mono text-[10px] text-t-lo">gate reports {fmt(trustPct, 1)} pts</p>
-                </div>
+          {/* verdict line */}
+          <div className="flex flex-wrap items-center gap-x-8 gap-y-3 rounded-card border border-border bg-panel px-5 py-4">
+            <p className="min-w-0 flex-1 text-[15px] font-medium leading-snug text-t-hi">
+              {band === 'pass'
+                ? `Trust ${fmt(trustPct, 1)}/100 across ${present} of 4 signals — the decision may proceed to explainability.`
+                : band === 'review'
+                  ? `Trust ${fmt(trustPct, 1)}/100 with caveats — review the soft signals before proceeding.`
+                  : `Trust ${fmt(trustPct, 1)}/100 — below the decision threshold; strengthen the weakest signal first.`}
+            </p>
+            <div className="flex flex-wrap items-center gap-x-7 gap-y-2">
+              <div>
+                <SectionLabel>Verdict</SectionLabel>
+                <div className="mt-0.5 font-mono text-sm font-semibold text-t-hi">{gate.verdict ?? '—'}</div>
               </div>
-            </Panel>
-
-            <div className="grid grid-cols-2 gap-3">
-              {stat('Prediction confidence', 'prediction_confidence')}
-              {stat('Data quality', 'dq_score')}
-              {stat('Model reliability', 'model_relevance')}
-              {stat('SHAP stability', 'shap_stability')}
+              <div>
+                <SectionLabel>Signals</SectionLabel>
+                <div className="mt-0.5 text-lg font-semibold tracking-tight text-t-hi">{present} / 4</div>
+              </div>
             </div>
           </div>
 
-          {/* 3 · Confidence breakdown */}
-          <div ref={breakdownRef}>
-            <Panel
-              title="Confidence breakdown"
-              className={clsx('transition-colors', reviewing && 'border-accent-amber/50')}
-              right={
-                <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">
-                  {factors.length} of 4 signals
-                </span>
-              }
+          {/* Level 3 — how the score was computed: hidden until asked */}
+          <div ref={breakdownRef} className="shrink-0 space-y-2">
+            <Advanced
+              label="Confidence breakdown"
+              hint={`${factors.length} factors · Σ contributions ${fmt(contribution, 1)} pts${fullyWeighted ? '' : ' (partial)'}`}
+              defaultOpen={band !== 'pass'}
             >
               <div className="space-y-3">
                 {factors.map((f) => (
@@ -369,11 +332,10 @@ export function ConfidenceGatePage() {
                       <p className="truncate font-mono text-[10px] text-t-lo">{f.key}</p>
                     </div>
                     <div className="min-w-0">
-                      <Bar value={f.value} max={100} tone={barTone(f.value)} className="bg-panel-3" />
+                      <Bar value={f.value} max={100} tone={barTone(f.value)} />
                       <p className="mt-1 truncate font-mono text-[10px] text-t-lo">
-                        {f.weight === null
-                          ? 'weight not published'
-                          : `${f.weight.toFixed(2)} × ${fmt(f.value, 1)} = ${fmt(f.weight * f.value, 1)} pts`}
+                        {f.hint}
+                        {f.weight !== null && ` · ${f.weight.toFixed(2)} × ${fmt(f.value, 1)} = ${fmt(f.weight * f.value, 1)} pts`}
                       </p>
                     </div>
                     <span className={clsx('text-right font-mono text-sm font-semibold',
@@ -387,7 +349,7 @@ export function ConfidenceGatePage() {
 
               {Object.keys(weights).length > 0 && (
                 <div className="mt-4 flex flex-wrap items-center gap-1.5 border-t border-border pt-3">
-                  <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">published weights</span>
+                  <SectionLabel>published weights</SectionLabel>
                   {Object.entries(weights).map(([k, v]) => {
                     const w = n(v) ?? 0
                     return (
@@ -400,75 +362,31 @@ export function ConfidenceGatePage() {
                   })}
                 </div>
               )}
-            </Panel>
-          </div>
 
-          {/* 4 · Model reliability + SHAP stability */}
-          <div className="grid gap-3 md:grid-cols-2">
-            <Panel title="Model reliability">
-              <div className="flex items-baseline justify-between gap-3">
-                <p className="text-2xl font-semibold tracking-tight text-t-hi">
-                  {signal.model_relevance === null ? '—' : `${fmt(signal.model_relevance, 1)}%`}
-                </p>
-                <StatusChip status={signal.model_relevance === null ? 'idle' : toneOf(signal.model_relevance) === 'emerald' ? 'ok' : 'warn'}>
-                  {signal.model_relevance === null ? 'no model' : toneOf(signal.model_relevance) === 'emerald' ? 'reliable' : 'weak fit'}
-                </StatusChip>
-              </div>
-              <Bar
-                className="mt-2.5 bg-panel-3"
-                value={signal.model_relevance ?? 0}
-                max={100}
-                tone={barTone(signal.model_relevance ?? 0)}
-              />
-              <p className="mt-2 text-xs text-t-lo">R² of the active model, scaled to 0–100 — how much of the target variance it explains.</p>
-              <p className="mt-1 font-mono text-[11px] text-t-mid">
-                {weights.model_relevance === undefined
-                  ? 'no published weight for this signal'
-                  : `weight ${Number(weights.model_relevance).toFixed(2)} → ${fmt(Number(weights.model_relevance) * (signal.model_relevance ?? 0), 1)} pts of the trust score`}
-              </p>
-            </Panel>
-
-            <Panel title="SHAP stability">
-              <div className="flex items-baseline justify-between gap-3">
-                <p className="text-2xl font-semibold tracking-tight text-t-hi">
-                  {signal.shap_stability === null ? '—' : `${fmt(signal.shap_stability, 1)}%`}
-                </p>
-                <StatusChip status={signal.shap_stability === null ? 'idle' : toneOf(signal.shap_stability) === 'emerald' ? 'ok' : 'warn'}>
-                  {signal.shap_stability === null ? 'not computed' : toneOf(signal.shap_stability) === 'emerald' ? 'stable' : 'noisy'}
-                </StatusChip>
-              </div>
-              <Bar
-                className="mt-2.5 bg-panel-3"
-                value={signal.shap_stability ?? 0}
-                max={100}
-                tone={barTone(signal.shap_stability ?? 0)}
-              />
-              <p className="mt-2 text-xs text-t-lo">Consistency of feature attributions — whether the same features keep driving the model.</p>
-              <p className="mt-1 font-mono text-[11px] text-t-mid">
-                {weights.shap_stability === undefined
-                  ? 'no published weight for this signal'
-                  : `weight ${Number(weights.shap_stability).toFixed(2)} → ${fmt(Number(weights.shap_stability) * (signal.shap_stability ?? 0), 1)} pts of the trust score`}
-              </p>
               {missing.length > 0 && (
-                <div className="mt-2.5 flex flex-wrap items-center gap-1.5 border-t border-border pt-2.5">
-                  <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">weight redistributed from</span>
+                <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-border pt-3">
+                  <SectionLabel>weight redistributed from</SectionLabel>
                   {missing.map(m => (
-                    <span key={m} className="rounded-button border border-border bg-panel-2 px-2 py-0.5 font-mono text-[10px] text-t-lo">
-                      {humanize(m)}
-                    </span>
+                    <MetricPill key={m} label={humanize(m)} value="—" />
                   ))}
                 </div>
               )}
-            </Panel>
+            </Advanced>
+
+            <Advanced label="Run metadata" hint={gate.workflow_run_id ? `run ${String(gate.workflow_run_id).slice(0, 8)}` : undefined}>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <MetricPill label="run" value={gate.workflow_run_id ? String(gate.workflow_run_id).slice(0, 8) : '—'} />
+                <MetricPill label="model" value={gate.model_id ? String(gate.model_id).slice(0, 8) : '—'} />
+                <MetricPill label="assessed" value={gate.created_at ? new Date(gate.created_at).toLocaleString() : '—'} />
+              </div>
+            </Advanced>
           </div>
 
-          <StoryFlow stageKey={STAGE} activeKey="produced" />
-
-          {/* 5 · Continue / Review — PASS continues, REVIEW continues knowingly, FAIL holds */}
+          {/* PASS continues, REVIEW continues knowingly, FAIL holds */}
           {band === 'pass' ? (
             <AutoNext to={shapTarget} label="Confidence graded — explaining decisions" />
           ) : (
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-card border border-border bg-panel px-4 py-3 shadow-[0_1px_2px_rgba(20,28,48,.05),0_8px_24px_rgba(20,28,48,.07)]">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-card border border-border bg-panel px-4 py-3 shadow-sm">
               <div className="min-w-0">
                 <p className="text-sm text-t-hi">
                   {band === 'review'

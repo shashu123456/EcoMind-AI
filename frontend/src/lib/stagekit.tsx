@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { ChevronRight } from 'lucide-react'
 import { cn as clsx } from './cn'
 import { storyForStage, beatForStage } from './story'
 
@@ -156,6 +157,85 @@ export function EmptyState({ title, hint, action }: { title: string; hint?: stri
       {hint && <p className="max-w-sm text-xs text-t-lo">{hint}</p>}
       {action && <div className="mt-1">{action}</div>}
     </div>
+  )
+}
+
+/* ── Clarity model: every screen is Level 1 → Level 2 → Level 3 ─────────
+   Level 1  one sentence (StageHeader tagline)
+   Level 2  ONE hero visualization (<Hero>) — nothing competes with it
+   Level 3  everything else, collapsed by default (<Advanced>)           */
+
+/** Level 2 · the single dominant visualization of a stage. */
+export function Hero({ children, className }: { children: ReactNode; className?: string }) {
+  return (
+    <section className={clsx('rounded-card border border-border bg-panel shadow-sm', className)} aria-label="Main visualization">
+      {children}
+    </section>
+  )
+}
+
+/** Level 3 · progressive disclosure. Logs, tables, raw values and every
+    secondary panel live in here — hidden until asked for. */
+export function Advanced({ label = 'Technical details', hint, children, defaultOpen = false }: {
+  label?: string
+  hint?: string
+  children: ReactNode
+  defaultOpen?: boolean
+}) {
+  return (
+    <details className="group rounded-card border border-border bg-panel open:bg-panel" open={defaultOpen}>
+      <summary className="flex cursor-pointer select-none items-center gap-2.5 px-4 py-3 text-t-lo transition-colors hover:text-t-hi [&::-webkit-details-marker]:hidden">
+        <ChevronRight className="h-3.5 w-3.5 shrink-0 transition-transform group-open:rotate-90" />
+        <SectionLabel className="group-open:text-t-hi">{label}</SectionLabel>
+        {hint && <span className="ml-auto truncate text-[11px] text-t-lo">{hint}</span>}
+      </summary>
+      <div className="border-t border-border p-4">{children}</div>
+    </details>
+  )
+}
+
+/** The verdict line — the stage's whole conclusion in one calm row. */
+export function ResultSummary({ verdict, facts, right }: {
+  verdict: string
+  facts?: { label: string; value: ReactNode }[]
+  right?: ReactNode
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-x-8 gap-y-3 rounded-card border border-border bg-panel px-5 py-4">
+      <p className="min-w-0 flex-1 text-[15px] font-medium leading-snug text-t-hi">{verdict}</p>
+      {facts && facts.length > 0 && (
+        <div className="flex flex-wrap items-center gap-x-7 gap-y-2">
+          {facts.slice(0, 3).map(f => (
+            <div key={f.label} className="min-w-0">
+              <SectionLabel>{f.label}</SectionLabel>
+              <div className="mt-0.5 text-lg font-semibold tracking-tight text-t-hi">{f.value}</div>
+            </div>
+          ))}
+        </div>
+      )}
+      {right}
+    </div>
+  )
+}
+
+/** ★★★★☆ Excellent — one honest word instead of seven metrics. */
+export function QualityRating({ score, label = 'Performance' }: { score: number; label?: string }) {
+  const bands = [
+    { min: 90, word: 'Excellent', stars: 5, tone: 'text-accent-emerald' },
+    { min: 75, word: 'Good', stars: 4, tone: 'text-accent-emerald' },
+    { min: 60, word: 'Fair', stars: 3, tone: 'text-accent-amber' },
+    { min: 40, word: 'Needs review', stars: 2, tone: 'text-accent-amber' },
+    { min: 0, word: 'Poor', stars: 1, tone: 'text-accent-rose' },
+  ]
+  const b = bands.find(x => score >= x.min) ?? bands[bands.length - 1]
+  return (
+    <span className="inline-flex items-center gap-2" title={`${Math.round(score)} / 100`}>
+      <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">{label}</span>
+      <span className={clsx('text-sm tracking-[0.1em]', b.tone)}>
+        {'★'.repeat(b.stars)}<span className="text-t-lo/50">{'★'.repeat(5 - b.stars)}</span>
+      </span>
+      <span className="text-sm font-semibold text-t-hi">{b.word}</span>
+    </span>
   )
 }
 

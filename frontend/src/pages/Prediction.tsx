@@ -17,8 +17,8 @@ import { useJourney } from '../lib/journey'
 import { AutoNext, Button } from '../lib/kit'
 import { beatForStage } from '../lib/story'
 import {
-  Bar, EmptyState, LoadingState, MetricPill, Panel, SectionLabel, StageHeader,
-  Stat, StatusChip, StoryFlow,
+  Bar, EmptyState, Hero, LoadingState, MetricPill, SectionLabel, StageHeader,
+  StatusChip, Advanced, ResultSummary, QualityRating,
 } from '../lib/stagekit'
 
 const HORIZONS = [24, 48, 72, 168]
@@ -113,7 +113,7 @@ function ForecastChart({ points }: { points: PredictionPoint[] }) {
       <path d={path(p => p.lower)} fill="none" stroke="rgba(76,95,213,0.5)" strokeWidth={1} strokeDasharray="4 4" />
 
       {/* predicted line */}
-      <path d={path(p => p.predicted)} fill="none" stroke="#4C5FD5" strokeWidth={1.75} strokeLinejoin="round" strokeLinecap="round" />
+      <path d={path(p => p.predicted)} fill="none" stroke="var(--accent, #4C5FD5)" strokeWidth={1.75} strokeLinejoin="round" strokeLinecap="round" />
 
       {/* actuals */}
       {points.map((p, i) => {
@@ -129,7 +129,7 @@ function ForecastChart({ points }: { points: PredictionPoint[] }) {
         const x = X(i)
         return (
           <g key={`p${i}`}>
-            <circle cx={x} cy={Y(v)} r={1.8} fill="#4C5FD5" />
+            <circle cx={x} cy={Y(v)} r={1.8} fill="var(--accent, #4C5FD5)" />
             <rect
               x={Math.max(PAD.l, Math.min(x - step / 2, VW - PAD.r - step))}
               y={PAD.t}
@@ -154,22 +154,6 @@ function ForecastChart({ points }: { points: PredictionPoint[] }) {
         {stamp(points[n - 1]?.timestamp)}
       </text>
     </svg>
-  )
-}
-
-function MetricGrid({ metrics }: { metrics: ModelMetrics }) {
-  const cells: { k: string; label: string; value: string; accent?: 'emerald' | 'amber' | 'primary' }[] = [
-    { k: 'r2', label: 'R²', value: fmt(metrics.r2, 4), accent: 'emerald' },
-    { k: 'rmse', label: 'RMSE', value: `${fmt(metrics.rmse, 3)} kWh`, accent: 'primary' },
-    { k: 'mae', label: 'MAE', value: `${fmt(metrics.mae, 4)} kWh` },
-    { k: 'mape', label: 'MAPE', value: `${fmt(metrics.mape, 2)}%`, accent: 'amber' },
-  ]
-  return (
-    <div className="grid grid-cols-2 gap-2">
-      {cells.map(c => (
-        <Stat key={c.k} label={c.label} value={c.value} hint="model fit" accent={c.accent} mono />
-      ))}
-    </div>
   )
 }
 
@@ -218,6 +202,7 @@ export function PredictionPage() {
   const hs = res?.horizon_summary
   const metrics = res?.metrics
   const withActual = useMemo(() => points.filter(p => num(p.actual) !== null), [points])
+  const r2Score = (num(metrics?.r2) ?? 0) * 100
 
   async function trainModel() {
     if (!datasetId || training) return
@@ -258,7 +243,6 @@ export function PredictionPage() {
       setError(`forecast failed — ${e?.message || 'unknown error'}`)
     } finally {
       window.clearInterval(iv)
-      setBusy(false)
     }
   }
 
@@ -270,48 +254,13 @@ export function PredictionPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, datasetId, modelId, busy, res])
 
-  const headerRight = (
-    <>
-      {busy ? <StatusChip status="running">forecasting</StatusChip>
-        : res ? <StatusChip status="ok">{points.length} points</StatusChip>
-          : <StatusChip status="idle">no forecast</StatusChip>}
-      <select
-        value={modelId || ''}
-        onChange={e => setModelId(e.target.value || null)}
-        disabled={busy || candidates.length === 0}
-        aria-label="Select model"
-        className="max-w-[220px] rounded-button border border-border bg-panel2 px-2.5 py-1.5 text-xs text-t-hi outline-none focus:border-primary-500 disabled:opacity-50"
-      >
-        {candidates.length === 0 && <option value="">no model available</option>}
-        {candidates.map(m => (
-          <option key={m.id} value={m.id}>
-            {`${m.name || m.algorithm} · ${m.algorithm} · r² ${fmt(m.metrics?.r2, 3)}`}
-          </option>
-        ))}
-      </select>
-      <select
-        value={horizon}
-        onChange={e => setHorizon(Number(e.target.value))}
-        disabled={busy}
-        aria-label="Forecast horizon"
-        className="rounded-button border border-border bg-panel2 px-2.5 py-1.5 text-xs text-t-hi outline-none focus:border-primary-500 disabled:opacity-50"
-      >
-        {HORIZONS.map(h => <option key={h} value={h}>{h}h</option>)}
-      </select>
-      <Button onClick={runForecast} disabled={busy || !datasetId || !modelId} variant="primary" size="sm">
-        <LineChartIcon className={clsx('h-4 w-4', busy && 'animate-pulse')} />
-        {busy ? 'Forecasting…' : 'Run forecast'}
-      </Button>
-    </>
-  )
-
   if (!datasetId) {
     return (
       <div className="flex min-h-0 flex-col gap-3 px-4 py-4">
         <StageHeader
           beat={beat.beat} chapter={beat.chapter}
           title="Prediction Engine"
-          tagline="Trained models, live forecast timeline and confidence intervals."
+          tagline="Forecasts the next energy horizon from the trained model."
           icon={<Gauge className="h-5 w-5" />}
         />
         <EmptyState
@@ -323,26 +272,27 @@ export function PredictionPage() {
     )
   }
 
+  const verdict = hs
+    ? `The ${selected?.algorithm ?? 'trained'} model forecasts the next ${horizon} hours — ${fmt(hs.total_kwh, 0)} kWh total, peaking at ${fmt(hs.peak_kw, 1)} kW.`
+    : candidates.length === 0
+      ? 'Train a model on the repaired dataset to unlock forecasting.'
+      : 'Run the forecast: the trained model projects energy demand with a confidence interval on every point.'
+
   return (
-    <div className="flex min-h-0 flex-col gap-3 px-4 py-4">
+    <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-4 py-4">
+      {/* Level 1 — one sentence */}
       <StageHeader
         beat={beat.beat}
         chapter={beat.chapter}
         title="Prediction Engine"
-        tagline="Real trained metrics, a live forecast horizon and the confidence interval behind every point."
+        tagline="Forecasts the next energy horizon from the trained model."
         icon={<Gauge className="h-5 w-5" />}
-        right={headerRight}
+        right={
+          busy ? <StatusChip status="running">forecasting</StatusChip>
+            : res ? <StatusChip status="ok">{points.length} points</StatusChip>
+              : <StatusChip status="idle">no forecast</StatusChip>
+        }
       />
-
-      {busy && (
-        <div className="shrink-0 rounded-card border border-border bg-panel px-3 py-2">
-          <div className="flex items-center justify-between gap-2">
-            <SectionLabel>live progress</SectionLabel>
-            <span className="font-mono text-[10px] text-t-lo">{Math.round(progress)}% · requesting {horizon}h horizon</span>
-          </div>
-          <Bar value={progress} className="mt-1.5" />
-        </div>
-      )}
 
       {error && (
         <div className="flex shrink-0 items-center justify-between gap-3 rounded-card border border-accent-rose/30 bg-accent-rose/10 px-3 py-2">
@@ -351,41 +301,43 @@ export function PredictionPage() {
         </div>
       )}
 
-      {note && (
-        <div className="shrink-0 rounded-card border border-border bg-panel2 px-3 py-2">
-          <div className="flex items-center justify-between gap-2">
-            <SectionLabel>training log</SectionLabel>
-            <span className="font-mono text-[10px] text-t-lo">{training ? 'running…' : 'complete'}</span>
+      {/* Level 2 — the one hero: the forecast timeline */}
+      <Hero>
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-2.5">
+          <SectionLabel>Forecast timeline</SectionLabel>
+          <div className="flex flex-wrap items-center gap-2">
+            {busy && <span className="font-mono text-[10px] text-t-lo">{Math.round(progress)}%</span>}
+            <select
+              value={modelId || ''}
+              onChange={e => setModelId(e.target.value || null)}
+              disabled={busy || candidates.length === 0}
+              aria-label="Select model"
+              className="max-w-[220px] rounded-button border border-border bg-panel2 px-2.5 py-1.5 text-xs text-t-hi outline-none focus:border-primary-500 disabled:opacity-50"
+            >
+              {candidates.length === 0 && <option value="">no model available</option>}
+              {candidates.map(m => (
+                <option key={m.id} value={m.id}>
+                  {`${m.name || m.algorithm} · r² ${fmt(m.metrics?.r2, 3)}`}
+                </option>
+              ))}
+            </select>
+            <select
+              value={horizon}
+              onChange={e => setHorizon(Number(e.target.value))}
+              disabled={busy}
+              aria-label="Forecast horizon"
+              className="rounded-button border border-border bg-panel2 px-2.5 py-1.5 text-xs text-t-hi outline-none focus:border-primary-500 disabled:opacity-50"
+            >
+              {HORIZONS.map(h => <option key={h} value={h}>{h}h</option>)}
+            </select>
+            <Button onClick={runForecast} disabled={busy || !datasetId || !modelId} variant="primary" size="sm">
+              <LineChartIcon className={clsx('h-4 w-4', busy && 'animate-pulse')} />
+              {busy ? 'Forecasting…' : 'Run forecast'}
+            </Button>
           </div>
-          <p className="mt-1 truncate font-mono text-[11px] text-t-mid">
-            <span className="text-primary-500">›</span> {note}
-          </p>
         </div>
-      )}
-
-      <div className="grid shrink-0 grid-cols-2 gap-3 lg:grid-cols-5">
-        <Stat label="Horizon total" value={hs ? `${fmt(hs.total_kwh, 1)} kWh` : '—'} hint={`${horizon}h requested`} accent="emerald" mono />
-        <Stat label="Peak" value={hs ? `${fmt(hs.peak_kw, 2)} kW` : '—'} hint={hs?.peak_time ? stamp(hs.peak_time) : 'awaiting run'} accent="amber" mono />
-        <Stat label="Average" value={hs ? `${fmt(hs.avg_kw, 2)} kW` : '—'} hint="across the horizon" mono />
-        <Stat label="CO₂ estimate" value={hs ? `${fmt(hs.co2_estimate_kg, 1)} kg` : '—'} hint="0.5 kg / kWh" accent="cyan" mono />
-        <Stat label="Cost estimate" value={hs ? `$${fmt(hs.cost_estimate, 2)}` : '—'} hint="$0.28 / kWh" mono />
-      </div>
-
-      <div className="grid min-h-0 flex-1 gap-3 xl:grid-cols-12">
-        {/* ── Forecast timeline ──────────────────────────────── */}
-        <Panel
-          className="xl:col-span-8"
-          title="forecast timeline"
-          right={
-            <div className="flex items-center gap-2">
-              {res?.forecast_start && (
-                <span className="font-mono text-[10px] text-t-lo">
-                  {stamp(res.forecast_start)} → {stamp(res.forecast_end)}
-                </span>
-              )}
-            </div>
-          }
-        >
+        {busy && <Bar value={progress} className="rounded-none" />}
+        <div className="flex h-[340px] flex-col p-4">
           {mdl.loading && <LoadingState label="Loading models…" />}
           {!mdl.loading && candidates.length === 0 && (
             <EmptyState
@@ -401,151 +353,174 @@ export function PredictionPage() {
           {!mdl.loading && candidates.length > 0 && points.length === 0 && (
             <EmptyState
               title="No forecast yet"
-              hint="Select a model and horizon, then run the forecast to plot the horizon with its confidence interval."
-              action={<Button onClick={runForecast} disabled={busy} variant="primary" size="sm">Run forecast</Button>}
+              hint="Run the forecast to plot the horizon with its confidence interval."
             />
           )}
           {points.length > 0 && (
             <motion.div
               key={`${modelId}-${horizon}-${points.length}`}
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }}
-              className="flex h-full min-h-[240px] flex-col gap-2"
+              className="flex h-full min-h-0 flex-col gap-2"
             >
               <div className="min-h-0 flex-1">
                 <ForecastChart points={points} />
               </div>
-              <div className="flex flex-col gap-1">
-                <div className="flex items-center justify-between gap-2">
-                  <SectionLabel>confidence axis · per point</SectionLabel>
-                  <div className="flex items-center gap-2">
-                    <span className="flex items-center gap-1 font-mono text-[9px] text-t-lo">
-                      <span className="h-2 w-2 rounded-full" style={{ background: 'var(--color-primary-500)' }} /> predicted
-                    </span>
-                    <span className="flex items-center gap-1 font-mono text-[9px] text-t-lo">
-                      <span className="h-2 w-2 rounded-full" style={{ background: 'var(--color-accent-emerald)' }} /> actual
-                    </span>
-                    <span className="flex items-center gap-1 font-mono text-[9px] text-t-lo">
-                      <span className="h-2 w-2 rounded-[2px]" style={{ background: 'rgba(76,95,213,0.25)' }} /> interval
-                    </span>
-                  </div>
-                </div>
-                <div className="flex items-center gap-[2px] overflow-hidden">
-                  {points.map((p, i) => (
-                    <Bar
-                      key={`c${i}`}
-                      value={confPct(p.confidence)}
-                      tone="violet"
-                      className="min-w-[3px] flex-1"
-                    />
-                  ))}
-                </div>
+              <div className="flex items-center justify-end gap-3">
+                <span className="flex items-center gap-1 text-[10px] text-t-lo">
+                  <span className="h-2 w-2 rounded-full" style={{ background: 'var(--accent, #4C5FD5)' }} /> predicted
+                </span>
+                <span className="flex items-center gap-1 text-[10px] text-t-lo">
+                  <span className="h-2 w-2 rounded-full" style={{ background: 'var(--color-accent-emerald)' }} /> actual
+                </span>
+                <span className="flex items-center gap-1 text-[10px] text-t-lo">
+                  <span className="h-2 w-2 rounded-[2px]" style={{ background: 'rgba(76,95,213,0.25)' }} /> 90% interval
+                </span>
               </div>
             </motion.div>
           )}
-        </Panel>
-
-        <div className="grid min-h-0 gap-3 xl:col-span-4 xl:grid-rows-2">
-          {/* ── Historical vs predicted ──────────────────────── */}
-          <Panel title="historical vs predicted" right={<SectionLabel>fit</SectionLabel>}>
-            {mdl.loading && <LoadingState label="Reading metrics…" />}
-            {!mdl.loading && !metrics && (
-              <EmptyState title="No metrics yet" hint="Model fit metrics arrive with the forecast result." />
-            )}
-            {metrics && (
-              <div className="flex flex-col gap-3">
-                <MetricGrid metrics={metrics} />
-                <div className="flex flex-col gap-1.5 rounded-button border border-border bg-panel2 px-2.5 py-2">
-                  <SectionLabel>target variance split</SectionLabel>
-                  <div className="flex items-center gap-2">
-                    <span className="w-14 shrink-0 font-mono text-[10px] text-t-lo">explained</span>
-                    <Bar value={Math.max(0, Math.min(100, (num(metrics.r2) ?? 0) * 100))} tone="emerald" className="flex-1" />
-                    <span className="w-12 shrink-0 text-right font-mono text-[10px] font-semibold text-accent-emerald">
-                      {fmt((num(metrics.r2) ?? 0) * 100, 1)}%
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="w-14 shrink-0 font-mono text-[10px] text-t-lo">residual</span>
-                    <Bar value={Math.max(0, Math.min(100, (1 - (num(metrics.r2) ?? 0)) * 100))} tone="rose" className="flex-1" />
-                    <span className="w-12 shrink-0 text-right font-mono text-[10px] font-semibold text-accent-rose">
-                      {fmt((1 - (num(metrics.r2) ?? 0)) * 100, 1)}%
-                    </span>
-                  </div>
-                </div>
-                {selected && (
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <MetricPill label="model" value={selected.name || selected.algorithm} />
-                    <MetricPill label="algo" value={selected.algorithm} />
-                    <MetricPill label="rows" value={fmt(selected.training_rows, 0)} />
-                    <MetricPill label="active" value={selected.is_active ? 'yes' : 'no'} />
-                  </div>
-                )}
-              </div>
-            )}
-          </Panel>
-
-          {/* ── Actual vs predicted deltas ───────────────────── */}
-          <Panel
-            title="actual vs predicted"
-            right={points.length > 0 ? <SectionLabel>{withActual.length}/{points.length} actuals</SectionLabel> : undefined}
-          >
-            {points.length === 0 ? (
-              <EmptyState title="Awaiting a forecast" hint="Point-level deltas appear once a forecast has run." />
-            ) : withActual.length === 0 ? (
-              <div className="flex flex-col gap-2">
-                <EmptyState
-                  title="No actuals recorded"
-                  hint="The predict endpoint returns actual: null for every horizon point, so per-point deltas cannot be computed until actuals are backfilled."
-                />
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <MetricPill label="points" value={points.length} />
-                  <MetricPill label="interval ±" value={fmt((num(points[0]?.upper) ?? 0) - (num(points[0]?.predicted) ?? 0), 2)} />
-                  <MetricPill label="confidence" value={`${fmt(confPct(points[0]?.confidence), 0)}%`} />
-                </div>
-              </div>
-            ) : (
-              <div className="overflow-hidden">
-                <table className="w-full text-left text-[11px]">
-                  <thead>
-                    <tr className="border-b border-border">
-                      <th className="py-1.5 pr-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-t-lo">timestamp</th>
-                      <th className="py-1.5 pr-2 text-right text-[10px] font-semibold uppercase tracking-[0.12em] text-t-lo">actual</th>
-                      <th className="py-1.5 pr-2 text-right text-[10px] font-semibold uppercase tracking-[0.12em] text-t-lo">predicted</th>
-                      <th className="py-1.5 text-right text-[10px] font-semibold uppercase tracking-[0.12em] text-t-lo">Δ</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {withActual.slice(0, 12).map((p, i) => {
-                      const a = num(p.actual) as number
-                      const v = num(p.predicted) as number
-                      const d = a - v
-                      const tol = Math.max(0.05, 0.1 * Math.abs(v))
-                      return (
-                        <tr key={`${p.timestamp}-${i}`} className="border-b border-border last:border-0">
-                          <td className="py-1.5 pr-2 font-mono text-t-lo">{stamp(p.timestamp, false)}</td>
-                          <td className="py-1.5 pr-2 text-right font-mono text-t-hi">{fmt(a, 2)}</td>
-                          <td className="py-1.5 pr-2 text-right font-mono text-t-mid">{fmt(v, 2)}</td>
-                          <td className={clsx('py-1.5 text-right font-mono font-semibold', Math.abs(d) <= tol ? 'text-accent-emerald' : 'text-accent-rose')}>
-                            {d >= 0 ? '+' : ''}{fmt(d, 2)}
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-                {withActual.length > 12 && (
-                  <p className="mt-1.5 font-mono text-[10px] text-t-lo">+{withActual.length - 12} further points</p>
-                )}
-              </div>
-            )}
-          </Panel>
         </div>
-      </div>
+      </Hero>
 
-      <div className="shrink-0">
-        <StoryFlow
-          stageKey="prediction"
-          activeKey={busy || training ? 'processed' : res ? 'produced' : 'entered'}
-        />
+      {/* verdict — the forecast's conclusion in one line */}
+      <ResultSummary
+        verdict={verdict}
+        facts={hs ? [
+          { label: 'Peak', value: `${fmt(hs.peak_kw, 1)} kW` },
+          { label: 'Average', value: `${fmt(hs.avg_kw, 2)} kW` },
+          { label: 'Model', value: <QualityRating score={r2Score} label="" /> },
+        ] : undefined}
+      />
+
+      {/* Level 3 — model quality, deltas, economics: hidden until asked */}
+      <div className="shrink-0 space-y-2">
+        {metrics && (
+          <Advanced label="Model quality" hint={`r² ${fmt(metrics.r2, 4)} · RMSE ${fmt(metrics.rmse, 2)} kWh`}>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <div className="rounded-button border border-border bg-panel px-3 py-2">
+                <SectionLabel>R²</SectionLabel>
+                <p className="mt-0.5 font-mono text-sm font-semibold text-accent-emerald">{fmt(metrics.r2, 4)}</p>
+              </div>
+              <div className="rounded-button border border-border bg-panel px-3 py-2">
+                <SectionLabel>RMSE</SectionLabel>
+                <p className="mt-0.5 font-mono text-sm font-semibold text-t-hi">{fmt(metrics.rmse, 3)} kWh</p>
+              </div>
+              <div className="rounded-button border border-border bg-panel px-3 py-2">
+                <SectionLabel>MAE</SectionLabel>
+                <p className="mt-0.5 font-mono text-sm font-semibold text-t-hi">{fmt(metrics.mae, 4)} kWh</p>
+              </div>
+              <div className="rounded-button border border-border bg-panel px-3 py-2">
+                <SectionLabel>MAPE</SectionLabel>
+                <p className="mt-0.5 font-mono text-sm font-semibold text-t-hi">{fmt(metrics.mape, 2)}%</p>
+              </div>
+            </div>
+            <div className="mt-3 flex flex-col gap-1.5 rounded-button border border-border bg-panel2 px-2.5 py-2">
+              <SectionLabel>target variance split</SectionLabel>
+              <div className="flex items-center gap-2">
+                <span className="w-14 shrink-0 font-mono text-[10px] text-t-lo">explained</span>
+                <Bar value={Math.max(0, Math.min(100, r2Score))} tone="emerald" className="flex-1" />
+                <span className="w-12 shrink-0 text-right font-mono text-[10px] font-semibold text-accent-emerald">
+                  {fmt(r2Score, 1)}%
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="w-14 shrink-0 font-mono text-[10px] text-t-lo">residual</span>
+                <Bar value={Math.max(0, Math.min(100, (1 - (num(metrics.r2) ?? 0)) * 100))} tone="rose" className="flex-1" />
+                <span className="w-12 shrink-0 text-right font-mono text-[10px] font-semibold text-accent-rose">
+                  {fmt((1 - (num(metrics.r2) ?? 0)) * 100, 1)}%
+                </span>
+              </div>
+            </div>
+            {selected && (
+              <div className="mt-3 flex flex-wrap items-center gap-1.5">
+                <MetricPill label="model" value={selected.name || selected.algorithm} />
+                <MetricPill label="algo" value={selected.algorithm} />
+                <MetricPill label="rows" value={fmt(selected.training_rows, 0)} />
+                <MetricPill label="active" value={selected.is_active ? 'yes' : 'no'} />
+              </div>
+            )}
+          </Advanced>
+        )}
+
+        <Advanced
+          label="Point deltas"
+          hint={points.length === 0 ? 'available after a forecast' : withActual.length === 0 ? 'no actuals recorded yet' : `${withActual.length}/${points.length} with actuals`}
+        >
+          {points.length === 0 ? (
+            <p className="text-xs text-t-lo">Point-level deltas appear once a forecast has run.</p>
+          ) : withActual.length === 0 ? (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <MetricPill label="points" value={points.length} />
+              <MetricPill label="interval ±" value={fmt((num(points[0]?.upper) ?? 0) - (num(points[0]?.predicted) ?? 0), 2)} />
+              <MetricPill label="confidence" value={`${fmt(confPct(points[0]?.confidence), 0)}%`} />
+              <span className="text-[11px] text-t-lo">Actuals are backfilled after the horizon elapses.</span>
+            </div>
+          ) : (
+            <div className="overflow-hidden">
+              <table className="w-full text-left text-[11px]">
+                <thead>
+                  <tr className="border-b border-border">
+                    <th className="py-1.5 pr-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-t-lo">timestamp</th>
+                    <th className="py-1.5 pr-2 text-right text-[10px] font-semibold uppercase tracking-[0.12em] text-t-lo">actual</th>
+                    <th className="py-1.5 pr-2 text-right text-[10px] font-semibold uppercase tracking-[0.12em] text-t-lo">predicted</th>
+                    <th className="py-1.5 text-right text-[10px] font-semibold uppercase tracking-[0.12em] text-t-lo">Δ</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {withActual.slice(0, 12).map((p, i) => {
+                    const a = num(p.actual) as number
+                    const v = num(p.predicted) as number
+                    const d = a - v
+                    const tol = Math.max(0.05, 0.1 * Math.abs(v))
+                    return (
+                      <tr key={`${p.timestamp}-${i}`} className="border-b border-border last:border-0">
+                        <td className="py-1.5 pr-2 font-mono text-t-lo">{stamp(p.timestamp, false)}</td>
+                        <td className="py-1.5 pr-2 text-right font-mono text-t-hi">{fmt(a, 2)}</td>
+                        <td className="py-1.5 pr-2 text-right font-mono text-t-mid">{fmt(v, 2)}</td>
+                        <td className={clsx('py-1.5 text-right font-mono font-semibold', Math.abs(d) <= tol ? 'text-accent-emerald' : 'text-accent-rose')}>
+                          {d >= 0 ? '+' : ''}{fmt(d, 2)}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+              {withActual.length > 12 && (
+                <p className="mt-1.5 font-mono text-[10px] text-t-lo">+{withActual.length - 12} further points</p>
+              )}
+            </div>
+          )}
+        </Advanced>
+
+        {hs && (
+          <Advanced label="Horizon economics" hint={`${fmt(hs.co2_estimate_kg, 1)} kg CO₂ · $${fmt(hs.cost_estimate, 2)}`}>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <div className="rounded-button border border-border bg-panel px-3 py-2">
+                <SectionLabel>Total energy</SectionLabel>
+                <p className="mt-0.5 font-mono text-sm font-semibold text-t-hi">{fmt(hs.total_kwh, 1)} kWh</p>
+              </div>
+              <div className="rounded-button border border-border bg-panel px-3 py-2">
+                <SectionLabel>CO₂ estimate</SectionLabel>
+                <p className="mt-0.5 font-mono text-sm font-semibold text-t-hi">{fmt(hs.co2_estimate_kg, 1)} kg</p>
+              </div>
+              <div className="rounded-button border border-border bg-panel px-3 py-2">
+                <SectionLabel>Cost estimate</SectionLabel>
+                <p className="mt-0.5 font-mono text-sm font-semibold text-t-hi">${fmt(hs.cost_estimate, 2)}</p>
+              </div>
+              <div className="rounded-button border border-border bg-panel px-3 py-2">
+                <SectionLabel>Peak time</SectionLabel>
+                <p className="mt-0.5 font-mono text-sm font-semibold text-t-hi">{hs.peak_time ? stamp(hs.peak_time) : '—'}</p>
+              </div>
+            </div>
+          </Advanced>
+        )}
+
+        {note && (
+          <Advanced label="Training log" defaultOpen={training}>
+            <p className="font-mono text-[11px] text-t-mid">
+              <span className="text-primary-500">›</span> {note}
+            </p>
+          </Advanced>
+        )}
       </div>
 
       {res && runId && (
