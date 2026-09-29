@@ -16,7 +16,7 @@ import { useJourney, WORKFLOW, nextStage, stagePath } from '../lib/journey'
 import { beatForStage, storyForStage } from '../lib/story'
 import {
   Bar, EmptyState, LoadingState, MetricPill, Panel, SectionLabel, StageHeader,
-  Stat, StatusChip, StoryFlow,
+  StatusChip, Advanced, ResultSummary,
 } from '../lib/stagekit'
 import { AutoNext, Button, DoneChip } from '../lib/kit'
 import { toast } from '../lib/toast'
@@ -434,33 +434,6 @@ export function HistoryPage() {
         }
       />
 
-      {/* ── vault census ─────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat
-          label="Runs indexed"
-          value={fmt(runList.length, 0)}
-          hint={running ? `${fmt(running, 0)} in flight` : 'no run in flight'}
-        />
-        <Stat
-          label="Completed"
-          value={fmt(completedCount, 0)}
-          hint={`${fmt(completedPct, 0)}% of runs · ${fmt(failedCount, 0)} failed`}
-          accent="emerald"
-        />
-        <Stat
-          label="Stage executions"
-          value={fmt(executions, 0)}
-          hint="traces written to the vault"
-          mono
-        />
-        <Stat
-          label="Registry entries"
-          value={fmt(regList.length, 0)}
-          hint={`${fmt(currentCount, 0)} current · ${fmt(promotedCount, 0)} promoted`}
-          accent="primary"
-        />
-      </div>
-
       {(runs.error || reg.error) && (
         <div className="flex flex-wrap items-center gap-2">
           <StatusChip status="warn">{runs.error ?? reg.error ?? 'request failed'}</StatusChip>
@@ -876,7 +849,18 @@ export function HistoryPage() {
         </p>
       )}
 
-      <StoryFlow stageKey={STAGE_KEY} activeKey={activeStep} />
+      <ResultSummary
+        verdict={
+          runList.length === 0
+            ? 'No runs indexed yet — every journey is recorded here with its traces and models.'
+            : `${fmt(runList.length, 0)} runs indexed (${fmt(completedCount, 0)} completed), ${fmt(regList.length, 0)} model versions registered and promotable.`
+        }
+        facts={[
+          { label: 'Runs', value: fmt(runList.length, 0) },
+          { label: 'Completed', value: fmt(completedCount, 0) },
+          { label: 'Models', value: fmt(regList.length, 0) },
+        ]}
+      />
 
       {hasLiveRun ? (
         <AutoNext to={CONTINUE_TO} label="Registry indexed — closing out the journey" />

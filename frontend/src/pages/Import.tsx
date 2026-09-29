@@ -198,7 +198,7 @@ export function ImportPage() {
       {!isNewUpload && (
         <>
           <Reveal delay={0.05}>
-            <div className="glass-panel grid sm:grid-cols-2 lg:grid-cols-4 gap-4 p-5">
+            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 rounded-card border border-border bg-panel p-4">
               <IngestChip label="File" value={ds?.name || '—'} icon="file" />
               <IngestChip label="Sheets" value={String(ds?.source_type || 'sheet')} icon="sheet" />
               <IngestChip label="Columns" value={fmt(ds?.column_count ?? 0, 0)} icon="cols" />
@@ -207,31 +207,43 @@ export function ImportPage() {
           </Reveal>
 
           <Reveal delay={0.1}>
-            <div className="grid lg:grid-cols-3 gap-4">
-              <div className="lg:col-span-1">
-                <ReadWriteTerminal
-                  name={ds?.name}
-                  bytes={ds?.file_size_bytes ?? prev?.file_size_bytes}
-                  columns={columns}
-                  total={Math.min(prev?.total_rows ?? prev?.row_count ?? 40, 320)}
-                  streamed={streamCount}
-                  done={done}
-                />
-                {done && (
-                  <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-2 text-xs text-gray-500 font-mono">
-                    ingest complete · {fmt(prev?.total_rows ?? rowCount, 0)} rows · {fmtBytes(prev?.file_size_bytes ?? ds?.file_size_bytes)}
-                  </motion.p>
-                )}
-              </div>
+            <div className="space-y-3">
+              {done && (
+                <div className="flex flex-wrap items-center gap-x-8 gap-y-3 rounded-card border border-border bg-panel px-5 py-4">
+                  <p className="min-w-0 flex-1 text-[15px] font-medium leading-snug text-t-hi">
+                    Ingest complete — {fmt(prev?.total_rows ?? rowCount, 0)} rows and {columns.length} columns streamed from {ds?.name ?? 'the file'}, provenance recorded.
+                  </p>
+                  <div className="flex flex-wrap items-center gap-x-7 gap-y-2">
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">Rows</p>
+                      <p className="mt-0.5 text-lg font-semibold tracking-tight text-t-hi">{fmt(prev?.total_rows ?? rowCount, 0)}</p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">Size</p>
+                      <p className="mt-0.5 text-lg font-semibold tracking-tight text-t-hi">{fmtBytes(prev?.file_size_bytes ?? ds?.file_size_bytes)}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
 
-              <div className="lg:col-span-2">
-                <StreamTable columns={columns} rows={shownRows} speed={18} live={!done} datasetId={datasetId} totalRows={prev?.total_rows ?? prev?.row_count} filename={`import-${(ds?.name ?? 'dataset').replace(/[^a-z0-9]+/gi, '-')}.csv`} />
-                {done && (
-                  <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-2 text-xs text-gray-500 font-mono">
-                    ingest complete · {fmt(prev?.total_rows ?? rowCount, 0)} rows · {fmtBytes(prev?.file_size_bytes ?? ds?.file_size_bytes)}
-                  </motion.p>
-                )}
-              </div>
+              <details className="rounded-card border border-border bg-panel" open={!done}>
+                <summary className="flex cursor-pointer select-none items-center gap-2.5 px-4 py-3 text-t-lo transition-colors hover:text-t-hi [&::-webkit-details-marker]:hidden">
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.14em] group-open:text-t-hi">Ingest console</span>
+                  <span className="ml-auto truncate text-[11px] text-t-lo">streaming log · hidden when idle</span>
+                </summary>
+                <div className="border-t border-border p-4">
+                  <ReadWriteTerminal
+                    name={ds?.name}
+                    bytes={ds?.file_size_bytes ?? prev?.file_size_bytes}
+                    columns={columns}
+                    total={Math.min(prev?.total_rows ?? prev?.row_count ?? 40, 320)}
+                    streamed={streamCount}
+                    done={done}
+                  />
+                </div>
+              </details>
+
+              <StreamTable columns={columns} rows={shownRows} speed={18} live={!done} datasetId={datasetId} totalRows={prev?.total_rows ?? prev?.row_count} filename={`import-${(ds?.name ?? 'dataset').replace(/[^a-z0-9]+/gi, '-')}.csv`} />
             </div>
           </Reveal>
 
