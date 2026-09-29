@@ -15,7 +15,7 @@ import { useJourney } from '../lib/journey'
 import { AutoNext, Button, colLabel, normRows } from '../lib/kit'
 import {
   Bar, EmptyState, LoadingState, MetricPill, Panel, SectionLabel, StageHeader, Stat,
-  StatusChip, StoryFlow,
+  StatusChip, Advanced, ResultSummary, Hero,
 } from '../lib/stagekit'
 import { beatForStage } from '../lib/story'
 import { cn as clsx } from '../lib/cn'
@@ -1122,7 +1122,6 @@ export function SchemaDiscoveryPage() {
           hint="Schema discovery profiles a registered dataset. Pick one from the library and the survey starts immediately."
           action={<Button size="sm" onClick={() => navigate({ to: '/library' })}>Open dataset library</Button>}
         />
-        <StoryFlow stageKey={STAGE_KEY} activeKey="entered" />
       </div>
     )
   }
@@ -1137,41 +1136,6 @@ export function SchemaDiscoveryPage() {
         icon={<ScanSearch className="h-5 w-5" />}
         right={headerRight}
       />
-
-      {/* ── stat strip ─────────────────────────────────────────── */}
-      <div className="grid shrink-0 grid-cols-2 gap-3 lg:grid-cols-5">
-        <Stat
-          label="Columns"
-          value={fmt(fields.length, 0)}
-          hint="fields typed"
-          accent="primary"
-          mono
-        />
-        <Stat
-          label="Rows profiled"
-          value={fmt(totalRows, 0)}
-          hint={metaRes.data?.name || 'dataset row count'}
-        />
-        <Stat
-          label="Types resolved"
-          value={fmt(typeCount, 0)}
-          hint={`${fmt(recastCount, 0)} re-cast from declared`}
-          mono
-        />
-        <Stat
-          label="Detection time"
-          value={elapsedMs === null ? '—' : `${fmt(elapsedMs, 0)} ms`}
-          hint={elapsedMs === null ? 'run discovery to measure' : 'profiler duration'}
-          mono
-        />
-        <Stat
-          label="Missing cells"
-          value={fmt(missingCells, 0)}
-          hint={`${fmt(coveragePct, 2)}% coverage`}
-          accent={coveragePct >= 99.5 ? 'emerald' : coveragePct >= 90 ? 'amber' : 'rose'}
-          mono
-        />
-      </div>
 
       {busyGate && fields.length === 0 && <LoadingState label="Reading column types and profiling samples…" />}
 
@@ -1188,17 +1152,13 @@ export function SchemaDiscoveryPage() {
       {fields.length > 0 && (
         <>
           {/* ── atlas ──────────────────────────────────────────── */}
-          <div className="grid min-h-0 flex-1 gap-3 xl:grid-cols-12">
-            <Panel
-              className="xl:col-span-7"
-              title="column inventory"
-              right={
-                <span className="hidden font-mono text-[10px] text-t-lo sm:inline">
-                  {fmt(sorted.length, 0)} fields · {fmt(totalRows, 0)} rows
-                </span>
-              }
-              flush
-            >
+          <Hero>
+            <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
+              <SectionLabel>Column inventory</SectionLabel>
+              <span className="hidden font-mono text-[10px] text-t-lo sm:inline">
+                {fmt(sorted.length, 0)} fields · {fmt(totalRows, 0)} rows
+              </span>
+            </div>
               <Inventory
                 fields={sorted}
                 headerCols={headerCols}
@@ -1209,24 +1169,18 @@ export function SchemaDiscoveryPage() {
                 onSort={onSort}
                 warnings={warnings}
               />
-            </Panel>
+</Hero>
 
-            <div className="grid min-h-0 gap-3 xl:col-span-5 xl:grid-rows-2">
-              <Panel
-                title="column profile"
-                right={active ? <span className="font-mono text-[10px] text-t-lo">{KIND_LABEL[active.kind]}</span> : null}
-              >
+          <div className="shrink-0 space-y-2">
+              <Advanced label="Column profile" hint={active ? KIND_LABEL[active.kind] : undefined} defaultOpen>
                 {active ? (
                   <ColumnProfile field={active} totalRows={totalRows} />
                 ) : (
                   <p className="text-xs text-t-lo">Select a column from the inventory to profile it.</p>
                 )}
-              </Panel>
+              </Advanced>
 
-              <Panel
-                title="coverage survey"
-                right={<span className="font-mono text-[10px] text-t-lo">{BANDS.filter(b => fields.some(f => bandOf(f.nullPct).key === b.key)).length} bands</span>}
-              >
+              <Advanced label="Coverage survey" hint={`${fmt(missingCells, 0)} missing cells · ${fmt(coveragePct, 2)}% coverage`}>
                 <CoverageSurvey
                   fields={fields}
                   totalRows={totalRows}
@@ -1234,29 +1188,18 @@ export function SchemaDiscoveryPage() {
                   coveragePct={coveragePct}
                   missingByColumn={missingByColumn}
                 />
-              </Panel>
-            </div>
+              </Advanced>
           </div>
 
-          {/* ── context strip ──────────────────────────────────── */}
+          {/* ── Level 3: role map, sample, log ────────────────── */}
           <div className="grid shrink-0 gap-3 xl:grid-cols-12">
-            <Panel
-              className="xl:col-span-4"
-              title="semantic role map"
-              right={<Table2 className="h-3.5 w-3.5 text-t-lo" />}
-            >
+            <Advanced label="Semantic role map" hint={`${fmt(fields.length, 0)} fields classified`}>
+              <div className="-m-4">
               <RoleMap fields={fields} />
-            </Panel>
+            </div></Advanced>
 
-            <Panel
-              className="xl:col-span-5"
-              title="source sample"
-              right={
-                <span className="font-mono text-[10px] text-t-lo">
-                  {fmt(Math.min(previewRows.length, SAMPLE_PREVIEW_ROWS), 0)} row preview
-                </span>
-              }
-            >
+            <Advanced label="Source sample" hint={`${fmt(Math.min(previewRows.length, SAMPLE_PREVIEW_ROWS), 0)} row preview`}>
+              <div className="-m-4">
               <SourceSample
                 dataset={metaRes.data}
                 headerCols={headerCols}
@@ -1264,15 +1207,10 @@ export function SchemaDiscoveryPage() {
                 loading={previewRes.loading}
                 totalRows={totalRows}
               />
-            </Panel>
+            </div></Advanced>
 
-            <Panel
-              className="xl:col-span-3"
-              title="discovery log"
-              right={warnings.length > 0
-                ? <StatusChip status="warn">{fmt(warnings.length, 0)} warn</StatusChip>
-                : <StatusChip status="ok">clean</StatusChip>}
-            >
+            <Advanced label="Discovery log" hint={warnings.length > 0 ? `${fmt(warnings.length, 0)} warnings` : 'clean'}>
+              <div className="-m-4">
               <DiscoveryLog
                 datasetId={datasetId}
                 runId={runId}
@@ -1282,17 +1220,23 @@ export function SchemaDiscoveryPage() {
                 warnings={warnings}
                 datasetName={metaRes.data?.name ?? null}
               />
-            </Panel>
+            </div></Advanced>
           </div>
         </>
       )}
 
-      <div className="shrink-0">
-        <StoryFlow
-          stageKey={STAGE_KEY}
-          activeKey={busy ? 'processed' : fields.length > 0 ? 'produced' : 'entered'}
-        />
-      </div>
+      <ResultSummary
+        verdict={
+          fields.length === 0
+            ? 'Run discovery: every column gets typed, classified and sampled — the survey everything downstream trusts.'
+            : `${fmt(fields.length, 0)} fields typed across ${fmt(totalRows, 0)} rows — ${fmt(typeCount, 0)} distinct types, ${fmt(coveragePct, 1)}% cell coverage.`
+        }
+        facts={[
+          { label: 'Columns', value: fmt(fields.length, 0) },
+          { label: 'Types', value: fmt(typeCount, 0) },
+          { label: 'Coverage', value: `${fmt(coveragePct, 1)}%` },
+        ]}
+      />
 
       {completed && datasetId && (
         <AutoNext
