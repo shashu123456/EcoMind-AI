@@ -1112,14 +1112,14 @@ export function SchemaDiscoveryPage() {
         <StageHeader
           beat={beat.beat}
           chapter={beat.chapter}
-          title="Schema Discovery"
+          title="Column Discovery"
           tagline="Every field of the dataset is typed, classified and sampled — the survey that everything downstream trusts."
           icon={<ScanSearch className="h-5 w-5" />}
           right={headerRight}
         />
         <EmptyState
           title="No dataset selected"
-          hint="Schema discovery profiles a registered dataset. Pick one from the library and the survey starts immediately."
+          hint="Column discovery profiles a registered dataset. Pick one from the library and the survey starts immediately."
           action={<Button size="sm" onClick={() => navigate({ to: '/library' })}>Open dataset library</Button>}
         />
       </div>

@@ -743,7 +743,7 @@ export function ExecutiveCenterPage() {
                     </div>
                   ) : (
                     <p className="mt-1.5 text-[12px] text-t-lo">
-                      No SHAP drivers recorded — the explainability stage has not attributed this model yet.
+                      No explanation drivers recorded — the explanation stage has not attributed this model yet.
                     </p>
                   )}
                 </section>
@@ -987,8 +987,8 @@ export function ExecutiveCenterPage() {
               </div>
               {actions.length === 0 ? (
                 <p className="text-[12px] text-t-lo">
-                  No recommendations on record for this dataset — the recommendation stage turns anomalies and SHAP
-                  drivers into ranked actions.
+                  No recommendations on record for this dataset — the recommendation stage turns anomalies and
+                  explanation drivers into ranked actions.
                 </p>
               ) : (
                 <div className="space-y-2">

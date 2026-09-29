@@ -945,20 +945,20 @@ export function JourneyNav({
 }
 
 /* ── Stage banner (page header) ───────────────────────── */
-/* ── Per-stage examiner rating (G18) ─────────────────────
-   Every pipeline stage is rated 0–10 with a crisp one-liner for an examiner
-   and a concrete talking-point to present. Rendered as a compact pill inside
-   each StageBanner and expanded on the /scorecard page.                      */
+/* ── Per-stage preparation notes ─────────────────────────
+   Preparation notes live only on the hidden /scorecard page — they are a
+   study aid for the presenter, never part of the product surface, so they
+   are deliberately kept out of the stage headers.                          */
 export const STAGE_SCORES: Record<string, { score: number; why: string; strong: string }> = {
   'Dataset Library': { score: 8, why: 'Curated energy datasets with schema snapshots and one-click start.', strong: 'Backed by real storage — not mock cards. Say: “every dataset is queryable and reusable across runs.”' },
   'Import Dataset': { score: 9, why: 'Live CSV/Excel intake with sampling, progress and raw-byte honesty.', strong: 'Show it failing gracefully on bad input — robustness impresses examiners more than success.' },
-  'Schema Discovery': { score: 9, why: 'Auto-typed fields with per-column confidence percentages.', strong: 'Explain tolerance margins — it reasons about ambiguity instead of guessing.' },
-  'Data Quality Engine': { score: 10, why: 'Eight quality dimensions repaired in an animated, row-by-row terminal.', strong: 'This is the demo moment — slow it down and watch nulls normalize live.' },
-  'Transformation Viewer': { score: 10, why: 'Raw → Processed with a live data-flow terminal between the tables.', strong: 'Say what each transformation does and why — the flow pane shows real stats moving.' },
-  'Feature Engineering': { score: 9, why: 'AI-generated explainable features with before/after impact.', strong: 'Every generated feature carries a label a non-expert can read out loud.' },
+  'Column Discovery': { score: 9, why: 'Auto-typed columns with a confidence percentage per field.', strong: 'Explain tolerance margins — it reasons about ambiguity instead of guessing.' },
+  'Data Quality Engine': { score: 10, why: 'Twelve quality rules repaired row-by-row, with the reason for every failure.', strong: 'This is the demo moment — slow it down and watch rows enter and leave the machine.' },
+  'Transformation Viewer': { score: 10, why: 'Raw → Processed with a before/after comparison of the same columns.', strong: 'Say what each transformation does and why — the ledger shows real values moving.' },
+  'Feature Preparation': { score: 9, why: 'Generated features with a source column and a plain-language reason.', strong: 'Every generated feature carries a label a non-expert can read out loud.' },
   'Prediction Engine': { score: 10, why: 'Head-to-head model training with live metrics while it learns.', strong: 'The training curves are honest — loss going down is your proof.' },
   'AI Confidence Gate': { score: 10, why: 'A trust score before any decision is allowed through.', strong: 'This is a selling point: no other coursework shows a gate *before* decisions.' },
-  'SHAP Explainability': { score: 10, why: 'Real SHAP values computed on your actual model and dataset.', strong: 'Nobody expects a coursework project to contain this. Lead with it — it is your rare card.' },
+  'Prediction Explanation': { score: 10, why: 'Real SHAP attributions computed on your actual model and dataset.', strong: 'Nobody expects a coursework project to contain this. Lead with it — it is your rare card.' },
   'Anomaly Detection': { score: 9, why: 'Deviation-around-expected timeline scan, severity-ranked.', strong: 'The dashed expected line shows “baseline vs reality” in one glance.' },
   'Benchmarking': { score: 9, why: 'Percentile ranking of your model against a reference portfolio.', strong: 'A ranked table with “winner” reads better than any chart at a viva.' },
   'Recommendation Engine': { score: 9, why: 'Evidence-backed actions with implementation difficulty.', strong: 'Say: “every recommendation cites the stage that proved it.”' },
@@ -967,23 +967,6 @@ export const STAGE_SCORES: Record<string, { score: number; why: string; strong: 
   'History & Model Registry': { score: 9, why: 'Reopen past runs, versions and verdicts.', strong: 'Say: “reproducibility” — then reopen a previous run with two clicks.' },
 }
 export const STAGE_SCORE_OVERALL = { score: 9.4, why: 'Every stage ships with real backend data, live feedback and an explainability story.', strong: 'Arc to tell: intake → repair → features → models → trust → proof → decision. That is a complete ML lifecycle, which is exactly what examiners list under “excellent.”' }
-
-function StageScoreChip({ title }: { title: string }) {
-  const r = STAGE_SCORES[title]
-  if (!r) return null
-  const tone = r.score >= 9 ? 'text-accent-emerald border-accent-emerald/40' : r.score >= 8 ? 'text-accent-gold border-accent-gold/40' : 'text-accent-rose border-accent-rose/40'
-  return (
-    <span title={`${r.why}\nPresent: ${r.strong}`}
-      className={clsx('inline-flex shrink-0 cursor-help items-center gap-2 rounded-button border bg-black/50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em]', tone)}>
-      <span className="flex items-center gap-0.5" aria-hidden>
-        {Array.from({ length: 10 }, (_, i) => (
-          <span key={i} className={clsx('h-2 w-[3px] rounded-full', i < r.score ? 'bg-current shadow-[0_0_4px_currentColor]' : 'bg-white/[0.08]')} />
-        ))}
-      </span>
-      stage {r.score}/10
-    </span>
-  )
-}
 
 export function StageBanner({
   chapter, title, tagline, icon, children,
@@ -1011,7 +994,6 @@ export function StageBanner({
           </div>
         </div>
         <div className="ml-auto flex shrink-0 items-center gap-3">
-          <StageScoreChip title={title} />
           {children}
         </div>
       </div>

@@ -19,13 +19,13 @@ export interface WorkflowStage {
 export const WORKFLOW: WorkflowStage[] = [
   { index: 1, key: 'library', label: 'Dataset Library', short: 'Library', description: 'Choose an energy dataset to begin the journey.', path: '/library', requires: 'none' },
   { index: 2, key: 'import', label: 'Import Dataset', short: 'Import', description: 'Stream CSV / Excel rows into EcoMind.', path: '/import/$datasetId', requires: 'dataset' },
-  { index: 3, key: 'schema_discovery', label: 'Schema Discovery', short: 'Schema Engine', description: 'Auto-detect types, roles and confidence per field.', path: '/schema/$datasetId', requires: 'dataset' },
-  { index: 4, key: 'dq_engine', label: 'Data Quality Engine', short: 'Quality Engine', description: 'Animated row-by-row repair across 8 quality dimensions.', path: '/dq/$datasetId', requires: 'dataset', inspect: true },
+  { index: 3, key: 'schema_discovery', label: 'Column Discovery', short: 'Column Discovery', description: 'Detect what each column means — type, role and confidence.', path: '/schema/$datasetId', requires: 'dataset' },
+  { index: 4, key: 'dq_engine', label: 'Data Quality Engine', short: 'Quality Engine', description: 'Row-by-row repair across 12 quality rules.', path: '/dq/$datasetId', requires: 'dataset', inspect: true },
   { index: 5, key: 'transformation', label: 'Transformation Viewer', short: 'Transformations', description: 'Raw → Processed with a live transformation log.', path: '/transformations/$datasetId', requires: 'dataset' },
-  { index: 6, key: 'feature_engineering', label: 'Feature Engineering', short: 'Features', description: 'AI generates explainable energy features.', path: '/features/$datasetId', requires: 'dataset' },
+  { index: 6, key: 'feature_engineering', label: 'Feature Preparation', short: 'Features', description: 'Raw columns become machine-learning inputs — each with a reason.', path: '/features/$datasetId', requires: 'dataset' },
   { index: 7, key: 'prediction', label: 'Prediction Engine', short: 'Prediction', description: 'Train models head-to-head — watch them learn.', path: '/prediction/$datasetId', requires: 'dataset', inspect: true },
   { index: 8, key: 'confidence_gate', label: 'AI Confidence Gate', short: 'Trust Gate', description: 'Explainable trust score before decisions are made.', path: '/confidence/$runId', requires: 'run', inspect: true },
-  { index: 9, key: 'shap', label: 'SHAP Explainability', short: 'SHAP', description: 'Why did the model decide what it decided?', path: '/shap/$modelId', requires: 'model' },
+  { index: 9, key: 'shap', label: 'Prediction Explanation', short: 'Explanation', description: 'Why did the model decide what it decided?', path: '/shap/$modelId', requires: 'model' },
   { index: 10, key: 'anomaly', label: 'Anomaly Detection', short: 'Anomalies', description: 'Timeline scan for energy anomalies, severity ranked.', path: '/anomalies/$datasetId', requires: 'dataset' },
   { index: 11, key: 'benchmarking', label: 'Benchmarking', short: 'Benchmarks', description: 'Model / portfolio comparison and percentile ranking.', path: '/benchmarks/$datasetId', requires: 'dataset' },
   { index: 12, key: 'recommendation', label: 'Recommendation Engine', short: 'Recommendations', description: 'AI consultant presents evidence-backed actions.', path: '/recommendations/$datasetId', requires: 'dataset' },
@@ -58,8 +58,8 @@ export interface Milestone {
 }
 export const MILESTONES: Milestone[] = [
   { key: 'intake', label: 'Intake', short: 'Data In', stages: ['library', 'import'] },
-  { key: 'understand', label: 'Understand', short: 'Schema + Quality', stages: ['schema_discovery', 'dq_engine'] },
-  { key: 'rebuild', label: 'Rebuild', short: 'Features', stages: ['transformation', 'feature_engineering'] },
+  { key: 'understand', label: 'Understand', short: 'Columns + Quality', stages: ['schema_discovery', 'dq_engine'] },
+  { key: 'rebuild', label: 'Rebuild', short: 'Prepare', stages: ['transformation', 'feature_engineering'] },
   { key: 'model', label: 'Model', short: 'Predict + Trust', stages: ['prediction', 'confidence_gate'] },
   { key: 'prove', label: 'Prove', short: 'Proof', stages: ['shap', 'anomaly'] },
   { key: 'decide', label: 'Decide', short: 'Decide', stages: ['benchmarking', 'recommendation', 'executive_center'] },

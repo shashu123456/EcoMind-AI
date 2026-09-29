@@ -270,7 +270,7 @@ function Evidence({ rec }: { rec: RecRow }) {
       {nothing ? (
         <p className="text-[12px] text-t-lo">
           No supporting evidence was stored with this action — the advisor derived it without a
-          recorded basis, anomaly aggregate or SHAP driver.
+          recorded basis, anomaly aggregate or model explanation.
         </p>
       ) : (
         <>
@@ -556,8 +556,8 @@ export function RecommendationsPage() {
           title={lastRunCount === null ? 'No actions drafted for this dataset' : 'The advisor derived no actions'}
           hint={
             lastRunCount === null
-              ? 'Draft the brief to synthesize actions from the anomaly findings, the data-quality verdict and the SHAP drivers of this dataset.'
-              : `The last draft returned ${fmt(lastRunCount, 0)} action${lastRunCount === 1 ? '' : 's'} — the advisor combined anomaly findings, the data-quality verdict and SHAP drivers and found nothing to act on. Run the earlier stages so those inputs exist.`
+              ? 'Draft the brief to synthesize actions from the anomaly findings, the data-quality verdict and the model explanations for this dataset.'
+              : `The last draft returned ${fmt(lastRunCount, 0)} action${lastRunCount === 1 ? '' : 's'} — the advisor combined anomaly findings, the data-quality verdict and the model explanations and found nothing to act on. Run the earlier stages so those inputs exist.`
           }
           action={
             <Button size="sm" onClick={generate} disabled={busy}>

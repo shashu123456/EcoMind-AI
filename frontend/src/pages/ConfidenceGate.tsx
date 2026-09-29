@@ -394,7 +394,7 @@ export function ConfidenceGatePage() {
                     : 'Gate did not pass — the decision is held until the weakest signal is strengthened.'}
                 </p>
                 <p className="mt-0.5 font-mono text-[11px] text-t-lo">
-                  {band === 'review' ? 'next · SHAP explainability' : 'held · fix the inputs, then re-evaluate'}
+                  {band === 'review' ? 'next · prediction explanation' : 'held · fix the inputs, then re-evaluate'}
                 </p>
               </div>
               <div className="flex shrink-0 flex-wrap items-center gap-2">

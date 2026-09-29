@@ -212,12 +212,12 @@ export function SHAPExplainabilityPage() {
         </div>
       )}
 
-      {globalRes.loading && !g && <LoadingState label="Computing global SHAP…" />}
+      {globalRes.loading && !g && <LoadingState label="Computing the explanation…" />}
 
       {noModel && (
         <EmptyState
           title="No trained model to explain"
-          hint="Global SHAP decomposes a trained model. Train one in the Prediction Engine, then attributions appear here."
+          hint="An explanation is built from a trained model. Train one in the Prediction Engine and the ranking appears here."
           action={
             <Button
               size="md"
@@ -233,7 +233,7 @@ export function SHAPExplainabilityPage() {
         <EmptyState
           title="No explanation stored for this model yet"
           hint={`${STORY.produced}. ${STORY.next}`}
-          action={<Button size="md" onClick={() => void globalRes.refetch()} loading={globalRes.loading}><Sparkles className="h-4 w-4" /> Compute global SHAP</Button>}
+          action={<Button size="md" onClick={() => void globalRes.refetch()} loading={globalRes.loading}><Sparkles className="h-4 w-4" /> Compute explanation</Button>}
         />
       )}
 
@@ -243,7 +243,7 @@ export function SHAPExplainabilityPage() {
           <Hero>
             <div className="flex items-center justify-between border-b border-border px-5 py-2.5">
               <SectionLabel>What drives the model</SectionLabel>
-              <span className="font-mono text-[10px] text-t-lo">{rows.length} features · mean |SHAP|</span>
+              <span className="font-mono text-[10px] text-t-lo">{rows.length} inputs · mean impact</span>
             </div>
             <div className="max-h-[460px] overflow-y-auto p-5">
               {rows.length === 0 ? (

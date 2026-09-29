@@ -192,12 +192,12 @@ export function FeatureEngineeringPage() {
 
   const headerRight = (
     <>
-      {busy ? <StatusChip status="running">engineering</StatusChip>
+      {busy ? <StatusChip status="running">preparing</StatusChip>
         : featureList.length ? <StatusChip status="ok">{featureList.length} features</StatusChip>
           : <StatusChip status="idle">not run</StatusChip>}
       <Button onClick={runEngineer} disabled={busy || !datasetId} variant="primary" size="sm">
         <Sparkles className={clsx('h-4 w-4', busy && 'animate-pulse')} />
-        {busy ? 'Engineering…' : featureList.length ? 'Re-run feature engineering' : 'Run feature engineering'}
+        {busy ? 'Preparing…' : featureList.length ? 'Re-run preparation' : 'Prepare features'}
       </Button>
     </>
   )
@@ -207,13 +207,13 @@ export function FeatureEngineeringPage() {
       <div className="flex min-h-0 flex-col gap-3 px-4 py-4">
         <StageHeader
           beat={beat.beat} chapter={beat.chapter}
-          title="Feature Engineering"
+          title="Feature Preparation"
           tagline="Generated, explainable energy features — every one with a source column and a reason."
           icon={<GitBranch className="h-5 w-5" />}
         />
         <EmptyState
           title="No dataset selected"
-          hint="Feature engineering derives from a registered dataset. Pick one from the library to continue."
+          hint="Feature preparation derives from a registered dataset. Pick one from the library to continue."
           action={<Button onClick={() => navigate({ to: '/library' })} variant="primary" size="sm">Open dataset library</Button>}
         />
       </div>
@@ -225,8 +225,8 @@ export function FeatureEngineeringPage() {
       <StageHeader
         beat={beat.beat}
         chapter={beat.chapter}
-        title="Feature Engineering"
-        tagline="Raw columns become explainable energy features — temporal rhythms, lags and rolling context."
+        title="Feature Preparation"
+        tagline="Raw columns become machine-learning inputs — temporal rhythms, lags and rolling context."
         icon={<GitBranch className="h-5 w-5" />}
         right={headerRight}
       />

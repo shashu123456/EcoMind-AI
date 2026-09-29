@@ -20,7 +20,7 @@ const RULES = [
   { key: 'types', label: 'Data Type Validation', caption: 'units, kW/kWh and timezone markers corrected' },
   { key: 'range', label: 'Range Validation', caption: 'every value checked against sensible limits' },
   { key: 'normalize', label: 'Normalization', caption: 'units scaled onto a common basis' },
-  { key: 'features', label: 'Feature Engineering Prep', caption: 'clean columns staged for feature work' },
+  { key: 'features', label: 'Feature Preparation', caption: 'clean columns staged for feature work' },
   { key: 'scoring', label: 'Quality Scoring', caption: 'eight dimensions scored on the clean record' },
   { key: 'validate', label: 'Validation Passed', caption: 'no blocker defects remain' },
   { key: 'store', label: 'Store Clean Record', caption: 'repaired record committed for the pipeline' },

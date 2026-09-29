@@ -27,21 +27,21 @@ export const STAGE_COLORS: Record<string, string> = Object.fromEntries(
   Object.keys(STAGE_ICONS).map((k) => [k, '#4C5FD5']),
 )
 
-/* The engine behind each stage — shown as a single quiet tag so the rail
-   reads as a pipeline map without API jargon. */
+/* What each stage actually does — one plain-language tag, so the rail
+   reads as a workflow map instead of an engineering index. */
 const STAGE_ENGINE: Record<string, string> = {
   library: 'catalog',
   import: 'CSV · Excel',
-  schema_discovery: 'auto-type profiling',
+  schema_discovery: 'column profiling',
   dq_engine: '12-rule repair',
   transformation: 'raw → clean',
-  feature_engineering: 'AI features',
-  prediction: 'XGBoost · LightGBM',
+  feature_engineering: 'ML-ready inputs',
+  prediction: 'model training',
   confidence_gate: 'trust gate',
-  shap: 'TreeExplainer',
-  anomaly: 'deviation scan',
-  benchmarking: 'percentile rank',
-  recommendation: 'evidence-weighted',
+  shap: 'prediction explanation',
+  anomaly: 'unusual behaviour',
+  benchmarking: 'model ranking',
+  recommendation: 'ranked actions',
   executive_center: 'briefing',
   report: 'PDF · HTML · CSV',
   history_registry: 'versions',
