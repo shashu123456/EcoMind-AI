@@ -178,14 +178,9 @@ export function ImportPage() {
         <>
           <Reveal delay={0.05}>
             <div className="flex flex-col items-center justify-center gap-6 rounded-glass border border-dashed border-white/[0.12] bg-surface-light/20 px-6 py-16 text-center">
-              <motion.div
-                animate={{ y: [0, -8, 0] }}
-                transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut' }}
-                className="relative flex h-20 w-20 items-center justify-center rounded-glass bg-primary-500/15"
-              >
-                <Sheet className="h-9 w-9 text-primary-400" />
-                <span className="absolute inset-0 animate-ping rounded-glass bg-primary-500/10" />
-              </motion.div>
+              <div className="relative flex h-20 w-20 items-center justify-center rounded-glass border border-border bg-panel2">
+                <Sheet className="h-9 w-9 text-primary-500" />
+              </div>
               <div>
                 <p className="font-display text-lg font-semibold text-gray-100">Drop a CSV or Excel workbook</p>
                 <p className="text-sm text-gray-500 mt-1">EcoMind reads it end-to-end — sheets, columns, rows and provenance engine.</p>

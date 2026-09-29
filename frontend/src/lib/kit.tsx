@@ -739,7 +739,7 @@ export function Console({
             </p>
           ))}
           {running && caret && (
-            <span className="animate-pulse text-primary-400" style={{ textShadow: '0 0 8px currentColor' }}>▌</span>
+            <span className="animate-pulse text-primary-500">▌</span>
           )}
         </div>
       </div>

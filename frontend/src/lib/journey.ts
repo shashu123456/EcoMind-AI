@@ -254,7 +254,15 @@ export const useJourney = create<JourneyState>((set, get) => {
         const mine = (ml?.models || []).filter((m: any) => m.id && (!m.dataset_id || m.dataset_id === dsId))
         if (mine.length) modelId = mine[0].id
       }
-      set({ datasetId: dsId, runId, modelId, stageStatuses: statuses, refreshToken: get().refreshToken + 1 })
+      const prev = get()
+      const changed =
+        prev.datasetId !== dsId ||
+        prev.runId !== runId ||
+        prev.modelId !== modelId ||
+        WORKFLOW.some(st => prev.stageStatuses[st.key] !== statuses[st.key])
+      if (changed) {
+        set({ datasetId: dsId, runId, modelId, stageStatuses: statuses, refreshToken: prev.refreshToken + 1 })
+      }
       if (run.status === 'running') get().connectSse(runId)
       else get().disconnect()
       return { datasetId: dsId }
@@ -309,7 +317,13 @@ export const useJourney = create<JourneyState>((set, get) => {
         else if (run.current_stage === i) statuses[st.key] = 'active'
         else statuses[st.key] = 'todo'
       })
-      set({ runId: run.id, stageStatuses: statuses, refreshToken: get().refreshToken + 1 })
+      const prev = get()
+      const changed =
+        prev.runId !== run.id ||
+        WORKFLOW.some(st => prev.stageStatuses[st.key] !== statuses[st.key])
+      if (changed) {
+        set({ runId: run.id, stageStatuses: statuses, refreshToken: prev.refreshToken + 1 })
+      }
       if (run.status === 'running') get().connectSse(run.id)
       else get().disconnect()
     } catch {
