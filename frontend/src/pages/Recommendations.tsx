@@ -9,8 +9,8 @@ import { fmt, n, useRouteParams } from '../lib/pagekit'
 import { useJourney } from '../lib/journey'
 import { beatForStage } from '../lib/story'
 import {
-  Bar, EmptyState, LoadingState, MetricPill, Panel, SectionLabel, StageHeader,
-  Stat, StatusChip, StoryFlow,
+  Bar, EmptyState, Hero, LoadingState, MetricPill, SectionLabel, StageHeader,
+  StatusChip, Advanced, ResultSummary, QualityRating,
 } from '../lib/stagekit'
 import { AutoNext, Button } from '../lib/kit'
 import { cn } from '../lib/cn'
@@ -493,9 +493,6 @@ export function RecommendationsPage() {
           title="No dataset in context"
           hint="The advisor reads anomaly, quality and explainability artifacts for one dataset. Open the library and pick one to continue."
         />
-        <div className="shrink-0">
-          <StoryFlow stageKey={STAGE_KEY} activeKey="entered" />
-        </div>
       </div>
     )
   }
@@ -541,80 +538,6 @@ export function RecommendationsPage() {
         }
       />
 
-      {/* ── headline strip ─────────────────────────────────────────── */}
-      <div className="grid shrink-0 grid-cols-2 gap-3 lg:grid-cols-5">
-        <Stat
-          label="Projected savings"
-          value={`${fmt(totalKwh, 0)} kWh`}
-          hint={hasData ? `sum across ${fmt(items.length, 0)} actions` : 'draft the brief to estimate'}
-          accent="emerald"
-          mono
-        />
-        <Stat
-          label="CO₂ avoided"
-          value={`${fmt(totalKwh * 0.5, 0)} kg`}
-          hint={`0.5 kg CO₂e per kWh · ≈ ${fmt(totalKwh * 0.5 * 12, 0)} kg / year`}
-          accent="cyan"
-          mono
-        />
-        <Stat
-          label="Cost impact · year"
-          value={`$${fmt(totalKwh * 12 * 0.12, 0)}`}
-          hint={`at $0.12/kWh · ${fmt(totalPct, 1)}% of consumption`}
-          accent="amber"
-          mono
-        />
-        <Stat
-          label="Action plan"
-          value={items.length ? `${fmt(openCount, 0)} open · ${fmt(items.length, 0)} total` : '—'}
-          hint={hasData
-            ? `start with ${ranked[0]?.category?.replace(/_/g, ' ') ?? 'top priority'} — priority × savings`
-            : 'draft the brief to build the plan'}
-          accent="primary"
-          mono
-        />
-        <Stat
-          label="Mean confidence"
-          value={avgConfidence === null ? '—' : `${fmt(avgConfidence * 100, 1)}%`}
-          hint={top ? `top action ${fmt(top.confidence * 100, 0)}%` : 'across the brief'}
-          mono
-        />
-      </div>
-
-      {/* ── context + composition strip ────────────────────────────── */}
-      <div className="flex shrink-0 flex-wrap items-center gap-x-5 gap-y-2 rounded-card border border-border bg-panel px-3.5 py-2.5">
-        {priorityCounts.size > 0 && (
-          <div className="flex flex-wrap items-center gap-1.5">
-            <SectionLabel>by priority</SectionLabel>
-            {PRIORITY_ORDER.filter(k => priorityCounts.has(k)).map(k => {
-              const tone = PRIORITY[k]
-              return (
-                <span
-                  key={k}
-                  className={cn('inline-flex items-center gap-1.5 rounded-button border px-2 py-0.5 font-mono text-[11px]', tone.chip)}
-                >
-                  {tone.icon}
-                  {tone.label}
-                  <span className="font-semibold">{fmt(priorityCounts.get(k) ?? 0, 0)}</span>
-                </span>
-              )
-            })}
-          </div>
-        )}
-        <div className="ml-auto flex flex-wrap items-center gap-2">
-          <MetricPill label="categories" value={fmt(groups.length, 0)} />
-          <MetricPill label="headline" value={humanKey(top?.category ?? '—')} accent="text-accent-amber" />
-          <span
-            className="max-w-[22rem] truncate text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo"
-            title={ctx.data?.id ?? datasetId}
-          >
-            {ctx.data
-              ? `${ctx.data.name} · ${fmt(n(ctx.data.row_count) ?? 0, 0)} rows · ${fmt(n(ctx.data.column_count) ?? 0, 0)} cols`
-              : `dataset ${shortId(datasetId)}`}
-          </span>
-        </div>
-      </div>
-
       {busy && <Working />}
       {!busy && genError && <StatusChip status="warn">{genError}</StatusChip>}
 
@@ -647,10 +570,11 @@ export function RecommendationsPage() {
       {hasData && (
         <div className="grid min-h-0 gap-3 xl:grid-cols-12">
           {/* ── ranked action feed ─────────────────────────────────── */}
-          <Panel
+          <Hero
             className="min-h-[28rem] xl:col-span-7"
-            title={view === 'grouped' ? 'action feed · grouped by category' : 'action feed · ranked'}
-            right={
+          >
+            <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-2.5">
+              <SectionLabel>Ranked action feed</SectionLabel>
               <div className="flex items-center gap-2">
                 <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">
                   {view === 'grouped'
@@ -673,10 +597,8 @@ export function RecommendationsPage() {
                   ))}
                 </div>
               </div>
-            }
-            flush
-          >
-            <div className="min-h-0 flex-1 overflow-y-auto">
+            </div>
+            <div className="max-h-[36rem] overflow-y-auto">
               {view === 'grouped' ? (
                 groups.map(g => {
                   const count = n(byCategory[g.key]) ?? g.rows.length
@@ -730,18 +652,16 @@ export function RecommendationsPage() {
                 written by the workflow
               </p>
             </div>
-          </Panel>
+          </Hero>
 
           {/* ── savings impact sidebar ────────────────────────────── */}
-          <div className="grid min-h-0 gap-3 xl:col-span-5">
-            <Panel
-              title="headline action"
-              right={
-                <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">
-                  {shortId(top?.id ?? null)}
-                </span>
-              }
-            >
+          <div className="xl:col-span-7 space-y-2">
+            <details open className="rounded-card border border-border bg-panel">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-2 border-b border-border px-4 py-2.5">
+                <SectionLabel>Headline action</SectionLabel>
+                <span className="font-mono text-[10px] text-t-lo">{shortId(top?.id ?? null)}</span>
+              </summary>
+              <div className="p-4">
               {!top ? (
                 <p className="text-[12px] text-t-lo">No action selected.</p>
               ) : (
@@ -794,16 +714,14 @@ export function RecommendationsPage() {
                   )}
                 </div>
               )}
-            </Panel>
+            </div></details>
 
-            <Panel
-              title="savings impact by category"
-              right={
-                <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">
-                  {fmt(totalKwh, 0)} kWh total
-                </span>
-              }
-            >
+            <details className="rounded-card border border-border bg-panel">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-2 border-b border-border px-4 py-2.5">
+                <SectionLabel>Savings impact by category</SectionLabel>
+                <span className="font-mono text-[10px] text-t-lo">{fmt(totalKwh, 0)} kWh total</span>
+              </summary>
+              <div className="p-4">
               {categoryImpact.length === 0 ? (
                 <p className="text-[12px] text-t-lo">No category distribution yet.</p>
               ) : (
@@ -829,16 +747,14 @@ export function RecommendationsPage() {
                   </p>
                 </div>
               )}
-            </Panel>
+            </div></details>
 
-            <Panel
-              title="status tracker"
-              right={
-                <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">
-                  {fmt(closedCount, 0)}/{fmt(items.length, 0)} closed
-                </span>
-              }
-            >
+            <details className="rounded-card border border-border bg-panel">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-2 border-b border-border px-4 py-2.5">
+                <SectionLabel>Status tracker</SectionLabel>
+                <span className="font-mono text-[10px] text-t-lo">{fmt(closedCount, 0)}/{fmt(items.length, 0)} closed</span>
+              </summary>
+              <div className="p-4">
               <div className="space-y-2">
                 {statusImpact.map(s => (
                   <div key={s.key} className="flex items-center gap-2.5">
@@ -858,24 +774,23 @@ export function RecommendationsPage() {
                   <p className="text-[12px] text-t-lo">No actions to track.</p>
                 )}
               </div>
-            </Panel>
+            </div></details>
           </div>
         </div>
       )}
 
-      {/* ── 5 questions + next stage ────────────────────────────────── */}
-      <div className="shrink-0">
-        <StoryFlow stageKey={STAGE_KEY} activeKey={activeStep} />
-      </div>
-
-      {hasData && (
-        <div className="flex shrink-0 items-center gap-2">
-          <TrendingDown className="h-3.5 w-3.5 shrink-0 text-t-lo" />
-          <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">
-            next · executive intelligence consolidates this brief with every prior stage
-          </span>
-        </div>
-      )}
+      <ResultSummary
+        verdict={
+          hasData
+            ? `${fmt(items.length, 0)} evidence-backed actions drafted — start with "${top?.title ?? 'the top action'}" for ${fmt(top?.estimated_savings_kwh ?? 0, 0)} kWh of the ${fmt(totalKwh, 0)} kWh total opportunity.`
+            : 'Draft the brief: the advisor turns anomaly, quality and explainability evidence into a ranked action plan.'
+        }
+        facts={[
+          { label: 'Total savings', value: `${fmt(totalKwh, 0)} kWh` },
+          { label: 'CO₂ avoided / yr', value: `${fmt(totalKwh * 0.5 * 12, 0)} kg` },
+          { label: 'Confidence', value: avgConfidence === null ? '—' : <QualityRating score={avgConfidence * 100} label="" /> },
+        ]}
+      />
 
       {hasData && (
         <AutoNext
