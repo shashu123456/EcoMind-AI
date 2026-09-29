@@ -11,7 +11,7 @@ import { AutoNext, Button, colLabel, normRows } from '../lib/kit'
 import { beatForStage } from '../lib/story'
 import {
   Bar, EmptyState, LoadingState, MetricPill, Panel, SectionLabel, StageHeader,
-  Stat, StatusChip, StoryFlow,
+  StatusChip, Advanced, ResultSummary, Hero, Stat,
 } from '../lib/stagekit'
 
 /* ── Author taxonomy ──────────────────────────────────────────────
@@ -231,26 +231,10 @@ export function FeatureEngineeringPage() {
         right={headerRight}
       />
 
-      <div className="grid shrink-0 grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat label="Features generated" value={featureList.length} hint="rows in the active set" mono />
-        <Stat label="Auto-created" value={autoCount} hint="system / engineer authored" accent="emerald" mono />
-        <Stat
-          label="Top importance"
-          value={`${fmt(topPct, 1)}%`}
-          hint={topFeature ? topFeature.name : 'no features yet'}
-          accent="primary"
-          mono
-        />
-        <Stat label="Engineered by" value={byAuthor} hint={`${new Set(featureList.map(authorLabel)).size} author(s)`} mono />
-      </div>
-
       {log.length > 0 && (
-        <div className="shrink-0 rounded-card border border-border bg-panel2 px-3 py-2">
-          <div className="flex items-center justify-between gap-2">
-            <SectionLabel>engineer log</SectionLabel>
-            <span className="font-mono text-[10px] text-t-lo">{log.length} message(s)</span>
-          </div>
-          <ul className="mt-1 space-y-0.5">
+        <div className="shrink-0">
+          <Advanced label="Engineer log" hint={`${log.length} message(s)`}>
+          <ul className="space-y-0.5">
             {log.map((m, i) => (
               <motion.li
                 key={i}
@@ -261,16 +245,17 @@ export function FeatureEngineeringPage() {
               </motion.li>
             ))}
           </ul>
+          </Advanced>
         </div>
       )}
 
       <div className="grid min-h-0 flex-1 gap-3 xl:grid-cols-12">
         {/* ── Feature generation flow ─────────────────────────── */}
-        <Panel
-          className="xl:col-span-7"
-          title="feature generation flow"
-          right={<SectionLabel>{sources.length} source · {types.length} transform</SectionLabel>}
-        >
+        <Hero className="xl:col-span-7">
+          <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
+            <SectionLabel>Feature generation flow</SectionLabel>
+            <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">{sources.length} source · {types.length} transform</span>
+          </div>
           {feats.loading && <LoadingState label="Loading feature set…" />}
           {feats.error && (
             <EmptyState
@@ -352,11 +337,16 @@ export function FeatureEngineeringPage() {
               </div>
             </div>
           )}
-        </Panel>
+        </Hero>
 
         <div className="grid min-h-0 gap-3 xl:col-span-5 xl:grid-rows-2">
           {/* ── Importance preview ────────────────────────────── */}
-          <Panel title="importance preview" right={<SectionLabel>ranked · {ranked.length}</SectionLabel>}>
+          <details open className="rounded-card border border-border bg-panel">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-2 border-b border-border px-4 py-2.5">
+              <SectionLabel>Importance preview</SectionLabel>
+              <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">ranked · {ranked.length}</span>
+            </summary>
+            <div className="p-4">
             {ranked.length === 0 ? (
               <EmptyState title="Nothing to rank" hint="Importance is scored once features exist." />
             ) : (
@@ -392,13 +382,15 @@ export function FeatureEngineeringPage() {
                 })}
               </div>
             )}
-          </Panel>
+          </div></details>
 
           {/* ── Correlation explorer ─────────────────────────── */}
-          <Panel
-            title="correlation explorer"
-            right={<SectionLabel>{series.length}×{series.length} pearson</SectionLabel>}
-          >
+          <details className="rounded-card border border-border bg-panel">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-2 border-b border-border px-4 py-2.5">
+              <SectionLabel>Correlation explorer</SectionLabel>
+              <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">{series.length}×{series.length} pearson</span>
+            </summary>
+            <div className="p-4">
             {preview.loading && <LoadingState label="Profiling preview columns…" />}
             {!preview.loading && series.length < 2 && (
               <EmptyState
@@ -436,16 +428,22 @@ export function FeatureEngineeringPage() {
                 </div>
               </div>
             )}
-          </Panel>
+          </div></details>
         </div>
       </div>
 
-      <div className="shrink-0">
-        <StoryFlow
-          stageKey="feature_engineering"
-          activeKey={busy ? 'processed' : ran ? 'produced' : featureList.length ? 'produced' : 'entered'}
-        />
-      </div>
+      <ResultSummary
+        verdict={
+          featureList.length === 0
+            ? 'Run feature engineering: raw columns become explainable energy features — temporal rhythms, lags and rolling context.'
+            : `${featureList.length} features generated (${autoCount} auto) — "${topFeature?.name ?? '—'}" carries the most signal at ${fmt(topPct, 1)}% importance.`
+        }
+        facts={[
+          { label: 'Features', value: featureList.length },
+          { label: 'Top importance', value: `${fmt(topPct, 1)}%` },
+          { label: 'Sources', value: sources.length },
+        ]}
+      />
 
       {ran && featureList.length > 0 && datasetId && (
         <AutoNext

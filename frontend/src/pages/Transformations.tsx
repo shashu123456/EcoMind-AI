@@ -15,7 +15,7 @@ import { AutoNext, Button, colLabel, normRows } from '../lib/kit'
 import { beatForStage } from '../lib/story'
 import {
   Bar, EmptyState, LoadingState, MetricPill, Panel, SectionLabel, StageHeader,
-  Stat, StatusChip, StoryFlow,
+  StatusChip, Advanced, ResultSummary, Hero, Stat,
 } from '../lib/stagekit'
 import { cn } from '../lib/cn'
 
@@ -556,9 +556,6 @@ export function TransformationsPage() {
           hint="Transformations replay a rule chain over a registered dataset. Open the library and pick one to continue."
           action={<Button onClick={() => navigate({ to: '/library' })} variant="primary" size="sm">Open dataset library</Button>}
         />
-        <div className="shrink-0">
-          <StoryFlow stageKey={STAGE_KEY} activeKey="entered" />
-        </div>
       </div>
     )
   }
@@ -587,48 +584,9 @@ export function TransformationsPage() {
         }
       />
 
-      {/* ── chain summary ─────────────────────────────────────────── */}
-      <div className="grid shrink-0 grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat
-          label="Rules applied"
-          value={fmt(applied.length, 0)}
-          hint={items.length ? `${fmt(items.length - applied.length, 0)} staged · chain of ${fmt(items.length, 0)}` : 'no rules in the chain yet'}
-          accent="primary"
-          mono
-        />
-        <Stat
-          label="Rows affected"
-          value={fmt(rowsAffected, 0)}
-          hint="sum across the chain"
-          mono
-        />
-        <Stat
-          label="Columns touched"
-          value={fmt(touched.size, 0)}
-          hint={names.length ? `of ${fmt(names.length, 0)} in the dataset` : 'column list loading'}
-          mono
-        />
-        <Stat
-          label="Nulls moved"
-          value={nullDelta === null ? '—' : `${nullDelta > 0 ? '+' : ''}${fmt(nullDelta, 0)}`}
-          hint={nullDelta === null
-            ? 'apply a rule to measure'
-            : `${fmt(diff.nullsBefore ?? 0, 0)} → ${fmt(diff.nullsAfter ?? 0, 0)} · latest rule`}
-          accent={nullTone}
-          mono
-        />
-      </div>
-
       {/* ── chain timeline · when each rule fired ──────────────── */}
       {applied.length > 0 && (
-        <Panel
-          title="rule execution timeline"
-          right={
-            <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">
-              {applied.some(t => t.applied_at) ? 'from applied_at stamps' : 'replay order'}
-            </span>
-          }
-        >
+        <Advanced label="Rule execution timeline" hint={applied.some(t => t.applied_at) ? 'from applied_at stamps' : 'replay order'}>
           {(() => {
             const stamped = applied.filter(t => t.applied_at).length
             const useClock = stamped >= 2
@@ -684,7 +642,7 @@ export function TransformationsPage() {
               </div>
             )
           })()}
-        </Panel>
+        </Advanced>
       )}
 
       {resolving && <LoadingState label="Resolving the dataset for this run…" />}
@@ -714,16 +672,13 @@ export function TransformationsPage() {
       {!resolving && !loading && !failure && items.length > 0 && (
         <div className="grid min-h-0 gap-3 xl:grid-cols-12">
           {/* ── applied-rule ledger ────────────────────────────── */}
-          <Panel
-            className="flex min-h-0 flex-col xl:col-span-7"
-            title="applied transformation ledger"
-            right={
+          <Hero className="flex min-h-0 flex-col xl:col-span-7">
+            <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
+              <SectionLabel>Applied transformation ledger</SectionLabel>
               <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">
                 replay order · {fmt(items.length, 0)} step{items.length === 1 ? '' : 's'}
               </span>
-            }
-            flush
-          >
+            </div>
             <div className="min-h-0 flex-1 overflow-y-auto">
               {items.map((t, i) => {
                 const on = t.id === selectedId
@@ -814,19 +769,19 @@ export function TransformationsPage() {
                 params travel with the rule · rows_affected is the processed frame size at apply time
               </p>
             </div>
-          </Panel>
+          </Hero>
 
           <div className="grid min-h-0 gap-3 xl:col-span-5 xl:grid-rows-[minmax(0,1.15fr)_minmax(0,1fr)]">
             {/* ── before | after cockpit ────────────────────────── */}
-            <Panel
-              title="before | after cockpit"
-              right={
+            <details open className="rounded-card border border-border bg-panel">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-2 border-b border-border px-4 py-2.5">
+                <SectionLabel>Before | after cockpit</SectionLabel>
                 <div className="inline-flex overflow-hidden rounded-button border border-border bg-panel2 p-0.5">
                   {(['columns', 'rows'] as const).map(v => (
                     <button
                       key={v}
                       type="button"
-                      onClick={() => setSheetView(v)}
+                      onClick={e => { e.preventDefault(); setSheetView(v) }}
                       className={cn(
                         'rounded-button px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] transition-colors',
                         sheetView === v ? 'bg-primary-500 text-white' : 'text-t-lo hover:text-t-hi',
@@ -836,8 +791,8 @@ export function TransformationsPage() {
                     </button>
                   ))}
                 </div>
-              }
-            >
+              </summary>
+              <div className="p-4">
               <AnimatePresence mode="wait" initial={false}>
                 <motion.div
                   key={`${selected?.id ?? 'none'}-${sheetView}`}
@@ -888,17 +843,17 @@ export function TransformationsPage() {
                   )}
                 </motion.div>
               </AnimatePresence>
-            </Panel>
+            </div></details>
 
             {/* ── change summary ───────────────────────────────── */}
-            <Panel
-              title="change summary"
-              right={
+            <details className="rounded-card border border-border bg-panel">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-2 border-b border-border px-4 py-2.5">
+                <SectionLabel>Change summary</SectionLabel>
                 <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">
                   {diff.source === 'server' ? 'apply diff_summary' : diff.source === 'snapshot' ? 'from snapshots' : 'nothing selected'}
                 </span>
-              }
-            >
+              </summary>
+              <div className="p-4">
               <div className="space-y-2.5">
                 <div className="grid grid-cols-2 gap-2 xl:grid-cols-3">
                   <Stat
@@ -955,25 +910,17 @@ export function TransformationsPage() {
                 <DeltaList title="mean delta" entries={diff.meanDelta} tone="amber" />
                 <DeltaList title="std delta" entries={diff.stdDelta} tone="cyan" />
               </div>
-            </Panel>
+            </div></details>
           </div>
         </div>
       )}
 
       {/* ── rule launcher ─────────────────────────────────────────── */}
       {!resolving && !failure && (
-        <Panel
-          className="shrink-0"
-          title="rule launcher"
-          right={
-            busy
-              ? <StatusChip status="running">replaying chain</StatusChip>
-              : applyError
-                ? <StatusChip status="warn">apply failed</StatusChip>
-                : appliedNow
-                  ? <StatusChip status="ok">rule {String(nextStep - 1).padStart(2, '0')} applied</StatusChip>
-                  : <StatusChip status="idle">launches as rule {String(nextStep).padStart(2, '0')}</StatusChip>
-          }
+        <Advanced
+          label="Rule launcher"
+          hint={busy ? 'replaying chain' : appliedNow ? `rule ${String(nextStep - 1).padStart(2, '0')} applied` : `launches as rule ${String(nextStep).padStart(2, '0')}`}
+          defaultOpen
         >
           <div className="grid gap-4 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
             {/* operation chooser */}
@@ -1164,22 +1111,21 @@ export function TransformationsPage() {
               </Button>
             </div>
           </div>
-        </Panel>
+        </Advanced>
       )}
 
-      {/* ── 5 questions + next stage ─────────────────────────────── */}
-      <div className="shrink-0">
-        <StoryFlow stageKey={STAGE_KEY} activeKey={activeStep} />
-      </div>
-
-      {items.length > 0 && datasetId && (
-        <div className="flex shrink-0 items-center gap-2">
-          <ArrowRight className="h-3.5 w-3.5 shrink-0 text-t-lo" />
-          <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">
-            next · feature engineering derives from this processed frame
-          </span>
-        </div>
-      )}
+      <ResultSummary
+        verdict={
+          items.length === 0
+            ? 'Apply the first refinement rule — every apply captures before | after evidence automatically.'
+            : `${fmt(applied.length, 0)} refinement rules applied in order, touching ${fmt(touched.size, 0)} columns and ${fmt(rowsAffected, 0)} row-updates — each step carries its own before | after snapshot.`
+        }
+        facts={[
+          { label: 'Rules', value: fmt(applied.length, 0) },
+          { label: 'Columns touched', value: fmt(touched.size, 0) },
+          { label: 'Nulls moved', value: nullDelta === null ? '—' : `${nullDelta > 0 ? '+' : ''}${fmt(nullDelta, 0)}` },
+        ]}
+      />
 
       {items.length > 0 && datasetId && (
         <AutoNext
