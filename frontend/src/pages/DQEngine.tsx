@@ -8,7 +8,9 @@ import { useJourney } from '../lib/journey'
 import { AutoNext, DoneChip, AnimatedNumber, PulseDot, normRows } from '../lib/kit'
 import { colLabel } from '../lib/kit'
 import { StageHeader, Hero, Advanced, ResultSummary, QualityRating, SectionLabel } from '../lib/stagekit'
+import { beatForStage } from '../lib/story'
 
+const STAGE_KEY = 'dq_engine'
 const RULE_MS = 720
 
 const RULES = [
@@ -21,7 +23,7 @@ const RULES = [
   { key: 'range', label: 'Range Validation', caption: 'every value checked against sensible limits' },
   { key: 'normalize', label: 'Normalization', caption: 'units scaled onto a common basis' },
   { key: 'features', label: 'Feature Preparation', caption: 'clean columns staged for feature work' },
-  { key: 'scoring', label: 'Quality Scoring', caption: 'eight dimensions scored on the clean record' },
+  { key: 'scoring', label: 'Quality Scoring', caption: 'every quality dimension scored on the clean record' },
   { key: 'validate', label: 'Validation Passed', caption: 'no blocker defects remain' },
   { key: 'store', label: 'Store Clean Record', caption: 'repaired record committed for the pipeline' },
 ]
@@ -176,6 +178,7 @@ function RawSheet({ columns, rows, rowCount }: { columns: any[]; rows: any[][]; 
 }
 
 export function DQEnginePage() {
+  const beat = beatForStage(STAGE_KEY)
   const { datasetId } = useRouteParams()
   const { markCompleted, mode, setActive } = useJourney()
   const { data: ds } = useApi<any>(() => datasets.get(datasetId) as any, [datasetId])
@@ -294,7 +297,8 @@ export function DQEnginePage() {
       {/* Level 1 — one sentence */}
       <div className="px-4 pb-3 pt-4">
         <StageHeader
-          chapter="Stage 3 · Data quality"
+          beat={beat.beat}
+          chapter={beat.chapter}
           title="Data Quality Engine"
           tagline="Validates and repairs the incoming dataset before machine learning."
           right={<DoneChip text={phase === 'done' ? 'verified · ready' : phase === 'running' ? 'engine working…' : 'armed'} />}

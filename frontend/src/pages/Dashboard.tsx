@@ -18,7 +18,7 @@ const BEAT_STAGE: string[] = [
 export function DashboardPage() {
   const navigate = useNavigate()
   const { data: ds, refetch: refetchDs } = useApi<any>(() => datasets.list() as any, [])
-  const { datasetId, runId, mode, setActive } = useJourney()
+  const { datasetId, runId, mode, setActive, stageStatuses } = useJourney()
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [pickMode, setPickMode] = useState<'auto' | 'manual'>(mode)
   const [starting, setStarting] = useState(false)
@@ -28,6 +28,8 @@ export function DashboardPage() {
 
   const list: any[] = ds?.datasets ?? []
   const effectiveId = selectedId ?? datasetId ?? list[0]?.id ?? ''
+  const beatStatuses = stageStatuses
+  const doneBeatCount = BEAT_STAGE.filter(k => stageStatuses[k] === 'done').length
 
   function choose(id: string) {
     if (starting || runningJourney) return
@@ -131,35 +133,11 @@ export function DashboardPage() {
             EcoMind runs your dataset through a 13-stage explainable pipeline — every transformation,
             every model, every verdict is shown, proven, and ready for audit. No black boxes.
           </p>
-          <div className="mt-7 flex flex-wrap items-center gap-x-1 gap-y-2" role="navigation" aria-label="Pipeline beats">
-            {STORY_BEATS.map((beat, i) => {
-              const stage = WORKFLOW.find(s => s.key === BEAT_STAGE[i])
-              if (!stage) return null
-              const done = useJourney.getState().stageStatuses[stage.key] === 'done'
-              const Icon = STAGE_ICONS[stage.key]
-              return (
-                <span key={beat.beat} className="flex items-center gap-1">
-                  {i > 0 && <span className="h-px w-2.5 bg-border" aria-hidden />}
-                  <button
-                    onClick={() => goToBeat(stage.key)}
-                    disabled={!effectiveId}
-                    title={`Beat ${beat.beat} · ${stage.label} — ${beat.title}`}
-                    aria-label={`Beat ${beat.beat}: ${stage.label}`}
-                    className={clsx(
-                      'flex h-7 w-7 items-center justify-center rounded-full border text-[10px] font-semibold transition-colors',
-                      done
-                        ? 'border-accent-emerald/40 bg-accent-emerald/10 text-accent-emerald'
-                        : effectiveId
-                          ? 'border-border bg-panel text-t-lo hover:border-primary-500/40 hover:text-primary-500'
-                          : 'border-border bg-panel text-t-lo opacity-50',
-                    )}
-                  >
-                    {done ? <Check className="h-3 w-3" strokeWidth={3} /> : <Icon className="h-3.5 w-3.5" />}
-                  </button>
-                </span>
-              )
-            })}
-          </div>
+          <p className="mt-6 max-w-xl text-[13px] leading-6 text-t-lo">
+            {doneBeatCount > 0
+              ? `${doneBeatCount} of ${STORY_BEATS.length} beats already recorded on this dataset — open any beat below to inspect its evidence.`
+              : 'Pick a dataset and choose how you want to run it: Smart for a full automatic pass, Guided to stop and check every stage.'}
+          </p>
         </div>
 
         <div className="rounded-card border border-border bg-panel p-5 shadow-[0_1px_2px_rgba(20,28,48,.05),0_8px_24px_rgba(20,28,48,.07)]">
@@ -301,20 +279,29 @@ export function DashboardPage() {
         <Reveal delay={0.05}>
           <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-7">
             {STORY_BEATS.map((beat, i) => {
-              const Icon = STAGE_ICONS[BEAT_STAGE[i]] || Database
+              const key = BEAT_STAGE[i]
+              const Icon = STAGE_ICONS[key] || Database
+              const done = beatStatuses[key] === 'done'
               return (
                 <button
                   key={beat.beat}
-                  onClick={() => goToBeat(BEAT_STAGE[i])}
+                  onClick={() => goToBeat(key)}
                   disabled={!effectiveId}
-                  title={`${beat.chapter} — ${beat.title}`}
+                  title={`Beat ${beat.beat} · ${beat.chapter} — ${beat.title}`}
+                  aria-label={`Beat ${beat.beat}: ${beat.title}${done ? ' (complete)' : ''}`}
                   className={clsx(
-                    'flex flex-col items-start gap-1.5 rounded-button border border-border bg-panel p-2.5 text-left transition-colors',
+                    'flex flex-col items-start gap-1.5 rounded-button border bg-panel p-2.5 text-left transition-colors',
+                    done ? 'border-accent-emerald/35' : 'border-border',
                     effectiveId ? 'hover:border-primary-500/50' : 'opacity-60',
                   )}
                 >
                   <span className="flex items-center gap-1.5">
-                    <span className="flex h-5 w-5 items-center justify-center rounded-md bg-panel2 font-mono text-[9px] font-semibold text-t-lo">{beat.beat}</span>
+                    <span className={clsx(
+                      'flex h-5 w-5 items-center justify-center rounded-md font-mono text-[9px] font-semibold',
+                      done ? 'bg-accent-emerald/10 text-accent-emerald' : 'bg-panel2 text-t-lo',
+                    )}>
+                      {done ? <Check className="h-3 w-3" strokeWidth={3} /> : beat.beat}
+                    </span>
                     <Icon className="h-3.5 w-3.5 text-t-lo" />
                   </span>
                   <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-t-lo">{beat.chapter}</span>

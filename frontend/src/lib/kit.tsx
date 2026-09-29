@@ -562,8 +562,8 @@ export function StreamTable({ columns, rows, speed = 60, live = true, exportable
 
   const visible = safeRows.slice(0, shown)
   return (
-    <div className="flex min-h-0 flex-col overflow-hidden rounded-card border border-white/[0.06] bg-dark-200/60">
-      <div className="flex items-center gap-2 border-b border-white/[0.06] px-4 py-2">
+    <div className="flex min-h-0 flex-col overflow-hidden rounded-card border border-border bg-panel">
+      <div className="flex items-center gap-2 border-b border-border px-4 py-2">
         <div className="grid flex-1 gap-x-3 gap-y-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-t-lo"
           style={{ gridTemplateColumns: `repeat(${Math.max(columns.length, 1)}, minmax(0, 1fr))` }}>
           {columns.map((c, i) => <span key={i} className="truncate">{colLabel(c)}</span>)}
@@ -571,25 +571,25 @@ export function StreamTable({ columns, rows, speed = 60, live = true, exportable
         {exportable && safeRows.length > 0 && (
           <button
             onClick={() => downloadCSV(columns, safeRows, filename)}
-            className="shrink-0 rounded-button border border-white/[0.08] bg-white/[0.03] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-primary-300 transition-colors hover:border-primary-500/40 hover:bg-primary-500/10"
+            className="shrink-0 rounded-button border border-border bg-panel2 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-primary-500 transition-colors hover:border-primary-500/40 hover:bg-primary-500/10"
             title="Download all loaded rows as CSV"
           >
             export csv
           </button>
         )}
       </div>
-      <div onScroll={onScroll} className={clsx('font-mono text-[11px] text-gray-300', scrollable ? 'overflow-y-auto' : 'overflow-hidden')}
+      <div onScroll={onScroll} className={clsx('font-mono text-[11px] text-t-mid', scrollable ? 'overflow-y-auto' : 'overflow-hidden')}
         style={scrollable ? { maxHeight: maxHeight ?? 360 } : undefined}>
         <AnimatePresence initial={false}>
           {visible.map((row, ri) => (
             <motion.div
               key={ri} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.25 }}
-              className="grid gap-x-3 px-4 py-1.5 border-b border-white/[0.03] last:border-0 hover:bg-white/[0.02]"
+              className="grid gap-x-3 border-b border-border/50 px-4 py-1.5 last:border-0 hover:bg-panel2"
               style={{ gridTemplateColumns: `repeat(${Math.max(columns.length, 1)}, minmax(0, 1fr))` }}
             >
               {row.map((v: any, ci) => (
-                <span key={ci} className={clsx('truncate', ci === 0 && 'text-gray-500')}>
+                <span key={ci} className={clsx('truncate', ci === 0 && 'text-t-lo')}>
                   {v === null || v === undefined || v === '' ? <span className="text-accent-rose/70 italic">NULL</span> : String(v)}
                 </span>
               ))}
@@ -597,17 +597,17 @@ export function StreamTable({ columns, rows, speed = 60, live = true, exportable
           ))}
         </AnimatePresence>
         {live && shown < safeRows.length && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="px-4 py-2 text-[10px] text-primary-400">
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="px-4 py-2 text-[10px] text-primary-500">
             streaming {Math.min(shown, safeRows.length)} / {safeRows.length} rows…
           </motion.div>
         )}
         {moreToLoad && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="sticky bottom-0 px-4 py-2 text-[10px] text-accent-emerald/80">
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="sticky bottom-0 border-t border-border bg-panel px-4 py-2 text-[10px] text-accent-emerald">
             {fetching ? 'loading more rows…' : `● scrolled to ${extended.length.toLocaleString()} / ${cap === Infinity ? '∞' : cap.toLocaleString()} rows — scroll to load more`}
           </motion.div>
         )}
         {!moreToLoad && extended.length > 0 && (
-          <div className="px-4 py-2 text-[10px] opacity-60 text-gray-500">
+          <div className="border-t border-border px-4 py-2 text-[10px] text-t-lo">
             {extended.length.toLocaleString()} rows · end of {totalRows != null ? `${totalRows.toLocaleString()} ` : ''}dataset
           </div>
         )}
@@ -1096,7 +1096,7 @@ const BUTTON_SOLIDS: Record<string, string> = {
 }
 
 export function Skeleton({ className = '', style }: { className?: string; style?: Record<string, string | number> }) {
-  return <div aria-hidden className={clsx('animate-pulse rounded-card bg-white/[0.06]', className)} style={style} />
+  return <div aria-hidden className={clsx('animate-pulse rounded-card bg-panel3', className)} style={style} />
 }
 
 export function Button({

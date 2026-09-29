@@ -47,22 +47,22 @@ export function Stat({ label, value, hint, accent }: { label: string; value: Rea
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className={clsx('glass-card p-5', accent && 'border-primary-500/40')}
+      className={clsx('rounded-card border border-border bg-panel p-5', accent && 'border-primary-500/40')}
     >
-      <p className="text-xs uppercase tracking-widest text-gray-500">{label}</p>
-      <p className="font-display text-2xl font-semibold mt-2 text-gray-100">{value}</p>
-      {hint && <p className="text-xs text-gray-500 mt-1">{hint}</p>}
+      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">{label}</p>
+      <p className="mt-2 text-2xl font-semibold tracking-tight text-t-hi">{value}</p>
+      {hint && <p className="mt-1 text-[11px] text-t-lo">{hint}</p>}
     </motion.div>
   )
 }
 
 export function ErrorBox({ message, onRetry }: { message?: string | null; onRetry?: () => void }) {
   return (
-    <div className="glass-card p-6 flex flex-col items-center gap-3 text-center">
-      <AlertCircle className="w-8 h-8 text-red-400" />
-      <p className="text-sm text-gray-300">{message || 'Something went wrong'}</p>
+    <div className="flex flex-col items-center gap-3 rounded-card border border-border bg-panel p-6 text-center">
+      <AlertCircle className="h-7 w-7 text-accent-rose" />
+      <p className="text-sm text-t-mid">{message || 'Something went wrong'}</p>
       {onRetry && (
-        <button onClick={onRetry} className="text-sm text-primary-400 hover:underline">Retry</button>
+        <button onClick={onRetry} className="text-sm font-medium text-primary-500 hover:underline">Retry</button>
       )}
     </div>
   )
@@ -70,16 +70,16 @@ export function ErrorBox({ message, onRetry }: { message?: string | null; onRetr
 
 export function EmptyBox({ title, hint }: { title: string; hint?: string }) {
   return (
-    <div className="glass-card p-6 flex flex-col items-center gap-3 text-center">
-      <Inbox className="w-8 h-8 text-gray-500" />
-      <p className="text-sm text-gray-300">{title}</p>
-      {hint && <p className="text-xs text-gray-500">{hint}</p>}
+    <div className="flex flex-col items-center gap-3 rounded-card border border-border bg-panel p-6 text-center">
+      <Inbox className="h-7 w-7 text-t-lo" />
+      <p className="text-sm font-medium text-t-hi">{title}</p>
+      {hint && <p className="text-xs text-t-lo">{hint}</p>}
     </div>
   )
 }
 
 export function SectionTitle({ children }: { children: ReactNode }) {
-  return <h3 className="font-display text-sm font-semibold text-gray-200 mb-3">{children}</h3>
+  return <h3 className="mb-3 text-sm font-semibold text-t-hi">{children}</h3>
 }
 
 export function RunStage({
@@ -135,7 +135,7 @@ export function TraceSummary({ res, stageName }: { res: any; stageName: string }
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
       className={clsx(
-        'glass-card p-4 text-sm flex items-center justify-between',
+        'flex items-center justify-between rounded-card border border-border bg-panel p-4 text-sm',
         t?.status === 'completed' ? 'border-emerald-500/30' : 'border-red-500/30',
       )}
     >
@@ -143,8 +143,8 @@ export function TraceSummary({ res, stageName }: { res: any; stageName: string }
         {t?.status === 'completed'
           ? <CheckCircle2 className="w-4 h-4 text-emerald-400" />
           : <AlertCircle className="w-4 h-4 text-red-400" />}
-        <span className="text-gray-300">
-          {stageName} · <span className="text-gray-500">{t?.status}</span>
+        <span className="text-t-mid">
+          {stageName} · <span className="text-t-lo">{t?.status}</span>
         </span>
       </div>
       <div className="flex items-center gap-4 text-xs text-gray-500">

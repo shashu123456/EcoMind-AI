@@ -38,7 +38,6 @@ const routeTree = rootRoute.addChildren([
   appLayout.addChildren([
     stageRoute('/', () => import('./pages/Dashboard')),
     stageRoute('/dashboard', () => import('./pages/Dashboard')),
-    stageRoute('/automated', () => import('./pages/Automated')),
     stageRoute('/journey-complete', () => import('./pages/JourneyComplete')),
     stageRoute('/library', () => import('./pages/Library')),
     stageRoute('/import/$datasetId', () => import('./pages/Import')),

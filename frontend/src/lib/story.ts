@@ -69,7 +69,7 @@ export const STAGE_STORIES: StageStory[] = [
     happened: 'Rows were streamed into the engine and indexed.',
     produced: 'A registered dataset with row/column counts and metadata.',
     matters: 'Captures the raw material the whole analysis will use.',
-    next: 'Accept the import and run Schema Discovery.',
+    next: 'Confirm the columns and move on to quality checks.',
   },
   {
     stageKey: 'schema_discovery',
@@ -82,7 +82,7 @@ export const STAGE_STORIES: StageStory[] = [
   {
     stageKey: 'dq_engine',
     entered: 'A typed dataset passing through schema discovery.',
-    happened: 'Each row was checked across the quality dimensions.',
+    happened: 'Each row was checked against 12 quality rules and repaired where needed.',
     produced: 'A quality report with an overall score and per-dimension scores.',
     matters: 'Poor quality would poison the models — this is the gate.',
     next: 'Pass quality checks and transform the dataset.',
