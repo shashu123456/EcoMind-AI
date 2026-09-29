@@ -11,8 +11,8 @@ import { fmt, n } from '../lib/pagekit'
 import { useJourney } from '../lib/journey'
 import { beatForStage } from '../lib/story'
 import {
-  Bar, EmptyState, LoadingState, MetricPill, Panel, SectionLabel, StageHeader,
-  Stat, StatusChip, StoryFlow,
+  Bar, EmptyState, Hero, LoadingState, MetricPill, SectionLabel, StageHeader,
+  StatusChip, Advanced, ResultSummary,
 } from '../lib/stagekit'
 import { AutoNext, Button, DoneChip } from '../lib/kit'
 import { cn } from '../lib/cn'
@@ -554,7 +554,6 @@ export function ReportGenerationPage() {
           right={headerChip}
         />
         <LoadingState label="Reading the deliverable archive…" />
-        <div className="shrink-0"><StoryFlow stageKey={STAGE_KEY} activeKey="entered" /></div>
       </div>
     )
   }
@@ -575,7 +574,6 @@ export function ReportGenerationPage() {
           hint={failure}
           action={<Button size="sm" onClick={archive.refetch}>Retry</Button>}
         />
-        <div className="shrink-0"><StoryFlow stageKey={STAGE_KEY} activeKey="entered" /></div>
       </div>
     )
   }
@@ -605,36 +603,6 @@ export function ReportGenerationPage() {
         }
       />
 
-      {/* ── archive summary ─────────────────────────────────────────── */}
-      <div className="grid shrink-0 grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat
-          label="Deliverables"
-          value={fmt(items.length, 0)}
-          hint={`${bytes(totalBytes)} of stored output`}
-          accent="primary"
-          mono
-        />
-        <Stat
-          label="Section coverage"
-          value={`${fmt(coveredCount, 0)}/${fmt(SECTION_LIBRARY.length, 0)}`}
-          hint={`${fmt(archivedSections, 0)} sections written across the archive`}
-          accent="cyan"
-          mono
-        />
-        <Stat
-          label="Formats on file"
-          value={fmt(formatKinds.size, 0)}
-          hint={formatKinds.size ? Array.from(formatKinds).join(' · ').toUpperCase() : 'nothing produced yet'}
-          mono
-        />
-        <Stat
-          label="Latest deliverable"
-          value={latest ? when(latest.generated_at) : '—'}
-          hint={latest ? `${formatOf(latest).toUpperCase()} · ${bytes(n(latest.file_size_bytes))} · ${shortId(latest.id)}` : 'generate the first file'}
-          mono
-        />
-      </div>
-
       {busy && <Sweep label="assembling document" elapsedMs={elapsed} />}
 
       {runError && (
@@ -653,16 +621,13 @@ export function ReportGenerationPage() {
 
       <div className="grid min-h-0 gap-3 xl:grid-cols-12">
         {/* ── deliverable gallery ──────────────────────────────────── */}
-        <Panel
-          className="xl:col-span-7"
-          title="deliverable gallery"
-          flush
-          right={
+        <Hero className="xl:col-span-7">
+          <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
+            <SectionLabel>Deliverable gallery</SectionLabel>
             <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">
               {fmt(items.length, 0)} file{items.length === 1 ? '' : 's'} · newest first
             </span>
-          }
-        >
+          </div>
           {items.length === 0 ? (
             <div className="p-4">
               <EmptyState
@@ -768,14 +733,11 @@ export function ReportGenerationPage() {
               </div>
             </div>
           )}
-        </Panel>
+        </Hero>
 
         {/* ── production desk ──────────────────────────────────────── */}
-        <Panel
-          className="xl:col-span-5"
-          title="production desk"
-          right={headerChip}
-        >
+        <Advanced label="Production desk" hint={`${activeType.label} · ${format.toUpperCase()} · ${fmt(pickedSections.length, 0)} sections`} defaultOpen>
+          <div className="-m-4">
           <div className="space-y-3">
             {/* dataset in context */}
             <div className="space-y-1">
@@ -989,27 +951,14 @@ export function ReportGenerationPage() {
               </Button>
             </div>
           </div>
-        </Panel>
+        </div></Advanced>
 
         {/* ── document inspector ───────────────────────────────────── */}
-        <Panel
-          className="xl:col-span-5"
-          title="document inspector"
-          right={
-            openReport ? (
-              <button
-                type="button"
-                onClick={reread}
-                disabled={reloading || dlId !== null}
-                title="GET /reports/{id} — re-read this record from the server"
-                className="inline-flex items-center gap-1.5 rounded-button border border-border bg-panel2 px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo transition-colors hover:text-t-hi disabled:opacity-50"
-              >
-                <RefreshCw className={cn('h-3 w-3', reloading && 'animate-spin')} />
-                {reloading ? 'reading' : 're-read'}
-              </button>
-            ) : undefined
-          }
+        <Advanced
+          label="Document inspector"
+          hint={openReport ? titleOf(openReport) : 'pick a card in the gallery'}
         >
+          <div className="-m-4">
           {!openReport ? (
             <p className="text-xs text-t-lo">
               No deliverable open. Pick a card in the gallery to read its section manifest.
@@ -1146,19 +1095,11 @@ export function ReportGenerationPage() {
               </div>
             </div>
           )}
-        </Panel>
+        </div></Advanced>
 
         {/* ── delivery ledger ──────────────────────────────────────── */}
-        <Panel
-          className="xl:col-span-7"
-          title="delivery ledger"
-          flush
-          right={
-            <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">
-              last {fmt(ledger.length, 0)} · {fmt(items.length, 0)} total
-            </span>
-          }
-        >
+        <Advanced label="Delivery ledger" hint={`last ${fmt(ledger.length, 0)} · ${fmt(items.length, 0)} total`}>
+          <div className="-m-4">
           <div className="divide-y divide-border">
             {ledger.length === 0 ? (
               <p className="px-4 py-8 text-center text-xs text-t-lo">
@@ -1238,13 +1179,22 @@ export function ReportGenerationPage() {
               })}
             </div>
           </div>
-        </Panel>
+        </div></Advanced>
       </div>
 
-      {/* ── 5 questions + next stage ──────────────────────────────── */}
-      <div className="shrink-0">
-        <StoryFlow stageKey={STAGE_KEY} activeKey={activeStep} />
-      </div>
+      {/* ── the deliverable, in one line ──────────────────────────── */}
+      <ResultSummary
+        verdict={
+          items.length === 0
+            ? 'Compile the run into a report someone else can read — pick a format and generate the first file.'
+            : `${fmt(items.length, 0)} audit-ready deliverable${items.length === 1 ? '' : 's'} on file (${bytes(totalBytes)}), covering ${fmt(coveredCount, 0)} of ${fmt(SECTION_LIBRARY.length, 0)} evidence sections — every one re-downloadable.`
+        }
+        facts={[
+          { label: 'Latest', value: latest ? when(latest.generated_at) : '—' },
+          { label: 'Formats', value: formatKinds.size ? Array.from(formatKinds).join('/').toUpperCase() : '—' },
+          { label: 'Sections', value: `${fmt(archivedSections, 0)} written` },
+        ]}
+      />
 
       {items.length > 0 ? (
         <AutoNext
