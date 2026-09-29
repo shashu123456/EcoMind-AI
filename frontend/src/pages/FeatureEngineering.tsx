@@ -301,7 +301,7 @@ export function FeatureEngineeringPage() {
 
               <ChevronRight className="mt-7 h-4 w-4 shrink-0 text-t-lo" />
 
-              <div className="flex min-w-[120px] flex-1 flex-col gap-1.5">
+              <div className="flex min-w-[150px] flex-1 flex-col gap-1.5">
                 <SectionLabel>transformations</SectionLabel>
                 <div className="flex flex-wrap gap-1.5">
                   {types.map(t => (

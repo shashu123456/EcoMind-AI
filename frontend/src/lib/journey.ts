@@ -217,19 +217,21 @@ export const useJourney = create<JourneyState>((set, get) => {
   },
 
   markStage: (key, status) => {
-    set(s => ({ stageStatuses: { ...s.stageStatuses, [key]: status } }))
+    set(s => (s.stageStatuses[key] === status ? s : { stageStatuses: { ...s.stageStatuses, [key]: status } }))
   },
 
   markCompleted: (key) => {
-    set(s => ({ stageStatuses: { ...s.stageStatuses, [key]: 'done' } }))
+    set(s => (s.stageStatuses[key] === 'done' ? s : { stageStatuses: { ...s.stageStatuses, [key]: 'done' } }))
   },
 
   setActive: (dataset, run, model) => {
-    set(s => ({
-      datasetId: dataset !== undefined ? dataset : s.datasetId,
-      runId: run !== undefined ? run : s.runId,
-      modelId: model !== undefined ? model : s.modelId,
-    }))
+    set(s => {
+      const datasetId = dataset !== undefined ? dataset : s.datasetId
+      const runId = run !== undefined ? run : s.runId
+      const modelId = model !== undefined ? model : s.modelId
+      if (datasetId === s.datasetId && runId === s.runId && modelId === s.modelId) return s
+      return { datasetId, runId, modelId }
+    })
   },
 
   reopenRun: async (runId) => {

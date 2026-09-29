@@ -13,6 +13,16 @@ import { STAGE_BY_KEY, useJourney } from './journey'
 export type ActivityCategory = 'Data' | 'Models' | 'Inference' | 'System'
 export type ActivityStatus = 'ok' | 'running' | 'warn' | 'idle'
 
+/** 1527 → "25m 27s", 9384 → "2h 36m" — human uptime, never raw seconds. */
+export function fmtUptime(sec: number): string {
+  const s = Math.max(0, Math.round(sec))
+  if (s < 60) return `${s}s`
+  const m = Math.floor(s / 60)
+  if (m < 60) return `${m}m ${s % 60}s`
+  const h = Math.floor(m / 60)
+  return `${h}h ${m % 60}m`
+}
+
 export interface ActivityEvent {
   id: string
   at: number // epoch ms
@@ -85,7 +95,7 @@ export function useActivityFeedBus() {
           status: 'ok',
           description: `Backend online — ${h.service} · CPU ${cpu == null ? '—' : `${Math.round(cpu)}%`}`,
           rows: '—',
-          duration: h.uptime_s == null ? '—' : `${Math.round(h.uptime_s)}s`,
+          duration: h.uptime_s == null ? '—' : fmtUptime(h.uptime_s),
         })
       } catch {
         if (!mounted) return
@@ -169,7 +179,7 @@ export function useActivityFeedBus() {
             ? (cpu == null ? 'Backend online' : `Backend online · CPU ${Math.round(cpu)}%`)
             : `Heartbeat ${h.status || 'degraded'}`,
           rows: '—',
-          duration: h.uptime_s == null ? '—' : `${Math.round(h.uptime_s)}s uptime`,
+          duration: h.uptime_s == null ? '—' : fmtUptime(h.uptime_s),
         })
       }).catch(() => { /* ignore transient */ })
     }, 20000)

@@ -486,7 +486,7 @@ export function PredictionPage() {
           {/* ── Actual vs predicted deltas ───────────────────── */}
           <Panel
             title="actual vs predicted"
-            right={<SectionLabel>{withActual.length} of {points.length} with actuals</SectionLabel>}
+            right={points.length > 0 ? <SectionLabel>{withActual.length}/{points.length} actuals</SectionLabel> : undefined}
           >
             {points.length === 0 ? (
               <EmptyState title="Awaiting a forecast" hint="Point-level deltas appear once a forecast has run." />

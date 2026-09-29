@@ -324,9 +324,8 @@ export function BenchmarkingPage() {
         />
         <Stat
           label="Methodology"
-          value={<span className="block truncate">{methodology.replace(/_/g, ' ')}</span>}
+          value={<span className="block break-words">{methodology.replace(/_/g, ' ')}</span>}
           hint={`${fmt(compared.length, 0)} metrics compared`}
-          mono
         />
         <Stat
           label="Run date"

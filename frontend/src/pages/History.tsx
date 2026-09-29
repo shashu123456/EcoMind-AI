@@ -50,7 +50,7 @@ const BEAT = beatForStage(STAGE_KEY)
    its completion summary, the same destination the automated run ends on. */
 const CONTINUE_TO: string = nextStage({ datasetStageKey: STAGE_KEY }).path ?? '/journey-complete'
 
-const LEDGER_COLS = 'grid grid-cols-[minmax(0,1fr)_10rem_8.5rem_2.25rem] items-center gap-3'
+const LEDGER_COLS = 'grid grid-cols-[minmax(0,1fr)_10rem_8.5rem_3.75rem] items-center gap-3'
 
 type Tone = 'ok' | 'running' | 'warn' | 'idle'
 type SortKey = 'started' | 'progress' | 'status'
