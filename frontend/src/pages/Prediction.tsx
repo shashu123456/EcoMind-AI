@@ -119,7 +119,7 @@ function ForecastChart({ points }: { points: PredictionPoint[] }) {
       {points.map((p, i) => {
         const a = num(p.actual)
         if (a === null) return null
-        return <circle key={`a${i}`} cx={X(i)} cy={Y(a)} r={2.5} fill="#059669" />
+        return <circle key={`a${i}`} cx={X(i)} cy={Y(a)} r={2.5} fill="var(--color-accent-emerald)" />
       })}
 
       {/* predicted markers + hover targets */}
@@ -419,10 +419,10 @@ export function PredictionPage() {
                   <SectionLabel>confidence axis · per point</SectionLabel>
                   <div className="flex items-center gap-2">
                     <span className="flex items-center gap-1 font-mono text-[9px] text-t-lo">
-                      <span className="h-2 w-2 rounded-full" style={{ background: '#4C5FD5' }} /> predicted
+                      <span className="h-2 w-2 rounded-full" style={{ background: 'var(--color-primary-500)' }} /> predicted
                     </span>
                     <span className="flex items-center gap-1 font-mono text-[9px] text-t-lo">
-                      <span className="h-2 w-2 rounded-full" style={{ background: '#059669' }} /> actual
+                      <span className="h-2 w-2 rounded-full" style={{ background: 'var(--color-accent-emerald)' }} /> actual
                     </span>
                     <span className="flex items-center gap-1 font-mono text-[9px] text-t-lo">
                       <span className="h-2 w-2 rounded-[2px]" style={{ background: 'rgba(76,95,213,0.25)' }} /> interval

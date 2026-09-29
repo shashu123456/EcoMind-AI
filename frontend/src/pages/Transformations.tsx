@@ -1214,7 +1214,7 @@ function SnapshotSheet({
                 <th
                   key={h}
                   className={cn(
-                    'border-b border-border px-1.5 py-1 font-mono text-[9px] font-normal uppercase tracking-wider text-t-lo',
+                    'border-b border-border px-1.5 py-1 text-[9px] font-medium uppercase tracking-[0.08em] text-t-lo',
                     (i === 2 || i === 3) && 'text-right',
                     i === 4 && 'w-8 text-right',
                   )}

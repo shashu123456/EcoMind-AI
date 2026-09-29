@@ -601,15 +601,15 @@ function ColumnProfile({ field, totalRows }: { field: Field; totalRows: number }
                         className={clsx('min-w-[4px] flex-1 rounded-t-[2px]', c > 0 ? 'bg-primary-500' : 'bg-white/[0.05]')}
                       />
                     ))}
-                    {mark(mean, '#F2A93B', 'mean')}
-                    {mark(median, '#34D399', 'median')}
+                    {mark(mean, 'var(--color-accent-amber)', 'mean')}
+                    {mark(median, 'var(--color-accent-emerald)', 'median')}
                   </div>
                 </div>
                 <div className="flex items-center justify-between font-mono text-[9px] text-t-lo">
                   <span>min {fmt(lo, 4)}</span>
                   <span className="flex items-center gap-2">
-                    <span className="inline-flex items-center gap-1"><span className="h-2 w-px bg-[#F2A93B]" /> mean {Number.isFinite(mean) ? fmt(mean, 3) : '—'}</span>
-                    <span className="inline-flex items-center gap-1"><span className="h-2 w-px bg-[#34D399]" /> median {Number.isFinite(median) ? fmt(median, 3) : '—'}</span>
+                    <span className="inline-flex items-center gap-1"><span className="h-2 w-px bg-accent-amber" /> mean {Number.isFinite(mean) ? fmt(mean, 3) : '—'}</span>
+                    <span className="inline-flex items-center gap-1"><span className="h-2 w-px bg-accent-emerald" /> median {Number.isFinite(median) ? fmt(median, 3) : '—'}</span>
                   </span>
                   <span>max {fmt(hi, 4)}</span>
                 </div>

@@ -203,7 +203,7 @@ export function ProcessRail() {
       {/* rail header */}
       <div className="flex items-center justify-between gap-2 px-4 pb-3 pt-4">
         <div className="min-w-0">
-          <p className="font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-t-lo">Pipeline</p>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-t-lo">Pipeline</p>
           <p className="mt-0.5 text-[13px] font-semibold tracking-tight text-t-hi">
             {doneCount === PIPELINE_TOTAL ? 'All stages complete' : `${PIPELINE_TOTAL - doneCount} stage${PIPELINE_TOTAL - doneCount === 1 ? '' : 's'} remaining`}
           </p>
@@ -245,7 +245,7 @@ export function ProcessRail() {
                 mi === 0 && 'pt-1',
               )}>
                 <span className={clsx(
-                  'font-mono text-[10px] font-semibold uppercase tracking-[0.14em]',
+                  'text-[10px] font-semibold uppercase tracking-[0.14em]',
                   mActive ? 'text-primary-500' : 'text-t-lo',
                 )}>
                   {m.short}

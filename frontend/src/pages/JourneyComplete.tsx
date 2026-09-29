@@ -100,7 +100,7 @@ const doneCount = Object.values(stageStatuses).filter(s => s === 'done').length
             <div>
               <span className="flex items-center gap-2">
                 <PartyPopper className="h-5 w-5 text-accent-amber" />
-                <span className="font-mono text-xs uppercase tracking-[0.22em] text-accent-amber">run complete</span>
+                <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-accent-amber">run complete</span>
               </span>
               <h1 className="mt-2 font-display text-3xl font-semibold text-gray-50">Journey complete.</h1>
               <p className="mt-1 max-w-xl text-sm text-gray-400">
@@ -154,13 +154,13 @@ const doneCount = Object.values(stageStatuses).filter(s => s === 'done').length
           <div className="glass-card p-5">
             <div className="mb-3 flex items-center gap-2">
               <PulseDot color="bg-accent-emerald" />
-              <p className="font-mono text-xs uppercase tracking-[0.2em] text-gray-400">winner · best model</p>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">winner · best model</p>
             </div>
             {best ? (
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <p className="font-display text-lg font-semibold text-accent-emerald">{best.algorithm ?? 'model'}</p>
-                  <span className="rounded-full border border-accent-emerald/30 bg-accent-emerald/10 px-2.5 py-0.5 text-[10px] font-mono uppercase tracking-wider text-accent-emerald">winner</span>
+                  <span className="rounded-full border border-accent-emerald/30 bg-accent-emerald/10 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-accent-emerald">winner</span>
                 </div>
                 <div className="grid grid-cols-3 gap-2">
                   <ScoreCell label="R²" value={r2} digits={4} />
@@ -178,7 +178,7 @@ const doneCount = Object.values(stageStatuses).filter(s => s === 'done').length
           <div className="glass-card p-5">
             <div className="mb-3 flex items-center gap-2">
               <PulseDot color="bg-accent-gold" />
-              <p className="font-mono text-xs uppercase tracking-[0.2em] text-gray-400">recommendation engine · savings</p>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">recommendation engine · savings</p>
             </div>
             {topRec ? (
               <div className="space-y-3">
@@ -187,7 +187,7 @@ const doneCount = Object.values(stageStatuses).filter(s => s === 'done').length
                     <p className="font-display text-base font-semibold text-gray-100">{topRec.title ?? topRec.category ?? 'Action'}</p>
                     <p className="mt-0.5 text-xs text-gray-400">implementation · {topRec.implementation_difficulty ?? 'moderate · configuration + validation'}</p>
                   </div>
-                  <span className="shrink-0 rounded-full border border-accent-gold/30 bg-accent-amber/10 px-2.5 py-0.5 text-[10px] font-mono uppercase tracking-wider text-accent-gold">
+                  <span className="shrink-0 rounded-full border border-accent-gold/30 bg-accent-amber/10 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-accent-gold">
                     {Number(topRec.savings_percent || 0).toFixed(1)}% saving
                   </span>
                 </div>
@@ -206,7 +206,7 @@ const doneCount = Object.values(stageStatuses).filter(s => s === 'done').length
           <div className="glass-card p-5">
             <div className="mb-3 flex items-center gap-2">
               <PulseDot color="bg-accent-cyan" />
-              <p className="font-mono text-xs uppercase tracking-[0.2em] text-gray-400">executive · key findings</p>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">executive · key findings</p>
             </div>
             <ul className="space-y-2">
               {findings.slice(0, 4).map((f: any, i: number) => (

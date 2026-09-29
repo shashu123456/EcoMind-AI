@@ -262,7 +262,7 @@ export function AutomatedPage() {
                 {s.state === 'done' ? <Check className="h-3 w-3" /> : i + 1}
               </span>
               <Icon className="h-3.5 w-3.5" style={{ color }} />
-              <span className="truncate font-mono text-[11px] font-semibold uppercase tracking-wider text-gray-200">{st.short}</span>
+              <span className="truncate text-[11px] font-semibold uppercase tracking-[0.08em] text-t-hi">{st.short}</span>
               <span className="ml-auto">
                 {s.state === 'active' && (
                   <span className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-accent-amber">

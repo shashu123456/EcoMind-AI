@@ -14,17 +14,17 @@ export function toast(title: string, detail?: string, kind: Toast['kind'] = 'don
 }
 
 const ICON = {
-  done: <Check className="h-3.5 w-3.5 shrink-0 text-[#34D399]" />,
-  info: <Info className="h-3.5 w-3.5 shrink-0 text-[#4A9FD8]" />,
-  error: <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-[#C2335A]" />,
-  live: <Zap className="h-3.5 w-3.5 shrink-0 text-[#D8A648]" />,
+  done: <Check className="h-3.5 w-3.5 shrink-0 text-accent-emerald" />,
+  info: <Info className="h-3.5 w-3.5 shrink-0 text-accent-cyan" />,
+  error: <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-accent-rose" />,
+  live: <Zap className="h-3.5 w-3.5 shrink-0 text-accent-gold" />,
 }
 
 const BAR = {
-  done: 'from-[#34D399]/70',
-  info: 'from-[#4A9FD8]/70',
-  error: 'from-[#C2335A]/70',
-  live: 'from-[#D8A648]/70',
+  done: 'from-accent-emerald/70',
+  info: 'from-accent-cyan/70',
+  error: 'from-accent-rose/70',
+  live: 'from-accent-gold/70',
 }
 
 export function ToastPane() {
@@ -51,14 +51,14 @@ export function ToastPane() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, x: 32, scale: 0.97 }}
             transition={{ duration: 0.3, ease: B }}
-            className={clsx('pointer-events-auto relative overflow-hidden rounded-glass border border-white/[0.09] bg-surface-light/95 p-3 shadow-glass backdrop-blur-xl')}
+            className={clsx('pointer-events-auto relative overflow-hidden rounded-card border border-border bg-panel/95 p-3 shadow-lg')}
           >
             <div className={clsx('absolute inset-y-0 left-0 w-0.5 bg-gradient-to-b to-transparent', BAR[t.kind])} />
             <div className="flex items-start gap-2 pl-1.5">
               {ICON[t.kind]}
               <div className="min-w-0 flex-1">
-                <p className="text-xs font-medium text-gray-100">{t.title}</p>
-                {t.detail && <p className="mt-0.5 text-[11px] leading-3 text-gray-400">{t.detail}</p>}
+                <p className="text-xs font-medium text-t-hi">{t.title}</p>
+                {t.detail && <p className="mt-0.5 text-[11px] leading-3 text-t-lo">{t.detail}</p>}
               </div>
             </div>
           </motion.div>

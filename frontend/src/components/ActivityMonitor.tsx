@@ -82,7 +82,7 @@ export function ActivityMonitor() {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5">
                       <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', status.dot)} />
-                      <span className="truncate font-mono text-[9.5px] font-medium uppercase tracking-wider text-t-lo">
+                      <span className="truncate text-[9.5px] font-medium uppercase tracking-[0.08em] text-t-lo">
                         {ev.stage}
                       </span>
                     </div>

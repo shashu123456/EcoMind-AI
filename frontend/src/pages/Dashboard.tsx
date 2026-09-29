@@ -106,7 +106,7 @@ export function DashboardPage() {
         </span>
         <span className="min-w-0 flex-1">
           <span className="flex items-center gap-1.5">
-            <span className="font-mono text-[11px] font-semibold uppercase tracking-[0.14em] text-t-hi">{title}</span>
+            <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-t-hi">{title}</span>
             {active && <Check className="h-3.5 w-3.5 text-primary-500" />}
           </span>
           <span className="mt-1 block text-xs leading-5 text-t-lo">{desc}</span>

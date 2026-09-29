@@ -5,7 +5,7 @@ import { Cpu, Loader2, LogIn, ShieldCheck, ArrowRight, Lock, AtSign } from 'luci
 import { auth } from '../lib/api'
 import { cn } from '../lib/interactive'
 import { EcoMindLogo, EcoMindWordmark } from '../lib/logo'
-import { DataFlow, RippleButton } from '../lib/kit'
+import { RippleButton } from '../lib/kit'
 import { WORKFLOW, MILESTONES } from '../lib/journey'
 import { STAGE_COLORS } from '../components/ProcessRail'
 
@@ -44,7 +44,7 @@ export function LoginPage() {
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden p-4">
       {/* aurora canvas */}
-      <div className="absolute inset-0 bg-[#0B0F17]" aria-hidden>
+      <div className="absolute inset-0 bg-[#0A0D14]" aria-hidden>
         <div className="absolute inset-0"
           style={{
             background:
@@ -62,8 +62,6 @@ export function LoginPage() {
             WebkitMaskImage: 'radial-gradient(80% 80% at 50% 30%, black, transparent)',
           }}
         />
-        <div className="absolute inset-x-0 top-0 h-3 bg-gradient-to-r from-sky-400 via-accent-cyan to-accent-emerald opacity-80" />
-        <DataFlow opacity={0.35} />
       </div>
 
       <motion.div

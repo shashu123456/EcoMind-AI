@@ -49,7 +49,7 @@ function DataSheet({ columns, rows, leaving, rowCount }: {
             <tr>
               <th className="w-9 border-b border-border px-2 py-1.5 text-right font-mono text-[9px] text-t-lo">#</th>
               {columns.map((c: any, i: number) => (
-                <th key={i} className="border-b border-border px-2 py-1.5 font-mono text-[9px] font-semibold uppercase tracking-wider text-t-mid">
+                <th key={i} className="border-b border-border px-2 py-1.5 text-[9px] font-semibold uppercase tracking-[0.08em] text-t-mid">
                   {colLabel(c)}
                 </th>
               ))}

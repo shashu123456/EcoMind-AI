@@ -264,7 +264,7 @@ function IngestChip({ label, value, icon }: { label: string; value: string; icon
         <Icon className="w-4 h-4 text-primary-400" />
       </div>
       <div className="min-w-0">
-        <p className="text-xs font-mono uppercase tracking-[0.18em] text-gray-400">{label}</p>
+        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-t-lo">{label}</p>
         <p className="text-sm font-semibold text-gray-100 truncate">{value}</p>
       </div>
     </div>

@@ -107,7 +107,7 @@ function TrustDonut({ value, tone }: { value: number; tone: 'emerald' | 'amber' 
   const stroke = tone === 'emerald' ? 'var(--color-accent-emerald)' : tone === 'amber' ? 'var(--color-accent-amber)' : tone === 'rose' ? 'var(--color-accent-rose)' : 'var(--t-lo)'
   return (
     <svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`} className="shrink-0" role="img" aria-label={`Trust score ${fmt(value, 1)} of 100`}>
-      <circle cx={cx} cy={cy} r={R} fill="none" stroke="var(--panel3, #E4E8F0)" strokeWidth={STROKE} />
+      <circle cx={cx} cy={cy} r={R} fill="none" stroke="var(--panel3)" strokeWidth={STROKE} />
       <motion.circle
         cx={cx} cy={cy} r={R} fill="none" stroke={stroke} strokeWidth={STROKE} strokeLinecap="round"
         strokeDasharray={C}
@@ -126,7 +126,7 @@ function TrustDonut({ value, tone }: { value: number; tone: 'emerald' | 'amber' 
             key={t}
             x1={cx + ri * Math.cos(a)} y1={cy + ri * Math.sin(a)}
             x2={cx + ro * Math.cos(a)} y2={cy + ro * Math.sin(a)}
-            stroke="var(--color-border-hover, #B6BFCF)" strokeWidth={2} strokeLinecap="round"
+            stroke="var(--color-border-hover)" strokeWidth={2} strokeLinecap="round"
           />
         )
       })}
