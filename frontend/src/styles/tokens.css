@@ -63,7 +63,8 @@
 
   /* --- Typography ----------------------------------------------------- */
   --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  --font-mono: ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, monospace;
+  --font-display: 'Inter Tight', 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, monospace;
 
   --text-2xs: 0.6875rem;
   --text-xs: 0.75rem;
@@ -239,8 +240,9 @@ h4,
 h5,
 h6 {
   margin: 0;
+  font-family: var(--font-display);
   font-weight: 600;
-  letter-spacing: var(--tracking-tight);
+  letter-spacing: -0.02em;
   line-height: var(--leading-tight);
 }
 

@@ -90,8 +90,8 @@ export async function execStage(
   });
 }
 
-export async function advanceRun(runId: string): Promise<RunDetailResponse> {
-  return request<RunDetailResponse>(`/workflows/${runId}/advance`, { method: 'POST' });
+export async function advanceRun(runId: string): Promise<StageExecResponse> {
+  return request<StageExecResponse>(`/workflows/${runId}/advance`, { method: 'POST' });
 }
 
 export function streamRun(

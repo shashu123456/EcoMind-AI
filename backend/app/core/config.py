@@ -34,12 +34,14 @@ class Settings(BaseSettings):
     ml_sample_rows: int = 60_000
 
     # --- Model selection -----------------------------------------------------
-    # The five candidates the platform races. A smaller, deliberate cohort
-    # reads better on screen than a leaderboard of seven.
+    # The six candidates the platform races in a single pass. The workspace
+    # trains them simultaneously and auto-selects the winner, so a broader
+    # cohort is a feature rather than noise.
     candidate_algorithms: tuple[str, ...] = (
         "xgboost",
         "random_forest",
         "gradient_boosting",
+        "extra_trees",
         "ridge",
         "linear",
     )

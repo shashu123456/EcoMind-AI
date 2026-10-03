@@ -2,13 +2,7 @@ import { useEffect } from 'react';
 import { Outlet, useRouterState } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
 import { datasets, runs } from '../lib/api';
-import {
-  datasetIdForPath,
-  stageForPath,
-  statusesFromCompleted,
-  useJourney,
-  type StageStatuses,
-} from '../lib/journey';
+import { datasetIdForPath, isDone, stageForPath, useJourney, type StageKey } from '../lib/journey';
 import {
   ActiveDatasetProvider,
   type ActiveDataset,
@@ -21,6 +15,7 @@ import { TopBar } from './TopBar';
 import { EventConsole, EventConsoleProvider } from './EventConsole';
 import { InspectorProvider } from './Inspector';
 import { RouteGuard } from './RouteGuard';
+import { RunBar } from './RunBar';
 
 /**
  * There is no hierarchy endpoint, and inventing one from the four counts on the
@@ -29,12 +24,6 @@ import { RouteGuard } from './RouteGuard';
  * payload they are already displaying, so the shell contributes no levels.
  */
 const NO_LEVELS: HierarchyLevel[] = [];
-
-function sameStatuses(a: StageStatuses, b: StageStatuses): boolean {
-  const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
-  for (const key of keys) if (a[key as never] !== b[key as never]) return false;
-  return true;
-}
 
 /**
  * The application shell: one sidebar, one workspace bar, one scrolling surface.
@@ -48,7 +37,6 @@ export function AppShell() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
 
   const activeDatasetId = useJourney((s) => s.activeDatasetId);
-  const stageStatuses = useJourney((s) => s.stageStatuses);
   const setActive = useJourney((s) => s.setActive);
   const setStatuses = useJourney((s) => s.setStatuses);
 
@@ -78,16 +66,26 @@ export function AppShell() {
   useEffect(() => {
     if (!detail) return;
     setActive({ runId: detail.run.id });
-    // The backend records a finished stage as `completed`; the frontend's
-    // StageStatus union calls that state `done`. Accept both (and the legacy
-    // `passed`) so a reload never rebuilds an empty status map and bounces the
-    // user back to the library.
-    const completed = detail.traces
-      .filter((t) => t.status === 'completed' || t.status === 'done' || t.status === 'passed')
-      .map((t) => t.stage_key);
-    const next = statusesFromCompleted(completed);
-    if (!sameStatuses(stageStatuses, next)) setStatuses(next);
-  }, [detail, setActive, setStatuses, stageStatuses]);
+    // The traces are the record of what has actually happened, so a reload
+    // rebuilds progress from them. Merge rather than replace: a stage the run
+    // controls optimistically marked done must never be downgraded just because
+    // the refetched trace list is a beat behind. The backend records a finished
+    // stage as `completed`; the frontend calls that state `done`. Accept both
+    // (and the legacy `passed`).
+    const current = useJourney.getState().stageStatuses;
+    let changed = false;
+    const next = { ...current };
+    for (const trace of detail.traces) {
+      const finished =
+        trace.status === 'completed' || trace.status === 'done' || trace.status === 'passed';
+      const key = trace.stage_key as StageKey;
+      if (finished && !isDone(next, key)) {
+        next[key] = 'done';
+        changed = true;
+      }
+    }
+    if (changed) setStatuses(next);
+  }, [detail, setActive, setStatuses]);
 
   const active: ActiveDataset | null = dataset
     ? {
@@ -112,6 +110,7 @@ export function AppShell() {
               <Sidebar />
               <div className="flex min-w-0 flex-1 flex-col">
                 <TopBar />
+                <RunBar />
                 <main className="min-h-0 flex-1 overflow-y-auto">
                   {ready ? (
                     <RouteGuard stage={currentStage} datasetId={routeDatasetId ?? activeDatasetId}>

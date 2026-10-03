@@ -237,7 +237,7 @@ export function ModelSelectionPage() {
               />
 
               <Section
-                title="The five candidates"
+                title={`The ${candidates.length} candidates`}
                 description="Every candidate was trained and scored on the same held-out tail, so the comparison is between results rather than between setups."
               >
                 <DataGrid

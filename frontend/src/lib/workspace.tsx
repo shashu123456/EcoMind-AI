@@ -23,6 +23,22 @@ import {
 
 export type TimeRange = '24h' | '7d' | '30d' | '90d';
 
+/**
+ * How the pipeline is driven.
+ *
+ * Smart runs every remaining stage in order and stops only on failure — the
+ * experience most users want. Step runs one stage at a time and waits for the
+ * user, which is what a reviewer checking each stage's evidence needs. It is a
+ * workspace preference because it shapes the run controls that live in the
+ * shell, not any single page.
+ */
+export type RunMode = 'smart' | 'step';
+
+export const RUN_MODES: readonly { value: RunMode; label: string; hint: string }[] = [
+  { value: 'smart', label: 'Smart', hint: 'Run every remaining stage automatically' },
+  { value: 'step', label: 'Step', hint: 'Run one stage at a time' },
+];
+
 export const TIME_RANGES: readonly { value: TimeRange; label: string; hint: string }[] = [
   { value: '24h', label: '24h', hint: 'Last 24 hours' },
   { value: '7d', label: '7d', hint: 'Last 7 days' },
@@ -33,6 +49,17 @@ export const TIME_RANGES: readonly { value: TimeRange; label: string; hint: stri
 const TIME_KEY = 'ecomind_time_range';
 const LIVE_KEY = 'ecomind_live';
 const SIDEBAR_KEY = 'ecomind_sidebar_collapsed';
+const RUN_MODE_KEY = 'ecomind_run_mode';
+
+function readRunMode(): RunMode {
+  try {
+    const raw = localStorage.getItem(RUN_MODE_KEY);
+    if (raw === 'smart' || raw === 'step') return raw;
+  } catch {
+    /* storage unavailable */
+  }
+  return 'smart';
+}
 
 function readTimeRange(): TimeRange {
   try {
@@ -74,6 +101,9 @@ interface WorkspaceCtx {
   /** Mobile off-canvas navigation. */
   navOpen: boolean;
   setNavOpen: (value: boolean) => void;
+  /** Smart (run all) vs Step (run one at a time) pipeline driving. */
+  runMode: RunMode;
+  setRunMode: (mode: RunMode) => void;
 }
 
 const WorkspaceContext = createContext<WorkspaceCtx | null>(null);
@@ -85,6 +115,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     readBool(SIDEBAR_KEY, false),
   );
   const [navOpen, setNavOpen] = useState(false);
+  const [runMode, setRunModeState] = useState<RunMode>(readRunMode);
 
   useEffect(() => {
     write(TIME_KEY, timeRange);
@@ -95,10 +126,14 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     write(SIDEBAR_KEY, sidebarCollapsed ? '1' : '0');
   }, [sidebarCollapsed]);
+  useEffect(() => {
+    write(RUN_MODE_KEY, runMode);
+  }, [runMode]);
 
   const setTimeRange = useCallback((range: TimeRange) => setTimeRangeState(range), []);
   const setLive = useCallback((value: boolean) => setLiveState(value), []);
   const toggleSidebar = useCallback(() => setSidebarCollapsed((v) => !v), []);
+  const setRunMode = useCallback((mode: RunMode) => setRunModeState(mode), []);
 
   const value = useMemo<WorkspaceCtx>(
     () => ({
@@ -110,8 +145,20 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       toggleSidebar,
       navOpen,
       setNavOpen,
+      runMode,
+      setRunMode,
     }),
-    [timeRange, setTimeRange, live, setLive, sidebarCollapsed, toggleSidebar, navOpen],
+    [
+      timeRange,
+      setTimeRange,
+      live,
+      setLive,
+      sidebarCollapsed,
+      toggleSidebar,
+      navOpen,
+      runMode,
+      setRunMode,
+    ],
   );
 
   return <WorkspaceContext.Provider value={value}>{children}</WorkspaceContext.Provider>;
