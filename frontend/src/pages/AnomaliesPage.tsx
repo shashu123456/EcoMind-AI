@@ -15,7 +15,7 @@ import {
   type Column,
   type Severity,
 } from '../lib/ui';
-import { BarCompare, RankedBars } from '../lib/charts';
+import { BarCompare, RankedBars, SeverityBars } from '../lib/charts';
 import { StageGate } from '../app/StageGate';
 import { PageFrame, PageHero } from '../app/PageFrame';
 import { useStageOutput } from '../lib/stageOutput';
@@ -272,22 +272,22 @@ export function AnomaliesPage() {
                   layout="vertical"
                   height={200}
                 />
-                <BarCompare
+                <SeverityBars
                   title="Anomalous readings by severity"
                   hint="Severity is how far above baseline the reading sat, not how large the absolute error is"
-                  data={[...output.by_severity]
+                  counts={[...output.by_severity]
                     .sort(
                       (a, b) =>
                         SEVERITY_ORDER.indexOf(a.severity as Severity) -
                         SEVERITY_ORDER.indexOf(b.severity as Severity),
                     )
-                    .map((r) => ({ severity: r.severity, count: r.count }))}
-                  category="severity"
-                  series={[{ key: 'count', label: 'Readings', unit: 'readings' }]}
-                  format={(v) => int(v)}
-                  colorBy="severity"
-                  colorScale={SEVERITY_COLOR}
-                  layout="vertical"
+                    .map((r) => ({
+                      severity: r.severity,
+                      label: r.severity,
+                      color: SEVERITY_COLOR[r.severity] ?? 'var(--sev-normal)',
+                      count: r.count,
+                    }))}
+                  total={output.total}
                   height={200}
                 />
               </div>

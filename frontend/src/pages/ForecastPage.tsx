@@ -17,7 +17,14 @@ import {
   Tabs,
   type Column,
 } from '../lib/ui';
-import { BarCompare, DemandCurve, ForecastBand, TrendChart } from '../lib/charts';
+import {
+  BarCompare,
+  DemandCurve,
+  ForecastBand,
+  HeatmapGrid,
+  SeasonalityBars,
+  TrendChart,
+} from '../lib/charts';
 import { StageGate } from '../app/StageGate';
 import { PageFrame, PageHero } from '../app/PageFrame';
 import { useStageOutput } from '../lib/stageOutput';
@@ -48,6 +55,38 @@ const TIER_TONE: Record<string, 'ok' | 'warn' | 'critical'> = {
   short: 'ok',
   long: 'warn',
 };
+
+const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const;
+const HOURS = Array.from({ length: 24 }, (_, h) => String(h).padStart(2, '0'));
+
+function loadProfile(rows: readonly { timestamp: string; energy_kwh: number }[]): {
+  cells: { row: string; column: string; value: number }[];
+  peak: { hour: string; day: string; value: number };
+} {
+  const sums = new Map<string, { total: number; count: number }>();
+  for (const p of rows) {
+    const d = new Date(p.timestamp);
+    if (Number.isNaN(d.getTime())) continue;
+    const day = WEEKDAYS[(d.getDay() + 6) % 7];
+    const hour = HOURS[d.getHours()];
+    const key = `${hour}|${day}`;
+    const cur = sums.get(key) ?? { total: 0, count: 0 };
+    cur.total += p.energy_kwh ?? 0;
+    cur.count += 1;
+    sums.set(key, cur);
+  }
+  const cells: { row: string; column: string; value: number }[] = [];
+  let peak = { hour: '00', day: 'Mon', value: 0 };
+  for (const hour of HOURS) {
+    for (const day of WEEKDAYS) {
+      const agg = sums.get(`${hour}|${day}`);
+      const value = agg && agg.count ? agg.total / agg.count : 0;
+      cells.push({ row: hour, column: day, value });
+      if (value > peak.value) peak = { hour, day, value };
+    }
+  }
+  return { cells, peak };
+}
 
 function bandTone(pct: number | null): 'ok' | 'warn' | 'critical' {
   if (pct === null) return 'warn';
@@ -88,6 +127,7 @@ export function ForecastPage() {
           const thirty = horizons.find((h) => h.horizon === '30d') ?? horizons[horizons.length - 1];
           const week = hourly.slice(0, 24 * 7);
           const year = hourly;
+          const profile = loadProfile(year);
 
           const horizonColumns: readonly Column<Horizon>[] = [
             {
@@ -314,6 +354,40 @@ export function ForecastPage() {
                   ) : null}
                 </div>
               ) : null}
+
+              <Section
+                title="Load shape — when the estate actually works"
+                description="Every forecast hour folded into hour-of-day against day-of-week. The dark ridge is the working week; the quiet columns are the weekends the estate has not learned to switch off."
+              >
+                <div className="flex flex-col gap-4">
+                  <HeatmapGrid
+                    title="Average demand by hour and day"
+                    hint={`The heaviest cell is ${profile.peak.day} at ${profile.peak.hour}:00, averaging ${energy(profile.peak.value)}.`}
+                    cells={profile.cells}
+                    rowLabel="Hour"
+                    columnLabel="Day"
+                    rowOrder={HOURS}
+                    columnOrder={WEEKDAYS}
+                    unit="kWh"
+                    format={(v) => dec(v, 1)}
+                    height={520}
+                  />
+                  {output.monthly_history.length ? (
+                    <SeasonalityBars
+                      data={output.monthly_history.map((h) => ({
+                        label: h.month,
+                        value: h.energy_kwh,
+                      }))}
+                      labelKey="label"
+                      valueKey="value"
+                      unit="kWh"
+                      title="What the year repeats"
+                      hint="The monthly history behind the forecast — the seasonality the model is asked to extrapolate."
+                      height={220}
+                    />
+                  ) : null}
+                </div>
+              </Section>
 
               <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_21rem]">
                 <div className="flex min-w-0 flex-col gap-4">
