@@ -4,77 +4,120 @@ export default {
   theme: {
     extend: {
       colors: {
-        gray: {
-          50: 'var(--gray-50)', 100: 'var(--gray-100)', 200: 'var(--gray-200)', 300: 'var(--gray-300)',
-          400: 'var(--gray-400)', 500: 'var(--gray-500)', 600: 'var(--gray-600)', 700: 'var(--gray-700)',
-          800: 'var(--gray-800)', 900: 'var(--gray-900)',
+        // One neutral ramp drives all chrome, so hierarchy comes from space
+        // and type weight rather than from competing palettes.
+        neutral: {
+          0: 'var(--surface)',
+          50: 'var(--surface-inset)',
+          100: 'var(--surface-2)',
+          200: 'var(--surface-3)',
+          300: 'var(--line)',
+          400: 'var(--line-strong)',
+          500: 'var(--ink-faint)',
+          600: 'var(--ink-low)',
+          700: 'var(--ink-mid)',
+          800: 'var(--ink)',
+          900: 'var(--ink)',
         },
-        dark: {
-          DEFAULT: 'var(--bg)', 50: 'var(--bg)',
-          100: 'var(--bg2)', 200: 'var(--bg2)', 300: 'var(--bg3)',
+        // Five semantic colours. Everything the user must react to maps to
+        // exactly one of these.
+        ok: {
+          DEFAULT: 'var(--ok)',
+          tint: 'var(--ok-tint)',
+          line: 'var(--ok-line)',
         },
-        surface: {
-          DEFAULT: 'var(--panel)', light: 'var(--panel2)', lighter: 'var(--panel3)', dark: 'var(--bg)',
+        warn: {
+          DEFAULT: 'var(--warn)',
+          tint: 'var(--warn-tint)',
+          line: 'var(--warn-line)',
         },
-        // Ink / panel tokens — drive light & dark chrome from --t-* and --panel* vars.
-        t: {
-          hi: 'rgb(var(--t-hi-rgb) / <alpha-value>)',
-          mid: 'rgb(var(--t-mid-rgb) / <alpha-value>)',
-          lo: 'rgb(var(--t-lo-rgb) / <alpha-value>)',
+        critical: {
+          DEFAULT: 'var(--critical)',
+          tint: 'var(--critical-tint)',
+          line: 'var(--critical-line)',
         },
-        panel: {
-          DEFAULT: 'rgb(var(--panel-rgb) / <alpha-value>)',
-          2: 'rgb(var(--panel2-rgb) / <alpha-value>)',
-          3: 'rgb(var(--panel3-rgb) / <alpha-value>)',
+        info: {
+          DEFAULT: 'var(--info)',
+          tint: 'var(--info-tint)',
+          line: 'var(--info-line)',
         },
-        panel2: 'rgb(var(--panel2-rgb) / <alpha-value>)',
-        panel3: 'rgb(var(--panel3-rgb) / <alpha-value>)',
-        border: {
-          DEFAULT: 'rgb(var(--color-border-rgb) / <alpha-value>)',
+        muted: {
+          DEFAULT: 'var(--neutral)',
+          tint: 'var(--neutral-tint)',
+          line: 'var(--neutral-line)',
         },
-        // Brand — royal suite (deep indigo-blue identity, gold highlights).
-        primary: {
-          DEFAULT: '#4C5FD5',
-          50: '#EEF1FD', 100: '#DCE3FB', 200: '#B9C6F6', 300: '#8FA0EE',
-          400: '#6B7EE5', 500: '#4C5FD5', 600: '#3B4CBE', 700: '#2F3C99',
-          800: '#27307A', 900: '#1F2660',
-        },
-        accent: {
-          emerald: 'rgb(var(--color-accent-emerald-rgb) / <alpha-value>)',
-          cyan: 'rgb(var(--color-accent-cyan-rgb) / <alpha-value>)',
-          gold: 'rgb(var(--color-accent-gold-rgb) / <alpha-value>)',
-          amber: 'rgb(var(--color-accent-amber-rgb) / <alpha-value>)',
-          rose: 'rgb(var(--color-accent-rose-rgb) / <alpha-value>)',
-          violet: 'rgb(var(--color-accent-violet-rgb) / <alpha-value>)',
+        brand: {
+          DEFAULT: 'var(--brand)',
+          hover: 'var(--brand-hover)',
+          active: 'var(--brand-active)',
+          tint: 'var(--brand-tint)',
+          'tint-strong': 'var(--brand-tint-strong)',
+          ink: 'var(--brand-ink)',
         },
       },
       fontFamily: {
-        display: ['Inter', 'sans-serif'],
-        body: ['Inter', 'sans-serif'],
-        mono: ['JetBrains Mono', 'monospace'],
+        sans: ['Inter', 'ui-sans-serif', 'system-ui', '-apple-system', 'sans-serif'],
+        mono: ['ui-monospace', 'SF Mono', 'Cascadia Mono', 'Menlo', 'monospace'],
+      },
+      fontSize: {
+        '2xs': ['var(--text-2xs)', { lineHeight: '1rem' }],
+        xs: ['var(--text-xs)', { lineHeight: '1.125rem' }],
+        sm: ['var(--text-sm)', { lineHeight: '1.25rem' }],
+        base: ['var(--text-base)', { lineHeight: '1.375rem' }],
+        md: ['var(--text-md)', { lineHeight: '1.5rem' }],
+        lg: ['var(--text-lg)', { lineHeight: '1.75rem' }],
+        xl: ['var(--text-xl)', { lineHeight: '1.875rem' }],
+        '2xl': ['var(--text-2xl)', { lineHeight: '2.125rem' }],
+        '3xl': ['var(--text-3xl)', { lineHeight: '2.5rem' }],
+        '4xl': ['var(--text-4xl)', { lineHeight: '3rem' }],
+      },
+      spacing: {
+        1: 'var(--space-1)',
+        2: 'var(--space-2)',
+        3: 'var(--space-3)',
+        4: 'var(--space-4)',
+        5: 'var(--space-5)',
+        6: 'var(--space-6)',
+        8: 'var(--space-8)',
+        10: 'var(--space-10)',
+        12: 'var(--space-12)',
+        16: 'var(--space-16)',
       },
       borderRadius: {
-        glass: '18px',
-        card: '14px',
-        button: '9px',
+        xs: 'var(--radius-xs)',
+        sm: 'var(--radius-sm)',
+        md: 'var(--radius-md)',
+        DEFAULT: 'var(--radius-md)',
+        lg: 'var(--radius-lg)',
+        xl: 'var(--radius-xl)',
+        full: 'var(--radius-full)',
+      },
+      boxShadow: {
+        sm: 'var(--shadow-sm)',
+        DEFAULT: 'var(--shadow-sm)',
+        md: 'var(--shadow-md)',
+        lg: 'var(--shadow-lg)',
+        overlay: 'var(--shadow-overlay)',
+      },
+      transitionDuration: {
+        fast: 'var(--dur-fast)',
+        DEFAULT: 'var(--dur-base)',
+        slow: 'var(--dur-slow)',
+      },
+      transitionTimingFunction: {
+        DEFAULT: 'var(--ease)',
+        out: 'var(--ease-out)',
       },
       animation: {
-        'pulse-glow': 'pulse-glow 2s ease-in-out infinite',
-        'slide-up': 'slide-up 0.5s ease-out',
-        'fade-in': 'fade-in 0.3s ease-out',
+        // The only animation in the system. It reveals a Data Quality
+        // pipeline stage as that stage completes — real process state, not
+        // decoration. Honours prefers-reduced-motion.
+        'pipeline-reveal': 'pipeline-reveal var(--dur-base) var(--ease-out)',
       },
       keyframes: {
-        'pulse-glow': {
-          '0%, 100%': { opacity: '1' },
-          '50%': { opacity: '0.7' },
-        },
-        'slide-up': {
-          '0%': { transform: 'translateY(10px)', opacity: '0' },
-          '100%': { transform: 'translateY(0)', opacity: '1' },
-        },
-        'fade-in': {
-          '0%': { opacity: '0' },
-          '100%': { opacity: '1' },
+        'pipeline-reveal': {
+          '0%': { opacity: '0', transform: 'translateY(4px)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' },
         },
       },
     },

@@ -2,18 +2,29 @@
 
 Ownership: S4.
 """
+
 from __future__ import annotations
 
 import numpy as np
 import pandas as pd
 from sklearn.metrics import (
-    explained_variance_score, mean_absolute_error, mean_squared_error, r2_score,
+    explained_variance_score,
+    mean_absolute_error,
+    mean_squared_error,
+    r2_score,
 )
 
 TEMP_FEATURES = [
-    "hour_of_day", "day_of_week", "is_weekend", "month",
-    "rolling_mean_24h", "rolling_std_24h", "lag_1h", "diff_1h",
-    "load_factor", "energy_density",
+    "hour_of_day",
+    "day_of_week",
+    "is_weekend",
+    "month",
+    "rolling_mean_24h",
+    "rolling_std_24h",
+    "lag_1h",
+    "diff_1h",
+    "load_factor",
+    "energy_density",
 ]
 
 
@@ -40,7 +51,9 @@ def derive_features(df: pd.DataFrame, ts_col: str | None = None) -> pd.DataFrame
     out["is_weekend"] = (idx.dt.dayofweek >= 5).astype(int)
     out["month"] = idx.dt.month
 
-    target_candidates = [c for c in out.columns if c in ("energy_kwh", "power_kw", "energy", "value", "load")]
+    target_candidates = [
+        c for c in out.columns if c in ("energy_kwh", "power_kw", "energy", "value", "load")
+    ]
     target = target_candidates[0] if target_candidates else None
     if target:
         s = pd.to_numeric(out[target], errors="coerce")
@@ -61,8 +74,13 @@ def derive_features(df: pd.DataFrame, ts_col: str | None = None) -> pd.DataFrame
     return out
 
 
-def build_ml_matrix(df: pd.DataFrame, target: str, exclude: set | None = None,
-                    derive: bool = True, features: list | None = None) -> tuple:
+def build_ml_matrix(
+    df: pd.DataFrame,
+    target: str,
+    exclude: set | None = None,
+    derive: bool = True,
+    features: list | None = None,
+) -> tuple:
     """Return (X_df, y_series, feature_cols). Drops non-numeric + NaN rows."""
     ex = set(exclude or set())
     ex.update({"timestamp", "datetime", "is_anomaly", target, "asset_id", "asset_type"})
@@ -119,58 +137,79 @@ ALGORITHM_FACTORY = {
 
 def _xgboost(hp):
     import xgboost as xgb
+
     return xgb.XGBRegressor(
         n_estimators=hp.get("n_estimators", 200),
         max_depth=hp.get("max_depth", 6),
         learning_rate=hp.get("learning_rate", 0.05),
-        subsample=0.9, colsample_bytree=0.9,
-        objective="reg:squarederror", n_jobs=-2, random_state=7,
-        verbosity=0)
+        subsample=0.9,
+        colsample_bytree=0.9,
+        objective="reg:squarederror",
+        n_jobs=-2,
+        random_state=7,
+        verbosity=0,
+    )
 
 
 def _rf(hp):
     from sklearn.ensemble import RandomForestRegressor
+
     return RandomForestRegressor(
         n_estimators=hp.get("n_estimators", 250),
-        max_depth=hp.get("max_depth", None), min_samples_leaf=hp.get("min_samples_leaf", 2),
-        n_jobs=-2, random_state=7)
+        max_depth=hp.get("max_depth", None),
+        min_samples_leaf=hp.get("min_samples_leaf", 2),
+        n_jobs=-2,
+        random_state=7,
+    )
 
 
 def _gb(hp):
     from sklearn.ensemble import GradientBoostingRegressor
+
     return GradientBoostingRegressor(
         n_estimators=hp.get("n_estimators", 150),
-        learning_rate=hp.get("learning_rate", 0.05), max_depth=hp.get("max_depth", 4),
-        random_state=7)
+        learning_rate=hp.get("learning_rate", 0.05),
+        max_depth=hp.get("max_depth", 4),
+        random_state=7,
+    )
 
 
 def _linear(hp):
     from sklearn.linear_model import LinearRegression
+
     return LinearRegression()
 
 
 def _ridge(hp):
     from sklearn.linear_model import Ridge
+
     return Ridge(alpha=hp.get("alpha", 1.0))
 
 
 def _lasso(hp):
     from sklearn.linear_model import Lasso
+
     return Lasso(alpha=hp.get("alpha", 0.01), max_iter=5000)
 
 
 def _et(hp):
     from sklearn.ensemble import ExtraTreesRegressor
+
     return ExtraTreesRegressor(
-        n_estimators=hp.get("n_estimators", 200), min_samples_leaf=hp.get("min_samples_leaf", 2),
-        n_jobs=-2, random_state=7)
+        n_estimators=hp.get("n_estimators", 200),
+        min_samples_leaf=hp.get("min_samples_leaf", 2),
+        n_jobs=-2,
+        random_state=7,
+    )
 
 
 def build_model(algorithm: str, hyperparameters: dict | None = None):
     hp = hyperparameters or {}
     factory = ALGORITHM_FACTORY.get(algorithm)
     if factory is None:
-        raise ValueError(f"Unknown algorithm '{algorithm}'. Choose from {sorted(ALGORITHM_FACTORY)}")
+        raise ValueError(
+            f"Unknown algorithm '{algorithm}'. Choose from {sorted(ALGORITHM_FACTORY)}"
+        )
     return factory(hp)
 
 
@@ -191,6 +230,7 @@ def feature_importance(model, feature_cols) -> dict:
 def dataset_hash(X) -> str:
     try:
         import hashlib
+
         s = ",".join(X.columns) + ":" + str(len(X))
         return hashlib.md5(s.encode()).hexdigest()[:10]
     except Exception:

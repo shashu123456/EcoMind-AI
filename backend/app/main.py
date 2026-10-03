@@ -1,16 +1,19 @@
-"""FastAPI application factory."""
+"""FastAPI application factory.
+
+Ownership: S1. Contract: docs/API_CONTRACT.md §1.
+"""
+
 import asyncio
 from contextlib import asynccontextmanager
+from pathlib import Path
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
-from pathlib import Path
-from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
 
-from .core.config import settings
 from .db.base import init_db
 from .events.event_bus import event_bus
 
@@ -38,33 +41,32 @@ app.add_middleware(
 )
 
 # ── Import and register routers ──
-from .routes import auth, datasets, schema as schema_route, dq, transformations, \
-    features, models_route, predictions, shap, anomalies, benchmarks, \
-    recommendations, reports, workflow, ai, comparison, registry, health
-
+# Only routers that exist are registered. A router is added here in the same
+# phase that creates it, so an import of app.main either yields a working API
+# or fails loudly — it can never half-serve the old pipeline.
+from .domain import stage_runners  # noqa: E402,F401  registers the stage runners
+from .routes import (  # noqa: E402
+    auth,
+    datasets,
+    dq,
+    health,
+    workflow,
+)
+from .routes import (  # noqa: E402
+    schema as schema_route,
+)
 
 app.include_router(health.router, prefix="/api/v1", tags=["health"])
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
 app.include_router(datasets.router, prefix="/api/v1/datasets", tags=["datasets"])
 app.include_router(schema_route.router, prefix="/api/v1/datasets", tags=["schema"])
 app.include_router(dq.router, prefix="/api/v1/datasets", tags=["dq"])
-app.include_router(transformations.router, prefix="/api/v1/datasets", tags=["transformations"])
-app.include_router(features.router, prefix="/api/v1/datasets", tags=["features"])
-app.include_router(models_route.router, prefix="/api/v1/models", tags=["models"])
-app.include_router(predictions.router, prefix="/api/v1/predictions", tags=["predictions"])
-app.include_router(shap.router, prefix="/api/v1/explanations", tags=["shap"])
-app.include_router(anomalies.router, prefix="/api/v1/anomalies", tags=["anomalies"])
-app.include_router(benchmarks.router, prefix="/api/v1/benchmarks", tags=["benchmarks"])
-app.include_router(recommendations.router, prefix="/api/v1/recommendations", tags=["recommendations"])
-app.include_router(reports.router, prefix="/api/v1/reports", tags=["reports"])
 app.include_router(workflow.router, prefix="/api/v1/workflows", tags=["workflows"])
-app.include_router(ai.router, prefix="/api/v1/ai", tags=["ai"])
-app.include_router(comparison.router, prefix="/api/v1/comparison", tags=["comparison"])
-app.include_router(registry.router, prefix="/api/v1/registry", tags=["registry"])
 
 # Serve built frontend in production (SPA with fallback to index.html)
 frontend_dist = Path(__file__).parent.parent.parent / "frontend" / "dist"
 if frontend_dist.exists():
+
     @app.middleware("http")
     async def spa_cache_headers(request: Request, call_next) -> Response:
         response: Response = await call_next(request)

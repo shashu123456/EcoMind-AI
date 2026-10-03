@@ -1,14 +1,17 @@
 """Auth endpoints per contract §3.2: register, login, me."""
-from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
-from sqlalchemy.orm import Session
 
 from app.core.security import (
-    create_access_token, get_current_user, hash_password, verify_password,
+    create_access_token,
+    get_current_user,
+    hash_password,
+    verify_password,
 )
 from app.db.base import get_db
 from app.db.models import AuditLog, User
 from app.domain.data import json_safe
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
 router = APIRouter()
 
@@ -54,8 +57,15 @@ def register(body: RegisterIn, db: Session = Depends(get_db)):
     )
     db.add(user)
     db.flush()
-    db.add(AuditLog(user_id=user.id, action="create", resource_type="user",
-                    resource_id=user.id, details={"email": email}))
+    db.add(
+        AuditLog(
+            user_id=user.id,
+            action="create",
+            resource_type="user",
+            resource_id=user.id,
+            details={"email": email},
+        )
+    )
     db.commit()
     db.refresh(user)
     return json_safe(_auth_payload(user))

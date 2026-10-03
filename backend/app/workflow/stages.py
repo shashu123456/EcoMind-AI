@@ -1,66 +1,144 @@
-"""Canonical 15-stage workflow + stage-runner registry.
+"""Canonical 10-stage workflow + stage-runner registry.
 
-THE single source of truth for stage order used by:
-  - the workflow router (exec / advance / traces)
-  - domain routers (they register stage runners here)
-  - the frontend PipelineRail / ConfidenceGate / timeline
+THE single source of truth for stage order, used by:
+  - the workflow router (exec / advance / traces / stream)
+  - domain modules (they register stage runners here)
+  - the frontend PhaseNav, which renders one panel per `key`
 
-Stage keys are snake_case; `route` is the frontend path segment.
-`api` is the owning API area (informational only).
+Two phases, six preparation stages then four decision stages. The split is not
+cosmetic: a decision stage is only reachable once the six preparation stages
+have passed, so no anomaly, forecast or recommendation is ever computed on data
+that has not been through quality checks and transformation.
 
-Runners must be plain functions with signature:
+Stage keys are snake_case; `route` is the frontend path segment relative to the
+dataset, and `phase` drives which half of the rail a stage belongs to.
+
+Runners are plain functions:
 
     def run(run: WorkflowRun, db: Session, params: dict) -> dict
 
 returning:
+
     {
         "output": {...},            # stage payload (persisted to trace.output_snapshot)
         "confidence": float | None, # 0..1 for stages that produce confidence
-        "decision": str,            # human-readable AI reasoning summary
+        "decision": str,            # human-readable reasoning summary
         "trace_extra": {...},       # optional extra trace fields
     }
 
-Register with the @register_stage_runner(key) decorator; callable name is
-irrelevant. Registration happens at import time (routers import domain
-services), so the workflow exec endpoint sees every runner.
+Register with @register_stage_runner(key); the callable's name is irrelevant.
+Registration happens at import time (route modules import domain services), so
+the exec endpoint sees every runner.
+
+This module imports no models. Domain services import this, so a model import
+here would be circular.
 """
+
 from __future__ import annotations
 
 from typing import Callable, Dict, Optional
 
+PHASE_PREPARATION = "phase:preparation"
+PHASE_DECISION = "phase:decision"
+PHASE_DATASET = "dataset"
+
+#: Values the locked `requires` column accepts. The old free-text values
+#: ("all", "none", "schema", "predictions") are gone — anything downstream that
+#: wants to know a stage's gate reads these instead.
+REQUIRES_VALUES = (PHASE_PREPARATION, PHASE_DECISION, PHASE_DATASET)
+
 STAGES = [
-    {"number": 1, "key": "library",            "label": "Dataset Library",         "route": "/library"},
-    {"number": 2, "key": "import",             "label": "Import Dataset",          "route": "/import"},
-    {"number": 3, "key": "schema_discovery",   "label": "Schema Discovery",        "route": "/schema"},
-    {"number": 4, "key": "dq_engine",          "label": "Data Quality Engine",     "route": "/dq"},
-    {"number": 5, "key": "transformation",     "label": "Transformation Viewer",   "route": "/transformations"},
-    {"number": 6, "key": "feature_engineering", "label": "Feature Engineering",    "route": "/features"},
-    {"number": 7, "key": "prediction",         "label": "Prediction Engine",       "route": "/prediction"},
-    {"number": 8, "key": "confidence_gate",    "label": "AI Confidence Gate",      "route": "/confidence"},
-    {"number": 9, "key": "shap",               "label": "SHAP Explainability",     "route": "/shap"},
-    {"number": 10, "key": "anomaly",           "label": "Anomaly Detection",       "route": "/anomalies"},
-    {"number": 11, "key": "benchmarking",      "label": "Benchmarking",            "route": "/benchmarks"},
-    {"number": 12, "key": "recommendation",    "label": "Recommendation Engine",   "route": "/recommendations"},
-    {"number": 13, "key": "executive_center",  "label": "Executive Intelligence Center", "route": "/executive"},
-    {"number": 14, "key": "report",            "label": "Report Generation",       "route": "/reports"},
-    {"number": 15, "key": "history_registry",  "label": "History & Model Registry", "route": "/history"},
+    # ── Preparation ────────────────────────────────────────────────────────
+    {
+        "number": 1,
+        "key": "library",
+        "label": "Dataset Library",
+        "route": "/library",
+        "phase": PHASE_PREPARATION,
+        "requires": PHASE_DATASET,
+    },
+    {
+        "number": 2,
+        "key": "import",
+        "label": "Import Dataset",
+        "route": "/import",
+        "phase": PHASE_PREPARATION,
+        "requires": PHASE_DATASET,
+    },
+    {
+        "number": 3,
+        "key": "schema",
+        "label": "Schema Discovery",
+        "route": "/schema",
+        "phase": PHASE_PREPARATION,
+        "requires": PHASE_DATASET,
+    },
+    {
+        "number": 4,
+        "key": "quality",
+        "label": "Data Quality",
+        "route": "/quality",
+        "phase": PHASE_PREPARATION,
+        "requires": PHASE_DATASET,
+    },
+    {
+        "number": 5,
+        "key": "transformation",
+        "label": "Transformation",
+        "route": "/transformation",
+        "phase": PHASE_PREPARATION,
+        "requires": PHASE_DATASET,
+    },
+    {
+        "number": 6,
+        "key": "model_selection",
+        "label": "Model Selection",
+        "route": "/model-selection",
+        "phase": PHASE_PREPARATION,
+        "requires": PHASE_DATASET,
+    },
+    # ── Decision ───────────────────────────────────────────────────────────
+    {
+        "number": 7,
+        "key": "anomaly",
+        "label": "Anomaly Detection",
+        "route": "/anomalies",
+        "phase": PHASE_DECISION,
+        "requires": PHASE_PREPARATION,
+    },
+    {
+        "number": 8,
+        "key": "forecast",
+        "label": "Energy Forecasting",
+        "route": "/forecast",
+        "phase": PHASE_DECISION,
+        "requires": PHASE_PREPARATION,
+    },
+    {
+        "number": 9,
+        "key": "recommendation",
+        "label": "Recommendations",
+        "route": "/recommendations",
+        "phase": PHASE_DECISION,
+        "requires": PHASE_DECISION,
+    },
+    {
+        "number": 10,
+        "key": "report",
+        "label": "Report",
+        "route": "/report",
+        "phase": PHASE_DECISION,
+        "requires": PHASE_DECISION,
+    },
 ]
 
-STAGE_BY_KEY = {s["key"]: s for s in STAGES}
-STAGE_BY_NUMBER = {s["number"]: s for s in STAGES}
+STAGE_BY_KEY: Dict[str, dict] = {s["key"]: s for s in STAGES}
+STAGE_BY_NUMBER: Dict[int, dict] = {s["number"]: s for s in STAGES}
 TOTAL_STAGES = len(STAGES)
 
-# Trust formula (locked, per spec): 0.40*pred_conf + 0.25*dq + 0.20*model_rel + 0.15*shap_stab
-TRUST_WEIGHTS = {"prediction_confidence": 0.40, "dq_score": 0.25, "model_relevance": 0.20, "shap_stability": 0.15}
-
-
-def trust_verdict(trust_score: float) -> str:
-    if trust_score >= 80:
-        return "high_trust"
-    if trust_score >= 60:
-        return "moderate_trust"
-    return "low_trust"
-
+#: Preparation keys that must have passed before a decision stage may run.
+PREPARATION_KEYS = [s["key"] for s in STAGES if s["phase"] == PHASE_PREPARATION]
+DECISION_KEYS = [s["key"] for s in STAGES if s["phase"] == PHASE_DECISION]
 
 STAGE_RUNNERS: Dict[str, Callable] = {}
 
@@ -79,3 +157,52 @@ def register_stage_runner(stage_key: str):
 
 def get_stage_runner(stage_key: str) -> Optional[Callable]:
     return STAGE_RUNNERS.get(stage_key)
+
+
+def stage_manifest() -> list[dict]:
+    """The rail, for the frontend and the progress endpoint."""
+    return [{**s, "has_runner": s["key"] in STAGE_RUNNERS} for s in STAGES]
+
+
+def next_stage(stage_key: str) -> dict | None:
+    """The stage after `stage_key`, or None at the end of the pipeline.
+
+    Explicit rather than `current + 1`: stage numbers are identifiers that can
+    be renumbered when the pipeline changes, and walking a list by position
+    means a number is never the thing that decides order.
+    """
+    idx = next((i for i, s in enumerate(STAGES) if s["key"] == stage_key), None)
+    if idx is None or idx + 1 >= len(STAGES):
+        return None
+    return STAGES[idx + 1]
+
+
+def missing_prior_stages(stage_key: str, completed: list | tuple | set | None) -> list[str]:
+    """Preparation/decision stages that must run before `stage_key` may.
+
+    `completed` is a run's `stages_completed` — the keys it has actually
+    executed. Order is read positionally, so renumbering the pipeline never
+    changes what depends on what.
+
+    This is the pipeline's real gate: `requires` names the *phase* a stage sits
+    behind for display purposes, but the enforceable rule is that you cannot
+    skip ahead. Asking "is phase:preparation done?" is answerable wrong when the
+    six preparation stages are half finished; asking "which earlier stages are
+    missing?" is not.
+    """
+    idx = next((i for i, s in enumerate(STAGES) if s["key"] == stage_key), None)
+    if idx is None:
+        return []
+    done = set(completed or ())
+    return [s["key"] for s in STAGES[:idx] if s["key"] not in done]
+
+
+def preparation_complete(stage_statuses: dict | None) -> bool:
+    """True when all six preparation stages are marked passed.
+
+    The gate is the statuses dict the journey already persists, not a separate
+    derived flag, so the pipeline and the progress rail cannot disagree about
+    how far the run got.
+    """
+    statuses = stage_statuses or {}
+    return all(statuses.get(k) == "passed" for k in PREPARATION_KEYS)

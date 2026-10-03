@@ -1,25 +1,34 @@
-"""Process management: ports, pids, trees, pid map, health probe, service spawn."""
+"""Process management: ports, pids, trees, pid map, health probe, service spawn.
+
+Cross-platform: works on Windows, macOS and Linux. The Windows path keeps the
+"titled console window" behaviour; POSIX runs services detached with output
+redirected to their log files.
+"""
 from __future__ import annotations
 
 import json
 import os
+import signal
 import socket
 import subprocess
+import sys
 import time
 import urllib.request
 from pathlib import Path
 
-from launcher.config import project_root, python_executable, load_config
+from launcher.config import load_config, npm_executable, project_root, python_executable
 
 PID_DIR_NAME = "launcher-pids"
 
 # Markers placed on our own command lines so "is this really our process?"
-# stays reliable even after Windows recycles a PID.
+# stays reliable even after the OS recycles a PID.
 LAUNCHER_MARKER = "launcher.start"
 SPAWN_MARKER = "spawn.py"
 
 BACKEND_TITLE = "EcoMind Backend"
 FRONTEND_TITLE = "EcoMind Frontend"
+
+IS_WINDOWS = os.name == "nt"
 
 
 def pid_dir() -> Path:
@@ -47,7 +56,30 @@ def http_ok(url: str, timeout: float = 3.0) -> bool:
         return False
 
 
-def _wmic_cmdline(pid: int) -> str:
+# --------------------------------------------------------------------------- #
+# command line of a pid
+# --------------------------------------------------------------------------- #
+def _cmdline(pid: int) -> str:
+    """Command line of a pid, empty string if it cannot be determined."""
+    if IS_WINDOWS:
+        return _cmdline_windows(pid)
+    return _cmdline_posix(pid)
+
+
+def _cmdline_windows(pid: int) -> str:
+    # Prefer PowerShell (present on all supported Windows versions).
+    try:
+        r = subprocess.run(
+            ["powershell", "-NoProfile", "-Command",
+             f"(Get-CimInstance Win32_Process -Filter \"ProcessId={pid}\").CommandLine"],
+            capture_output=True, text=True, timeout=20,
+        )
+        if r.returncode == 0:
+            out = (r.stdout or "").strip()
+            if out:
+                return out
+    except Exception:
+        pass
     try:
         r = subprocess.run(
             ["wmic", "process", "where", f"ProcessId={pid}", "get", "CommandLine", "/format:list"],
@@ -62,42 +94,50 @@ def _wmic_cmdline(pid: int) -> str:
     return ""
 
 
-def _cmdline(pid: int) -> str:
-    """Command line of a pid, empty string if it cannot be determined."""
-    # Prefer PowerShell (present on all supported Windows versions).
+def _cmdline_posix(pid: int) -> str:
+    proc = Path(f"/proc/{pid}/cmdline")
+    if proc.exists():
+        try:
+            return proc.read_bytes().replace(b"\x00", b" ").decode("utf-8", "replace").strip()
+        except Exception:
+            pass
     try:
-        r = subprocess.run(
-            ["powershell", "-NoProfile", "-Command",
-             f"(Get-CimInstance Win32_Process -Filter \"ProcessId={pid}\").CommandLine"],
-            capture_output=True, text=True, timeout=20,
-        )
-        if r.returncode == 0:
-            out = (r.stdout or "").strip()
-            if out:
-                return out
+        r = subprocess.run(["ps", "-o", "command=", "-p", str(pid)],
+                           capture_output=True, text=True, timeout=10)
+        return (r.stdout or "").strip()
     except Exception:
-        pass
-    return _wmic_cmdline(pid)
+        return ""
 
 
+# --------------------------------------------------------------------------- #
+# liveness / termination
+# --------------------------------------------------------------------------- #
 def pid_alive(pid: int) -> bool:
+    if not pid:
+        return False
+    if IS_WINDOWS:
+        try:
+            out = subprocess.run(["tasklist", "/FI", f"PID eq {pid}", "/NH"],
+                                 capture_output=True, text=True, timeout=10).stdout or ""
+            for line in out.splitlines():
+                if line.strip() and str(pid) in line:
+                    return True
+        except Exception:
+            return False
+        return False
     try:
-        out = subprocess.run(["tasklist", "/FI", f"PID eq {pid}", "/NH"],
-                             capture_output=True, text=True, timeout=10).stdout or ""
-        for line in out.splitlines():
-            if line.strip() and str(pid) in line:
-                return True
+        os.kill(int(pid), 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
     except Exception:
         return False
-    return False
+    return True
 
 
 def our_launcher_alive(pid: int, marker: str = LAUNCHER_MARKER) -> bool:
-    """True only if pid is a python process whose command line contains marker.
-
-    Plain `pid_alive` matches ANY process with that pid (taskkill-style), which
-    broke the launcher after Windows recycled the pid onto an unrelated exe.
-    """
+    """True only if pid is a python process whose command line contains marker."""
     if not pid or not pid_alive(pid):
         return False
     cmdline = _cmdline(pid).lower()
@@ -107,14 +147,40 @@ def our_launcher_alive(pid: int, marker: str = LAUNCHER_MARKER) -> bool:
 
 
 def kill_tree(pid: int) -> bool:
-    try:
-        r = subprocess.run(["taskkill", "/PID", str(pid), "/T", "/F"],
-                           capture_output=True, text=True, timeout=15)
-        return r.returncode == 0
-    except Exception:
+    if not pid:
         return False
+    if IS_WINDOWS:
+        try:
+            r = subprocess.run(["taskkill", "/PID", str(pid), "/T", "/F"],
+                               capture_output=True, text=True, timeout=15)
+            return r.returncode == 0
+        except Exception:
+            return False
+    # POSIX: signal the whole process group so uvicorn/vite children die too.
+    try:
+        os.killpg(os.getpgid(int(pid)), signal.SIGTERM)
+    except Exception:
+        try:
+            os.kill(int(pid), signal.SIGTERM)
+        except Exception:
+            return False
+    for _ in range(20):
+        if not pid_alive(int(pid)):
+            return True
+        time.sleep(0.25)
+    try:
+        os.killpg(os.getpgid(int(pid)), signal.SIGKILL)
+    except Exception:
+        try:
+            os.kill(int(pid), signal.SIGKILL)
+        except Exception:
+            pass
+    return True
 
 
+# --------------------------------------------------------------------------- #
+# pid map
+# --------------------------------------------------------------------------- #
 def read_pid_map() -> dict:
     f = pid_dir() / "pids.json"
     if f.exists():
@@ -155,13 +221,24 @@ def clear_launcher_pid():
         f.unlink()
 
 
+# --------------------------------------------------------------------------- #
+# service spawn
+# --------------------------------------------------------------------------- #
 def _service_command(service: dict, py: str) -> list[str]:
     cmd = list(service.get("command", []))
-    return [py if c == "python" else c for c in cmd]
+    resolved = []
+    for c in cmd:
+        if c == "python":
+            resolved.append(py)
+        elif c in ("npm", "npm.cmd"):
+            resolved.append(npm_executable())
+        else:
+            resolved.append(c)
+    return resolved
 
 
 def start_service(service: dict) -> int | None:
-    """Open a fresh console window titled after the service that tees to logs. Returns the shell pid."""
+    """Start a service and tee its output to logs. Returns the launched pid."""
     cfg = load_config()
     py = python_executable()
     logs_dir = project_root() / cfg["paths"]["logs_dir"]
@@ -171,19 +248,36 @@ def start_service(service: dict) -> int | None:
     root = str(project_root())
 
     cmd = _service_command(service, py)
-    spawn = str(Path(__file__).resolve().parent / "spawn.py")
 
     env = dict(os.environ)
     for k, v in (service.get("env") or {}).items():
         env[k] = str(v).replace("{root}", root)
 
     title = service.get("title", service["id"])
+
+    if IS_WINDOWS:
+        spawn = str(Path(__file__).resolve().parent / "spawn.py")
+        try:
+            proc = subprocess.Popen(
+                [py, "-u", spawn, str(log_file), title, str(cwd), "--", *cmd],
+                cwd=str(cwd),
+                env=env,
+                creationflags=subprocess.CREATE_NEW_CONSOLE,
+            )
+            return proc.pid
+        except Exception:
+            return None
+
+    # POSIX: run detached, stream to the log file.
     try:
+        fh = open(log_file, "a", encoding="utf-8", errors="replace")
         proc = subprocess.Popen(
-            [py, "-u", spawn, str(log_file), title, str(cwd), "--", *cmd],
+            cmd,
             cwd=str(cwd),
             env=env,
-            creationflags=subprocess.CREATE_NEW_CONSOLE,
+            stdout=fh,
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
         )
         return proc.pid
     except Exception:

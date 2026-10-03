@@ -1,25 +1,34 @@
-.PHONY: help seed backend frontend build test demo clean
+.PHONY: help install seed backend frontend build test demo clean
 
-PY = .venv\Scripts\python.exe
+# The virtualenv lives at the repository root. Override on the command line if
+# your interpreter has a different name or path, e.g. `make PY=.venv/bin/python`.
+PY ?= python
+NPM ?= npm
 
 help:
-	@echo EcoMind AI — Make targets:
-	@echo   make seed       Seed the database (backend/data/ecomind.db)
+	@echo EcoMind AI - Make targets:
+	@echo   make install    Create .venv and install Python + Node dependencies
+	@echo   make seed       Generate the dataset catalog and seed the database
 	@echo   make backend    Run the FastAPI backend on :8000
 	@echo   make frontend   Run the Vite dev server on :5173
 	@echo   make build      Typecheck + production build of the frontend
 	@echo   make test       Run backend pytest suite
-	@echo   make demo       Run the 17-stage end-to-end demo walk
+	@echo   make demo       Run the ten-stage end-to-end demo walk
 	@echo   make clean      Remove build artifacts
+	@echo.
+	@echo Tip: for a one-click setup use Launch_EcoMind.bat (Windows) or ./launch.sh.
+
+install:
+	$(PY) -m launcher.start --check || $(PY) -m launcher.start --no-install
 
 seed:
-	cd backend && $(PY) seed.py
+	$(PY) backend/seed.py
 
 backend:
-	$(PY) backend\run.py
+	$(PY) backend/run.py
 
 frontend:
-	cd frontend && npm run dev
+	cd frontend && $(NPM) run dev
 
 build:
 	cd frontend && npx tsc -b && npx vite build
@@ -28,9 +37,7 @@ test:
 	$(PY) -m pytest
 
 demo:
-	$(PY) scripts\demo_end_to_end.py
+	$(PY) scripts/demo_end_to_end.py
 
 clean:
-	-if exist frontend\dist rd /s /q frontend\dist
-	-if exist .pytest_cache rd /s /q .pytest_cache
-	-if exist backend\tests\__pycache__ rd /s /q backend\tests\__pycache__
+	$(PY) -c "import shutil; [shutil.rmtree(p, ignore_errors=True) for p in ['frontend/dist', '.pytest_cache', 'backend/tests/__pycache__']]"

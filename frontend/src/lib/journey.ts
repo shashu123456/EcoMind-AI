@@ -1,387 +1,543 @@
-import { create } from 'zustand'
-import { datasets, models, streamWorkflow, workflows } from './api'
-import { toast } from './toast'
+import { create } from 'zustand';
 
-/* ── Workflow definition (single source of truth) ────── */
-export type StageStatus = 'done' | 'active' | 'todo' | 'locked'
+/**
+ * The journey: 10 stages across 2 phases.
+ *
+ * This file is the single source of truth for what exists in the product. The
+ * router, the phase navigation, the shell, the API layer and the backend
+ * stage registry all derive from it — so a stage cannot exist in the UI and
+ * be missing from the pipeline, or vice versa.
+ */
 
-export interface WorkflowStage {
-  key: string
-  index: number
-  label: string
-  short: string
-  description: string
-  path: string // template with placeholders {datasetId} {runId} {modelId}
-  requires: 'dataset' | 'run' | 'model' | 'none'
-  inspect?: boolean // pause for user inspection before auto-advance
+export type StageKey =
+  | 'library'
+  | 'import'
+  | 'schema'
+  | 'quality'
+  | 'transformation'
+  | 'model_selection'
+  | 'anomaly'
+  | 'forecast'
+  | 'recommendation'
+  | 'report';
+
+export type StageStatus = 'pending' | 'running' | 'done' | 'failed' | 'blocked' | 'skipped';
+
+export type Phase = 'preparation' | 'decision';
+
+export interface StageDef {
+  key: StageKey;
+  index: number;
+  label: string;
+  short: string;
+  phase: Phase;
+  /** One line describing what the user learns here. Shown in navigation. */
+  purpose: string;
+  /** Path template. `$datasetId` is the only parameter in this product. */
+  path: string;
+  /** True when the stage cannot be reached until a prerequisite stage is done. */
+  gated: boolean;
+  /** The headline question this page answers. Rendered as the page hero. */
+  answers: string;
 }
 
-export const WORKFLOW: WorkflowStage[] = [
-  { index: 1, key: 'library', label: 'Dataset Library', short: 'Library', description: 'Choose an energy dataset to begin the journey.', path: '/library', requires: 'none' },
-  { index: 2, key: 'import', label: 'Import Dataset', short: 'Import', description: 'Stream CSV / Excel rows into EcoMind.', path: '/import/$datasetId', requires: 'dataset' },
-  { index: 3, key: 'schema_discovery', label: 'Column Discovery', short: 'Column Discovery', description: 'Detect what each column means — type, role and confidence.', path: '/schema/$datasetId', requires: 'dataset' },
-  { index: 4, key: 'dq_engine', label: 'Data Quality Engine', short: 'Quality Engine', description: 'Row-by-row repair across 12 quality rules.', path: '/dq/$datasetId', requires: 'dataset', inspect: true },
-  { index: 5, key: 'transformation', label: 'Transformation Viewer', short: 'Transformations', description: 'Raw → Processed with a live transformation log.', path: '/transformations/$datasetId', requires: 'dataset' },
-  { index: 6, key: 'feature_engineering', label: 'Feature Preparation', short: 'Features', description: 'Raw columns become machine-learning inputs — each with a reason.', path: '/features/$datasetId', requires: 'dataset' },
-  { index: 7, key: 'prediction', label: 'Prediction Engine', short: 'Prediction', description: 'Train models head-to-head — watch them learn.', path: '/prediction/$datasetId', requires: 'dataset', inspect: true },
-  { index: 8, key: 'confidence_gate', label: 'AI Confidence Gate', short: 'Trust Gate', description: 'Explainable trust score before decisions are made.', path: '/confidence/$runId', requires: 'run', inspect: true },
-  { index: 9, key: 'shap', label: 'Prediction Explanation', short: 'Explanation', description: 'Why did the model decide what it decided?', path: '/shap/$modelId', requires: 'model' },
-  { index: 10, key: 'anomaly', label: 'Anomaly Detection', short: 'Anomalies', description: 'Timeline scan for energy anomalies, severity ranked.', path: '/anomalies/$datasetId', requires: 'dataset' },
-  { index: 11, key: 'benchmarking', label: 'Benchmarking', short: 'Benchmarks', description: 'Model / portfolio comparison and percentile ranking.', path: '/benchmarks/$datasetId', requires: 'dataset' },
-  { index: 12, key: 'recommendation', label: 'Recommendation Engine', short: 'Recommendations', description: 'AI consultant presents evidence-backed actions.', path: '/recommendations/$datasetId', requires: 'dataset' },
-  { index: 13, key: 'executive_center', label: 'Executive Intelligence Center', short: 'Executive', description: 'CEO briefing — the whole analysis in one view.', path: '/executive', requires: 'none' },
-  { index: 14, key: 'report', label: 'Report Generation', short: 'Reports', description: 'PDF / HTML / CSV audit-ready deliverables.', path: '/reports', requires: 'none' },
-  { index: 15, key: 'history_registry', label: 'History & Model Registry', short: 'History', description: 'Reopen any past run, version and verdict.', path: '/history', requires: 'none' },
-]
+// --- Phases ---------------------------------------------------------------
 
-export const STAGE_BY_KEY = Object.fromEntries(WORKFLOW.map(s => [s.key, s]))
+export const PHASES: { key: Phase; label: string; purpose: string }[] = [
+  {
+    key: 'preparation',
+    label: 'Preparation',
+    purpose: 'Establish that the data can be trusted before any conclusion is drawn from it.',
+  },
+  {
+    key: 'decision',
+    label: 'Decision',
+    purpose: 'Turn trustworthy data into actions: what is wrong, what is coming, what to do.',
+  },
+];
 
-/* Report & History are supporting deliverables — they never block the
-   analysis pipeline and are NOT counted in the process progress, so the
-   core 13-stage journey reaches 100% the moment the decision loop ends. */
-export const UTILITY_KEYS = new Set(['report', 'history_registry'])
-export const CORE_WORKFLOW: WorkflowStage[] = WORKFLOW.filter(s => !UTILITY_KEYS.has(s.key))
-export const PIPELINE_TOTAL = CORE_WORKFLOW.length
+// --- Stages ---------------------------------------------------------------
 
-/* Progress metrics over the core pipeline (reports/history excluded). */
-export function progressStats(statuses: Record<string, string>) {
-  const done = CORE_WORKFLOW.filter(s => statuses[s.key] === 'done').length
-  return { done, total: PIPELINE_TOTAL, pct: PIPELINE_TOTAL ? Math.round((done / PIPELINE_TOTAL) * 100) : 0 }
+/**
+ * `satisfies` rather than a type annotation: an annotation would widen every
+ * `path` back to `string`, and the router needs the literals to type-check
+ * links. `satisfies` validates the same shape while keeping them narrow.
+ */
+export const STAGES = [
+  {
+    key: 'library',
+    index: 0,
+    label: 'Dataset Library',
+    short: 'Library',
+    phase: 'preparation',
+    purpose: 'Choose one energy dataset to analyse.',
+    path: '/library',
+    gated: false,
+    answers: 'Are we working with the right dataset, and is it complete?',
+  },
+  {
+    key: 'import',
+    index: 1,
+    label: 'Import',
+    short: 'Import',
+    phase: 'preparation',
+    purpose: 'Bring readings into the platform without losing their provenance.',
+    path: '/import/$datasetId',
+    gated: true,
+    answers: 'Did the data arrive intact and in the right shape?',
+  },
+  {
+    key: 'schema',
+    index: 2,
+    label: 'Schema Discovery',
+    short: 'Schema',
+    phase: 'preparation',
+    purpose: 'Detect structure and surface schema issues for review.',
+    path: '/schema/$datasetId',
+    gated: true,
+    answers: 'Do we understand what each column represents?',
+  },
+  {
+    key: 'quality',
+    index: 3,
+    label: 'Data Quality',
+    short: 'DQ',
+    phase: 'preparation',
+    purpose: 'Detect and repair quality issues before training or analytics.',
+    path: '/quality/$datasetId',
+    gated: true,
+    answers: 'Can we trust this data enough to draw conclusions?',
+  },
+  {
+    key: 'transformation',
+    index: 4,
+    label: 'Transformation',
+    short: 'Transform',
+    phase: 'preparation',
+    purpose: 'Statistically normalise features so models compare on equal footing.',
+    path: '/transformation/$datasetId',
+    gated: true,
+    answers: 'Have we prepared the features without leaking information?',
+  },
+  {
+    key: 'model_selection',
+    index: 5,
+    label: 'Model Selection',
+    short: 'Models',
+    phase: 'preparation',
+    purpose: 'Train and compare candidates using real metrics, then auto-select the best.',
+    path: '/model-selection/$datasetId',
+    gated: true,
+    answers: 'Which model generalises best for this dataset?',
+  },
+  {
+    key: 'anomaly',
+    index: 6,
+    label: 'Anomaly Detection',
+    short: 'Anomalies',
+    phase: 'decision',
+    purpose: 'Find equipment behaviour that deviates from its statistical baseline.',
+    path: '/anomalies/$datasetId',
+    gated: true,
+    answers: 'What is wrong now, and where?',
+  },
+  {
+    key: 'forecast',
+    index: 7,
+    label: 'Forecast',
+    short: 'Forecast',
+    phase: 'decision',
+    purpose: 'Project demand and cost for 24h, 7d, 30d and 12 months.',
+    path: '/forecast/$datasetId',
+    gated: true,
+    answers: 'What is coming, and how much will it cost?',
+  },
+  {
+    key: 'recommendation',
+    index: 8,
+    label: 'Recommendations',
+    short: 'Actions',
+    phase: 'decision',
+    purpose: 'Turn anomalies and forecasts into concrete maintenance and optimisation actions.',
+    path: '/recommendations/$datasetId',
+    gated: true,
+    answers: 'What should we do, and how much can we save?',
+  },
+  {
+    key: 'report',
+    index: 9,
+    label: 'Organization Report',
+    short: 'Report',
+    phase: 'decision',
+    purpose: 'Package the evidence into a plain-English enterprise report.',
+    path: '/report/$datasetId',
+    gated: true,
+    answers: 'What do we tell management, and on what evidence?',
+  },
+] as const satisfies readonly StageDef[];
+
+export const TOTAL_STAGES = STAGES.length;
+
+/**
+ * Lookup by key.
+ *
+ * Written as an explicit destructuring of `STAGES` rather than a
+ * `fromEntries` fold so each value keeps its literal type — in particular
+ * `path` stays `'/quality/$datasetId'` rather than widening to `string`. The
+ * router needs those literals to type its links, and a link that points at a
+ * stage is then checked against the same registry that defines it.
+ *
+ * `satisfies` proves every stage is present; the test suite proves each entry
+ * still points at its own stage, so reordering `STAGES` cannot silently swap
+ * two pages.
+ */
+const [
+  library,
+  importStage,
+  schema,
+  quality,
+  transformation,
+  modelSelection,
+  anomaly,
+  forecast,
+  recommendation,
+  report,
+] = STAGES;
+
+export const STAGE_BY_KEY = {
+  library,
+  import: importStage,
+  schema,
+  quality,
+  transformation,
+  model_selection: modelSelection,
+  anomaly,
+  forecast,
+  recommendation,
+  report,
+} as const;
+
+export const STAGE_BY_INDEX: readonly StageDef[] = STAGES;
+
+/** Stage keys, in pipeline order. The backend stage registry mirrors this. */
+export const STAGE_KEYS: readonly StageKey[] = STAGES.map((s) => s.key);
+
+export function stagesForPhase(phase: Phase): readonly StageDef[] {
+  return STAGES.filter((s) => s.phase === phase);
 }
 
-/* ── Milestone grouping (6-milestone rail) ─────────── */
-export interface Milestone {
-  key: string
-  label: string
-  short: string
-  stages: string[] // WORKFLOW keys
-}
-export const MILESTONES: Milestone[] = [
-  { key: 'intake', label: 'Intake', short: 'Data In', stages: ['library', 'import'] },
-  { key: 'understand', label: 'Understand', short: 'Columns + Quality', stages: ['schema_discovery', 'dq_engine'] },
-  { key: 'rebuild', label: 'Rebuild', short: 'Prepare', stages: ['transformation', 'feature_engineering'] },
-  { key: 'model', label: 'Model', short: 'Predict + Trust', stages: ['prediction', 'confidence_gate'] },
-  { key: 'prove', label: 'Prove', short: 'Proof', stages: ['shap', 'anomaly'] },
-  { key: 'decide', label: 'Decide', short: 'Decide', stages: ['benchmarking', 'recommendation', 'executive_center'] },
-]
+// --- Status helpers -------------------------------------------------------
 
-/* Stages that run silently in the background in auto mode (visual-only).
-   The user is only asked to stop at checkpoints. */
-export const PASSTHROUGH_KEYS = new Set(['schema_discovery', 'shap', 'anomaly'])
+export type StageStatuses = Partial<Record<StageKey, StageStatus>>;
 
-/* Checkpoints the user actually stops / inspects at. */
-export const CHECKPOINT_KEYS = new Set([
-  'library', 'import', 'dq_engine', 'transformation', 'feature_engineering',
-  'prediction', 'confidence_gate', 'benchmarking', 'recommendation',
-  'executive_center', 'report', 'history_registry',
-])
+const TERMINAL_DONE: StageStatus[] = ['done'];
 
-export function milestoneOf(key: string): Milestone | null {
-  return MILESTONES.find(m => m.stages.includes(key)) || null
+export function isDone(statuses: StageStatuses, key: StageKey): boolean {
+  return TERMINAL_DONE.includes(statuses[key] ?? 'pending');
 }
 
-export function milestoneProgress(statuses: Record<string, string>, milestone: Milestone): { done: number; total: number } {
-  const stages = milestone.stages
-  const done = stages.filter(k => statuses[k] === 'done').length
-  return { done, total: stages.length }
+export function phaseStatus(
+  statuses: StageStatuses,
+  phase: Phase,
+): 'not-started' | 'in-progress' | 'complete' | 'blocked' {
+  const stages = stagesForPhase(phase);
+  const states = stages.map((s) => statuses[s.key] ?? 'pending');
+  if (states.every((s) => s === 'done')) return 'complete';
+  if (states.some((s) => s === 'failed' || s === 'blocked')) return 'blocked';
+  if (states.some((s) => s !== 'pending')) return 'in-progress';
+  return 'not-started';
 }
 
-/* ── Execution mode: automation vs step-by-step ─────── */
-export type JourneyMode = 'auto' | 'manual'
-export const MODE_KEY = 'ecomind_mode'
+export interface PhaseProgress {
+  done: number;
+  total: number;
+  pct: number;
+}
 
-export function initialMode(): JourneyMode {
-  try {
-    return localStorage.getItem(MODE_KEY) === 'manual' ? 'manual' : 'auto'
-  } catch {
-    return 'auto'
+export function progressStats(statuses: StageStatuses): PhaseProgress {
+  const done = STAGES.filter((s) => isDone(statuses, s.key)).length;
+  return { done, total: TOTAL_STAGES, pct: Math.round((done / TOTAL_STAGES) * 100) };
+}
+
+export function phaseProgress(statuses: StageStatuses, phase: Phase): PhaseProgress {
+  const stages = stagesForPhase(phase);
+  const done = stages.filter((s) => isDone(statuses, s.key)).length;
+  return { done, total: stages.length, pct: Math.round((done / stages.length) * 100) };
+}
+
+/**
+ * A stage is reachable when every gated prerequisite before it is done.
+ *
+ * The decision phase is gated on the whole preparation phase, which is the
+ * product's core promise: no recommendation is made from data that was never
+ * checked.
+ */
+export function isReachable(stage: StageDef, statuses: StageStatuses): boolean {
+  if (!stage.gated) return true;
+  return STAGES.slice(0, stage.index).every((prior) => isDone(statuses, prior.key));
+}
+
+export function nextStage(statuses: StageStatuses): StageDef | null {
+  return STAGES.find((s) => !isDone(statuses, s.key)) ?? null;
+}
+
+export function firstIncomplete(
+  stages: readonly StageDef[],
+  statuses: StageStatuses,
+): StageDef | null {
+  return stages.find((s) => !isDone(statuses, s.key)) ?? null;
+}
+
+/** Human label for a status. Kept here so the shell and the pages agree. */
+export const STATUS_LABEL: Record<StageStatus, string> = {
+  pending: 'Not started',
+  running: 'Running',
+  done: 'Complete',
+  failed: 'Failed',
+  blocked: 'Blocked',
+  skipped: 'Skipped',
+};
+
+// --- Path helpers ---------------------------------------------------------
+
+export function stagePath(stage: StageDef, datasetId: string | null): string {
+  return stage.path.replace('$datasetId', datasetId ?? '');
+}
+
+/**
+ * Match a pathname to a stage.
+ *
+ * Stage paths are exact and `$datasetId` is the only parameter, so this is a
+ * lookup rather than a router concern — which means the shell can tell whether
+ * the user is inside the product at all (`/`, `/login`) without touching router
+ * internals.
+ */
+export function stageForPath(pathname: string): StageKey | null {
+  const actual = pathname.replace(/\/+$/, '').split('/').filter(Boolean);
+  for (const stage of STAGES) {
+    const expected = stage.path.split('/').filter(Boolean);
+    if (expected.length !== actual.length) continue;
+    if (expected.every((seg, i) => seg.startsWith('$') || seg === actual[i])) return stage.key;
   }
+  return null;
 }
 
-export function stagePath(stage: WorkflowStage, ctx: { datasetId?: string; runId?: string; modelId?: string }): string {
-  let p = stage.path
-  if (ctx.datasetId) p = p.replace('$datasetId', ctx.datasetId)
-  if (ctx.runId) p = p.replace('$runId', ctx.runId)
-  if (ctx.modelId) p = p.replace('$modelId', ctx.modelId)
-  return p
+/** The `$datasetId` value carried by a stage path, if the path has one. */
+export function datasetIdForPath(pathname: string, stage: StageKey | null): string | null {
+  if (!stage) return null;
+  const actual = pathname.replace(/\/+$/, '').split('/').filter(Boolean);
+  const expected = STAGE_BY_KEY[stage].path.split('/').filter(Boolean);
+  const at = expected.findIndex((seg) => seg.startsWith('$'));
+  return at >= 0 ? (actual[at] ?? null) : null;
 }
 
-export function nextStage(ctx: { datasetId?: string; runId?: string; modelId?: string; datasetStageKey?: string }): { stage: WorkflowStage | null; path: string | null } {
-  let idx = 0
-  const cur = ctx.datasetStageKey
-  if (cur) {
-    const s = STAGE_BY_KEY[cur]
-    if (s) idx = s.index
-  }
-  const next = WORKFLOW[idx] // next after current
-  if (!next) return { stage: null, path: null }
-  return { stage: next, path: stagePath(next, ctx) }
+/**
+ * Analytics-ready: every preparation stage is done.
+ *
+ * This is the product's core promise made checkable. The analytics workspace
+ * stays locked until the data has been imported, understood, repaired,
+ * transformed and modelled — so no conclusion is drawn from unchecked data.
+ */
+export function analyticsReady(statuses: StageStatuses): boolean {
+  return stagesForPhase('preparation').every((s) => isDone(statuses, s.key));
 }
 
-/* ── Journey store ────────────────────────────────────── */
-interface JourneyState {
-  datasetId: string | null
-  runId: string | null
-  modelId: string | null
-  mode: JourneyMode
-  stageStatuses: Record<string, StageStatus>
-  refreshToken: number
-  poll: () => Promise<void>
-  setActive: (dataset?: string | null, run?: string | null, model?: string | null) => void
-  setMode: (mode: JourneyMode) => void
-  reopenRun: (runId: string) => Promise<{ datasetId: string | null } | void>
-  markStage: (key: string, status: StageStatus) => void
-  markCompleted: (key: string) => void
-  connectSse: (runId: string) => void
-  disconnect: () => void
+/** Where "Continue" should send the user from a given stage. */
+export function continuePath(
+  from: StageKey,
+  statuses: StageStatuses,
+  datasetId: string | null,
+): string | null {
+  const idx = STAGE_BY_KEY[from]?.index ?? 0;
+  const next = STAGES[idx + 1];
+  if (!next) return null;
+  if (!isReachable(next, statuses)) return null;
+  return stagePath(next, datasetId);
 }
 
-let pollTimer: ReturnType<typeof setInterval> | null = null
+/**
+ * SSE event → status patch. Pure, and unit-tested, because a dropped event
+ * here means a page that never leaves "Running".
+ */
+export function sseStatusPatch(event: unknown): StageStatuses | null {
+  if (!event || typeof event !== 'object') return null;
+  const ev = event as { type?: unknown; stage_key?: unknown };
+  if (typeof ev.type !== 'string') return null;
 
-let sseRunId: string | null = null
-let sseSrc: EventSource | null = null
-let sseRetry: ReturnType<typeof setTimeout> | null = null
-
-/* SSE event → stage-status patch (pure; unit-tested) */
-export function sseStatusPatch(ev: any): { statuses?: Record<string, StageStatus>; bump?: boolean; close?: boolean } | null {
-  if (!ev || typeof ev !== 'object' || typeof ev.type !== 'string') return null
   switch (ev.type) {
     case 'stage_started':
-      return ev.stage_key ? { statuses: { [ev.stage_key]: 'active' } } : { bump: true }
+      return keyPatch(ev.stage_key, 'running');
     case 'stage_completed':
-      return ev.stage_key ? { statuses: { [ev.stage_key]: 'done' } } : { bump: true }
+      return keyPatch(ev.stage_key, 'done');
     case 'stage_failed':
-      return ev.stage_key ? { statuses: { [ev.stage_key]: 'locked' } } : { bump: true }
-    case 'run_completed': {
-      const done = Array.isArray(ev.stages_completed) ? new Set(ev.stages_completed) : null
-      return {
-        statuses: done
-          ? Object.fromEntries(WORKFLOW.map(w => [w.key, done.has(w.key) ? 'done' : 'todo']))
-          : {},
-        close: true,
-      }
-    }
-    case 'run_failed':
-      return { bump: true, close: true }
+      return keyPatch(ev.stage_key, 'failed');
+    case 'stage_blocked':
+      return keyPatch(ev.stage_key, 'blocked');
+    case 'stage_skipped':
+      return keyPatch(ev.stage_key, 'skipped');
     default:
-      return { bump: true }
+      return null;
   }
 }
 
-export const useJourney = create<JourneyState>((set, get) => {
-  const bump = (statuses: Record<string, StageStatus>) => set(state => ({
-    stageStatuses: { ...state.stageStatuses, ...statuses },
-    refreshToken: state.refreshToken + 1,
-  }))
+/**
+ * A stage key is only trusted when it is a string that names a real stage.
+ *
+ * Membership is checked against `STAGE_KEYS` rather than `STAGE_BY_KEY`: the
+ * lookup table is a plain object, so `STAGE_BY_KEY['__proto__']` would walk the
+ * prototype chain, and a frame carrying `__proto__` as a stage key would write
+ * a junk entry into the persisted journey.
+ */
+function keyPatch(stageKey: unknown, status: StageStatus): StageStatuses | null {
+  if (typeof stageKey !== 'string') return null;
+  if (!STAGE_KEYS.includes(stageKey as StageKey)) return null;
+  return { [stageKey as StageKey]: status };
+}
 
-  const closeSse = () => {
-    if (sseRetry) { clearTimeout(sseRetry); sseRetry = null }
-    if (sseSrc) { sseSrc.close(); sseSrc = null }
+/** Build a full status map from a list of completed stage keys. */
+export function statusesFromCompleted(completed: readonly string[]): StageStatuses {
+  const set = new Set(completed);
+  const out: StageStatuses = {};
+  for (const stage of STAGES) {
+    if (set.has(stage.key)) out[stage.key] = 'done';
+    else out[stage.key] = 'pending';
   }
+  return out;
+}
 
-  const openSse = (runId: string) => {
-    try {
-      if (sseSrc) { sseSrc.close(); sseSrc = null }
-      sseSrc = streamWorkflow(runId, (ev: any) => {
-        const patch = sseStatusPatch(ev)
-        if (!patch) return
-        if (patch.statuses) bump(patch.statuses)
-        else if (patch.bump) bump({})
-        if (patch.close) closeSse()
-      }, () => {
-        if (sseSrc) { sseSrc.close(); sseSrc = null }
-        if (!sseRetry && sseRunId) {
-          sseRetry = setTimeout(() => {
-            sseRetry = null
-            const cur = get()
-            if (sseRunId && cur.runId === sseRunId) openSse(sseRunId)
-          }, 4000)
-        }
-      })
-    } catch {
-      sseSrc = null
-    }
+// --- Store ----------------------------------------------------------------
+
+const STORAGE_KEY = 'ecomind_journey';
+
+interface PersistedJourney {
+  activeDatasetId: string | null;
+  runId: string | null;
+  selectedModelId: string | null;
+  stageStatuses: StageStatuses;
+}
+
+interface JourneyState extends PersistedJourney {
+  /** Bumped whenever a long-running operation changes, so pages can refetch. */
+  revision: number;
+  setActive: (next: {
+    datasetId?: string | null;
+    runId?: string | null;
+    modelId?: string | null;
+  }) => void;
+  markStage: (key: StageKey, status: StageStatus) => void;
+  markCompleted: (key: StageKey) => void;
+  setStatuses: (statuses: StageStatuses) => void;
+  reset: () => void;
+}
+
+function loadPersisted(): PersistedJourney {
+  const empty: PersistedJourney = {
+    activeDatasetId: null,
+    runId: null,
+    selectedModelId: null,
+    stageStatuses: {},
+  };
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return empty;
+    const parsed = JSON.parse(raw) as Partial<PersistedJourney>;
+    return {
+      activeDatasetId: parsed.activeDatasetId ?? null,
+      runId: parsed.runId ?? null,
+      selectedModelId: parsed.selectedModelId ?? null,
+      stageStatuses: parsed.stageStatuses ?? {},
+    };
+  } catch {
+    return empty;
   }
+}
 
-  return {
-  datasetId: null,
-  runId: null,
-  modelId: null,
-  mode: initialMode(),
-  stageStatuses: {},
-  refreshToken: 0,
+function persist(state: PersistedJourney) {
+  try {
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        activeDatasetId: state.activeDatasetId,
+        runId: state.runId,
+        selectedModelId: state.selectedModelId,
+        stageStatuses: state.stageStatuses,
+      }),
+    );
+  } catch {
+    /* storage unavailable */
+  }
+}
 
-  setMode: (mode) => {
-    try { localStorage.setItem(MODE_KEY, mode) } catch { /* ignore */ }
-    set(s => ({ mode, refreshToken: s.refreshToken + 1 }))
-  },
+/**
+ * Four values. The old pipeline tracked 15 stages, a mode flag, a refresh
+ * token and an auto-drive controller; all of that was ceremony around a
+ * product with one dataset, one run and one model in flight at a time.
+ */
+export const useJourney = create<JourneyState>((set, get) => ({
+  ...loadPersisted(),
+  revision: 0,
 
-  markStage: (key, status) => {
-    set(s => (s.stageStatuses[key] === status ? s : { stageStatuses: { ...s.stageStatuses, [key]: status } }))
-  },
-
-  markCompleted: (key) => {
-    set(s => (s.stageStatuses[key] === 'done' ? s : { stageStatuses: { ...s.stageStatuses, [key]: 'done' } }))
-  },
-
-  setActive: (dataset, run, model) => {
-    set(s => {
-      const datasetId = dataset !== undefined ? dataset : s.datasetId
-      const runId = run !== undefined ? run : s.runId
-      const modelId = model !== undefined ? model : s.modelId
-      if (datasetId === s.datasetId && runId === s.runId && modelId === s.modelId) return s
-      return { datasetId, runId, modelId }
-    })
-  },
-
-  reopenRun: async (runId) => {
-    try {
-      const det: any = await workflows.get(runId)
-      const run = det?.run || {}
-      const dsId: string | null = run.dataset_id || null
-      const completed: string[] = run.stages_completed || []
-      const curIdx = typeof run.current_stage === 'number' ? run.current_stage : -1
-      const statuses: Record<string, StageStatus> = {}
-      WORKFLOW.forEach((st, i) => {
-        if (completed.includes(st.key)) statuses[st.key] = 'done'
-        else if (i === curIdx) statuses[st.key] = 'active'
-        else statuses[st.key] = 'todo'
-      })
-      let modelId: string | null = null
-      const cfgModel = run.config?.model_id || run.config?.best_model_id
-      if (cfgModel) {
-        modelId = cfgModel
-      } else {
-        const ml: any = await models.list()
-        const mine = (ml?.models || []).filter((m: any) => m.id && (!m.dataset_id || m.dataset_id === dsId))
-        if (mine.length) modelId = mine[0].id
+  setActive: (next) =>
+    set((state) => {
+      const merged: PersistedJourney = {
+        activeDatasetId: next.datasetId !== undefined ? next.datasetId : state.activeDatasetId,
+        runId: next.runId !== undefined ? next.runId : state.runId,
+        selectedModelId: next.modelId !== undefined ? next.modelId : state.selectedModelId,
+        stageStatuses: state.stageStatuses,
+      };
+      // Switching datasets invalidates the run and the selected model — they
+      // belong to the previous dataset and must never be read against a new one.
+      if (
+        next.datasetId !== undefined &&
+        next.datasetId !== state.activeDatasetId &&
+        next.runId === undefined
+      ) {
+        merged.runId = null;
+        merged.selectedModelId = null;
+        merged.stageStatuses = {};
       }
-      const prev = get()
+      persist(merged);
       const changed =
-        prev.datasetId !== dsId ||
-        prev.runId !== runId ||
-        prev.modelId !== modelId ||
-        WORKFLOW.some(st => prev.stageStatuses[st.key] !== statuses[st.key])
-      if (changed) {
-        set({ datasetId: dsId, runId, modelId, stageStatuses: statuses, refreshToken: prev.refreshToken + 1 })
-      }
-      if (run.status === 'running') get().connectSse(runId)
-      else get().disconnect()
-      return { datasetId: dsId }
-    } catch {
-      return
-    }
-  },
+        merged.activeDatasetId !== state.activeDatasetId ||
+        merged.runId !== state.runId ||
+        merged.selectedModelId !== state.selectedModelId;
+      return changed ? { ...merged, revision: state.revision + 1 } : state;
+    }),
 
-  connectSse: (runId) => {
-    if (sseSrc && sseRunId === runId) return
-    closeSse()
-    sseRunId = runId
-    openSse(runId)
-  },
+  markStage: (key, status) =>
+    set((state) => {
+      if (state.stageStatuses[key] === status) return state;
+      const next: PersistedJourney = {
+        ...state,
+        stageStatuses: { ...state.stageStatuses, [key]: status },
+      };
+      persist(next);
+      return { ...next, revision: state.revision + 1 };
+    }),
 
-  disconnect: () => {
-    closeSse()
-    sseRunId = null
-  },
+  markCompleted: (key) => get().markStage(key, 'done'),
 
-  poll: async () => {
-    try {
-      // If we don't know a dataset yet, prefer the one with the most advanced run
-      // (completed first) so the default context always has real data to show.
-      let ctx: JourneyState = get()
-      if (!ctx.datasetId) {
-        const dl = await datasets.list()
-        if (!dl.datasets.length) return
-        let best = dl.datasets[0]
-        let bestScore = -1
-        for (const d of dl.datasets) {
-          try {
-            const wr = await workflows.list(d.id) as any
-            const runs = wr?.runs || []
-            const top = runs[0]
-            const done = (top?.stages_completed || []).length
-            const score = (top?.status === 'completed' ? 10000 : top?.status === 'running' ? 5000 : 0) + done
-            if (score > bestScore) { bestScore = score; best = d }
-          } catch { /* skip */ }
-        }
-        set({ datasetId: best.id })
-        ctx = get()
-      }
-      const res = await workflows.list(ctx.datasetId || undefined) as any
-      const runs = res?.runs || []
-      const run = runs.find((r: any) => r.status === 'running') || runs[0]
-      if (!run) { get().disconnect(); return }
-      const completed = run.stages_completed || []
-      const statuses: Record<string, StageStatus> = {}
-      WORKFLOW.forEach((st, i) => {
-        if (completed.includes(st.key)) statuses[st.key] = 'done'
-        else if (run.current_stage === i) statuses[st.key] = 'active'
-        else statuses[st.key] = 'todo'
-      })
-      const prev = get()
-      const changed =
-        prev.runId !== run.id ||
-        WORKFLOW.some(st => prev.stageStatuses[st.key] !== statuses[st.key])
-      if (changed) {
-        set({ runId: run.id, stageStatuses: statuses, refreshToken: prev.refreshToken + 1 })
-      }
-      if (run.status === 'running') get().connectSse(run.id)
-      else get().disconnect()
-    } catch {
-      /* ignore */
-    }
-  },
-  }
-})
+  setStatuses: (statuses) =>
+    set((state) => {
+      const next: PersistedJourney = { ...state, stageStatuses: statuses };
+      persist(next);
+      return { ...next, revision: state.revision + 1 };
+    }),
 
-/* Auto-drive: sequentially execute every stage of an existing run.
-   "Run automation" driver — fires one `advance` per stage. Backend stage
-   runners derive their inputs from run.dataset_id / best_model, so an empty
-   params advance completes the entire 15-stage pipeline. Progress streams
-   live to the journey rail via SSE. */
-export async function runJourneyToCompletion(
-  runId: string,
-  hooks?: {
-    onStageDone?: (stage: WorkflowStage) => void
-    onStep?: (stage: WorkflowStage, index: number) => void
-    onDone?: () => void
-    onError?: (err: any) => void
-  },
-): Promise<void> {
-  const state = useJourney.getState()
-  state.setActive(undefined, runId)
-  try { state.connectSse(runId) } catch { /* sse is best-effort */ }
-  const STAGE_GAP_MS = 650 // pace the run so the rail & notifications cascade visibly, like step-by-step
-  for (let i = 0; i < WORKFLOW.length; i++) {
-    const stage = WORKFLOW[i]
-    hooks?.onStep?.(stage, i)
-    try {
-      await workflows.advance(runId)
-      state.markCompleted(stage.key)
-      hooks?.onStageDone?.(stage)
-    } catch (err) {
-      try { state.disconnect() } catch { /* noop */ }
-      toast(`${stage.label} failed`, String((err as any)?.message ?? err), 'error')
-      hooks?.onError?.(err)
-      return
-    }
-    if (i < WORKFLOW.length - 1) {
-      await new Promise(r => setTimeout(r, STAGE_GAP_MS))
-    }
-  }
-  try { state.disconnect() } catch { /* noop */ }
-  hooks?.onDone?.()
-}
+  reset: () =>
+    set((state) => {
+      const empty: PersistedJourney = {
+        activeDatasetId: null,
+        runId: null,
+        selectedModelId: null,
+        stageStatuses: {},
+      };
+      persist(empty);
+      return { ...empty, revision: state.revision + 1 };
+    }),
+}));
 
-export function startWorkflowPolling(intervalMs = 6000) {
-  const run = async () => { await useJourney.getState().poll() }
-  if (!pollTimer) {
-    run()
-    pollTimer = setInterval(run, intervalMs)
-  }
-  return () => {
-    if (pollTimer) { clearInterval(pollTimer); pollTimer = null }
-    useJourney.getState().disconnect()
-  }
-}
+/** Selectors. Read these rather than destructuring the store. */
+export const selectActiveDatasetId = (s: JourneyState) => s.activeDatasetId;
+export const selectStageStatuses = (s: JourneyState) => s.stageStatuses;
+export const selectRevision = (s: JourneyState) => s.revision;

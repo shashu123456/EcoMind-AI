@@ -6,6 +6,8 @@ Edit that file only - everything else reads from it.
 from __future__ import annotations
 
 import json
+import os
+import shutil
 import sys
 from pathlib import Path
 
@@ -30,13 +32,32 @@ def project_root() -> Path:
     return PROJECT_ROOT
 
 
+def venv_dir() -> Path:
+    cfg = load_config()
+    return PROJECT_ROOT / cfg.get("python", {}).get("venv_dir", ".venv")
+
+
+def venv_python() -> Path | None:
+    """Path to the venv interpreter, or None if the venv does not exist yet."""
+    d = venv_dir()
+    p = d / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+    return p if p.exists() else None
+
+
 def python_executable() -> str:
     cfg = load_config()
     if cfg.get("python", {}).get("use_venv", True):
-        venv = PROJECT_ROOT / cfg["python"].get("venv_dir", ".venv") / "Scripts" / "python.exe"
-        if venv.exists():
-            return str(venv)
-    return sys.executable if sys.executable and "python" in sys.executable.lower() else "python"
+        p = venv_python()
+        if p:
+            return str(p)
+    return sys.executable or "python"
+
+
+def npm_executable() -> str:
+    """Return the correct npm shim for this OS (npm.cmd on Windows)."""
+    if os.name == "nt":
+        return shutil.which("npm.cmd") or shutil.which("npm") or "npm.cmd"
+    return shutil.which("npm") or "npm"
 
 
 def resolve_path(raw: str) -> Path:

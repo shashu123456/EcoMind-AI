@@ -8,13 +8,28 @@ title EcoMind AI Launcher
 echo.
 echo   ============================================================
 echo    EcoMind AI - One-click Launcher
+echo    (installs everything required on first run)
 echo   ============================================================
 echo.
 
-set "PY=%~dp0.venv\Scripts\python.exe"
-if not exist "%PY%" set "PY=python"
+set "PY="
+if exist "%~dp0.venv\Scripts\python.exe" set "PY=%~dp0.venv\Scripts\python.exe"
+if not defined PY ( where py >nul 2>&1 && set "PY=py -3" )
+if not defined PY ( where python >nul 2>&1 && set "PY=python" )
 
-"%PY%" -m launcher.start
+if not defined PY (
+  echo   [!] Python 3.11+ is required but was not found on PATH.
+  echo   [!] Opening the Python download page...
+  start "" "https://www.python.org/downloads/"
+  echo.
+  echo   [!] Install Python (tick "Add python.exe to PATH"), then re-run this file.
+  echo.
+  pause
+  exit /b 1
+)
+
+set "PYTHONUTF8=1"
+%PY% -m launcher.start %*
 set "RC=%ERRORLEVEL%"
 
 echo.

@@ -1,6 +1,7 @@
 """One-click launcher entrypoint. Run: python -m launcher.start"""
 from __future__ import annotations
 
+import argparse
 import os
 import sys
 import time
@@ -17,6 +18,7 @@ if hasattr(sys.stdout, "reconfigure"):
 from launcher.config import load_config, project_root, python_executable
 from launcher.logutil import get_logger
 from launcher.checks import run_checks, render_checks
+from launcher.bootstrap import ensure_all
 from launcher.processes import (
     port_in_use, http_ok, pid_alive, kill_tree, start_service,
     write_pid_map, clear_pid_map, write_launcher_pid, read_launcher_pid,
@@ -143,15 +145,31 @@ def _monitor(cfg, started, interval: float):
 
 
 def main():
+    parser = argparse.ArgumentParser(prog="launcher.start")
+    parser.add_argument("--no-install", action="store_true", help="do not auto-install; only verify")
+    parser.add_argument("--force-install", action="store_true", help="rebuild .venv and reinstall everything")
+    parser.add_argument("--check", action="store_true", help="run checks only, do not start services")
+    args = parser.parse_args()
+
     _banner()
     cfg = load_config()
     if _check_duplicate():
         sys.exit(1)
 
-    print("[..] Running environment checks ...")
+    if not args.check:
+        print("\n[..] Preparing environment (this only happens the first time) ...")
+        if not ensure_all(install=not args.no_install, force=args.force_install):
+            print("\n[FAIL] Setup could not complete - see the output above and logs/launcher.log.")
+            clear_launcher_pid()
+            sys.exit(1)
+
+    print("\n[..] Running environment checks ...")
     rows = run_checks()
     text, all_ok = render_checks(rows)
     print(text)
+    if args.check:
+        clear_launcher_pid()
+        sys.exit(0 if all_ok else 1)
     failed = [r for r in rows if not r["ok"]]
     if failed:
         print("\n[FAIL] The following requirements are not met:")

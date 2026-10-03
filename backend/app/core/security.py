@@ -1,14 +1,17 @@
 """JWT authentication utilities."""
+
 from datetime import datetime, timedelta
 from typing import Optional
+
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 from passlib.context import CryptContext
-from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
+
+from ..core.config import settings
 from ..db.base import get_db
 from ..db.models import User
-from ..core.config import settings
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 security_scheme = HTTPBearer()
@@ -59,8 +62,10 @@ async def get_current_user(
 
 def require_role(*roles):
     """Dependency factory: require_role('admin', 'analyst')"""
+
     async def _check(user: User = Depends(get_current_user)):
         if user.role not in roles:
             raise HTTPException(status_code=403, detail=f"Role '{user.role}' not in {roles}")
         return user
+
     return _check

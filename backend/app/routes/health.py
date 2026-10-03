@@ -1,5 +1,6 @@
-from fastapi import APIRouter, Depends
 import time
+
+from fastapi import APIRouter
 
 router = APIRouter()
 
@@ -7,6 +8,7 @@ _started = time.monotonic()
 
 try:
     import psutil
+
     _HAS_PSUTIL = True
 except Exception:  # pragma: no cover
     _HAS_PSUTIL = False

@@ -1,4 +1,5 @@
 """Shared pytest fixtures for the EcoMind backend."""
+
 import pytest
 from fastapi.testclient import TestClient
 

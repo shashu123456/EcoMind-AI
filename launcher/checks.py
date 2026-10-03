@@ -8,11 +8,11 @@ import subprocess
 import sys
 from pathlib import Path
 
-from launcher.config import python_executable, project_root, load_config
+from launcher.config import python_executable, project_root, load_config, npm_executable
 
 REQUIRED_MODULES = [
     "fastapi", "uvicorn", "sqlalchemy", "pydantic",
-    "pandas", "numpy", "sklearn", "xgboost", "shap",
+    "pandas", "numpy", "sklearn", "xgboost",
     "reportlab", "jinja2", "openpyxl", "jose", "passlib",
 ]
 
@@ -53,7 +53,8 @@ def run_checks() -> list[dict]:
     nodever = _ver(["import subprocess; print(subprocess.run(['node','--version'],capture_output=True,text=True).stdout.strip())"])
     rows.append({"section": "Runtime", "label": "Node.js >= 18", "ok": bool(nodever.startswith("v")),
                  "detail": nodever or "not found", "suggestion": "" if nodever else "Install Node.js 18+ from nodejs.org."})
-    npmver = _ver(["import subprocess; print(subprocess.run(['npm.cmd','--version'],capture_output=True,text=True).stdout.strip())"])
+    _npm = npm_executable().replace("\\", "\\\\")
+    npmver = _ver([f"import subprocess; print(subprocess.run([r'{_npm}','--version'],capture_output=True,text=True).stdout.strip())"])
     rows.append({"section": "Runtime", "label": "npm", "ok": bool(npmver.split(".")[0].isdigit()),
                  "detail": npmver or "not found", "suggestion": "" if npmver else "Install Node.js 18+ (bundles npm)."})
 
@@ -79,10 +80,10 @@ def run_checks() -> list[dict]:
                      "ok": p.exists(), "detail": "present" if p.exists() else "missing",
                      "suggestion": "" if p.exists() else f"Restore the '{rel}' folder (project seems incomplete)."})
 
-    sample = root / "backend/data/sample/bdg2_energy_30day.csv"
-    rows.append({"section": "Project structure", "label": "Sample dataset (BDG2)",
-                 "ok": sample.exists(), "detail": "present" if sample.exists() else "missing",
-                 "suggestion": "" if sample.exists() else "Run: %PY% backend/seed.py  (generates the sample dataset)"})
+    catalog = root / "backend/data/generated/ecomind_healthy_campus.csv"
+    rows.append({"section": "Project structure", "label": "Dataset catalogue",
+                 "ok": catalog.exists(), "detail": "present" if catalog.exists() else "not generated yet",
+                 "suggestion": "" if catalog.exists() else "The launcher generates datasets automatically on first run."})
 
     db = root / cfg["paths"]["database_file"]
     rows.append({"section": "Project structure", "label": "SQLite database",

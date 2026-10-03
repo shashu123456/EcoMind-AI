@@ -1,69 +1,34 @@
-import { useEffect, useRef } from 'react'
-import { Outlet, useLocation, useNavigate } from '@tanstack/react-router'
-import { AnimatePresence, MotionConfig, motion } from 'framer-motion'
-import { AppShell } from './components/AppShell'
-import { WORKFLOW, MILESTONES, startWorkflowPolling, useJourney } from './lib/journey'
-import { ToastPane, toast } from './lib/toast'
-import { playStageDone, playJourneyDone, soundEnabled } from './lib/sound'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { RouterProvider } from '@tanstack/react-router';
+import { ThemeProvider } from './lib/theme';
+import { ToastProvider } from './lib/ui';
+import { router } from './router';
 
-export function App() {
-  const location = useLocation()
-  const navigate = useNavigate()
-  const statuses = useJourney(s => s.stageStatuses)
-  const prevStatuses = useRef<string>('')
+/**
+ * One query cache for the whole product.
+ *
+ * `retry: 1` because a single failed read is usually a transient backend
+ * restart, and `staleTime: 30s` because a stage page re-reads the same summary
+ * several times while its user looks at it.
+ */
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      staleTime: 30_000,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 
-  useEffect(() => {
-    const sig = JSON.stringify(statuses)
-    if (sig === prevStatuses.current) return
-    const before = prevStatuses.current ? JSON.parse(prevStatuses.current) as Record<string, string> : {}
-    prevStatuses.current = sig
-    if (!before || Object.keys(before).length === 0) return
-    const freshlyDone = WORKFLOW.filter(s => statuses[s.key] === 'done' && before[s.key] !== 'done')
-    if (!freshlyDone.length) return
-    freshlyDone.forEach(s => {
-      if (soundEnabled()) playStageDone()
-      const ms = MILESTONES.find(m => m.stages.includes(s.key))
-      toast(`${s.label} complete`, `${ms?.short ?? 'pipeline'} stage passed`, 'done')
-    })
-    if (WORKFLOW.every(s => statuses[s.key] === 'done')) {
-      if (soundEnabled()) playJourneyDone()
-      toast('Journey complete', 'All 15 stages passed', 'done')
-    }
-  }, [statuses])
-
-  useEffect(() => {
-    if (!localStorage.getItem('ecomind_token')) {
-      navigate({ to: '/login' })
-      return
-    }
-    const stop = startWorkflowPolling()
-    return () => stop()
-  }, [])
-
+export default function App() {
   return (
-    <MotionConfig reducedMotion="user">
-      <AppShell>
-        <ToastPane />
-        <AnimatePresence mode="popLayout">
-          <motion.div
-            key={`root:${location.pathname}`}
-            initial={false}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0, transition: { duration: 0.18, ease: 'easeIn' } }}
-            className="flex h-full flex-col"
-          >
-            <motion.div
-              key={location.pathname}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.22, ease: 'easeOut' }}
-              className="min-h-full flex-1"
-            >
-              <Outlet />
-            </motion.div>
-          </motion.div>
-        </AnimatePresence>
-      </AppShell>
-    </MotionConfig>
-  )
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider>
+        <ToastProvider>
+          <RouterProvider router={router} />
+        </ToastProvider>
+      </ThemeProvider>
+    </QueryClientProvider>
+  );
 }

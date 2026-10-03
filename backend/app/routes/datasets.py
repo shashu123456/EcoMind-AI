@@ -4,13 +4,13 @@ Router prefix (from main.py): `/api/v1/datasets`.
 Importing this module also imports `dataset_service`, which registers the
 `library` / `import` stage runners at import time.
 """
-from fastapi import APIRouter, Depends, File, Query, UploadFile
-from sqlalchemy.orm import Session
 
 from app.core.security import get_current_user
 from app.db.base import get_db
 from app.db.models import User
 from app.domain import dataset_service
+from fastapi import APIRouter, Depends, File, Query, UploadFile
+from sqlalchemy.orm import Session
 
 router = APIRouter()
 
@@ -71,8 +71,7 @@ def content_dataset(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    return dataset_service.dataset_content(db, dataset_id, limit=limit,
-                                           offset=offset, fmt=format)
+    return dataset_service.dataset_content(db, dataset_id, limit=limit, offset=offset, fmt=format)
 
 
 @router.post("/{dataset_id}/refresh")

@@ -22,6 +22,7 @@
     "min_version": "18"
   },
   "startup": {
+    "auto_install": true,
     "wait_timeout_seconds": 240,
     "poll_interval_seconds": 2,
     "monitor_interval_seconds": 15
@@ -39,24 +40,12 @@
       "log": "backend.log"
     },
     {
-      "id": "ai_engine",
-      "enabled": false,
-      "title": "EcoMind AI Engine",
-      "port": 8001,
-      "health_url": "http://127.0.0.1:8001/api/v1/ai/health",
-      "command": [],
-      "cwd": "",
-      "env": {},
-      "log": "ai_engine.log",
-      "note": "AI workloads are served by the unified EcoMind Backend (port 8000) in this build. Keep enabled set to false."
-    },
-    {
       "id": "frontend",
       "enabled": true,
       "title": "EcoMind Frontend",
       "port": 5173,
       "health_url": "http://127.0.0.1:5173",
-      "command": ["npm.cmd", "run", "dev"],
+      "command": ["npm", "run", "dev"],
       "cwd": "frontend",
       "env": {},
       "log": "frontend.log"

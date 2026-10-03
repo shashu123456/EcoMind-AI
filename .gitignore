@@ -37,6 +37,8 @@ backend/data/processed/
 backend/data/uploads/
 backend/data/reports/
 backend/data/launcher/
+backend/data/generated/
+backend/data/reference/
 logs/
 
 # ── Stray junk files found in the workspace ─────────────

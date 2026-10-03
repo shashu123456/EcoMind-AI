@@ -2,11 +2,11 @@
 
 No Redis/RabbitMQ — pure asyncio.Queue per subscriber.
 """
+
 import asyncio
-import json
 import threading
-from typing import AsyncGenerator
 from collections import defaultdict
+from typing import AsyncGenerator
 
 
 class EventBus:

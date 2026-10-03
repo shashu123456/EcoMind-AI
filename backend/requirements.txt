@@ -10,7 +10,10 @@ pandas==2.2.2
 numpy==1.26.4
 scikit-learn==1.5.0
 xgboost==3.2.0
-shap==0.51.0
+# Seasonal decomposition for the 12-month horizon. Only imported on the branch
+# that has 24+ months of history to fit, but required: the platform generates
+# 36 months for the long-horizon datasets.
+statsmodels==0.14.4
 openpyxl==3.1.2
 reportlab==4.2.0
 jinja2==3.1.4
