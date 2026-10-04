@@ -62,7 +62,7 @@ jobs:
           # Bytes, not kB: Vite reports kB as bytes/1000 while most shell
           # arithmetic divides by 1024, so a kB budget silently drifts from
           # what the build log says. Comparing raw bytes removes the ambiguity.
-          budget_bytes=368640000   # 360 kB decimal, matching Vite's own unit
+          budget_bytes=360000      # 360 kB decimal, matching Vite's own unit
           actual=$(ls -S dist/assets/index-*.js | head -1)
           size=$(stat -c%s "$actual")
           echo "entry chunk: $(( size / 1000 )) kB / $size bytes (budget $(( budget_bytes / 1000 )) kB)"
