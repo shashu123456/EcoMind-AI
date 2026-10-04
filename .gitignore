@@ -65,3 +65,6 @@ $RECYCLE.BIN
 .env
 .env.*
 !.env.example
+
+# Agent session transcripts
+session-ses_*.md

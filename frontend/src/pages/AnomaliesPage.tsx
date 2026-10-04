@@ -21,6 +21,7 @@ import { StageGate } from '../app/StageGate';
 import { PageFrame, PageHero } from '../app/PageFrame';
 import { useStageOutput } from '../lib/stageOutput';
 import { useDatasetScope } from '../lib/ActiveDatasetContext';
+import { ScopedAnomalies } from './ScopedAnomalies';
 import { co2Kg, dec, energy, int, pctValue, rupees } from '../lib/format';
 import type {
   AnomalyBuildingRow,
@@ -548,6 +549,8 @@ export function AnomaliesPage() {
                 />
               </div>
 
+              <ScopedAnomalies />
+
               <Section
                 title="What kind of anomaly"
                 description="Each class is a different physical story, and they are not interchangeable: a schedule problem is free to fix, a failed meter is not."
@@ -574,7 +577,10 @@ export function AnomaliesPage() {
                 </div>
               </Section>
 
-              <Section title="How severe">
+              <Section
+                title="How severe"
+                description="Click a severity to inspect what it means physically."
+              >
                 <DataGrid
                   rows={output.by_severity}
                   columns={severityColumns}

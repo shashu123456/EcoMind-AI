@@ -1,5 +1,6 @@
 import { request } from './client';
 import type {
+  AnomalyPageResponse,
   Dataset,
   DatasetHierarchy,
   DatasetListResponse,
@@ -73,6 +74,34 @@ export async function getContent(
   if (params.limit != null) search.set('limit', String(params.limit));
   const qs = search.toString();
   return request<DatasetPreviewResponse>(`/datasets/${datasetId}/content${qs ? `?${qs}` : ''}`);
+}
+
+/**
+ * A scoped page of anomalies.
+ *
+ * Scoping happens server-side on purpose. The stage output carries aggregates
+ * (`by_severity`, `by_building`) but not the individual anomalies behind them,
+ * so filtering in the browser and re-summing cannot reproduce totals, excess
+ * energy or excess cost. The facet counts come back scoped too.
+ */
+export async function getAnomalies(
+  datasetId: string,
+  params: {
+    page?: number;
+    page_size?: number;
+    severity?: string | null;
+    anomaly_class?: string | null;
+    building_code?: string | null;
+  } = {},
+): Promise<AnomalyPageResponse> {
+  const search = new URLSearchParams();
+  if (params.page != null) search.set('page', String(params.page));
+  if (params.page_size != null) search.set('page_size', String(params.page_size));
+  if (params.severity) search.set('severity', params.severity);
+  if (params.anomaly_class) search.set('anomaly_class', params.anomaly_class);
+  if (params.building_code) search.set('building_code', params.building_code);
+  const qs = search.toString();
+  return request<AnomalyPageResponse>(`/datasets/${datasetId}/anomalies${qs ? `?${qs}` : ''}`);
 }
 
 export async function getHierarchy(datasetId: string): Promise<DatasetHierarchy> {

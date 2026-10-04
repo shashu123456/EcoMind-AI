@@ -478,6 +478,54 @@ export interface AnomalyDeviceRow {
   excess_kwh: number;
 }
 
+/** One anomaly row as the scoped endpoint returns it. */
+export interface AnomalyItem {
+  id: string;
+  dataset_id: string;
+  building_code: string | null;
+  floor_no: string | null;
+  room_code: string | null;
+  device_code: string | null;
+  device_label: string | null;
+  device_category: string | null;
+  detected_at: string | null;
+  anomaly_class: string;
+  class_label: string | null;
+  severity: string;
+  score: number | null;
+  baseline_method: string | null;
+  expected_kwh: number | null;
+  actual_kwh: number | null;
+  deviation_pct: number | null;
+  excess_kwh: number | null;
+  excess_cost: number | null;
+  excess_co2_kg: number | null;
+  priority_rank: number | null;
+  evidence: string | null;
+}
+
+/**
+ * A scoped page of anomalies plus facet counts.
+ *
+ * The facets obey the same building scope as `total`. When they did not, a
+ * panel read "1,281 in Riverside" beside chips summing to the campus-wide
+ * 2,227 -- the fix in `anomaly_service.page` exists because of that.
+ */
+export interface AnomalyPageResponse {
+  dataset_id: string;
+  anomalies: AnomalyItem[];
+  total: number;
+  page: number;
+  page_size: number;
+  severity_counts: Record<string, number>;
+  class_counts: Record<string, number>;
+  scope?: {
+    building_code: string | null;
+    severity: string | null;
+    anomaly_class: string | null;
+  } | null;
+}
+
 export interface AnomalyResult {
   run_id: string;
   dataset_id: string;
