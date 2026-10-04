@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # EcoMind AI - shared interpreter discovery for the bash entry points.
 #
-# Sourced by launch.sh, stop.sh and check.sh. On success it sets PY_BIN.
+# Sourced by ecomind.sh. On success it sets PY_BIN.
 # On failure it prints the platform-specific remedy and sets PY_BIN to empty,
 # so the caller decides how to exit. It never calls `exit` itself.
 #
@@ -83,7 +83,7 @@ if [ -z "$PY_BIN" ]; then
   case $(uname -s 2> /dev/null || echo unknown) in
     MINGW* | MSYS* | CYGWIN*)
       echo "    Windows: install Python from python.org and tick 'Add python.exe to PATH'," >&2
-      echo "    then reopen the terminal. Or run Launch_EcoMind.bat, which finds it for you." >&2
+      echo "    then reopen the terminal. Or run ecomind.bat, which finds it for you." >&2
       ;;
     Darwin)
       echo "    macOS:  brew install python@$MIN_PY_MAJOR" >&2

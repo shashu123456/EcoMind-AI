@@ -71,13 +71,22 @@ The launcher sets up **everything** on first run: it creates the virtualenv,
 installs the Python and Node dependencies, writes `backend/.env`, generates the
 dataset catalog, seeds the database, and starts both services.
 
-- **Windows** — double-click **`Launch_EcoMind.bat`**
-- **macOS / Linux** — `./launch.sh`
+- **Windows** — double-click **`ecomind.bat`**
+- **macOS / Linux** — `./ecomind.sh`
 
 If Python or Node are missing, the launcher installs them for you (winget on
 Windows, Homebrew on macOS, apt / dnf / pacman on Linux). The first run takes a
-few minutes while dependencies download; later runs start in seconds. Stop with
-`Stop_EcoMind.bat` / `./stop.sh`.
+few minutes while dependencies download; later runs start in seconds.
+
+There is one entry point per platform, and the other two actions are arguments
+to it:
+
+```
+ecomind            start (default)
+ecomind stop       stop every service
+ecomind check      report on the machine without changing it
+ecomind help       list the commands
+```
 
 Then open **http://127.0.0.1:5173** and sign in:
 

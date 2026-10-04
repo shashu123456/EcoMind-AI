@@ -43,7 +43,7 @@ def _check_duplicate() -> bool:
     mine = read_launcher_pid()
     if mine and mine != os.getpid() and our_launcher_alive(mine, LAUNCHER_MARKER):
         print(f"[!] Another EcoMind launcher is already running (pid {mine}).")
-        print("    Use Stop_EcoMind.bat first, or let it keep monitoring.")
+        print("    Run `ecomind stop` first, or let it keep monitoring.")
         return True
     # Stale pid file: the process exited, or Windows recycled the pid onto an
     # unrelated exe (e.g. TextInputHost.exe). Clear it and continue.
@@ -141,7 +141,7 @@ def _monitor(cfg, started, interval: float):
             time.sleep(interval)
     except KeyboardInterrupt:
         print("\n[OK] Monitoring stopped. Services are still running.")
-        print("     Use Stop_EcoMind.bat to shut them down cleanly.")
+        print("     Run `ecomind stop` to shut them down cleanly.")
 
 
 def main():
@@ -176,7 +176,7 @@ def main():
         suggestions = [r["suggestion"] for r in failed if r["suggestion"]]
         for s in suggestions:
             print("   > " + s)
-        print("\nFix the issues above and run Launch_EcoMind.bat again.")
+        print("\nFix the issues above and run `ecomind` again.")
         clear_launcher_pid()
         sys.exit(1)
 

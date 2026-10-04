@@ -103,7 +103,7 @@ def run_checks() -> list[dict]:
                      "ok": not in_use or healthy,
                      "detail": "healthy" if healthy else ("already running" if in_use else "free"),
                      "suggestion": "" if (not in_use) or healthy else
-                     "A foreign process is using this port. Close it, or use Stop_EcoMind.bat / restart your machine."})
+                     "A foreign process is using this port. Close it, or run `ecomind stop` / restart your machine."})
 
     return rows
 

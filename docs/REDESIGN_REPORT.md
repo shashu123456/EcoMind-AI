@@ -64,7 +64,8 @@ deleted after their inbound-reference count was verifiably zero.
 - `launcher/config.json`: `startup.auto_install`, cross-platform `npm`, dead `ai_engine`
   service removed.
 - Entry points: hardened `Launch_EcoMind.bat` / `Stop_EcoMind.bat` / `Check_System.bat`
-  plus new `launch.sh` / `stop.sh` / `check.sh`.
+  plus new `launch.sh` / `stop.sh` / `check.sh`. *(Since consolidated into the single
+  `ecomind.bat` / `ecomind.sh`, taking `start` / `stop` / `check` as an argument.)*
 - `Makefile` rewritten cross-platform; `README.md` Quick Start rewritten around the
   one-click flow.
 
@@ -109,7 +110,7 @@ deleted after their inbound-reference count was verifiably zero.
 
 ## 4. Added
 
-- `launcher/bootstrap.py`, `launch.sh` / `stop.sh` / `check.sh`.
+- `launcher/bootstrap.py`, `launch.sh` / `stop.sh` / `check.sh` (now `ecomind.sh` / `ecomind.bat`).
 - `backend/app/domain/synth.py`, `scripts/build_datasets.py`.
 - `frontend/src/app/RunBar.tsx`.
 - `docs/REDESIGN_REPORT.md` (this file).

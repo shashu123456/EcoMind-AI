@@ -34,7 +34,7 @@ def main():
         for r in summary:
             if r["suggestion"]:
                 print(f"    - {r['label']}: {r['suggestion']}")
-        print("\n  Fix the issues shown, then re-run this check or Launch_EcoMind.bat.")
+        print("\n  Fix the issues shown, then re-run `ecomind check` or `ecomind`.")
     else:
         print("  RESULT: ALL CHECKS PASSED - ready to launch.")
     sys.exit(1 if summary else 0)

@@ -203,10 +203,16 @@ searched for `svg.recharts-surface` and wrongly reported it missing. Don't "fix"
 
 ### 4f. Launcher made cross-platform
 
-New shared `scripts/find_python.sh`, sourced by `launch.sh`, `stop.sh`, `check.sh`. It
-checks **both** `.venv/Scripts/python.exe` and `.venv/bin/python` and validates the candidate
-by *executing* it, not by existence. The three `.bat` files were rewritten the same way — they
-used to trust `where py`, which returns a launcher that may not be a working Python.
+New shared `scripts/find_python.sh`, sourced by `ecomind.sh`. It checks **both**
+`.venv/Scripts/python.exe` and `.venv/bin/python` and validates the candidate by *executing* it,
+not by existence. The `.bat` entry point was rewritten the same way — it used to trust
+`where py`, which returns a launcher that may not be a working Python.
+
+**Consolidated 2026-10-04.** Six entry points became two. `ecomind.sh` and `ecomind.bat` each
+take `start` (default), `stop`, `check`, `help`, replacing `launch.sh` / `stop.sh` / `check.sh`
+and `Launch_EcoMind.bat` / `Stop_EcoMind.bat` / `Check_System.bat`. Interpreter discovery
+happens once per platform now; it had been copy-pasted six times and had already drifted, which
+is why all three POSIX scripts once checked only the POSIX venv path.
 
 `backend/app/core/config.py` now declares `env: str = "local"` and `extra="ignore"`, which
 fixed a Pydantic settings failure on cold start.
