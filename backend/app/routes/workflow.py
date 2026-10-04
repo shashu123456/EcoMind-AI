@@ -9,7 +9,12 @@ import json
 from datetime import datetime, timedelta
 
 from app.core.config import settings
-from app.core.security import decode_token, get_current_user
+from app.core.security import (
+    STREAM_TOKEN_TTL_SECONDS,
+    create_stream_token,
+    decode_stream_token,
+    get_current_user,
+)
 from app.db.base import get_db
 from app.db.models import AuditLog, Report, StageTrace, User, WorkflowRun
 from app.domain.data import json_safe
@@ -478,15 +483,32 @@ def advance_run(run_id: str, db: Session = Depends(get_db), user: User = Depends
     return exec_stage(run_id, next_key, {}, db, user)
 
 
+@router.post("/{run_id}/stream-token")
+def mint_stream_token(
+    run_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Exchange the caller's session for a token that is safe to put in a URL.
+
+    Sent over the `Authorization` header, so the long-lived credential never
+    appears in a URL. The result lives 60 seconds and authorises only this
+    stream, which is what makes it safe for the one place a browser forces a
+    credential into the query string.
+    """
+    _require_run(db, run_id)
+    return {"token": create_stream_token(user.id), "expires_in": STREAM_TOKEN_TTL_SECONDS}
+
+
 @router.get("/{run_id}/stream")
 def stream_run(run_id: str, request: Request, token: str | None = Query(None)):
     if token:
-        try:
-            decode_token(token)
-        except Exception:
-            raise HTTPException(401, "Invalid token")
+        # Deliberately *not* decode_token: an access token decodes happily and
+        # accepting it here would make the stream token optional, which would
+        # leave 24-hour session credentials in log files exactly as before.
+        decode_stream_token(token)
     else:
-        raise HTTPException(401, "token query param required")
+        raise HTTPException(401, "stream token query param required")
 
     async def gen():
         async for ev in event_bus.stream(f"run:{run_id}"):

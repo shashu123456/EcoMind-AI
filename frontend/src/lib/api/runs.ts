@@ -122,7 +122,43 @@ export function streamRun(
   onEvent: (event: StreamEvent) => void,
   onError?: (err: unknown) => void,
 ): () => void {
-  return subscribe<StreamEvent>(`/workflows/${runId}/stream`, onEvent, onError);
+  return subscribe<StreamEvent>(
+    `/workflows/${runId}/stream`,
+    onEvent,
+    onError as ((message: string) => void) | undefined,
+    () => mintStreamToken(runId),
+  );
+}
+
+/**
+ * Exchange the session for a credential safe to put in a URL.
+ *
+ * `EventSource` cannot set headers, so the stream endpoint must take its token
+ * as a query parameter. Sending the 24-hour session token there put a working
+ * credential into every access log between here and the server. This one lives
+ * 60 seconds and authorises only this stream.
+ *
+ * Falls back to `null` rather than throwing: a stream that cannot be opened is
+ * a downgrade to polling, not a broken page, and the caller already has an
+ * `onError` path for exactly that.
+ */
+export async function mintStreamToken(runId: string): Promise<string | null> {
+  try {
+    const response = await fetch(`/api/v1/workflows/${encodeURIComponent(runId)}/stream-token`, {
+      method: 'POST',
+      headers: (() => {
+        const headers = new Headers();
+        const token = getToken();
+        if (token) headers.set('Authorization', `Bearer ${token}`);
+        return headers;
+      })(),
+    });
+    if (!response.ok) return null;
+    const payload = (await response.json()) as { token?: string };
+    return payload.token ?? null;
+  } catch {
+    return null;
+  }
 }
 
 /**

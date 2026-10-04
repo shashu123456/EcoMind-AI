@@ -19,6 +19,13 @@ security_scheme = HTTPBearer()
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 hours
 
+#: Marker claim distinguishing a stream token from an access token.
+STREAM_TOKEN_TYPE = "stream"
+
+#: Long enough to survive a slow page load between minting and connecting, far
+#: too short to be worth harvesting from a log file.
+STREAM_TOKEN_TTL_SECONDS = 60
+
 #: bcrypt hashes at most this many bytes of input and ignores the rest. It is a
 #: property of the algorithm, not of this library, and every bcrypt
 #: implementation behaves the same way.
@@ -96,6 +103,52 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     expire = datetime.utcnow() + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, settings.secret_key, algorithm=ALGORITHM)
+
+
+def create_stream_token(user_id: str) -> str:
+    """Mint a short-lived token that authorises exactly one SSE stream.
+
+    The `EventSource` API cannot set an `Authorization` header, so the stream
+    has to carry its credential in the URL -- which means it lands in access
+    logs, proxy logs and browser history. Putting the 24-hour access token
+    there means anyone who can read a log holds a working session.
+
+    This is the same trade with the blast radius cut down: 60 seconds of life,
+    one purpose, and no API surface of its own. A leaked one is worthless long
+    before it expires.
+    """
+    expire = datetime.utcnow() + timedelta(seconds=STREAM_TOKEN_TTL_SECONDS)
+    return jwt.encode(
+        {"sub": user_id, "typ": STREAM_TOKEN_TYPE, "exp": expire},
+        settings.secret_key,
+        algorithm=ALGORITHM,
+    )
+
+
+def decode_stream_token(token: str) -> str:
+    """Validate a stream token and return the user id it was minted for.
+
+    Refuses an ordinary access token even though that one would decode fine.
+    The whole point is that a session token stops being usable in a URL; if
+    both worked, the new path would be optional and nothing would change.
+    """
+    try:
+        payload = jwt.decode(token, settings.secret_key, algorithms=[ALGORITHM])
+    except JWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired stream token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    if payload.get("typ") != STREAM_TOKEN_TYPE:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not a stream token",
+        )
+    sub = payload.get("sub")
+    if not sub:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token payload")
+    return str(sub)
 
 
 def decode_token(token: str) -> dict:

@@ -187,8 +187,12 @@ export async function downloadFile(path: string, fallbackName = 'download'): Pro
 }
 
 /**
- * SSE URL. EventSource cannot set headers, so the token travels as a query
- * parameter — the same compromise the backend's stream routes already accept.
+ * SSE URL. EventSource cannot set headers, so *some* credential has to travel
+ * as a query parameter, where it ends up in access and proxy logs.
+ *
+ * Pass a stream token from `mintStreamToken` rather than letting this fall back
+ * to the session token: the fallback is the 24-hour credential, and putting it
+ * in a URL means anyone who can read a log holds a working session.
  */
 export function streamUrl(path: string, token?: string | null): string {
   // `path` is always relative to the API root. Pre-prefixed input used to be
@@ -221,29 +225,59 @@ export function subscribe<T = unknown>(
   path: string,
   onEvent: (event: T) => void,
   onError?: (message: string) => void,
+  /**
+   * Returns the credential to put in the URL. Supplying one lets a caller
+   * exchange its session for a short-lived, single-purpose token first; the
+   * returned unsubscribe closes the source *and* cancels a mint that is still
+   * in flight, which is the case that would otherwise open a socket after the
+   * component unmounted.
+   */
+  getStreamToken?: () => Promise<string | null>,
 ): () => void {
   let source: EventSource | null = null;
-  try {
-    source = new EventSource(streamUrl(path));
-  } catch {
-    onError?.('This browser cannot open a progress stream.');
-    return () => undefined;
+  let cancelled = false;
+
+  const open = (token: string | null) => {
+    if (cancelled) return;
+    try {
+      source = new EventSource(streamUrl(path, token));
+    } catch {
+      onError?.('This browser cannot open a progress stream.');
+      return;
+    }
+    source.onmessage = (message) => {
+      try {
+        onEvent(JSON.parse(message.data) as T);
+      } catch {
+        /* malformed frame — ignore rather than tear down the stream */
+      }
+    };
+    source.onerror = () => {
+      // The browser retries automatically. Report once so a page can fall back
+      // to polling, but leave the source open.
+      onError?.('Progress stream interrupted. Falling back to status polling.');
+    };
+  };
+
+  if (getStreamToken) {
+    getStreamToken()
+      .then((token) => {
+        if (cancelled) return;
+        if (!token) {
+          onError?.('Could not open a progress stream.');
+          return;
+        }
+        open(token);
+      })
+      .catch(() => {
+        if (!cancelled) onError?.('Could not open a progress stream.');
+      });
+  } else {
+    open(null);
   }
 
-  source.onmessage = (message) => {
-    try {
-      onEvent(JSON.parse(message.data) as T);
-    } catch {
-      /* malformed frame — ignore rather than tear down the stream */
-    }
-  };
-  source.onerror = () => {
-    // The browser retries automatically. Report once so a page can fall back
-    // to polling, but leave the source open.
-    onError?.('Progress stream interrupted. Falling back to status polling.');
-  };
-
   return () => {
+    cancelled = true;
     source?.close();
     source = null;
   };

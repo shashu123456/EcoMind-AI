@@ -119,6 +119,7 @@ it:
 ecomind            start (default)
 ecomind stop       stop every service
 ecomind check      report on the machine without changing it
+ecomind verify     install everything, prove it worked, exit
 ecomind help       list the commands
 ```
 
@@ -237,11 +238,12 @@ Archived planning documents (describing the superseded 17-stage design) live in
 - Demo credentials (`admin@ecomind.ai` / `admin123`) are for local evaluation
   only. Change or disable them before exposing the API.
 - JWTs expire in 24h and every protected route requires `Authorization: Bearer`.
-- **Known limitation:** the SSE `/stream` endpoints authenticate with a JWT in a
-  query parameter, because browsers cannot set headers on an `EventSource`.
-  That token therefore appears in proxy and access logs. HTTP routes and the
-  PDF download correctly use the `Authorization` header. Replacing this needs a
-  short-lived single-use stream token; it is not done yet.
+- **Known limitation:** none outstanding for the SSE stream. `EventSource`
+  cannot send an `Authorization` header, so the stream endpoint takes a
+  credential in its query string — but that credential is now a **60-second,
+  single-purpose stream token** minted over the header by
+  `POST /api/v1/workflows/{run_id}/stream-token`. An ordinary session token is
+  rejected there, so a 24-hour credential can no longer land in access logs.
 
 ## 🩺 Troubleshooting
 
