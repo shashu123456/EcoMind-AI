@@ -610,6 +610,47 @@ def _summary(
             "top_devices": sorted(by_device.values(), key=lambda d: -d["excess_kwh"])[:10],
             "baseline_method": settings.anomaly_baseline_method,
             "threshold": threshold,
+            # The detector's calibration, published so a reader can tell the
+            # difference between "nothing bad happened" and "this bad thing is
+            # outside what the detector looks for".
+            #
+            # `critical` needs a score of 0.90, and a score is |z| / Z_SATURATE,
+            # so it requires a 9-sigma robust deviation from the hour-of-week
+            # median. Hourly energy rarely moves that far from its own typical
+            # week, so on most estates `critical` stays empty -- which is why
+            # showing a red Critical: 0 would be misleading rather than
+            # reassuring. Emitting the bands makes the empty row explainable.
+            "severity_bands": [
+                {
+                    "severity": name,
+                    "score_floor": floor,
+                    "sigma_floor": round(floor * Z_SATURATE, 2),
+                }
+                for floor, name in SEVERITY_BANDS
+            ],
+            "z_saturate": Z_SATURATE,
+            "sigma_floor_for_detection": round(_z_for(threshold), 2),
+            # Classes that exist in the taxonomy but that this detector cannot
+            # currently produce, each with the reason. Publishing the reason is
+            # the difference between "a bug" and "a known limit".
+            "unreachable_classes": [
+                {
+                    "anomaly_class": "equipment_failure",
+                    "reason": (
+                        "Requires sustained under-consumption (ratio < 1.0), but the "
+                        "scanner only flags the upper tail (_z >= threshold). A stopped "
+                        "or offline device is therefore invisible."
+                    ),
+                },
+                {
+                    "anomaly_class": "meter_drift",
+                    "reason": (
+                        "Requires a sustained ratio of 1.00-1.25 over 12+ readings, but "
+                        "a reading must first clear the detection floor to be scored at "
+                        "all, which implies a ratio far above 1.25."
+                    ),
+                },
+            ],
             "analysed_at": datetime.now(timezone.utc).isoformat(),
             "elapsed_ms": elapsed_ms,
         }
