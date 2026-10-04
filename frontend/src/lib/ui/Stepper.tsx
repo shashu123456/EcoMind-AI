@@ -13,7 +13,7 @@ export interface StepperStep {
 
 /**
  * A vertical process list for pages where the *order* is the point — Data
- * Quality's 8 stages, Transformation's 5 steps, Model Selection's 5 models.
+ * Quality's 8 stages, Transformation's 5 steps, Prediction's 5 models.
  *
  * The reveal animation is bound to real completion state, so it reports work
  * rather than performing for it.

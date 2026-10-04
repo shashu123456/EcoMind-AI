@@ -68,7 +68,7 @@ export function StatusPage() {
             {PHASES.map((phase) => {
               const progress = phaseProgress(stageStatuses, phase.key);
               return (
-                <div key={phase.key} className="min-w-[9rem] flex-1">
+                <div key={phase.key} className="min-w-[7rem] flex-1 sm:min-w-[9rem]">
                   <div className="flex items-baseline justify-between gap-2">
                     <span className="text-2xs font-semibold uppercase tracking-widest text-neutral-600">
                       {phase.label}

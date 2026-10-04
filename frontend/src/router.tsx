@@ -18,7 +18,6 @@ import {
   LibraryPage,
   LoginPage,
   ModelSelectionPage,
-  RecommendationsPage,
   ReportPage,
   SchemaPage,
   StatusPage,
@@ -92,7 +91,6 @@ const transformationRoute = stageRoute(STAGE_BY_KEY.transformation.path, Transfo
 const modelSelectionRoute = stageRoute(STAGE_BY_KEY.model_selection.path, ModelSelectionPage);
 const anomaliesRoute = stageRoute(STAGE_BY_KEY.anomaly.path, AnomaliesPage);
 const forecastRoute = stageRoute(STAGE_BY_KEY.forecast.path, ForecastPage);
-const recommendationsRoute = stageRoute(STAGE_BY_KEY.recommendation.path, RecommendationsPage);
 const reportRoute = stageRoute(STAGE_BY_KEY.report.path, ReportPage);
 
 const routeTree = rootRoute.addChildren([
@@ -107,7 +105,6 @@ const routeTree = rootRoute.addChildren([
     modelSelectionRoute,
     anomaliesRoute,
     forecastRoute,
-    recommendationsRoute,
     reportRoute,
   ]),
 ]);

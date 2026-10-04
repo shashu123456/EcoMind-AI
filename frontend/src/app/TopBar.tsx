@@ -65,22 +65,22 @@ export function TopBar() {
 
   return (
     <>
-      <header className="sticky top-0 z-30 flex h-12 shrink-0 items-center gap-3 border-b border-[var(--line)] bg-[var(--surface)] px-3.5">
+      <header className="sticky top-0 z-30 flex h-12 min-w-0 shrink-0 flex-wrap items-center gap-2 border-b border-[var(--line)] bg-[var(--surface)] px-3.5 md:flex-nowrap md:gap-3">
         <button
           type="button"
           aria-label="Open navigation"
           onClick={() => setNavOpen(true)}
-          className="rounded-md p-1.5 text-neutral-600 hover:bg-neutral-50 lg:hidden"
+          className="rounded-md p-1.5 text-neutral-600 hover:bg-neutral-50 md:hidden"
         >
           <Menu className="h-4 w-4" />
         </button>
-        <span className="lg:hidden">
+        <span className="md:hidden">
           <Mark word={false} />
         </span>
 
         <DatasetSwitcher />
 
-        <div className="flex-1" />
+        <div className="min-w-0 flex-1" />
 
         <SegmentedControl<TimeRange>
           ariaLabel="Time range"
@@ -116,6 +116,7 @@ export function TopBar() {
         <button
           type="button"
           onClick={() => setPaletteOpen(true)}
+          aria-label="Search pages (Ctrl+K)"
           className="inline-flex items-center gap-2 rounded-md border border-[var(--line)] px-2.5 py-1 text-xs font-medium text-neutral-600 transition-colors hover:border-[var(--line-strong)] hover:text-neutral-800"
         >
           <Search className="h-3.5 w-3.5" aria-hidden />
@@ -134,7 +135,7 @@ export function TopBar() {
           {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
         </button>
 
-        <div className="flex items-center gap-2 border-l border-[var(--line)] pl-3">
+        <div className="flex min-w-0 items-center gap-2 border-l border-[var(--line)] pl-3">
           {user && (
             <span className="hidden max-w-[12rem] truncate text-xs text-neutral-600 md:inline">
               {user.email}
@@ -146,7 +147,7 @@ export function TopBar() {
               auth.logout();
               navigate({ to: '/login' });
             }}
-            className="rounded-md px-2 py-1 text-xs font-medium text-neutral-600 transition-colors hover:bg-neutral-50 hover:text-neutral-800"
+            className="truncate rounded-md px-2 py-1 text-xs font-medium text-neutral-600 transition-colors hover:bg-neutral-50 hover:text-neutral-800"
           >
             Sign out
           </button>

@@ -149,7 +149,7 @@ export function Sidebar() {
           type="button"
           aria-label="Close navigation"
           onClick={() => setNavOpen(false)}
-          className="fixed inset-0 z-40 bg-[var(--overlay)] lg:hidden"
+          className="fixed inset-0 z-40 bg-[var(--overlay)] md:hidden"
         />
       )}
       <aside
@@ -159,7 +159,7 @@ export function Sidebar() {
           'transition-[transform,width] duration-200 ease-out',
           sidebarCollapsed ? 'w-[68px]' : 'w-60',
           navOpen ? 'translate-x-0' : '-translate-x-full',
-          'lg:static lg:translate-x-0',
+          'md:static md:translate-x-0',
         )}
       >
         <div
@@ -177,7 +177,7 @@ export function Sidebar() {
             type="button"
             onClick={toggleSidebar}
             aria-label={sidebarCollapsed ? 'Expand navigation' : 'Collapse navigation'}
-            className="hidden shrink-0 rounded-md p-1.5 text-neutral-500 transition-colors hover:bg-neutral-50 hover:text-neutral-700 lg:inline-flex"
+            className="hidden shrink-0 rounded-md p-1.5 text-neutral-500 transition-colors hover:bg-neutral-50 hover:text-neutral-700 md:inline-flex"
           >
             {sidebarCollapsed ? (
               <PanelLeft className="h-4 w-4" />
@@ -189,7 +189,7 @@ export function Sidebar() {
             type="button"
             onClick={() => setNavOpen(false)}
             aria-label="Close navigation"
-            className="shrink-0 rounded-md p-1.5 text-neutral-500 hover:bg-neutral-50 lg:hidden"
+            className="shrink-0 rounded-md p-1.5 text-neutral-500 hover:bg-neutral-50 md:hidden"
           >
             <PanelLeftClose className="h-4 w-4" />
           </button>

@@ -7,7 +7,19 @@ import type { ImportColumn, ImportResult } from '../lib/api/types';
 import { useDatasetScope } from '../lib/ActiveDatasetContext';
 import { useStageOutput } from '../lib/stageOutput';
 import { dec, duration, int } from '../lib/format';
-import { Button, Callout, Card, DataGrid, KpiRow, KpiTile, Section, type Column } from '../lib/ui';
+import {
+  Button,
+  Callout,
+  Card,
+  DataGrid,
+  EmptyState,
+  ErrorState,
+  KpiRow,
+  KpiTile,
+  LoadingState,
+  Section,
+  type Column,
+} from '../lib/ui';
 
 const GRANULARITY_LABEL: Record<string, string> = {
   asset: 'Building › Floor › Room › Device',
@@ -169,18 +181,22 @@ export function ImportPage() {
             >
               <Card>
                 {preview.isPending ? (
-                  <div className="p-4 text-sm text-neutral-600">Reading the first rows…</div>
+                  <LoadingState label="Reading the first rows" lines={4} />
                 ) : preview.isError ? (
-                  <Callout tone="warn" title="The preview could not be read">
-                    {preview.error instanceof Error
-                      ? preview.error.message
-                      : 'The preview request failed.'}
-                  </Callout>
+                  <ErrorState
+                    title="The preview could not be read"
+                    message={
+                      preview.error instanceof Error
+                        ? preview.error.message
+                        : 'The preview request failed.'
+                    }
+                    onRetry={() => void preview.refetch()}
+                  />
                 ) : (preview.data?.rows.length ?? 0) === 0 ? (
-                  <div className="p-4 text-sm text-neutral-600">
-                    The preview returned no rows. The file was registered but its contents could not
-                    be read back.
-                  </div>
+                  <EmptyState
+                    title="No rows came back"
+                    description="The file was registered but its contents could not be read back. Try re-uploading it."
+                  />
                 ) : (
                   <DataGrid
                     rows={preview.data?.rows ?? []}

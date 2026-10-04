@@ -16,6 +16,7 @@ import {
   type Severity,
 } from '../lib/ui';
 import { BarCompare, RankedBars, SeverityBars } from '../lib/charts';
+import { useInspector } from '../app/Inspector';
 import { StageGate } from '../app/StageGate';
 import { PageFrame, PageHero } from '../app/PageFrame';
 import { useStageOutput } from '../lib/stageOutput';
@@ -56,6 +57,7 @@ export function AnomaliesPage() {
   const state = useStageOutput<AnomalyResult>('anomaly');
   const { datasetId } = useDatasetScope();
   const navigate = useNavigate();
+  const { inspect } = useInspector();
 
   return (
     <PageFrame
@@ -207,6 +209,267 @@ export function AnomaliesPage() {
             },
           ];
 
+          /**
+           * The stage emits roll-ups, not individual readings (see the panel below),
+           * so the inspectable "record" here is the group a row stands for. Each
+           * drawer shows the group's own numbers, its share of the run, and the
+           * baseline that flagged it — the same arithmetic the table uses.
+           */
+          const methodFooter = (
+            <span className="text-md text-[var(--ink-mid)]">
+              Flagged at {dec(output.threshold, 2)} median absolute deviations above the{' '}
+              <span className="mono">{output.baseline_method}</span> baseline. Analysed{' '}
+              <span className="mono">{output.analysed_at}</span>.
+            </span>
+          );
+
+          const inspectClass = (row: AnomalyClassRow) => {
+            inspect({
+              title: row.label,
+              subtitle:
+                CLASS_NOTE[row.anomaly_class] ??
+                'Not in the current playbook; investigate before sizing a fix.',
+              groups: [
+                {
+                  heading: 'This class',
+                  rows: [
+                    {
+                      label: 'Class id',
+                      value: <span className="mono">{row.anomaly_class}</span>,
+                    },
+                    {
+                      label: 'Readings',
+                      value: <span className="num">{int(row.count)}</span>,
+                    },
+                    {
+                      label: 'Share of readings',
+                      value: (
+                        <span className="num">
+                          {pctValue((row.count / Math.max(1, output.total)) * 100, 1)}
+                        </span>
+                      ),
+                    },
+                    {
+                      label: 'Excess per reading',
+                      value: (
+                        <span className="num">
+                          {dec(row.excess_kwh / Math.max(1, row.count), 3)} kWh
+                        </span>
+                      ),
+                    },
+                  ],
+                },
+                {
+                  heading: 'Cost and carbon',
+                  rows: [
+                    {
+                      label: 'Excess energy',
+                      value: <span className="num">{energy(row.excess_kwh)}</span>,
+                    },
+                    {
+                      label: 'Excess cost',
+                      value: <span className="num">{rupees(row.excess_cost)}</span>,
+                    },
+                    {
+                      label: 'Excess carbon',
+                      value: <span className="num">{co2Tonnes(row.excess_kwh * 0.5)}</span>,
+                    },
+                  ],
+                },
+              ],
+              footer: methodFooter,
+            });
+          };
+
+          const inspectSeverity = (row: AnomalySeverityRow) => {
+            const shareOfExcess =
+              (row.excess_kwh / Math.max(1e-9, output.excess_kwh)) * 100;
+            inspect({
+              title: `${row.severity.charAt(0).toUpperCase()}${row.severity.slice(1)} severity`,
+              subtitle: `${int(row.count)} readings sat in this band above baseline`,
+              groups: [
+                {
+                  heading: 'Band',
+                  rows: [
+                    {
+                      label: 'Severity',
+                      value: <SeverityTag severity={row.severity as Severity} />,
+                    },
+                    {
+                      label: 'Readings',
+                      value: <span className="num">{int(row.count)}</span>,
+                    },
+                    {
+                      label: 'Share of readings',
+                      value: (
+                        <span className="num">
+                          {pctValue((row.count / Math.max(1, output.total)) * 100, 1)}
+                        </span>
+                      ),
+                    },
+                  ],
+                },
+                {
+                  heading: 'Excess energy in this band',
+                  rows: [
+                    {
+                      label: 'Excess energy',
+                      value: <span className="num">{energy(row.excess_kwh)}</span>,
+                    },
+                    {
+                      label: 'Share of excess',
+                      value: <span className="num">{pctValue(shareOfExcess, 1)}</span>,
+                    },
+                    {
+                      label: 'Excess per reading',
+                      value: (
+                        <span className="num">
+                          {dec(row.excess_kwh / Math.max(1, row.count), 3)} kWh
+                        </span>
+                      ),
+                    },
+                  ],
+                },
+                {
+                  heading: 'Cost',
+                  rows: [
+                    {
+                      label: 'Share of excess cost',
+                      value: <span className="num">{pctValue(shareOfExcess, 1)}</span>,
+                    },
+                    {
+                      label: 'Excess cost',
+                      value: (
+                        <span className="num">
+                          {rupees((shareOfExcess / 100) * output.excess_cost)}
+                        </span>
+                      ),
+                    },
+                  ],
+                },
+              ],
+              footer: methodFooter,
+            });
+          };
+
+          const inspectBuilding = (row: AnomalyBuildingRow) => {
+            inspect({
+              title: row.building_code,
+              subtitle: `${int(row.count)} readings above this building's own baseline`,
+              groups: [
+                {
+                  heading: 'Building',
+                  rows: [
+                    {
+                      label: 'Building code',
+                      value: <span className="mono">{row.building_code}</span>,
+                    },
+                    {
+                      label: 'Readings',
+                      value: <span className="num">{int(row.count)}</span>,
+                    },
+                    {
+                      label: 'Share of readings',
+                      value: (
+                        <span className="num">
+                          {pctValue((row.count / Math.max(1, output.total)) * 100, 1)}
+                        </span>
+                      ),
+                    },
+                    {
+                      label: 'Share of excess energy',
+                      value: (
+                        <span className="num">
+                          {pctValue(
+                            (row.excess_kwh / Math.max(1e-9, output.excess_kwh)) * 100,
+                            1,
+                          )}
+                        </span>
+                      ),
+                    },
+                  ],
+                },
+                {
+                  heading: 'Cost and carbon',
+                  rows: [
+                    {
+                      label: 'Excess energy',
+                      value: <span className="num">{energy(row.excess_kwh)}</span>,
+                    },
+                    {
+                      label: 'Excess cost',
+                      value: <span className="num">{rupees(row.excess_cost)}</span>,
+                    },
+                    {
+                      label: 'Excess carbon',
+                      value: <span className="num">{co2Tonnes(row.excess_kwh * 0.5)}</span>,
+                    },
+                  ],
+                },
+              ],
+              footer: methodFooter,
+            });
+          };
+
+          const inspectDevice = (row: AnomalyDeviceRow) => {
+            inspect({
+              title: row.device_code,
+              subtitle: row.label,
+              groups: [
+                {
+                  heading: 'Device',
+                  rows: [
+                    {
+                      label: 'Device code',
+                      value: <span className="mono">{row.device_code}</span>,
+                    },
+                    {
+                      label: 'What it is',
+                      value: <span className="text-md text-[var(--ink-mid)]">{row.label}</span>,
+                    },
+                    {
+                      label: 'Readings',
+                      value: <span className="num">{int(row.count)}</span>,
+                    },
+                    {
+                      label: 'Share of excess energy',
+                      value: (
+                        <span className="num">
+                          {pctValue(
+                            (row.excess_kwh / Math.max(1e-9, output.excess_kwh)) * 100,
+                            1,
+                          )}
+                        </span>
+                      ),
+                    },
+                  ],
+                },
+                {
+                  heading: 'Excess energy',
+                  rows: [
+                    {
+                      label: 'Excess energy',
+                      value: <span className="num">{energy(row.excess_kwh)}</span>,
+                    },
+                    {
+                      label: 'Excess per reading',
+                      value: (
+                        <span className="num">
+                          {dec(row.excess_kwh / Math.max(1, row.count), 3)} kWh
+                        </span>
+                      ),
+                    },
+                    {
+                      label: 'Excess carbon',
+                      value: <span className="num">{co2Tonnes(row.excess_kwh * 0.5)}</span>,
+                    },
+                  ],
+                },
+              ],
+              footer: methodFooter,
+            });
+          };
+
           return (
             <div className="flex min-w-0 flex-col gap-4">
               <PageHero
@@ -300,6 +563,7 @@ export function AnomaliesPage() {
                   rows={output.by_class}
                   columns={classColumns}
                   rowKey={(row) => row.anomaly_class}
+                  onRowClick={inspectClass}
                   caption={`${output.by_class.length} classes present`}
                   empty="No anomalies were detected."
                 />
@@ -322,6 +586,7 @@ export function AnomaliesPage() {
                   rows={output.by_severity}
                   columns={severityColumns}
                   rowKey={(row) => row.severity}
+                  onRowClick={inspectSeverity}
                   caption={`${int(output.total)} readings · ${energy(output.excess_kwh)} excess`}
                 />
               </Section>
@@ -333,6 +598,7 @@ export function AnomaliesPage() {
                       rows={output.by_building}
                       columns={buildingColumns}
                       rowKey={(row) => row.building_code}
+                      onRowClick={inspectBuilding}
                       caption={`${output.by_building.length} buildings with findings`}
                     />
                   </Section>
@@ -341,6 +607,7 @@ export function AnomaliesPage() {
                       rows={output.top_devices}
                       columns={deviceColumns}
                       rowKey={(row) => row.device_code}
+                      onRowClick={inspectDevice}
                       caption={`Top ${output.top_devices.length} of ${int(output.devices_affected)} affected devices`}
                     />
                   </Section>
@@ -387,7 +654,7 @@ export function AnomaliesPage() {
                     </p>
                     {datasetId ? (
                       <Link
-                        to="/recommendations/$datasetId"
+                        to="/report/$datasetId"
                         params={{ datasetId }}
                         className="mt-3 inline-block text-md text-[var(--brand)] underline"
                       >

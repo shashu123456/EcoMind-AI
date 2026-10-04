@@ -77,6 +77,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
           <Search className="h-4 w-4 shrink-0 text-neutral-500" aria-hidden />
           <input
             autoFocus
+            aria-label="Search pages"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Go to a page…"

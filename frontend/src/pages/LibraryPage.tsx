@@ -124,18 +124,20 @@ export function LibraryPage() {
   return (
     <PageFrame
       stage="library"
-      status={rows.length > 0 ? 'done' : 'pending'}
+      status={query.isSuccess && rows.length > 0 ? 'done' : 'pending'}
       hero={
-        <PageHero
-          eyebrow="Datasets available"
-          value={int(rows.length, '0')}
-          verdict={
-            rows.length === 0
-              ? 'No datasets are loaded. Nothing else can be read until one exists.'
-              : `${int(totalRows)} readings across ${int(totalDevices)} devices. Choosing one scopes all ten stages.`
-          }
-          tone={rows.length > 0 ? 'neutral' : 'warn'}
-        />
+        query.isSuccess ? (
+          <PageHero
+            eyebrow="Datasets available"
+            value={int(rows.length, '0')}
+            verdict={
+              rows.length === 0
+                ? 'No datasets are loaded. Nothing else can be read until one exists.'
+                : `${int(totalRows)} readings across ${int(totalDevices)} devices. Choosing one scopes all ten stages.`
+            }
+            tone={rows.length > 0 ? 'neutral' : 'warn'}
+          />
+        ) : undefined
       }
       actions={
         shown ? (

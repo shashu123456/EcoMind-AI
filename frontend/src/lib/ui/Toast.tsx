@@ -7,7 +7,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { AlertTriangle, CheckCircle2, Info, XCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Info, X, XCircle } from 'lucide-react';
 import { cn } from '../cn';
 
 type ToastTone = 'ok' | 'warn' | 'critical' | 'info';
@@ -96,9 +96,9 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                 type="button"
                 onClick={() => dismiss(toast.id)}
                 aria-label="Dismiss"
-                className="shrink-0 text-2xs text-neutral-500 hover:text-neutral-700"
+                className="shrink-0 text-neutral-500 hover:text-neutral-700"
               >
-                âœ•
+                <X className="h-3.5 w-3.5" aria-hidden />
               </button>
             </div>
           );

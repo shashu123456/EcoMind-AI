@@ -270,7 +270,7 @@ export function DataQualityPage() {
                 title="Rule findings"
                 description="Each rule with what it examined and how it scored. Select a row to open its evidence."
               >
-                <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]">
+                <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_21rem]">
                   <Card>
                     <DataGrid
                       rows={verdicts}

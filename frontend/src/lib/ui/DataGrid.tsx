@@ -66,8 +66,19 @@ export function DataGrid<T>({
     onSortChange({ key, dir: sort.key === key && sort.dir === 'desc' ? 'asc' : 'desc' });
   }
 
-  if (!rows.length && empty) {
-    return <div className={cn('surface', className)}>{empty}</div>;
+  if (!rows.length) {
+    return (
+      <div className={cn('surface', className)}>
+        {empty ?? (
+          <div className="px-3.5 py-8 text-center">
+            <p className="text-sm font-medium text-neutral-700">No rows to display</p>
+            <p className="mt-1 text-xs text-neutral-600">
+              Adjust the filters above, or run the stage to populate this table.
+            </p>
+          </div>
+        )}
+      </div>
+    );
   }
 
   return (
@@ -153,6 +164,7 @@ export function DataGrid<T>({
                       className={cn(
                         'px-3 py-2 align-middle text-neutral-800',
                         col.numeric && 'num',
+                        col.mono && 'mono',
                         ALIGN[col.align ?? (col.numeric ? 'right' : 'left')],
                       )}
                     >

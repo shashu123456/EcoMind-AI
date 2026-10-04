@@ -8,7 +8,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { ChevronDown, ChevronUp, ScrollText, Trash2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, Terminal, Trash2 } from 'lucide-react';
 import { runs } from '../lib/api';
 import type { StreamEvent } from '../lib/api/types';
 import { STAGE_BY_KEY, useJourney } from '../lib/journey';
@@ -55,6 +55,15 @@ const STATUS_COLOR: Record<ConsoleStatus, string> = {
   skipped: 'var(--ink-faint)',
 };
 
+const STATUS_MARK: Record<ConsoleStatus, string> = {
+  info: '·',
+  running: '▶',
+  done: '✓',
+  failed: '✕',
+  blocked: '!',
+  skipped: '–',
+};
+
 function statusFor(type: string): ConsoleStatus {
   switch (type) {
     case 'stage_started':
@@ -74,7 +83,7 @@ function statusFor(type: string): ConsoleStatus {
 }
 
 function stageLabel(stageKey?: string): string {
-  if (!stageKey) return 'Run';
+  if (!stageKey) return 'run';
   const def = STAGE_BY_KEY[stageKey as keyof typeof STAGE_BY_KEY];
   return def ? def.label : stageKey;
 }
@@ -115,12 +124,13 @@ function clockTime(at: number): string {
 }
 
 /**
- * The processing log at the foot of the workspace.
+ * The live console at the foot of the workspace.
  *
- * This is an operations console, not a terminal: it records what the pipeline
- * actually did — which stage ran, whether it succeeded, how long it took — so a
- * user can see the platform working. It is collapsed by default because it is
- * evidence, not the headline.
+ * It streams the real events the backend emits over SSE — which stage started,
+ * how long it ran, what it decided — so the platform visibly works in real time
+ * instead of leaving the user to guess. It opens itself the moment a run starts
+ * and stays chronological (oldest at the top, newest at the bottom) like a
+ * terminal tail.
  */
 export function EventConsoleProvider({ children }: { children: ReactNode }) {
   const [events, setEvents] = useState<ConsoleEvent[]>([]);
@@ -167,6 +177,7 @@ export function EventConsoleProvider({ children }: { children: ReactNode }) {
           }
         }
         if (type === 'heartbeat') return;
+        if (type === 'run_started' || type === 'stage_started') setOpen(true);
         push({
           type,
           status: statusFor(type),
@@ -224,8 +235,16 @@ function ConsoleBar({
   onClear: () => void;
 }) {
   const latest = events[events.length - 1];
+  const running = latest?.status === 'running';
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open || !scrollRef.current) return;
+    scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+  }, [events.length, open]);
+
   return (
-    <div className="shrink-0 border-t border-[var(--line)] bg-[var(--surface)]">
+    <div className="shrink-0 border-t border-[var(--line)] bg-[var(--surface-inset)]">
       <div className="flex h-9 items-center gap-3 px-3.5">
         <button
           type="button"
@@ -238,17 +257,26 @@ function ConsoleBar({
           ) : (
             <ChevronUp className="h-3.5 w-3.5" aria-hidden />
           )}
-          <ScrollText className="h-3.5 w-3.5" aria-hidden />
-          Processing log
+          <Terminal className="h-3.5 w-3.5" aria-hidden />
+          Live console
           {events.length > 0 && (
             <span className="num rounded-full bg-[var(--surface-2)] px-1.5 text-2xs text-neutral-600">
               {events.length}
             </span>
           )}
         </button>
+        {running && (
+          <span className="flex items-center gap-1.5 text-2xs font-medium text-[var(--brand)]">
+            <span
+              aria-hidden
+              className="h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--brand)]"
+            />
+            live
+          </span>
+        )}
         {!open && latest && (
-          <span className="min-w-0 flex-1 truncate text-2xs text-neutral-500">
-            <span className="num text-neutral-600">{clockTime(latest.at)}</span> · {latest.message}
+          <span className="num min-w-0 flex-1 truncate text-2xs text-neutral-500">
+            <span className="text-neutral-600">{clockTime(latest.at)}</span> · {latest.message}
           </span>
         )}
         <div className="flex-1" />
@@ -256,7 +284,7 @@ function ConsoleBar({
           <button
             type="button"
             onClick={onClear}
-            aria-label="Clear processing log"
+            aria-label="Clear console"
             className="rounded-md p-1 text-neutral-500 transition-colors hover:bg-neutral-50 hover:text-neutral-700"
           >
             <Trash2 className="h-3.5 w-3.5" />
@@ -265,37 +293,37 @@ function ConsoleBar({
       </div>
 
       {open && (
-        <div className="h-52 overflow-y-auto border-t border-[var(--line-faint)]">
+        <div
+          ref={scrollRef}
+          className="h-56 overflow-y-auto border-t border-[var(--line-faint)] bg-[var(--surface-inset)] px-3.5 py-2"
+        >
           {events.length === 0 ? (
-            <p className="px-3.5 py-6 text-center text-sm text-neutral-500">
-              No processing activity yet. Events appear here as the pipeline runs.
+            <p className="py-6 text-center text-2xs text-neutral-500">
+              <span className="text-neutral-600">$</span> waiting for pipeline activity…
             </p>
           ) : (
-            <ul className="divide-y divide-[var(--line-faint)]">
-              {events
-                .slice()
-                .reverse()
-                .map((event) => (
-                  <li key={event.id} className="flex items-center gap-3 px-3.5 py-1.5 text-2xs">
-                    <span className="num shrink-0 text-neutral-500">{clockTime(event.at)}</span>
-                    <span className="flex w-40 shrink-0 items-center gap-1.5 text-neutral-700">
-                      <span
-                        aria-hidden
-                        className="h-1.5 w-1.5 shrink-0 rounded-full"
-                        style={{ backgroundColor: STATUS_COLOR[event.status] }}
-                      />
-                      <span className="truncate">{stageLabel(event.stage)}</span>
+            <ul className="flex flex-col gap-0.5 font-mono text-[11px] leading-5">
+              {events.map((event) => (
+                <li key={event.id} className="flex items-baseline gap-2.5">
+                  <span className="shrink-0 text-neutral-400">{clockTime(event.at)}</span>
+                  <span
+                    aria-hidden
+                    className="shrink-0 font-semibold"
+                    style={{ color: STATUS_COLOR[event.status] }}
+                  >
+                    {STATUS_MARK[event.status]}
+                  </span>
+                  <span className="w-24 shrink-0 truncate text-neutral-600 sm:w-36">
+                    {stageLabel(event.stage)}
+                  </span>
+                  <span className="min-w-0 flex-1 text-neutral-800">{event.message}</span>
+                  {event.durationMs !== undefined && (
+                    <span className="shrink-0 text-neutral-400">
+                      {(event.durationMs / 1000).toFixed(1)}s
                     </span>
-                    <span className="min-w-0 flex-1 truncate text-neutral-700">
-                      {event.message}
-                    </span>
-                    {event.durationMs !== undefined && (
-                      <span className="num shrink-0 text-neutral-500">
-                        {(event.durationMs / 1000).toFixed(1)}s
-                      </span>
-                    )}
-                  </li>
-                ))}
+                  )}
+                </li>
+              ))}
             </ul>
           )}
         </div>

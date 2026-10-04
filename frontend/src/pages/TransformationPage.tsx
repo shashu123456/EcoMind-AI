@@ -5,7 +5,7 @@ import { StageGate } from '../app/StageGate';
 import type { TransformationResult, TransformStep } from '../lib/api/types';
 import { useDatasetScope } from '../lib/ActiveDatasetContext';
 import { useStageOutput } from '../lib/stageOutput';
-import { dateTime, dec, duration, int } from '../lib/format';
+import { dateTime, duration, int } from '../lib/format';
 import { PipelineFlow } from '../lib/charts';
 import {
   Badge,

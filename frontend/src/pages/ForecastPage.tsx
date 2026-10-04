@@ -23,7 +23,6 @@ import {
   ForecastBand,
   HeatmapGrid,
   SeasonalityBars,
-  TrendChart,
 } from '../lib/charts';
 import { StageGate } from '../app/StageGate';
 import { PageFrame, PageHero } from '../app/PageFrame';
@@ -110,7 +109,7 @@ export function ForecastPage() {
           <Button
             variant="primary"
             onClick={() =>
-              void navigate({ to: '/recommendations/$datasetId', params: { datasetId } })
+              void navigate({ to: '/report/$datasetId', params: { datasetId } })
             }
           >
             Continue to recommendations
@@ -593,7 +592,7 @@ export function ForecastPage() {
               {datasetId ? (
                 <div className="text-md">
                   <Link
-                    to="/recommendations/$datasetId"
+                    to="/report/$datasetId"
                     params={{ datasetId }}
                     className="text-[var(--brand)] underline"
                   >

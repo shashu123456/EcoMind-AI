@@ -122,13 +122,13 @@ export const STAGES = [
   {
     key: 'model_selection',
     index: 5,
-    label: 'Model Selection',
-    short: 'Models',
+    label: 'Prediction',
+    short: 'Predict',
     phase: 'preparation',
-    purpose: 'Train and compare candidates using real metrics, then auto-select the best.',
+    purpose: 'Train every candidate model, compare them on real metrics, then auto-select the best one to predict demand.',
     path: '/model-selection/$datasetId',
     gated: true,
-    answers: 'Which model generalises best for this dataset?',
+    answers: 'Which model predicts this building best?',
   },
   {
     key: 'anomaly',

@@ -16,14 +16,15 @@ import {
   Tabs,
   type Column,
 } from '../lib/ui';
+  Inset,
 import { StageGate } from '../app/StageGate';
 import { PageFrame, PageHero } from '../app/PageFrame';
 import { useStageOutput } from '../lib/stageOutput';
 import { useJourney } from '../lib/journey';
-import { co2Tonnes, dec, int, num, power, rupees, stamp } from '../lib/format';
+import { co2Tonnes, dec, int, num, power, rupees, rupeesCompact, stamp } from '../lib/format';
 import type { ReportFigures, ReportResult, ReportSection } from '../lib/api/types';
 
-type View = 'read' | 'figures';
+type View = 'read' | 'figures' | 'action-plan';
 
 const FIGURE_FORMAT: Record<
   string,
@@ -182,6 +183,7 @@ export function ReportPage() {
                 tabs={[
                   { value: 'read', label: 'Read it', badge: sections.length },
                   { value: 'figures', label: 'Every figure', badge: allFigures.length },
+                  { value: 'action-plan', label: 'Action plan', badge: 0 },
                 ]}
               />
 
@@ -298,6 +300,80 @@ export function ReportPage() {
                     maxHeight="40rem"
                     caption={`${allFigures.length} figures across ${sections.length} sections`}
                   />
+                </Section>
+              ) : null}
+
+              {view === 'action-plan' ? (
+                <Section
+                  title="Action plan"
+                  description="The recommendations from the prediction stage, turned into a numbered program you can take to management."
+                >
+                  <Inset className="text-md">
+                    The order below is driven by payback: the fastest-return actions first, so a
+                    manager can start with the third of the cost and start paying back today.
+                  </Inset>
+                  <div className="mt-3">
+                    <KpiRow columns={4}>
+                      <KpiTile
+                        label="Actions"
+                        value={output.recommendations ? int(output.recommendations) : 0}
+                        hint="Total actions across the estate"
+                      />
+                      <KpiTile
+                        label="Monthly recovery"
+                        value={rupees(output.monthly_recoverable_inr ?? 0)}
+                        hint="After the per-class recovery fraction"
+                        tone="ok"
+                      />
+                      <KpiTile
+                        label="Annual recovery"
+                        value={rupeesCompact(output.annual_recoverable_inr ?? 0)}
+                        hint={energy(output.recoverable_kwh ?? 0)}
+                        tone="ok"
+                      />
+                      <KpiTile
+                        label="Programme cost"
+                        value={rupees(output.programme_cost_inr ?? 0)}
+                        hint="One mobilisation for the estate"
+                      />
+                    </KpiRow>
+                  </div>
+                  <div className="mt-3 space-y-2">
+                    {output.recommendations.slice(0, 20).map((r) => (
+                      <Card key={r.id} className="p-4">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge
+                            color={
+                              r.priority === 'P1'
+                                ? 'var(--critical)'
+                                : r.priority === 'P2'
+                                  ? 'var(--warn)'
+                                  : 'var(--info)'
+                            }
+                          >
+                            {r.priority}
+                          </Badge>
+                          <span className="font-medium text-md">{r.title}</span>
+                          <Badge
+                            color={
+                              r.payback_verdict === 'viable'
+                                ? 'var(--ok)'
+                                : r.payback_verdict === 'marginal'
+                                  ? 'var(--warn)'
+                                  : 'var(--critical)'
+                            }
+                          >
+                            {r.payback_verdict.replace(/_/g, ' ')}
+                          </Badge>
+                        </div>
+                        <p className="mt-1 text-md text-[var(--ink-mid)]">{r.reason}</p>
+                        <p className="mt-1 text-md">Do this: {r.action}</p>
+                        <div className="mt-2 text-2xs text-[var(--ink-low)]">
+                          {dec(r.savings_kwh, 1)} kWh · {rupees(r.savings_cost_inr)} · {co2Tonnes(r.savings_co2_kg)}
+                        </div>
+                      </Card>
+                    ))}
+                  </div>
                 </Section>
               ) : null}
             </div>

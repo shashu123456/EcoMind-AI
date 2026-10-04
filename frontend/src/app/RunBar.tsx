@@ -17,8 +17,9 @@ import {
   type StageKey,
   type StageStatuses,
 } from '../lib/journey';
-import { Button, SegmentedControl, Select } from '../lib/ui';
+import { Button, SegmentedControl, Select, useToast } from '../lib/ui';
 import { RUN_MODES, useWorkspace, type RunMode } from '../lib/workspace';
+import { useEventConsole } from './EventConsole';
 
 /**
  * The global run control.
@@ -41,7 +42,9 @@ export function RunBar() {
   const setStatuses = useJourney((s) => s.setStatuses);
   const markStage = useJourney((s) => s.markStage);
   const { runMode, setRunMode } = useWorkspace();
+  const { setOpen: openConsole } = useEventConsole();
   const qc = useQueryClient();
+  const toast = useToast();
 
   const [pending, setPending] = useState(false);
   const [activeKey, setActiveKey] = useState<StageKey | null>(null);
@@ -85,6 +88,7 @@ export function RunBar() {
     stopRef.current = false;
     try {
       const id = await ensureRun();
+      openConsole(true);
       let local: StageStatuses = { ...stageStatuses };
       for (const def of STAGES) {
         if (stopRef.current) break;
@@ -93,13 +97,19 @@ export function RunBar() {
         await settle(id);
       }
       await settle(id);
+      if (stopRef.current) {
+        toast.info('Run stopped', 'Stopped after the current stage.');
+      } else {
+        toast.ok('Run complete', 'Every remaining stage finished.');
+      }
     } catch (e) {
       setError(errorMessage(e));
+      toast.error('Run failed', errorMessage(e));
     } finally {
       setPending(false);
       setActiveKey(null);
     }
-  }, [ensureRun, runStage, stageStatuses, settle]);
+  }, [ensureRun, runStage, stageStatuses, settle, openConsole, toast]);
 
   const runOne = useCallback(
     async (def: StageDef | null) => {
@@ -109,16 +119,19 @@ export function RunBar() {
       stopRef.current = false;
       try {
         const id = await ensureRun();
+        openConsole(true);
         await runStage(id, def, stageStatuses);
         await settle(id);
+        toast.ok('Stage complete', `${def.label} finished.`);
       } catch (e) {
         setError(errorMessage(e));
+        toast.error('Stage failed', errorMessage(e));
       } finally {
         setPending(false);
         setActiveKey(null);
       }
     },
-    [ensureRun, runStage, stageStatuses, settle],
+    [ensureRun, runStage, stageStatuses, settle, openConsole, toast],
   );
 
   const reset = useCallback(async () => {
@@ -127,16 +140,19 @@ export function RunBar() {
     setPending(true);
     try {
       const run = await runs.startRun(datasetId);
+      openConsole(true);
       setStatuses({});
       setActive({ runId: run.id });
       await settle(run.id);
+      toast.info('New run started', 'Progress reset to the first stage.');
     } catch (e) {
       setError(errorMessage(e));
+      toast.error('Reset failed', errorMessage(e));
     } finally {
       setPending(false);
       setActiveKey(null);
     }
-  }, [pending, datasetId, setStatuses, setActive, settle]);
+  }, [pending, datasetId, setStatuses, setActive, settle, openConsole, toast]);
 
   if (!datasetId) return null;
 

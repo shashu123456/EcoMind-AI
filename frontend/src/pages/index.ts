@@ -8,5 +8,5 @@ export { TransformationPage } from './TransformationPage';
 export { ModelSelectionPage } from './ModelSelectionPage';
 export { AnomaliesPage } from './AnomaliesPage';
 export { ForecastPage } from './ForecastPage';
-export { RecommendationsPage } from './RecommendationsPage';
+
 export { ReportPage } from './ReportPage';

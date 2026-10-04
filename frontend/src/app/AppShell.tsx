@@ -9,6 +9,7 @@ import {
   type HierarchyLevel,
 } from '../lib/ActiveDatasetContext';
 import { LoadingState } from '../lib/ui';
+import { ToastProvider } from '../lib/ui/Toast';
 import { WorkspaceProvider } from '../lib/workspace';
 import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
@@ -102,32 +103,34 @@ export function AppShell() {
   const ready = !activeDatasetId || (datasetQuery.isFetched && runQuery.isFetched);
 
   return (
-    <ActiveDatasetProvider dataset={active} levels={NO_LEVELS}>
-      <WorkspaceProvider>
-        <InspectorProvider>
-          <EventConsoleProvider>
-            <div className="flex h-full min-h-0">
-              <Sidebar />
-              <div className="flex min-w-0 flex-1 flex-col">
-                <TopBar />
-                <RunBar />
-                <main className="min-h-0 flex-1 overflow-y-auto">
-                  {ready ? (
-                    <RouteGuard stage={currentStage} datasetId={routeDatasetId ?? activeDatasetId}>
-                      <Outlet />
-                    </RouteGuard>
-                  ) : (
-                    <div className="page-gutter py-8">
-                      <LoadingState label="Loading run state" lines={4} />
-                    </div>
-                  )}
-                </main>
-                <EventConsole />
+    <ToastProvider>
+      <ActiveDatasetProvider dataset={active} levels={NO_LEVELS}>
+        <WorkspaceProvider>
+          <InspectorProvider>
+            <EventConsoleProvider>
+              <div className="flex h-full min-h-0">
+                <Sidebar />
+                <div className="flex min-w-0 flex-1 flex-col">
+                  <TopBar />
+                  <RunBar />
+                  <main className="min-h-0 flex-1 overflow-y-auto">
+                    {ready ? (
+                      <RouteGuard stage={currentStage} datasetId={routeDatasetId ?? activeDatasetId}>
+                        <Outlet />
+                      </RouteGuard>
+                    ) : (
+                      <div className="page-gutter py-8">
+                        <LoadingState label="Loading run state" lines={4} />
+                      </div>
+                    )}
+                  </main>
+                  <EventConsole />
+                </div>
               </div>
-            </div>
-          </EventConsoleProvider>
-        </InspectorProvider>
-      </WorkspaceProvider>
-    </ActiveDatasetProvider>
+            </EventConsoleProvider>
+          </InspectorProvider>
+        </WorkspaceProvider>
+      </ActiveDatasetProvider>
+    </ToastProvider>
   );
 }
