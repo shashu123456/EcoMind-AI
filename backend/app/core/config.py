@@ -1,6 +1,13 @@
+import sys
+import warnings
 from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+#: The shipped fallback. Kept only so the app can be imported for a quick look;
+#: the launcher always writes a generated key, so seeing this at runtime means
+#: `backend/.env` was lost, never edited, or hand-copied from `.env.example`.
+DEV_SECRET_KEY = "eco-mind-dev-secret-change-me"
 
 
 class Settings(BaseSettings):
@@ -23,7 +30,7 @@ class Settings(BaseSettings):
     app_name: str = "EcoMind"
     app_tagline: str = "Enterprise Energy Analytics Platform"
     port: int = 8000
-    secret_key: str = "eco-mind-dev-secret-change-me"
+    secret_key: str = DEV_SECRET_KEY
     access_token_expire_minutes: int = 60 * 24
     jwt_algorithm: str = "HS256"
 
@@ -117,6 +124,32 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+# A JWT signed with the shipped fallback is forgeable by anyone who has read
+# this file, which is everyone. Refusing to start would break a legitimate
+# `uvicorn` poke at the codebase, so this warns loudly instead -- but the
+# launcher treats it as a failed check, and `.env` repairs itself.
+if settings.secret_key == DEV_SECRET_KEY:
+    warnings.warn(
+        "ECOMIND_SECRET_KEY is the shipped development placeholder. Every JWT "
+        "this process signs can be forged by a third party. Run `ecomind` to "
+        "generate a real one, or set ECOMIND_SECRET_KEY before exposing this.",
+        RuntimeWarning,
+        stacklevel=2,
+    )
+    print(
+        "[!] WARNING: ECOMIND_SECRET_KEY is the development placeholder. "
+        "JWTs signed with it are forgeable. Run `ecomind` to fix.",
+        file=sys.stderr,
+        flush=True,
+    )
+elif len(settings.secret_key) < 32:
+    warnings.warn(
+        f"ECOMIND_SECRET_KEY is only {len(settings.secret_key)} characters; "
+        "use at least 32 for HS256.",
+        RuntimeWarning,
+        stacklevel=2,
+    )
 
 for _d in (
     settings.data_dir,

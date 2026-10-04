@@ -60,11 +60,55 @@ if not defined PY (
   )
 )
 
-rem 3. Nothing usable. Say why, and stop -- do not open a browser onto a blank
+rem 3. No interpreter at all. This is the one prerequisite the Python launcher
+rem    cannot satisfy for itself -- `python -m launcher.start` is exactly what
+rem    is missing -- so it is installed from here, which is the one place
+rem    guaranteed to run. Afterwards the search repeats, because an installer
+rem    can exit 0 and still leave nothing runnable: that is the Microsoft Store
+rem    alias case this tree already fell into once.
+if not defined PY (
+  echo.
+  echo   [!] No Python interpreter found on this machine.
+  echo       Installing one now, so this stays a one-click setup ...
+  echo.
+  set "INSTALLED=0"
+  where winget >nul 2>&1
+  if !ERRORLEVEL! equ 0 (
+    winget install -e --id Python.Python.312 --accept-source-agreements --accept-package-agreements --scope user --silent
+    set "INSTALLED=1"
+  ) else (
+    where choco >nul 2>&1
+    if !ERRORLEVEL! equ 0 (
+      choco install python3 -y
+      set "INSTALLED=1"
+    )
+  )
+
+  if "!INSTALLED!"=="1" (
+    rem A fresh install is not on this console's PATH yet.
+    if exist "%LOCALAPPDATA%\Programs\Python" (
+      for /d %%D in ("%LOCALAPPDATA%\Programs\Python\Python*") do set "PATH=%%D;!PATH!"
+    )
+    for /d %%D in ("C:\Program Files\Python*") do set "PATH=%%D;!PATH!"
+
+    set "PY="
+    if exist "%LOCALAPPDATA%\Programs\Python\Python312\python.exe" set "PY=%LOCALAPPDATA%\Programs\Python\Python312\python.exe"
+    if not defined PY for %%C in ("py -3" "python") do (
+      if not defined PY (
+        %%~C -c "import sys" >nul 2>&1
+        if !ERRORLEVEL! equ 0 set "PY=%%~C"
+      )
+    )
+  )
+)
+
+rem 4. Still nothing. Say why, and stop -- do not open a browser onto a blank
 rem    page or leave the user guessing.
 if not defined PY (
+  echo.
   echo   [!] Python 3.10+ is required but no working interpreter was found.
   echo.
+  echo       The automatic install did not produce a runnable interpreter.
   echo       This usually means the Microsoft Store's "python" alias is
   echo       intercepting the command. Install Python from python.org and
   echo       tick "Add python.exe to PATH", then reopen this window.

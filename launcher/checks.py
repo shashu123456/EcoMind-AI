@@ -90,6 +90,37 @@ def run_checks() -> list[dict]:
                  "ok": db.exists(), "detail": "present" if db.exists() else "missing",
                  "suggestion": "" if db.exists() else "Runs automatically on Launch; or manually: %PY% backend/seed.py"})
 
+    # The secret is the one setting whose absence is silent: the app starts
+    # happily either way and signs JWTs that are forgeable. So it gets a row
+    # of its own rather than living inside "the database exists".
+    env = root / "backend" / ".env"
+    secret = ""
+    if env.exists():
+        for raw in env.read_text(encoding="utf-8", errors="replace").splitlines():
+            s = raw.strip()
+            if not s or s.startswith("#") or "=" not in s:
+                continue
+            key, value = s.split("=", 1)
+            if key.strip() == "ECOMIND_SECRET_KEY":
+                secret = value.strip()
+                break
+    if not env.exists():
+        rows.append({"section": "Project structure", "label": "backend/.env",
+                     "ok": False, "detail": "missing",
+                     "suggestion": "Run `ecomind` and it is generated with a random secret."})
+    elif not secret:
+        rows.append({"section": "Project structure", "label": "Secret key",
+                     "ok": False, "detail": "ECOMIND_SECRET_KEY not set",
+                     "suggestion": "Run `ecomind` -- the launcher generates one automatically."})
+    elif len(secret) < 32:
+        rows.append({"section": "Project structure", "label": "Secret key",
+                     "ok": False, "detail": f"only {len(secret)} characters",
+                     "suggestion": "Use at least 32 random characters for ECOMIND_SECRET_KEY."})
+    else:
+        rows.append({"section": "Project structure", "label": "Secret key",
+                     "ok": True, "detail": f"generated ({len(secret)} chars)",
+                     "suggestion": ""})
+
     # ---- Services ----
     from launcher.processes import port_in_use, http_ok
     for svc in cfg["services"]:

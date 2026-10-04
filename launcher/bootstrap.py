@@ -133,14 +133,67 @@ def npm_version() -> str:
     return _first_line([npm_executable(), "--version"])
 
 
-def ensure_python_runtime() -> bool:
+def _install_python(minv: str) -> bool:
+    """Install a Python new enough to run the app, via the platform's manager.
+
+    Only reached when the interpreter *running the launcher* is too old. A
+    machine with no Python at all never gets here -- there is no launcher to
+    run -- so that case is handled by `ecomind.sh` / `ecomind.bat`, which can
+    still bootstrap without an interpreter and re-discover one afterwards.
+    """
+    osname = _os()
+    short = str(minv).split(".")[0]
+    if osname == "windows":
+        if shutil.which("winget"):
+            _say(f"[..] Installing Python {minv} via winget ...")
+            _stream([
+                "winget", "install", "-e", "--id", f"Python.Python.{short}",
+                "--accept-source-agreements", "--accept-package-agreements",
+                "--scope", "user", "--silent",
+            ])
+            return bool(shutil.which("python"))
+        _say("[!] winget not found. Install Python "
+             f"{minv}+ from python.org and tick 'Add python.exe to PATH'.")
+        return False
+    if osname == "macos":
+        if shutil.which("brew"):
+            _say(f"[..] Installing Python {minv} via Homebrew ...")
+            return _stream(["brew", "install", f"python@{short}"]) == 0
+        _say("[!] Homebrew not found. Install Python "
+             f"{minv}+ from python.org, or run: brew install python@{short}")
+        return False
+    sudo = [] if os.geteuid() == 0 else (["sudo"] if shutil.which("sudo") else [])
+    if shutil.which("apt-get"):
+        _stream([*sudo, "apt-get", "update", "-y"])
+        return _stream([*sudo, "apt-get", "install", "-y", "python3", "python3-venv", "python3-pip"]) == 0
+    if shutil.which("dnf"):
+        return _stream([*sudo, "dnf", "install", "-y", "python3", "python3-pip"]) == 0
+    if shutil.which("pacman"):
+        return _stream([*sudo, "pacman", "-S", "--needed", "--noconfirm", "python", "python-pip"]) == 0
+    _say(f"[!] No supported package manager found. Install Python {minv}+ manually.")
+    return False
+
+
+def ensure_python_runtime(install: bool = True) -> bool:
     minv = tuple(int(x) for x in str(load_config().get("python", {}).get("min_version", "3.10")).split(".")[:2])
     ok = sys.version_info[:2] >= minv
     if ok:
         _say(f"[OK] Python {sys.version.split()[0]} (running the launcher).")
-    else:
-        _say(f"[!] Python {sys.version.split()[0]} is older than {'.'.join(map(str, minv))}. Install a newer Python.")
-    return ok
+        return True
+    want = ".".join(map(str, minv))
+    if not install:
+        _say(f"[!] Python {sys.version.split()[0]} is older than {want}.")
+        return False
+    _say(f"[..] Python {sys.version.split()[0]} is older than the required {want}.")
+    if not _install_python(want):
+        return False
+    # The install cannot change the interpreter this process is already
+    # running under, so say so plainly instead of looping or reporting success
+    # it cannot deliver.
+    _say("[!] A newer Python was installed, but this window is still running the "
+         "old one.")
+    _say("    Close it and run `ecomind` again -- the new interpreter will be found.")
+    return False
 
 
 def _install_node() -> bool:
@@ -263,11 +316,47 @@ def ensure_node_deps(force: bool = False) -> bool:
     return True
 
 
+#: Values that mean "nobody has actually set this yet". A `.env` hand-copied
+#: from `.env.example` carries one of these, and it signs every JWT the app
+#: issues -- so a file that merely *exists* is not evidence of a real secret.
+PLACEHOLDER_SECRETS = frozenset(
+    {
+        "",
+        "change-me-to-a-long-random-string",
+        "eco-mind-dev-secret-change-me",
+        "changeme",
+        "secret",
+    }
+)
+
+MIN_SECRET_LEN = 32
+
+
+def _secret_is_placeholder(value: str) -> bool:
+    return value.strip().lower() in PLACEHOLDER_SECRETS or len(value.strip()) < MIN_SECRET_LEN
+
+
 def ensure_env_file(force: bool = False) -> bool:
+    """Create backend/.env, or repair a secret that was never really set.
+
+    The interesting case is not a missing file -- that is easy -- but an
+    existing one whose `ECOMIND_SECRET_KEY` is still the shipped placeholder,
+    either hand-copied from `.env.example` or written by an older launcher.
+    Leaving it in place means the app runs happily and signs forgeable tokens,
+    so a placeholder is repaired in place while every other key the operator
+    added is preserved verbatim.
+    """
     env = project_root() / "backend" / ".env"
-    if env.exists() and not force:
-        return True
     example = project_root() / "backend" / ".env.example"
+
+    if env.exists() and not force:
+        kept, replaced = _repair_env_secret(env)
+        if replaced:
+            _say(f"[OK] Replaced the placeholder {env.name} secret with a generated key.")
+        elif not kept:
+            return False
+        return True
+
     lines = [
         "# Auto-generated by launcher/bootstrap.py - safe to edit.",
         "ECOMIND_ENV=local",
@@ -285,6 +374,56 @@ def ensure_env_file(force: bool = False) -> bool:
     env.write_text("\n".join(lines) + "\n", encoding="utf-8")
     _say("[OK] Created backend/.env (generated secret key).")
     return True
+
+
+def _repair_env_secret(env: Path) -> tuple[bool, bool]:
+    """Rewrite `ECOMIND_SECRET_KEY` when it is a placeholder.
+
+    Returns `(ok, replaced)`. Only the secret line is touched; comments,
+    ordering, blank lines and any other keys survive, because this file is
+    documented as safe to edit.
+    """
+    try:
+        original = env.read_text(encoding="utf-8")
+    except OSError as exc:
+        _say(f"[!] Could not read {env.name}: {exc}")
+        return False, False
+
+    lines = original.splitlines()
+    found = False
+    needs_new_secret = True
+    for i, raw in enumerate(lines):
+        s = raw.strip()
+        if not s or s.startswith("#") or "=" not in s:
+            continue
+        key, value = s.split("=", 1)
+        if key.strip() != "ECOMIND_SECRET_KEY":
+            continue
+        found = True
+        if not _secret_is_placeholder(value):
+            needs_new_secret = False
+            break
+        lines[i] = f"ECOMIND_SECRET_KEY={secrets.token_urlsafe(48)}"
+
+    if not needs_new_secret:
+        return True, False
+    if not found:
+        # The file exists but has no secret at all. Append rather than claim
+        # success on a file that still has none.
+        lines.append(f"ECOMIND_SECRET_KEY={secrets.token_urlsafe(48)}")
+        try:
+            env.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        except OSError as exc:
+            _say(f"[!] Could not write {env.name}: {exc}")
+            return False, False
+        return True, True
+
+    try:
+        env.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    except OSError as exc:
+        _say(f"[!] Could not write {env.name}: {exc}")
+        return False, False
+    return True, True
 
 
 def ensure_db(force: bool = False) -> bool:
@@ -323,7 +462,7 @@ def ensure_all(install: bool = True, force: bool = False) -> bool:
 
     ok = True
     _say("\n== Runtime ==")
-    ok &= ensure_python_runtime()
+    ok &= ensure_python_runtime(install=do_install)
     ok &= ensure_node_runtime(install=do_install)
 
     _say("\n== Python environment ==")
@@ -336,7 +475,10 @@ def ensure_all(install: bool = True, force: bool = False) -> bool:
     ok &= ensure_node_deps(force=force)
 
     _say("\n== Configuration & data ==")
-    ensure_env_file(force=False)
+    # The return value used to be dropped here, so a .env that could not be
+    # written -- a read-only checkout, a permissions problem -- still reported
+    # success and the app then started on the placeholder secret.
+    ok &= ensure_env_file(force=False)
     if ok:
         ok &= ensure_db(force=False)
     else:

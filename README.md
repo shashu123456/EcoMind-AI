@@ -67,19 +67,46 @@ recorded output, so no page can disagree with what actually ran.
 
 ### One click (recommended)
 
-The launcher sets up **everything** on first run: it creates the virtualenv,
-installs the Python and Node dependencies, writes `backend/.env`, generates the
-dataset catalog, seeds the database, and starts both services.
+The launcher sets up **everything** on first run. From a bare clone of the repo, it
+will:
+
+1. **install Python** if the machine has none (winget / Chocolatey on Windows,
+   Homebrew on macOS, apt / dnf / pacman on Linux);
+2. **install Node.js** if it is missing or older than 18;
+3. create the `.venv` virtualenv and install `backend/requirements.txt`;
+4. run `npm install` in `frontend/`;
+5. write `backend/.env` with a **randomly generated** `ECOMIND_SECRET_KEY`;
+6. create and seed the SQLite database with the sample datasets;
+7. start the backend and the frontend, wait for both to answer, and open the
+   browser.
+
+Steps 1–6 are idempotent and keyed on file hashes, so later runs cost a few
+hash comparisons rather than a reinstall.
 
 - **Windows** — double-click **`ecomind.bat`**
 - **macOS / Linux** — `./ecomind.sh`
 
-If Python or Node are missing, the launcher installs them for you (winget on
-Windows, Homebrew on macOS, apt / dnf / pacman on Linux). The first run takes a
-few minutes while dependencies download; later runs start in seconds.
+The first run takes a few minutes while dependencies download; later runs start
+in seconds.
 
-There is one entry point per platform, and the other two actions are arguments
-to it:
+> **If Python was just installed**, close the window and run it again. The
+> launcher cannot swap the interpreter it is itself running under, and it says
+> so rather than pretending otherwise.
+
+> **On Linux**, installing system packages may ask for your `sudo` password.
+> Everything else runs unprivileged.
+
+### The one thing worth knowing about `backend/.env`
+
+`ECOMIND_SECRET_KEY` signs every JWT this app issues. If it is missing, empty,
+too short, or still the placeholder from `.env.example`, the launcher **replaces
+it with a fresh random key on the next start** — your other settings and
+comments are left untouched. This runs every launch, so a `.env` hand-copied
+from the example is repaired automatically rather than quietly signing
+forgeable tokens.
+
+There is one entry point per platform, and the other actions are arguments to
+it:
 
 ```
 ecomind            start (default)

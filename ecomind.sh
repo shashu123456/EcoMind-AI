@@ -51,6 +51,25 @@ export SKIP_VENV_BOOTSTRAP=${SKIP_VENV_BOOTSTRAP:-}
 # shellcheck source=scripts/find_python.sh
 . "./scripts/find_python.sh"
 
+# No interpreter at all. This is the one prerequisite the launcher cannot
+# satisfy for itself -- `python -m launcher.start` is exactly what is missing
+# -- so it is installed here, from the one place guaranteed to run: the shell
+# the user double-clicked.
+if [ -z "${PY_BIN:-}" ]; then
+  if [ "$COMMAND" = "stop" ]; then
+    echo "[!] No Python found, so there is nothing to run. Close any EcoMind" >&2
+    echo "    window instead, or end python.exe / node.exe from Task Manager." >&2
+    exit 1
+  fi
+  # shellcheck source=scripts/install_python.sh
+  . "./scripts/install_python.sh"
+  if ecomind_install_python; then
+    # Re-run discovery against the newly installed interpreter. Re-sourcing
+    # rather than poking PY_BIN means the version and usability checks run too.
+    . "./scripts/find_python.sh"
+  fi
+fi
+
 PY_BIN=${PY_BIN:-}
 if [ -z "$PY_BIN" ]; then
   echo "[!] No working Python interpreter, so there is nothing to run." >&2
