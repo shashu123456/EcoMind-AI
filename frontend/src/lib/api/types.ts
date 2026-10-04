@@ -526,6 +526,21 @@ export interface AnomalyPageResponse {
   } | null;
 }
 
+/** One step of the score→severity ladder, with the deviation it demands. */
+export interface AnomalySeverityBand {
+  severity: string;
+  /** Minimum |z|/z_saturate score to land in this band. */
+  score_floor: number;
+  /** The robust deviations from baseline that score actually requires. */
+  sigma_floor: number;
+}
+
+/** A taxonomy entry this detector cannot currently produce, and why. */
+export interface AnomalyUnreachableClass {
+  anomaly_class: string;
+  reason: string;
+}
+
 export interface AnomalyResult {
   run_id: string;
   dataset_id: string;
@@ -544,6 +559,16 @@ export interface AnomalyResult {
   threshold: number;
   analysed_at: string;
   elapsed_ms: number;
+  /**
+   * Added after the first runs completed, so every field below is optional:
+   * a stored snapshot from before this change simply lacks them. The UI reads
+   * them to explain a zero, and must degrade to silence rather than to a
+   * broken panel when they are absent.
+   */
+  severity_bands?: AnomalySeverityBand[];
+  z_saturate?: number;
+  sigma_floor_for_detection?: number;
+  unreachable_classes?: AnomalyUnreachableClass[];
 }
 
 // ---------------------------------------------------------------------------

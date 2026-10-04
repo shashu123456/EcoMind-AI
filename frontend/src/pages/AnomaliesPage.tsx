@@ -12,8 +12,8 @@ import {
   Panel,
   Section,
   SeverityTag,
+  toDataSeverity,
   type Column,
-  type Severity,
 } from '../lib/ui';
 import { BarCompare, RankedBars, SeverityBars } from '../lib/charts';
 import { useInspector } from '../app/Inspector';
@@ -22,6 +22,7 @@ import { PageFrame, PageHero } from '../app/PageFrame';
 import { useStageOutput } from '../lib/stageOutput';
 import { useDatasetScope } from '../lib/ActiveDatasetContext';
 import { ScopedAnomalies } from './ScopedAnomalies';
+import { DetectorLimits } from './anomaly/DetectorLimits';
 import { co2Kg, dec, energy, int, pctValue, rupees } from '../lib/format';
 import type {
   AnomalyBuildingRow,
@@ -31,15 +32,30 @@ import type {
   AnomalySeverityRow,
 } from '../lib/api/types';
 
-const SEVERITY_ORDER: readonly Severity[] = ['critical', 'high', 'moderate', 'low', 'normal'];
-
 const SEVERITY_COLOR: Record<string, string> = {
   critical: 'var(--sev-critical)',
   high: 'var(--sev-high)',
   moderate: 'var(--sev-moderate)',
   low: 'var(--sev-low)',
-  normal: 'var(--sev-normal)',
 };
+
+/** `meter_drift` -> `Meter Drift`. The backend ships ids, not labels. */
+function titleCase(id: string): string {
+  return id
+    .split('_')
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+}
+
+/**
+ * Sort key for the severity rows. Anything outside the three-step ramp sorts
+ * above every band the ramp covers, so a value the ramp cannot draw still
+ * reaches the top of the list rather than being buried at the bottom.
+ */
+function severityRank(severity: string): number {
+  const display = toDataSeverity(severity);
+  return display === 'out-of-ramp' ? -1 : 3 - ['high', 'moderate', 'low'].indexOf(display);
+}
 
 const CLASS_NOTE: Record<string, string> = {
   sustained_overuse:
@@ -81,7 +97,7 @@ export function AnomaliesPage() {
             {
               key: 'severity',
               header: 'Severity',
-              cell: (row) => <SeverityTag severity={row.severity as Severity} />,
+              cell: (row) => <SeverityTag severity={toDataSeverity(row.severity)} />,
             },
             {
               key: 'count',
@@ -293,7 +309,7 @@ export function AnomaliesPage() {
                   rows: [
                     {
                       label: 'Severity',
-                      value: <SeverityTag severity={row.severity as Severity} />,
+                      value: <SeverityTag severity={toDataSeverity(row.severity)} />,
                     },
                     {
                       label: 'Readings',
@@ -533,15 +549,14 @@ export function AnomaliesPage() {
                   title="Anomalous readings by severity"
                   hint="Severity is how far above baseline the reading sat, not how large the absolute error is"
                   counts={[...output.by_severity]
-                    .sort(
-                      (a, b) =>
-                        SEVERITY_ORDER.indexOf(a.severity as Severity) -
-                        SEVERITY_ORDER.indexOf(b.severity as Severity),
-                    )
+                    .sort((a, b) => severityRank(a.severity) - severityRank(b.severity))
                     .map((r) => ({
                       severity: r.severity,
-                      label: r.severity,
-                      color: SEVERITY_COLOR[r.severity] ?? 'var(--sev-normal)',
+                      label: titleCase(r.severity),
+                      // No fallback to a neutral hue: an unrecognised severity
+                      // drawn in grey reads as "no severity", which is the one
+                      // thing a severity chart must never imply.
+                      color: SEVERITY_COLOR[r.severity] ?? 'var(--ink-faint)',
                       count: r.count,
                     }))}
                   total={output.total}
@@ -639,6 +654,8 @@ export function AnomaliesPage() {
                       a quiet Sunday.
                     </Callout>
                   </Panel>
+
+                  <DetectorLimits output={output} />
 
                   <Panel title="Where the individual readings are">
                     <p className="text-md text-[var(--ink-mid)]">

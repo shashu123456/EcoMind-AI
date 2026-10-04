@@ -6,6 +6,9 @@ export {
   SeverityTag,
   QualityTag,
   StageStatusTag,
+  DeltaBadge,
+  deltaTone,
+  toDataSeverity,
   statusColor,
   statusLabel,
   stageStatusColor,
@@ -14,10 +17,17 @@ export {
   SEVERITY_COLOR,
   SEVERITY_LABEL,
   STAGE_STATUS,
+  DATA_SEVERITY_ORDER,
   type Severity,
+  type DataSeverity,
+  type DisplaySeverity,
+  type OutOfRampSeverity,
+  type DeltaTone,
+  type DeltaQuantity,
   type StageStatus,
   type DataQualityStatus,
 } from './Badge';
+export { Stack, Cluster, Grid, type Space } from './Layout';
 export { ProgressBar, IndeterminateBar, MeterBar, type BarTone } from './Progress';
 export {
   Callout,
