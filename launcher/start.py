@@ -71,8 +71,35 @@ def _seed_if_needed(cfg):
         print("[!] Seeding failed - see logs/launcher.log.")
 
 
-def _start_services(cfg) -> dict:
-    started = {}
+def _await_one(svc, timeout: float, poll: float) -> bool:
+    """Block until one service answers its health URL. Returns True if it did."""
+    url = svc.get("health_url", "")
+    if not url:
+        return True
+    t0 = time.time()
+    while time.time() - t0 < timeout:
+        if http_ok(url):
+            print(f"[OK] {svc['title']} ready in {time.time() - t0:.1f}s  ({url})")
+            return True
+        time.sleep(poll)
+    return False
+
+
+def _start_services(cfg, ready_timeout: float = 240.0, poll: float = 2.0) -> dict:
+    """Start services one at a time, each gated on the previous being healthy.
+
+    This used to spawn them all in a loop and wait afterwards, which is a race:
+    the frontend binds :5173 about a second after the backend is launched,
+    while uvicorn needs several more seconds to import FastAPI, pandas and
+    xgboost. Any browser tab already open on :5173 immediately polls
+    /api/v1/health and opens workflow streams, so the user saw a wall of
+    ECONNREFUSED from the Vite proxy during every single start -- noise that
+    looks like a broken install and is not one.
+
+    Waiting between spawns costs nothing on a warm start (the health check
+    answers in milliseconds) and removes the noise entirely.
+    """
+    started: dict = {}
     for svc in cfg["services"]:
         if not svc.get("enabled", False):
             continue
@@ -90,6 +117,11 @@ def _start_services(cfg) -> dict:
         if pid:
             started[svc["id"]] = pid
             print(f"[OK] {svc['title']} launched (pid {pid})")
+            # Gate the next service on this one actually answering.
+            if not _await_one(svc, ready_timeout, poll):
+                print(f"[!] {svc['title']} not answering {svc.get('health_url', '')} "
+                      f"within {ready_timeout:.0f}s - see logs/{svc.get('log', svc['id'] + '.log')}")
+                print(tail_log(svc))
         else:
             print(f"[FAIL] Could not launch {svc['title']}")
     write_pid_map(started)
@@ -97,6 +129,13 @@ def _start_services(cfg) -> dict:
 
 
 def _wait_ready(cfg, started, timeout: int, poll: float) -> bool:
+    """Second-pass readiness report.
+
+    `_start_services` already blocked on each service as it spawned it, so this
+    only re-probes to produce a single verdict. It stays separate so a service
+    that died in the seconds between the two phases is still caught, rather
+    than being reported ready on the strength of a check it passed earlier.
+    """
     all_ok = True
     for svc in cfg["services"]:
         if not svc.get("enabled", False):
@@ -112,6 +151,8 @@ def _wait_ready(cfg, started, timeout: int, poll: float) -> bool:
         if not url:
             print(f"[..] {title}: no health URL to probe - assuming ready.")
             continue
+        if http_ok(url):
+            continue  # already reported by _start_services
         t0 = time.time()
         ok = False
         while time.time() - t0 < timeout:
@@ -184,14 +225,14 @@ def main():
     _seed_if_needed(cfg)
 
     print("\n[..] Starting services in separate windows ...")
-    started = _start_services(cfg)
+    wait_s = int(cfg.get("startup", {}).get("wait_timeout_seconds", 240))
+    poll_s = float(cfg.get("startup", {}).get("poll_interval_seconds", 2))
+    started = _start_services(cfg, ready_timeout=float(wait_s), poll=poll_s)
     if not any(k in started for k in (s["id"] for s in cfg["services"] if s.get("enabled"))):
         print("[!] No services were started.")
         clear_launcher_pid()
         sys.exit(1)
 
-    wait_s = cfg.get("startup", {}).get("wait_timeout_seconds", 240)
-    poll_s = cfg.get("startup", {}).get("poll_interval_seconds", 2)
     ready = _wait_ready(cfg, started, int(wait_s), float(poll_s))
 
     if ready and cfg.get("app", {}).get("open_browser", True):
