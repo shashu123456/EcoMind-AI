@@ -77,7 +77,7 @@ export function aggregateBy<T extends Record<string, unknown>>(
   }
 
   const out: Record<string, unknown>[] = [];
-  for (const [key, bucket] of groups) {
+  for (const [, bucket] of groups) {
     const record: Record<string, unknown> = { [groupKey]: bucket.label };
     for (const valueKey of valueKeys) {
       const values = bucket.rows

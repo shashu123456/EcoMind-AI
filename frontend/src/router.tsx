@@ -7,6 +7,7 @@ import {
   type RouteComponent,
 } from '@tanstack/react-router';
 import { AppShell } from './app/AppShell';
+import { routeErrorComponent } from './app/RouteErrorBoundary';
 import { errorMessage } from './lib/api';
 import { STAGE_BY_KEY } from './lib/journey';
 import { Button, EmptyState, ErrorState } from './lib/ui';
@@ -46,6 +47,10 @@ import {
 const rootRoute = createRootRoute({
   component: () => <Outlet />,
   notFoundComponent: NotFound,
+  // Last line of defence. If the shell itself throws, there is no chrome left
+  // to preserve, so this one is allowed to take the whole page — but it still
+  // says what happened and offers a way back instead of showing a blank screen.
+  errorComponent: routeErrorComponent('EcoMind'),
 });
 
 /** Pathless layout: everything except sign-in lives inside the shell. */
@@ -89,6 +94,15 @@ function stageRoute<P extends `/${string}`>(path: P, Component: RouteComponent) 
   return createRoute({
     getParentRoute: () => shellRoute,
     path: path.slice(1) as RelativePath<P>,
+    /*
+     * Every page but login is a lazily-loaded chunk, so every page can fail
+     * after the shell has rendered. Applied here rather than at each call site
+     * so a route declared in future cannot forget it — a boundary someone has
+     * to remember to add is one that eventually is missing exactly when it is
+     * needed. `errorComponent` replaces the failed route while leaving the
+     * shell mounted, so the app stays navigable.
+     */
+    errorComponent: routeErrorComponent(String(path)),
     component: Component,
   });
 }
@@ -109,6 +123,10 @@ function workspaceRoute<P extends `/${string}`>(path: P, Component: RouteCompone
   return createRoute({
     getParentRoute: () => shellRoute,
     path: path.slice(1) as RelativePath<P>,
+    // Same containment as stage routes: these are lazy chunks too, and the
+    // workspace pages are the ones most likely to hit an unexpected dataset
+    // shape because they read the dataset directly rather than a stage output.
+    errorComponent: routeErrorComponent(String(path)),
     component: Component,
   });
 }

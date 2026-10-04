@@ -56,12 +56,6 @@ function scoreTone(score: number): 'ok' | 'warn' | 'critical' {
   return 'critical';
 }
 
-function metric(candidate: ModelCandidate, criterion: Criterion): number {
-  if (criterion === 'speed') return candidate.metrics.training_seconds ?? 0;
-  const value = candidate.metrics[criterion];
-  return typeof value === 'number' ? value : 0;
-}
-
 function describeWeights(weights: Record<string, number>): string {
   return CRITERIA_ORDER.map((c) => `${CRITERIA_LABEL[c]} ${pct(weights[c] ?? 0, 0)}`).join(', ');
 }

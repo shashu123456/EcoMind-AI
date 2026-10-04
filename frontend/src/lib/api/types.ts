@@ -241,7 +241,7 @@ export interface ImportColumn {
   sample_values: unknown[];
 }
 
-export interface ImportProvenance extends DatasetProvenance {}
+export type ImportProvenance = DatasetProvenance;
 
 export interface ImportResult {
   id: string;

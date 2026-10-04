@@ -168,7 +168,7 @@ function PhasePanel({ phase, datasetId }: { phase: Phase; datasetId: string | nu
           // Every stage is open. Sequencing is enforced when a stage runs, not
           // when someone looks at it.
           if (!stage) return;
-          navigate({ to: stagePath(stage, datasetId) });
+          void navigate({ to: stagePath(stage, datasetId) });
         }}
       />
     </Panel>

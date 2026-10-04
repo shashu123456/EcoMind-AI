@@ -55,7 +55,7 @@ describe('decimate', () => {
   });
 
   it('labels each bucket with its last sample so the x-axis reads as a period', () => {
-    const rows = series(10, (i) => 1);
+    const rows = series(10, () => 1);
     const out = decimate(rows, 't', 2, ['kwh']);
     expect(out[0].t).toBe(4);
     expect(out[1].t).toBe(9);

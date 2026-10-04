@@ -26,16 +26,28 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
     );
   }, [query, datasetId, statuses]);
 
-  useEffect(() => {
+  /*
+   * Reset while rendering rather than in an effect.
+   *
+   * React's documented pattern for "adjust state when something changes":
+   * compare against the previous value during render and set if it moved. An
+   * effect would render the stale palette for a frame first and, worse, could
+   * fire after paint -- which for a palette means the highlight briefly sits on
+   * the wrong row.
+   */
+  const [prevOpen, setPrevOpen] = useState(open);
+  const [prevQuery, setPrevQuery] = useState(query);
+  if (open !== prevOpen) {
+    setPrevOpen(open);
     if (open) {
       setQuery('');
       setActive(0);
     }
-  }, [open]);
-
-  useEffect(() => {
+  }
+  if (query !== prevQuery) {
+    setPrevQuery(query);
     setActive(0);
-  }, [query]);
+  }
 
   useEffect(() => {
     if (!open) return;

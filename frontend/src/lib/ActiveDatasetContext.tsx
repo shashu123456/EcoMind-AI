@@ -1,12 +1,4 @@
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-  type ReactNode,
-} from 'react';
+import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
 import { useJourney, type StageStatuses } from './journey';
 import type { Granularity, HierarchyBuildingNode } from './api/types';
 
@@ -126,9 +118,16 @@ export function ActiveDatasetProvider({
 
   // A dataset switch invalidates every filter — floor 3 of Aurora means nothing
   // in a different estate.
-  useEffect(() => {
+  //
+  // Adjusted during render rather than in an effect: an effect clears the
+  // filter *after* the new dataset's first render, so one frame shows the old
+  // estate's rooms under the new estate's name. That is exactly the kind of
+  // momentary lie the rest of this codebase is careful to avoid.
+  const [prevDatasetId, setPrevDatasetId] = useState(dataset?.id);
+  if (dataset?.id !== prevDatasetId) {
+    setPrevDatasetId(dataset?.id);
     setFilter({});
-  }, [dataset?.id]);
+  }
 
   const drill = useCallback((key: keyof HierarchyFilter, value: string | null) => {
     setFilter((prev) => {

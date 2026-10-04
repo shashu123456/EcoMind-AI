@@ -1,13 +1,7 @@
 import { useMemo } from 'react';
 import { useDatasetScope, type HierarchyFilter } from '../lib/ActiveDatasetContext';
 import { Select, type SelectOption } from '../lib/ui';
-import type {
-  DatasetHierarchy,
-  HierarchyBuildingNode,
-  HierarchyDevice,
-  HierarchyFloor,
-  HierarchyRoom,
-} from '../lib/api/types';
+import type { DatasetHierarchy, HierarchyBuildingNode, HierarchyDevice } from '../lib/api/types';
 
 /**
  * The global estate scope.
@@ -63,8 +57,6 @@ function selectedValue(key: LevelKey, filter: HierarchyFilter, options: SelectOp
 }
 
 type DeviceNode = HierarchyDevice;
-type RoomNode = HierarchyRoom;
-type FloorNode = HierarchyFloor;
 type BuildingNode = HierarchyBuildingNode;
 
 /** Prefer the human name for a device; fall back to the code when unnamed. */

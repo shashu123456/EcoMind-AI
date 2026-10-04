@@ -8,7 +8,6 @@ import {
   Cell,
   ComposedChart,
   Line,
-  ReferenceArea,
   ReferenceLine,
   ResponsiveContainer,
   Tooltip,
@@ -72,7 +71,6 @@ export function ForecastBand({
   ...frame
 }: ForecastBandProps) {
   const rows = data ?? [];
-  const hasBand = rows.some((r) => numeric(r[lowKey]) !== null || numeric(r[highKey]) !== null);
   const forecastFrom = useMemo(() => {
     const first = rows.find((r) => numeric(r[midKey]) !== null);
     return first ? String(first[x]) : null;
@@ -589,8 +587,6 @@ export function SeverityBars({
   onSelect?: (severity: string) => void;
   selected?: string;
 } & Omit<ChartFrameProps, 'children'>) {
-  const max = Math.max(...counts.map((c) => c.count), 1);
-
   return (
     <ChartFrame
       height={frame.height ?? 200}

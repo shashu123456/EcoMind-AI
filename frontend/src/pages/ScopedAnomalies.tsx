@@ -27,7 +27,7 @@ const SEVERITY_TONE: Record<string, 'ok' | 'warn' | 'critical' | 'neutral'> = {
 };
 
 export function ScopedAnomalies() {
-  const { datasetId, filter, dataset } = useDatasetScope();
+  const { datasetId, filter } = useDatasetScope();
   const building = filter.building ?? null;
 
   const query = useQuery({

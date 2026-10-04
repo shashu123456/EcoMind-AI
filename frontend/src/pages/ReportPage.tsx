@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useLocation, useNavigate } from '@tanstack/react-router';
 import {
   Badge,
@@ -131,7 +131,21 @@ export function ReportPage() {
   const runId = useJourney((s) => s.runId);
   const navigate = useNavigate();
   const location = useLocation();
-  const [view, setView] = useState<View>('read');
+  /*
+   * The fragment is the source of truth, not a mirror of it.
+   *
+   * This used to keep `view` in state and copy the fragment into it from an
+   * effect, which meant two sources of truth that could disagree and an extra
+   * render on every tab change. Deriving instead makes the address bar and the
+   * tab the same fact, so back/forward works and a shared link lands on the tab
+   * the sender was reading -- which is what the comment below always intended.
+   */
+  const view: View =
+    location.hash.replace('#', '') === 'action-plan'
+      ? 'action-plan'
+      : location.hash.replace('#', '') === 'figures'
+        ? 'figures'
+        : 'read';
   const [open, setOpen] = useState<string | null>(null);
 
   /**
@@ -140,16 +154,11 @@ export function ReportPage() {
    * it. Reading the fragment on change means a back/forward navigation also
    * moves between the tabs, not just a fresh load.
    */
-  useEffect(() => {
-    if (location.hash.replace('#', '') === 'action-plan') setView('action-plan');
-  }, [location.hash]);
-
   const selectView = (next: View) => {
-    setView(next);
     // Keep the address bar honest so the tab someone is reading can be shared.
-    navigate({
+    void navigate({
       to: '.',
-      hash: next === 'action-plan' ? 'action-plan' : undefined,
+      hash: next === 'read' ? undefined : next,
       replace: true,
     });
   };
@@ -159,7 +168,7 @@ export function ReportPage() {
       stage="report"
       status={state.output ? 'done' : 'pending'}
       actions={
-        <Button variant="secondary" onClick={() => navigate({ to: '/' })}>
+        <Button variant="secondary" onClick={() => void navigate({ to: '/' })}>
           Back to status
         </Button>
       }

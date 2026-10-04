@@ -145,7 +145,7 @@ export function TopBar() {
             type="button"
             onClick={() => {
               auth.logout();
-              navigate({ to: '/login' });
+              void navigate({ to: '/login' });
             }}
             className="truncate rounded-md px-2 py-1 text-xs font-medium text-neutral-600 transition-colors hover:bg-neutral-50 hover:text-neutral-800"
           >

@@ -305,9 +305,9 @@ export function ComparePage() {
           {sizeGap && sizeGap > 10 ? (
             <Callout tone="warn" title="These two are not the same size">
               The larger holds {dec(sizeGap, 1)}x the readings of the smaller. That is why the
-              overlay below is indexed to each dataset's own mean: plotted raw, the larger would
-              simply be the higher line and the chart would say nothing except that one estate is
-              bigger than the other.
+              overlay below is indexed to each dataset&apos;s own mean: plotted raw, the larger
+              would simply be the higher line and the chart would say nothing except that one estate
+              is bigger than the other.
             </Callout>
           ) : null}
 

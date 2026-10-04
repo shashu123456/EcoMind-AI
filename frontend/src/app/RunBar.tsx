@@ -181,7 +181,7 @@ export function RunBar() {
         icon={<Play className="h-3.5 w-3.5" aria-hidden />}
         loading={pending}
         disabled={allDone && runMode === 'smart'}
-        onClick={() => (runMode === 'smart' ? runAll() : runOne(current))}
+        onClick={() => void (runMode === 'smart' ? runAll() : runOne(current))}
       >
         {runMode === 'smart' ? 'Run remaining' : 'Run next stage'}
       </Button>
@@ -204,7 +204,7 @@ export function RunBar() {
         variant="ghost"
         icon={<RotateCcw className="h-3.5 w-3.5" aria-hidden />}
         disabled={pending}
-        onClick={reset}
+        onClick={() => void reset()}
         title="Start a fresh run from the first stage"
       >
         Reset
@@ -213,7 +213,7 @@ export function RunBar() {
       {runMode === 'step' && (
         <Select
           value={null}
-          onChange={(key) => runOne(STAGE_BY_KEY[key as StageKey] ?? null)}
+          onChange={(key) => void runOne(STAGE_BY_KEY[key as StageKey] ?? null)}
           options={runnable.map((s) => ({ value: s.key, label: `${s.index + 1}. ${s.label}` }))}
           placeholder="Run a specific stage…"
           className="w-56"

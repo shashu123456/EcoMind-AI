@@ -10,7 +10,6 @@ import {
   SeverityTag,
   StageStatusTag,
   statusLabel,
-  type Severity,
 } from '../ui/Badge';
 
 /**

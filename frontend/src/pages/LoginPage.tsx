@@ -95,7 +95,7 @@ export function LoginPage() {
       } else {
         await auth.register({ email: email.trim(), password, full_name: fullName.trim() });
       }
-      navigate({ to: '/' });
+      await navigate({ to: '/' });
     } catch (err) {
       setError(errorMessage(err, 'Could not sign you in.'));
     } finally {
@@ -127,7 +127,7 @@ export function LoginPage() {
               : 'Set up an operator account for this workspace.'}
           </p>
 
-          <form onSubmit={submit} className="mt-6 flex flex-col gap-4">
+          <form onSubmit={(e) => void submit(e)} className="mt-6 flex flex-col gap-4">
             <SegmentedControl
               value={mode}
               onChange={(next) => {

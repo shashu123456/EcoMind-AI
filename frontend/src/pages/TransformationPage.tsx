@@ -278,7 +278,7 @@ export function TransformationPage() {
                   </p>
                   <p className="mt-1 text-2xs text-neutral-600">
                     Every later stage reads this file rather than the uploaded original, so the
-                    transformation is the single point where the analysis's view of the data is
+                    transformation is the single point where the analysis&apos;s view of the data is
                     decided.
                   </p>
                 </Inset>

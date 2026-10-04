@@ -46,7 +46,7 @@ export function KpiTile({
   className,
 }: KpiTileProps) {
   return (
-    <div className="surface flex flex-col justify-between gap-3 px-4 py-3">
+    <div className={cn('surface flex flex-col justify-between gap-3 px-4 py-3', className)}>
       <div className="flex items-start justify-between gap-2">
         <span className="eyebrow">{label}</span>
         {icon && <span className="shrink-0 text-neutral-500">{icon}</span>}

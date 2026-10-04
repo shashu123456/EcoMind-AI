@@ -178,7 +178,7 @@ export function SchemaPage() {
                 {target ? `, with ${target.name} as the reading to predict` : ''}
                 {keyCol ? ` and ${keyCol.name} identifying which meter a row belongs to` : ''}. A
                 role is not a label applied afterwards — it decides which columns become the
-                estimator's features and which are excluded as identifiers.
+                estimator&apos;s features and which are excluded as identifiers.
               </p>
 
               {output.warnings.length > 0 ? (
