@@ -8,7 +8,7 @@ Importing this module also imports `dataset_service`, which registers the
 from app.core.security import get_current_user
 from app.db.base import get_db
 from app.db.models import User
-from app.domain import dataset_service
+from app.domain import anomaly_service, dataset_service
 from fastapi import APIRouter, Depends, File, Query, UploadFile
 from sqlalchemy.orm import Session
 
@@ -40,6 +40,57 @@ def get_dataset(
     user: User = Depends(get_current_user),
 ):
     return dataset_service.get_dataset(db, dataset_id)
+
+
+@router.get("/{dataset_id}/anomalies")
+def list_anomalies(
+    dataset_id: str,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=500),
+    severity: str | None = Query(None),
+    anomaly_class: str | None = Query(None),
+    building_code: str | None = Query(None),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """A scoped page of anomalies, plus the counts the UI needs to filter on.
+
+    `anomaly_service.page` was written to do exactly this -- severity, class and
+    building filters, with facet counts -- and was never routed, so the anomaly
+    page could only ever show campus-wide roll-ups.
+
+    This matters because scoping client-side is arithmetically wrong. The stage
+    output carries aggregates (`by_severity`, `by_building`) but not the 2,227
+    individual anomalies behind them, so re-summing after a filter cannot
+    reproduce totals, excess energy or excess cost. Filtering has to happen
+    where the rows are.
+    """
+    return anomaly_service.page(
+        db,
+        dataset_id,
+        page=page,
+        page_size=page_size,
+        severity=severity,
+        anomaly_class=anomaly_class,
+        building_code=building_code,
+    )
+
+
+@router.get("/{dataset_id}/hierarchy")
+def dataset_hierarchy(
+    dataset_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """The estate tree: buildings, floors, and the drill levels this dataset can resolve.
+
+    This was written and never routed. The frontend therefore had no way to
+    learn which buildings, floors or devices a dataset actually contains, and
+    fell back to the four counts on the dataset row — which say *how many*
+    exist, never *which*. Every estate navigator, scope filter and cross-filter
+    in the product depends on this endpoint.
+    """
+    return dataset_service.get_hierarchy(db, dataset_id)
 
 
 @router.delete("/{dataset_id}")

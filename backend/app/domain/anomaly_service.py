@@ -49,6 +49,7 @@ from app.domain.hierarchy import device_label
 from app.domain.tariff import co2_of, cost_of
 from app.workflow.events import emit
 from app.workflow.stages import register_stage_runner
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 #: Hours counted as night, matching the off-peak/shoulder boundary in tariff.py.
@@ -630,14 +631,30 @@ def page(
     anomaly_class: str | None = None,
     building_code: str | None = None,
 ) -> dict:
-    """One page of anomalies, plus the counts the UI needs for its filters."""
-    q = db.query(Anomaly).filter(Anomaly.dataset_id == dataset_id)
+    """One page of anomalies, plus the counts the UI needs for its filters.
+
+    Facets obey the *building* filter but deliberately not the severity or
+    class filters, so the counts still show what switching to a different
+    severity would yield. They must obey the building filter, though: a panel
+    reading "1,281 anomalies in Riverside" beside severity chips that sum to the
+    campus-wide 2,227 is two contradictory truths on one screen, which is the
+    failure this whole filtering path exists to avoid.
+
+    The counts are grouped in SQL. Loading every matching row into Python to
+    count them in a comprehension was quadratic in exactly the way that hurts
+    on the estates this is built for.
+    """
+    # The estate-level scope every query in this function shares.
+    base_q = db.query(Anomaly).filter(Anomaly.dataset_id == dataset_id)
+    if building_code:
+        base_q = base_q.filter(Anomaly.building_code == building_code)
+
+    # Rows additionally honour the two facet filters.
+    q = base_q
     if severity:
         q = q.filter(Anomaly.severity == severity)
     if anomaly_class:
         q = q.filter(Anomaly.anomaly_class == anomaly_class)
-    if building_code:
-        q = q.filter(Anomaly.building_code == building_code)
 
     page = max(1, int(page))
     page_size = max(1, min(500, int(page_size)))
@@ -649,7 +666,17 @@ def page(
         .all()
     )
 
-    all_rows = db.query(Anomaly).filter(Anomaly.dataset_id == dataset_id).all()
+    def _group(column, wanted) -> dict:
+        facet_q = db.query(column, func.count(Anomaly.id)).filter(
+            Anomaly.dataset_id == dataset_id
+        )
+        if building_code:
+            facet_q = facet_q.filter(Anomaly.building_code == building_code)
+        found = {str(value): int(n) for value, n in facet_q.group_by(column).all()}
+        # Report every known level, including zero, so a filter row does not
+        # appear and vanish as the scope changes.
+        return {key: found.get(key, 0) for key in wanted}
+
     return json_safe(
         {
             "dataset_id": dataset_id,
@@ -657,12 +684,12 @@ def page(
             "total": total,
             "page": page,
             "page_size": page_size,
-            "severity_counts": {
-                s: sum(1 for a in all_rows if a.severity == s)
-                for s in ("critical", "high", "moderate", "low")
-            },
-            "class_counts": {
-                c: sum(1 for a in all_rows if a.anomaly_class == c) for c in ANOMALY_CLASSES
+            "severity_counts": _group(Anomaly.severity, ("critical", "high", "moderate", "low")),
+            "class_counts": _group(Anomaly.anomaly_class, tuple(ANOMALY_CLASSES)),
+            "scope": {
+                "building_code": building_code,
+                "severity": severity,
+                "anomaly_class": anomaly_class,
             },
         }
     )

@@ -8,7 +8,17 @@ class Settings(BaseSettings):
         env_prefix="ECOMIND_",
         env_file=".env",
         protected_namespaces=("settings_",),
+        # `ignore`, not the pydantic default `forbid`. The launcher generates
+        # backend/.env, and an operator may well add a key of their own; a
+        # surplus variable is not a reason to refuse to start. Every value this
+        # app actually depends on is a declared field below, and a typo in one
+        # of those still fails loudly at startup rather than silently defaulting.
+        extra="ignore",
     )
+
+    # Deployment label, written by the launcher as ECOMIND_ENV=local. Declared
+    # so the generated .env is always readable.
+    env: str = "local"
 
     app_name: str = "EcoMind"
     app_tagline: str = "Enterprise Energy Analytics Platform"

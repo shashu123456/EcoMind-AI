@@ -117,8 +117,15 @@ STAGES = [
     {
         "number": 9,
         "key": "recommendation",
-        "label": "Recommendations",
-        "route": "/recommendations",
+        # Same name the frontend stage registry uses. The label is emitted to
+        # the browser as `stage_name` on stage_started/stage_completed events,
+        # so a mismatch here shows up in the run bar and the live console as
+        # two different names for the same stage.
+        "label": "Action plan",
+        # No page of its own: the action plan is the Action plan tab of the
+        # report. `route` mirrors lib/journey.ts, which points this stage at
+        # /report and lets the frontend deep-link the tab with a fragment.
+        "route": "/report#action-plan",
         "phase": PHASE_DECISION,
         "requires": PHASE_DECISION,
     },

@@ -6,7 +6,7 @@ Ownership: S2. Contract: docs/API_CONTRACT.md §3.19 + §2 runner contract.
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from app.core.security import decode_token, get_current_user
 from app.db.base import get_db
@@ -27,6 +27,47 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 router = APIRouter()
+
+# A run is `running` until its last stage returns. If the process died, was
+# killed, or the machine slept, nothing ever moves that row again and it
+# reports progress that will never complete. 30 minutes is far longer than the
+# slowest real stage — the heaviest forecast on the reference dataset takes
+# about 35 seconds — so this cannot reap a run that is genuinely working.
+STALE_RUN_MINUTES = 30
+
+
+def _reap_stale_runs(db: Session, user_id: str) -> int:
+    """Fail runs stuck in `running` past the staleness threshold.
+
+    Reaping happens when someone looks rather than on a background timer, so
+    there is no scheduler to deploy and no state that drifts when the service
+    restarts. The only cost is that a stale run stays visible as `running`
+    until it is next listed, which is strictly better than leaving it stale
+    forever.
+
+    Returns the number of runs reaped so a caller can log it.
+    """
+    cutoff = datetime.utcnow() - timedelta(minutes=STALE_RUN_MINUTES)
+    stuck = (
+        db.query(WorkflowRun)
+        .filter(WorkflowRun.user_id == user_id, WorkflowRun.status == "running")
+        .all()
+    )
+    reaped = 0
+    for run in stuck:
+        # `updated_at` moves whenever a stage writes progress; a run whose row
+        # has not been touched since the threshold never finished.
+        last_touch = run.updated_at or run.started_at or run.created_at
+        if last_touch and last_touch > cutoff:
+            continue
+        run.status = "failed"
+        run.completed_at = datetime.utcnow()
+        run.error_message = (
+            f"Run marked failed: no stage progress for over {STALE_RUN_MINUTES} minutes. "
+            "The process most likely stopped mid-stage. Start a new run."
+        )
+        reaped += 1
+    return reaped
 
 
 def _run_payload(r: WorkflowRun, trace_count: int | None = None) -> dict:
@@ -114,6 +155,12 @@ def list_runs(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
+    # Reaping here rather than on a timer: the moment anyone looks at run
+    # history is the only moment a stale run can be noticed, so this is where
+    # correcting it costs the least and helps the most.
+    _reap_stale_runs(db, user.id)
+    db.commit()
+
     q = db.query(WorkflowRun).filter(WorkflowRun.user_id == user.id)
     if dataset_id:
         q = q.filter(WorkflowRun.dataset_id == dataset_id)
@@ -129,6 +176,29 @@ def list_runs(
         ).all()
     ]
     return {"runs": json_safe(runs)}
+
+
+@router.post("/{run_id}/abort")
+def abort_run(
+    run_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)
+):
+    """Cancel a run that is still marked `running`.
+
+    Manual counterpart to the staleness reaper: a run abandoned by accident
+    should be closeable now rather than after the threshold expires.
+    """
+    run = db.query(WorkflowRun).filter(WorkflowRun.id == run_id).first()
+    if run is None or run.user_id != user.id:
+        raise HTTPException(404, "Run not found")
+    if run.status == "completed":
+        raise HTTPException(409, "Run is already completed")
+    run.status = "failed"
+    run.completed_at = datetime.utcnow()
+    run.error_message = "Run aborted by the operator."
+    emit(run, "run_failed", reason="aborted")
+    _audit(db, user, "execute", "workflow", run.id, {"action": "abort"})
+    db.commit()
+    return {"run": json_safe(_run_payload(run))}
 
 
 @router.get("/{run_id}")

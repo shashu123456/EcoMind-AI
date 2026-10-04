@@ -527,6 +527,93 @@ def get_hierarchy(db: Session, dataset_id: str) -> dict:
         .order_by(DatasetFloor.floor_no)
         .all()
     )
+    rooms = (
+        db.query(DatasetRoom)
+        .filter(DatasetRoom.dataset_id == dataset_id)
+        .order_by(DatasetRoom.room_code)
+        .all()
+    )
+    devices = (
+        db.query(DatasetDevice)
+        .filter(DatasetDevice.dataset_id == dataset_id)
+        .order_by(DatasetDevice.device_code)
+        .all()
+    )
+
+    # The flat `levels` above answer "which codes exist". They cannot answer
+    # "which rooms belong to this building", and a scope control that offers
+    # every room in the estate while the user has chosen one building will
+    # happily produce a scope that matches nothing. So the tree is built from
+    # the same rows and nested properly.
+    def _devices_for(building: str, floor: str | None, room: str | None) -> list[dict]:
+        out = []
+        for d in devices:
+            if d.building_code != building:
+                continue
+            if floor is not None and d.floor_no != floor:
+                continue
+            if room is not None and d.room_code != room:
+                continue
+            out.append(
+                {
+                    "code": d.device_code,
+                    "name": d.name,
+                    "category": d.category,
+                    "rated_kw": d.rated_kw,
+                    "is_critical": bool(d.is_critical),
+                    "is_meter": bool(d.is_meter),
+                }
+            )
+        return out
+
+    tree = []
+    for b in buildings:
+        b_floors = []
+        for f in [f for f in floors if f.building_code == b.building_code]:
+            f_rooms = []
+            for r in [
+                r
+                for r in rooms
+                if r.building_code == b.building_code and r.floor_no == f.floor_no
+            ]:
+                f_rooms.append(
+                    {
+                        "code": r.room_code,
+                        "name": r.name,
+                        "room_type": r.room_type,
+                        "area_sqm": r.area_sqm,
+                        "occupancy_capacity": r.occupancy_capacity,
+                        # Devices on a meter may carry no floor/room; those are
+                        # attached to the building so they stay reachable rather
+                        # than vanishing from the tree.
+                        "devices": _devices_for(
+                            b.building_code, f.floor_no, r.room_code
+                        )
+                        or _devices_for(b.building_code, f.floor_no, None),
+                    }
+                )
+            b_floors.append(
+                {
+                    "floor_no": f.floor_no,
+                    "label": f.label,
+                    "floor_type": f.floor_type,
+                    "area_sqm": f.area_sqm,
+                    "rooms": f_rooms,
+                    "devices": _devices_for(b.building_code, f.floor_no, None),
+                }
+            )
+        tree.append(
+            {
+                "code": b.building_code,
+                "name": b.name,
+                "building_type": b.building_type,
+                "gross_area_sqm": b.gross_area_sqm,
+                "commissioned_year": b.commissioned_year,
+                "rated_kw": b.rated_kw,
+                "floors": b_floors,
+                "devices": _devices_for(b.building_code, None, None),
+            }
+        )
 
     return json_safe(
         {
@@ -554,6 +641,7 @@ def get_hierarchy(db: Session, dataset_id: str) -> dict:
                 }
                 for b in buildings
             ],
+            "tree": tree,
         }
     )
 
