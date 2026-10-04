@@ -5,7 +5,13 @@ pydantic-settings==2.2.1
 sqlalchemy==2.0.30
 python-multipart==0.0.9
 python-jose[cryptography]==3.3.0
-passlib[bcrypt]==1.7.4
+# Password hashing, called directly rather than through passlib. passlib 1.7.4
+# (last released 2020) raises "password cannot be longer than 72 bytes" against
+# bcrypt 4.1+, so anyone installing from this file fresh got a seeder that
+# crashed and an app that could not create a user. This library has no such
+# coupling. Pinned so the install is reproducible rather than "whatever is
+# newest when you clone".
+bcrypt==4.0.1
 pandas==2.2.2
 numpy==1.26.4
 scikit-learn==1.5.0

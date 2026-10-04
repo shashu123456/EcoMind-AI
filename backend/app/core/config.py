@@ -4,6 +4,9 @@ from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+#: backend/ -- this file is backend/app/core/config.py.
+BACKEND_DIR = Path(__file__).resolve().parents[2]
+
 #: The shipped fallback. Kept only so the app can be imported for a quick look;
 #: the launcher always writes a generated key, so seeing this at runtime means
 #: `backend/.env` was lost, never edited, or hand-copied from `.env.example`.
@@ -13,7 +16,13 @@ DEV_SECRET_KEY = "eco-mind-dev-secret-change-me"
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_prefix="ECOMIND_",
-        env_file=".env",
+        # Anchored to backend/ rather than the working directory. A relative
+        # ".env" silently resolves against wherever the process was started, so
+        # `python backend/seed.py` from the repo root -- which the launcher
+        # itself suggests in its failure message -- loaded none of it and fell
+        # back to the placeholder secret while the running app used the real
+        # one. The two disagreed about how tokens were signed.
+        env_file=str(BACKEND_DIR / ".env"),
         protected_namespaces=("settings_",),
         # `ignore`, not the pydantic default `forbid`. The launcher generates
         # backend/.env, and an operator may well add a key of their own; a
