@@ -8,6 +8,42 @@
 @tailwind base;
 @tailwind components;
 
+/* ------------------------------------------------------------------ */
+/* Typefaces                                                           */
+/*                                                                     */
+/* Self-hosted variable fonts. One file per family covers every weight  */
+/* we use, so the interface ships two font requests instead of six.    */
+/*                                                                     */
+/* `font-display: swap` means text paints immediately in the fallback  */
+/* and re-renders once the font arrives. `size-adjust` and the ascent   */
+/* /descent overrides reserve the space the real font will occupy, so   */
+/* that swap does not reflow the page under the reader.                */
+/* ------------------------------------------------------------------ */
+
+@font-face {
+  font-family: 'Geist Sans';
+  src: url('/fonts/Geist-Variable.woff2') format('woff2-variations');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+  ascent-override: 98%;
+  descent-override: 24%;
+  line-gap-override: 0%;
+  size-adjust: 100%;
+}
+
+@font-face {
+  font-family: 'Geist Mono';
+  src: url('/fonts/GeistMono-Variable.woff2') format('woff2-variations');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+  ascent-override: 98%;
+  descent-override: 24%;
+  line-gap-override: 0%;
+  size-adjust: 100%;
+}
+
 :root,
 [data-theme='light'] {
   color-scheme: light;
@@ -15,6 +51,13 @@
   /* --- Surfaces ------------------------------------------------------- */
   --canvas: #f7f8fa;
   --surface: #ffffff;
+  /*
+   * `--surface-1` sits between surface and surface-2. ScopeBar paints its
+   * header with it and it was never defined, so that strip rendered
+   * transparent and inherited whatever was behind it. Defined here rather
+   * than in the component so the ramp stays a single system.
+   */
+  --surface-1: #f8f9fb;
   --surface-2: #f2f4f7;
   --surface-3: #e9ecf1;
   --surface-inset: #fafbfc;
@@ -61,10 +104,43 @@
   --neutral-tint: #f0f2f6;
   --neutral-line: #dfe3ea;
 
+  /*
+   * Three hues that had no home in the old five. They exist because "the
+   * system is working", "this number came from a model" and "this is money you
+   * can keep" are different meanings, and borrowing success or info for all
+   * three made them indistinguishable.
+   */
+
+  /* Live / processing: a running stage, a streaming feed, an open socket. */
+  --live: #0b7f8f;
+  --live-tint: #e4f4f7;
+  --live-line: #b3dde5;
+  --live-ink: #075a65;
+
+  /* AI / model: anything a model produced rather than measured. */
+  --ai: #6741d9;
+  --ai-tint: #f0ebfd;
+  --ai-line: #d5c9f7;
+  --ai-ink: #4c2fa8;
+
+  /* Opportunity: savings, recoverable energy, payback. */
+  --gain: #0b7a4b;
+  --gain-tint: #e6f4ee;
+  --gain-line: #b9e0ce;
+  --gain-ink: #085838;
+
   /* --- Typography ----------------------------------------------------- */
-  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  --font-display: 'Inter Tight', 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
-  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, monospace;
+  /*
+   * One family carries the whole interface. A second display face would add a
+   * network request to buy personality this product does not need — weight and
+   * tracking do that work. Mono is a genuinely separate family, not a stylistic
+   * choice: every metric in the product sets in it so digits align vertically
+   * in a KPI column and do not reflow as live values tick.
+   */
+  --font-sans:
+    'Geist Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-display: 'Geist Sans', 'Geist Sans', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: 'Geist Mono', ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, monospace;
 
   --text-2xs: 0.6875rem;
   --text-xs: 0.75rem;
@@ -85,6 +161,16 @@
   --tracking-normal: 0;
   --tracking-wide: 0.02em;
   --tracking-caps: 0.06em;
+
+  /*
+   * Metric sizes are separate from text sizes on purpose. A metric is set in
+   * mono at a weight and tracking chosen to make digits read as an instrument
+   * reading, not as prose that happens to be large. Keeping them as their own
+   * scale stops "make that number bigger" from silently restyling headings.
+   */
+  --metric-lg: 2.5rem;
+  --metric-md: 1.75rem;
+  --metric-sm: 1.25rem;
 
   /* --- Space ---------------------------------------------------------- */
   --space-1: 0.25rem;
@@ -121,6 +207,26 @@
   --dur-base: 200ms;
   --dur-slow: 320ms;
 
+  /*
+   * Motion is instrumentation settling, never decoration. Every duration and
+   * easing below corresponds to a state change the user needs to perceive:
+   * `--dur-instant` for a press, `--dur-stream` for a looping liveness pulse.
+   */
+  --dur-instant: 80ms;
+  --dur-stream: 1.6s;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+
+  /* --- Density ------------------------------------------------------ */
+  /*
+   * Row height is the density control. Facility managers work on 1080p
+   * monitors; analysts often run two panels side by side. One number changes
+   * how much data fits, without restyling anything else.
+   */
+  --row-h: 44px;
+  --row-h-compact: 34px;
+  --row-h-spacious: 52px;
+
   /* --- Chart series (8 categorical, muted and print-safe) ------------- */
   --chart-1: #1f4fd8;
   --chart-2: #0f7a52;
@@ -131,11 +237,50 @@
   --chart-7: #6b7688;
   --chart-8: #b36014;
 
-  /* --- Severity ramp (anomaly classes) -------------------------------- */
+  /*
+   * Continuous scales. Sequential is for magnitude, diverging is for values
+   * with a meaningful zero (deviation from a baseline, forecast against
+   * actual). Both are perceptually uniform and both avoid a rainbow, which
+   * would introduce bands the reader mistakes for real thresholds.
+   */
+  --seq-100: #e3ebfb;
+  --seq-200: #c5d6f7;
+  --seq-300: #97b8ee;
+  --seq-400: #6392e0;
+  --seq-500: #3b6ecd;
+  --seq-600: #2a51a8;
+  --seq-700: #1f3b7c;
+
+  --div-neg-3: #b4232f;
+  --div-neg-2: #d9736f;
+  --div-neg-1: #f0bcb8;
+  --div-zero: #e8ecf2;
+  --div-pos-1: #b6d0f5;
+  --div-pos-2: #6d9de6;
+  --div-pos-3: #2f63c4;
+
+  /* --- Severity: the ramp that labels DATA ----------------------------- */
+  /*
+   * Three steps, because the detector emits three. Verified against a
+   * completed run: severity_counts is {critical: 0, high: 1720, moderate: 106,
+   * low: 401} — `critical` is never produced by the classifier at all, so a
+   * fourth data swatch would be a permanently empty bucket that reads as a
+   * broken product rather than as a finding.
+   *
+   * The five-step model ramp below is retained for schema documentation, where
+   * it describes the classifier's contract rather than labelling a result.
+   */
+  --sev-low: #667486;
+  --sev-moderate: #d98a2b;
+  --sev-high: #d9483d;
+
+  /*
+   * Declared but never emitted by the detector. Kept as real tokens because
+   * Badge.tsx and AnomaliesPage.tsx still map a five-value vocabulary, and a
+   * token that resolves to nothing renders as inherited colour at runtime.
+   * Phase 1's SeverityTag drops them; until then they must keep resolving.
+   */
   --sev-normal: #cbd2dc;
-  --sev-low: #6b7688;
-  --sev-moderate: #a5670a;
-  --sev-high: #c2410c;
   --sev-critical: #b32036;
 }
 
@@ -144,6 +289,7 @@
 
   --canvas: #0f1319;
   --surface: #161b23;
+  --surface-1: #191f27;
   --surface-2: #1c222c;
   --surface-3: #232a35;
   --surface-inset: #12171e;
@@ -186,6 +332,21 @@
   --neutral-tint: #1e242d;
   --neutral-line: #303846;
 
+  --live: #38b8cc;
+  --live-tint: #10262b;
+  --live-line: #1e4650;
+  --live-ink: #7fd3e2;
+
+  --ai: #9775fa;
+  --ai-tint: #1e1836;
+  --ai-line: #372c63;
+  --ai-ink: #bfa8fd;
+
+  --gain: #4cbf8b;
+  --gain-tint: #12291f;
+  --gain-line: #1e4433;
+  --gain-ink: #86d9b3;
+
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
   --shadow-md: 0 2px 6px rgba(0, 0, 0, 0.36);
   --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.44);
@@ -200,10 +361,27 @@
   --chart-7: #8590a1;
   --chart-8: #d98b4a;
 
+  --seq-100: #16233d;
+  --seq-200: #1c3562;
+  --seq-300: #24497f;
+  --seq-400: #2f5f9e;
+  --seq-500: #4a7cb8;
+  --seq-600: #7ba3d4;
+  --seq-700: #b0cbec;
+
+  --div-neg-3: #f0798c;
+  --div-neg-2: #d9757f;
+  --div-neg-1: #7d4048;
+  --div-zero: #232a35;
+  --div-pos-1: #2d4b78;
+  --div-pos-2: #4b7cb5;
+  --div-pos-3: #85b0e4;
+
+  --sev-low: #7d8894;
+  --sev-moderate: #e8b661;
+  --sev-high: #f0798c;
+
   --sev-normal: #3a4453;
-  --sev-low: #8590a1;
-  --sev-moderate: #e0a75c;
-  --sev-high: #e8814f;
   --sev-critical: #f0788c;
 }
 

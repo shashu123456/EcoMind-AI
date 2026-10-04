@@ -54,11 +54,33 @@ export default {
           'tint-strong': 'var(--brand-tint-strong)',
           ink: 'var(--brand-ink)',
         },
+        // Three meanings the original five could not express separately: a
+        // system that is working, a number a model produced, and money that can
+        // be kept. Exposed as Tailwind colours so pages cannot reach for a raw
+        // hex and break the semantic language.
+        live: {
+          DEFAULT: 'var(--live)',
+          tint: 'var(--live-tint)',
+          line: 'var(--live-line)',
+          ink: 'var(--live-ink)',
+        },
+        ai: {
+          DEFAULT: 'var(--ai)',
+          tint: 'var(--ai-tint)',
+          line: 'var(--ai-line)',
+          ink: 'var(--ai-ink)',
+        },
+        gain: {
+          DEFAULT: 'var(--gain)',
+          tint: 'var(--gain-tint)',
+          line: 'var(--gain-line)',
+          ink: 'var(--gain-ink)',
+        },
       },
       fontFamily: {
-        sans: ['Inter', 'ui-sans-serif', 'system-ui', '-apple-system', 'sans-serif'],
-        display: ['Inter Tight', 'Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
-        mono: ['JetBrains Mono', 'ui-monospace', 'SF Mono', 'Cascadia Mono', 'Menlo', 'monospace'],
+        sans: ['Geist Sans', 'ui-sans-serif', 'system-ui', '-apple-system', 'sans-serif'],
+        display: ['Geist Sans', 'ui-sans-serif', 'system-ui', '-apple-system', 'sans-serif'],
+        mono: ['Geist Mono', 'ui-monospace', 'SF Mono', 'Cascadia Mono', 'Menlo', 'monospace'],
       },
       fontSize: {
         '2xs': ['var(--text-2xs)', { lineHeight: '1rem' }],
@@ -71,6 +93,11 @@ export default {
         '2xl': ['var(--text-2xl)', { lineHeight: '2.125rem' }],
         '3xl': ['var(--text-3xl)', { lineHeight: '2.5rem' }],
         '4xl': ['var(--text-4xl)', { lineHeight: '3rem' }],
+        // Metric sizes are deliberately a separate scale from text sizes:
+        // enlarging a number should not restyle a heading.
+        'metric-sm': ['var(--metric-sm)', { lineHeight: '1.375rem' }],
+        'metric-md': ['var(--metric-md)', { lineHeight: '1.75rem' }],
+        'metric-lg': ['var(--metric-lg)', { lineHeight: '2.5rem' }],
       },
       spacing: {
         1: 'var(--space-1)',
@@ -83,6 +110,11 @@ export default {
         10: 'var(--space-10)',
         12: 'var(--space-12)',
         16: 'var(--space-16)',
+        // Row heights for the density control. Namespaced under `row` so a
+        // bare `h-9` never silently means a table row.
+        row: 'var(--row-h)',
+        'row-compact': 'var(--row-h-compact)',
+        'row-spacious': 'var(--row-h-spacious)',
       },
       borderRadius: {
         xs: 'var(--radius-xs)',
@@ -101,13 +133,16 @@ export default {
         overlay: 'var(--shadow-overlay)',
       },
       transitionDuration: {
+        instant: 'var(--dur-instant)',
         fast: 'var(--dur-fast)',
         DEFAULT: 'var(--dur-base)',
         slow: 'var(--dur-slow)',
       },
       transitionTimingFunction: {
         DEFAULT: 'var(--ease)',
+        standard: 'var(--ease-standard)',
         out: 'var(--ease-out)',
+        exit: 'var(--ease-exit)',
       },
       animation: {
         // The only animation in the system. It reveals a Data Quality
@@ -124,4 +159,4 @@ export default {
     },
   },
   plugins: [],
-}
+};

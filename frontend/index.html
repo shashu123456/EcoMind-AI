@@ -9,11 +9,23 @@
       name="description"
       content="Understand building energy usage, detect anomalies, compare buildings, forecast future consumption and produce organisation-ready reports."
     />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!--
+      Geist is self-hosted, not fetched from a font CDN. This product is used
+      on facility networks, where an external font dependency is both a latency
+      problem and an availability risk: the interface must not change shape
+      because someone else's CDN is slow.
+
+      Variable fonts, so one file covers the whole weight range instead of one
+      file per weight. Sans is preloaded because it paints the first screenful;
+      Mono is not, because metrics appear after the shell has rendered and
+      loading it eagerly would compete with that first paint.
+    -->
     <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Inter+Tight:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
-      rel="stylesheet"
+      rel="preload"
+      href="/fonts/Geist-Variable.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
     />
   </head>
   <body>
