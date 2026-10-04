@@ -127,7 +127,7 @@ children, not an overlay, and that contract is preserved deliberately.
    stays; only the presentation changes.
 4. Ranked / grouped / diverging bars, `BulletChart`, `SparkTable`.
 5. Treemap, sunburst.
-6. `Waterfall` — required for cost composition (§13.11) and savings (§13.13).
+6. `Waterfall` — required for cost composition (§14.11) and savings (§14.13).
 7. Radar — used by Data Quality and Model Selection, two of the highest-value
    pages.
 8. Scatter (predicted vs actual), histogram, box, ECDF.
@@ -161,7 +161,7 @@ gets its first real test. Built with Phase 1–3 components.
 
 **Sequenced as one page, review, next page.** Not four in parallel.
 
-**Exit:** these four meet §16 definition-of-done. This is the milestone where
+**Exit:** these four meet §17 definition-of-done. This is the milestone where
 the product stops feeling like a college project.
 
 ---
@@ -199,7 +199,7 @@ the most new visualisations.
 | Empty states | Rewrite all copy per §8.7 — name what is missing and what fills it |
 | Skeletons | Shape-match every page |
 | Reduced motion | Explicit behaviour, not a blanket override |
-| Responsive | The §14.2 table, verified at each breakpoint per page |
+| Responsive | The §15.2 table, verified at each breakpoint per page |
 | Accessibility | Keyboard audit, contrast check both themes, chart text alternatives, screen-reader pass |
 | Density | Verify compact mode on every table |
 | Print stylesheet | Greyscale-safe, for the report |

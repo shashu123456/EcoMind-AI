@@ -9,16 +9,21 @@ numerics are fixed and out of scope for this document.
 
 ## 0. How to read this document
 
-Section 1 states what the product is arguing. Sections 2–7 are the system:
-identity, typography, colour, space, elevation, motion. Sections 8–11 are the
-mechanics: layout, navigation, inspection, interaction. Section 12 is the
-component inventory. Section 13 is the visualisation catalogue — every chart the
-product is allowed to draw, with the exact backend field that feeds it.
-Sections 14–17 cover the page experiences and the cross-cutting rules that keep
-sixteen pages feeling like one product.
+| § | What it settles |
+|---|---|
+| 1–3 | The thesis, the evidence the backend can actually carry, and the identity |
+| 4–7 | The visual system: typography, colour, space, elevation, motion |
+| 8–9 | The shell and navigation |
+| 10–11 | The component inventory, and the chart catalogue with the exact field feeding each chart |
+| 12 | The interaction grammar — the gestures that make sixteen pages feel like one |
+| 13 | The honesty register: every place the product must admit what it does not know |
+| 14 | The sixteen page experiences, one per route |
+| 15–18 | Cross-cutting rules, sequence, definition of done, and what is deliberately not being done |
 
-Section 18 is the honesty register: the places where the product must admit what
-it does not know. It is deliberately not the last thing you skip.
+**Read §2 first if you are implementing.** It records what a completed run
+actually contains, including three findings that constrain the design. §13 is
+not skippable: it is the difference between an analytics platform and one that
+flatters itself.
 
 Every colour, size and duration in this document is a decision, not a default.
 Where something is kept from the current implementation, the reason is given —
@@ -76,7 +81,7 @@ If a page fails that, the problem is the page, not the reader.
 ## 2. Evidence base — what the data can actually carry
 
 This section exists because a visualization catalogue is worthless if it invents
-fields. Every chart in §13 cites a field verified to exist in a completed run.
+fields. Every chart in §14 cites a field verified to exist in a completed run.
 
 Measured against run `e5050f33` on dataset `b13c23f0`
 (EcoMind Fault Simulation Campus: 2 buildings, 6 floors, 26 rooms, 102 devices,
@@ -114,7 +119,7 @@ class_counts    = { equipment_failure: 0, sustained_overuse: 1802,
 1. **A `critical` chip must never be rendered as a zero-valued row.** It is not
    "zero criticals found" — the classifier never emits the label. The UI must
    distinguish *measured-zero* from *category-absent*, and it does this with
-   different components (§13.9). A red "Critical — 0" row reads as a broken
+   different components (§14.9). A red "Critical — 0" row reads as a broken
    product.
 2. **Five class chips are permanently empty.** The class filter must render only
    the two live classes by default, with the five dormant ones available behind
@@ -124,7 +129,7 @@ class_counts    = { equipment_failure: 0, sustained_overuse: 1802,
    swatches, not five. The five-step ramp survives only inside the *schema
    documentation* view, where it is describing the model, not the data.
 4. **Empty category ≠ empty page.** When a scope genuinely contains no anomalies,
-   that is a *positive finding* and gets positive framing (§17.4), not a
+   that is a *positive finding* and gets positive framing (§8.7), not a
    graveyard of zero rows.
 
 This is the single most important correction in the redesign. A generic
@@ -139,7 +144,7 @@ shows the figures only as a key–value ledger in a secondary tab.
 
 This is the largest single missed opportunity in the product. Every one of those
 74 numbers is a candidate for a real chart, and the report page currently spends
-the most executive attention in the product on the least visual surface. §14.10
+the most executive attention in the product on the least visual surface. §14.14
 turns them back into visual claims.
 
 ### 2.4 Finding C — `total_savings_inr` is not the programme number
@@ -157,7 +162,7 @@ headline on the same screen.
 `horizons[].band_width_pct` and `confidence_note` give per-horizon honesty, and
 `monthly[].lower_kwh/upper_kwh` give a real cone for 12 months from 3 months of
 history. The design must make **widening uncertainty the visible story**, not
-hide it behind a thin band. §13.4 and §17.2 cover this.
+hide it behind a thin band. §14.11 and §13 cover this.
 
 ---
 
@@ -608,7 +613,7 @@ Every page has three, and they are designed, not defaulted:
 
 - **Empty** — names what is missing *and what would fill it*, with the action
   that fills it. `No anomalies in this scope · widen to the estate`.
-- **Loading** — skeletons shaped like the content that will arrive (§17.1), never
+- **Loading** — skeletons shaped like the content that will arrive (§10.4), never
   a spinner.
 - **Error** — says what failed, whether it is retryable, and offers retry. An
   error must never be the only text on a page.
@@ -735,7 +740,7 @@ and are sound are marked **[keep]**; the rest replace what exists.
 | Component | Notes |
 |---|---|
 | `KpiTile` **[keep, extend]** | Add `sparkline`, `delta` (with direction semantics), `loading` skeleton |
-| `HeroMetric` **[keep, extend]** | Becomes `HeroConstellation` — 1 primary + up to 3 supporting metrics (§14.1) |
+| `HeroMetric` **[keep, extend]** | Becomes `HeroConstellation` — 1 primary + up to 3 supporting metrics (§15.1) |
 | `Badge` / `SeverityTag` **[keep, extend]** | **SeverityTag must take the classifier's 3-value vocabulary**, not 5 (§5.4) |
 | `ProgressBar` / `MeterBar` **[keep]** | Add `tone` for `--ai`, `--live`, `--gain` |
 | `DataGrid` **[keep, extend]** | Add column pinning, column visibility, saved views, CSV export, and row selection |
@@ -743,7 +748,7 @@ and are sound are marked **[keep]**; the rest replace what exists.
 | `DeltaBadge` | New — value change with correct polarity semantics (§10.5) |
 | `ConfidenceBar` | New — a 0–100% bar that reads uncertainty, not performance |
 | `QualityBadge` | New — score 0–100 mapped to `--ok`/`--warn`/`--critical` with a threshold label |
-| `DotMatrix` | New — one dot per entity, for scale-without-counting (§13.11) |
+| `DotMatrix` | New — one dot per entity, for scale-without-counting (§14.11) |
 | `SparkTable` | New — in-cell bars, for rank-within-a-column |
 | `Legend` **[keep]** | Make it interactive: click to toggle a series |
 
@@ -757,7 +762,7 @@ and are sound are marked **[keep]**; the rest replace what exists.
 | `ErrorState` **[keep]** | Must offer retry when the error is retryable |
 | `Toast` **[keep]** | Add `duration` and an inline action slot |
 | `LiveRegion` | New — `aria-live="polite"` wrapper for all streaming updates |
-| `ProgressTrail` | New — the animated pipeline, §13.12 |
+| `ProgressTrail` | New — the animated pipeline, §14.12 |
 
 ### 10.5 Delta semantics — a correctness rule, not a style
 
@@ -838,7 +843,7 @@ mechanism that enforces "every visualisation must answer a business question".
 |---|---|---|
 | **Sankey** | derived from `scope_totals` grouped by building/floor | Where does the energy move through the estate? Requires a derivation layer — see §11.9. |
 | **Waterfall** | `recommendation` savings, `aggregates.cost_by_band` | How do we get from baseline to projected? |
-| **Pipeline flow** | run stages | Where is the run? (Animated, §13.12) |
+| **Pipeline flow** | run stages | Where is the run? (Animated, §14.12) |
 
 ### 11.7 State / status
 
@@ -874,7 +879,153 @@ small enough to test completely.
 
 ---
 
-## 12. The honesty register
+---
+
+## 12. Interaction design
+
+The rule that makes every screen feel navigable: **the same gesture means the
+same thing everywhere.** Hovering is always inspection, clicking is always
+depth, right-clicking is always the object's own actions. A user who learns this
+on Anomalies has learned it for the rest of the product.
+
+### 12.1 The gesture grammar
+
+| Gesture | Result | Everywhere |
+|---|---|---|
+| **Hover** | Tooltip with the value, the unit, and the comparison basis | Charts, cells, rows, list items |
+| **Click** | Opens the Inspector on that object | Every chart mark, sparkline segment, heatmap cell, row, treemap node, bubble |
+| **Right-click** | Context menu with that object's own actions | Charts, cells, rows, tree nodes |
+| **Drag on a plot** | Brush to select a time range; every linked chart follows | All time series |
+| **Scroll on a plot** | Zoom the time axis, anchored at the cursor | All time series |
+| **Shift-click** | Adds to the selection, does not replace it | Any selectable set |
+| **Ctrl-click** | Toggles one item in a multi-select | Any selectable set |
+| **Double-click** | Opens the object's full page (where one exists) | Rows, list items |
+| **`Esc`** | Closes the topmost layer; focus returns to the opener | Global |
+
+**Click never navigates away.** Navigation is for changing what you are looking
+at; the Inspector is for looking harder at what you already have. That
+distinction is what keeps a user from losing their place.
+
+### 12.2 Context menus
+
+Right-click yields only actions that are valid for *that* object — never a
+generic menu. A device offers "Set as scope", "Open in Explore", "Show
+anomalies", "Copy code". A recommendation offers "Set scope", "Show linked
+anomalies", "Copy action". A model candidate offers "Show why it won" and "Show
+its metrics".
+
+Menus are keyboard-navigable, close on `Esc` or outside click, and are positioned
+to never render off-screen.
+
+### 12.3 Drill-down
+
+Wherever a hierarchy exists, drilling is the same three gestures:
+
+- **Hover** a parent → children brighten, others dim to 40%.
+- **Click** a parent → Inspector shows the children ranked, each clickable.
+- **Click** a child in the Inspector → the Inspector descends, and the breadcrumb
+  gains a level.
+
+Drill depth is undoable one level at a time with `[`, and the breadcrumb is
+always a jump-out. Depth is capped at the hierarchy's real depth (4 levels) —
+there is no virtual depth.
+
+### 12.4 Zoom, brush, and reset
+
+Every zoomable view carries a small **scope-of-view indicator** in its header
+showing the visible range and a `Reset zoom` affordance that appears only when
+zoomed. A chart whose visible range silently differs from the page's time range
+is a chart that lies, so the difference is always on screen.
+
+Linked charts share one time domain. Zooming one zooms all of them, and the
+synchronisation is visible because they all move at once.
+
+### 12.5 Cross-filtering
+
+Selecting anything filters the page, and the effect is visible on the selector
+itself:
+
+- Selected marks keep full opacity; **unselected marks fade to 40%** rather than
+  disappearing, so the whole is never lost.
+- The active filter chip appears in the page filter bar with a count.
+- Clearing is one click on the chip, or `Esc`.
+
+Cross-filtering is scoped to the page. It never silently changes the global
+estate scope — that is a deliberate, larger, explicitly-announced action.
+
+### 12.6 Pinning and comparison
+
+Users build their own comparison set rather than relying on the defaults:
+
+- **Pin** any entity (device, building, room, model, tariff band) to a
+  comparison tray in the page footer.
+- Pinned series are drawn on every relevant chart in a distinct, stable colour
+  and listed in the shared legend.
+- Comparison mode (`f`) expands all relevant charts to full canvas width with
+  the pinned series overlaid.
+- Pins persist per user per dataset, so a saved view can be reopened next week.
+
+Pins are the escape hatch for "I only care about these six rooms", which is how
+real facility managers actually work.
+
+### 12.7 Bookmarking and saved views
+
+A **view** is a named, shareable configuration: scope, time range, filters,
+pinned entities, density, and the page it belongs to. Saved views appear in the
+command palette and in a per-page dropdown, and are encoded in the URL so a
+colleague opening the link sees the same view.
+
+This is what makes the product feel like an instrument people have opinions
+about, rather than a form people fill in.
+
+### 12.8 Undo and history
+
+- **Undo** covers every state-changing action: scope changes, filters, pins,
+  drill-down, saved-view switches. `⌘Z` / `Ctrl+Z`, up to 50 steps, with a
+  visible toast that names the action being undone.
+- Undo is **not** undone by navigating — leaving a page does not clear history.
+- Destructive or server-side actions (starting a run, deleting a dataset,
+  exporting) are never auto-undone; they confirm instead.
+
+### 12.9 Replay
+
+Runs can be replayed, because "show me what the pipeline did" is a question the
+event stream already answers:
+
+- A completed run's event trace can be replayed at 1×, 4× or 16× in the run
+  bar, driving the same progress animations as the original execution.
+- Scrubbing the replay timeline moves the pipeline state to any point in the
+  run.
+- Replay is read-only and clearly labelled as replay — it never re-executes
+  anything and can never mutate a dataset.
+
+### 12.10 Timeline scrubbing
+
+Time-based views expose one shared **scrubber** in the page filter bar. Dragging
+it updates every chart on the page to that window, so a user can sweep the
+dataset and watch each view react — the cheapest possible way to find the
+interesting hour.
+
+The scrubber shows the anomaly density beneath the track, so the moments worth
+stopping at are visible before stopping at them.
+
+### 12.11 Progressive disclosure as interaction
+
+Disclosure is a gesture, not a layout:
+
+| Level | Gesture |
+|---|---|
+| Summary | Visible |
+| Evidence | One click (Inspector tab, panel expand, "show details") |
+| Raw | One further click ("view as table", "show request") |
+
+Every "show more" control states what it will reveal, so clicking is never a
+gamble. Disclosure state is remembered per user, so a returning user sees the
+depth they chose last time rather than resetting to collapsed.
+
+---
+
+## 13. The honesty register
 
 Components that make the product's limits visible. This is a design system
 feature, not a set of warnings bolted on.
@@ -895,7 +1046,7 @@ feature, not a set of warnings bolted on.
 Every one of these is a place where the product could quietly lie. Each is
 specified to tell the truth instead.---
 
-## 13. Page experiences
+## 14. Page experiences
 
 Every page follows one spine. It is not a suggestion; it is the page contract.
 
@@ -922,7 +1073,7 @@ Shared rules for all pages:
 
 ---
 
-### 13.1 Overview (`/`)
+### 14.1 Overview (`/`)
 
 **Question:** where does this estate stand, and what needs me?
 
@@ -934,14 +1085,14 @@ Shared rules for all pages:
 - **Level 2 — Four live tiles:** data health (DQ score), monthly spend, open
   anomalies, annual recoverable value. Each with a sparkline and a `DeltaBadge`.
 - **Level 2 — Pipeline strip.** The 10 stages as a horizontal `ProgressTrail`
-  (§13.12), live-updating, clickable into each stage.
+  (§14.12), live-updating, clickable into each stage.
 - **Level 2 — Needs attention.** The top 5 anomalies by excess cost, as rows,
   each opening the Inspector.
 - **Level 3 — Recent analyses**, collapsed by default, last 10.
 
 ---
 
-### 13.2 Dataset Library (`/library`)
+### 14.2 Dataset Library (`/library`)
 
 **Question:** are we working with the right dataset, and is it complete?
 
@@ -955,7 +1106,7 @@ Shared rules for all pages:
 
 ---
 
-### 13.3 Import (`/import/$datasetId`)
+### 14.3 Import (`/import/$datasetId`)
 
 **Question:** did the data arrive intact and in the right shape?
 
@@ -971,7 +1122,7 @@ Shared rules for all pages:
 
 ---
 
-### 13.4 Schema Discovery (`/schema/$datasetId`)
+### 14.4 Schema Discovery (`/schema/$datasetId`)
 
 **Question:** do we understand what each column represents?
 
@@ -987,7 +1138,7 @@ Shared rules for all pages:
 
 ---
 
-### 13.5 Data Quality (`/quality/$datasetId`)
+### 14.5 Data Quality (`/quality/$datasetId`)
 
 **Question:** can we trust this data enough to draw conclusions?
 
@@ -1004,7 +1155,7 @@ Shared rules for all pages:
 
 ---
 
-### 13.6 Transformation (`/transformation/$datasetId`)
+### 14.6 Transformation (`/transformation/$datasetId`)
 
 **Question:** have we prepared the features without leaking information?
 
@@ -1018,7 +1169,7 @@ Shared rules for all pages:
 
 ---
 
-### 13.7 Model Selection (`/model-selection/$datasetId`)
+### 14.7 Model Selection (`/model-selection/$datasetId`)
 
 **Question:** which model predicts this building best, and can we trust that choice?
 
@@ -1028,7 +1179,7 @@ Shared rules for all pages:
   matter" — which is what a composite score alone cannot show.
 - **Level 2 — Why this model**: `rationale`, `winning_criteria`,
   `lost_criteria`, and `margin_over_second`. **If `near_tie` is true, a "close
-  call" callout appears** (§12) — the product must not present a coin-flip as a
+  call" callout appears** (§13) — the product must not present a coin-flip as a
   decision.
 - **Level 2 — Feature importance**: the 9 importances as a ranked bar.
   This is the page's most-used panel for an analyst.
@@ -1039,7 +1190,7 @@ Shared rules for all pages:
 
 ---
 
-### 13.8 Anomaly Detection (`/anomalies/$datasetId`)
+### 14.8 Anomaly Detection (`/anomalies/$datasetId`)
 
 **Question:** what is wrong now, and where?
 
@@ -1065,7 +1216,7 @@ one most at risk of becoming the "table page" the brief warns about.
 
 ---
 
-### 13.9 Explore (`/explore/$datasetId`)
+### 14.9 Explore (`/explore/$datasetId`)
 
 **Question:** what do the raw readings actually say?
 
@@ -1081,7 +1232,7 @@ one most at risk of becoming the "table page" the brief warns about.
 
 ---
 
-### 13.10 Compare (`/compare/$datasetId`)
+### 14.10 Compare (`/compare/$datasetId`)
 
 **Question:** how does this building differ from the other?
 
@@ -1095,7 +1246,7 @@ one most at risk of becoming the "table page" the brief warns about.
 
 ---
 
-### 13.11 Forecast (`/forecast/$datasetId`)
+### 14.11 Forecast (`/forecast/$datasetId`)
 
 **Question:** what is coming, and how much will it cost?
 
@@ -1119,7 +1270,7 @@ one most at risk of becoming the "table page" the brief warns about.
 
 ---
 
-### 13.12 Dataset Details (`/datasets/$datasetId`)
+### 14.12 Dataset Details (`/datasets/$datasetId`)
 
 **Question:** what exactly is in this dataset?
 
@@ -1130,7 +1281,7 @@ one most at risk of becoming the "table page" the brief warns about.
 
 ---
 
-### 13.13 Action Plan (`/report/$datasetId` tab)
+### 14.13 Action Plan (`/report/$datasetId` tab)
 
 **Question:** what should we do, and how much does it save?
 
@@ -1149,7 +1300,7 @@ one most at risk of becoming the "table page" the brief warns about.
 
 ---
 
-### 13.14 Report (`/report/$datasetId`)
+### 14.14 Report (`/report/$datasetId`)
 
 **Question:** what do we tell management, and on what evidence?
 
@@ -1166,12 +1317,12 @@ the product. It becomes a **narrative document with a visual spine**:
 - **Level 2 — Export**: the report exports as **what actually exists** — HTML and
   JSON. There is no PDF, because `reportlab` is in requirements but imported
   nowhere and `file_path` is `null`. The button must not promise a file the
-  backend cannot produce (§12).
+  backend cannot produce (§13).
 - **Level 3** — the full prose, available as a reading mode.
 
 ---
 
-### 13.15 Recent Analyses (`/analyses`)
+### 14.15 Recent Analyses (`/analyses`)
 
 **Question:** what has this platform already told us?
 
@@ -1182,7 +1333,7 @@ the product. It becomes a **narrative document with a visual spine**:
 
 ---
 
-### 13.16 Login (`/login`)
+### 14.16 Login (`/login`)
 
 - Split layout: the product's claim on the left (with a small animated
   hour-of-week heatmap as the hero — the product demonstrates what it does before
@@ -1190,9 +1341,9 @@ the product. It becomes a **narrative document with a visual spine**:
 - No navigation chrome at all.
 - Credentials prefilled in dev only; never in production.---
 
-## 14. Cross-cutting rules
+## 15. Cross-cutting rules
 
-### 14.1 Consistency contract
+### 15.1 Consistency contract
 
 These hold on every page. A violation is a bug, not a preference.
 
@@ -1211,7 +1362,7 @@ These hold on every page. A violation is a bug, not a preference.
 | **Motion** | §7 vocabulary, identical triggers everywhere |
 | **Numbers** | tabular, mono, en-IN grouping, no unit ambiguity |
 
-### 14.2 Responsive behaviour
+### 15.2 Responsive behaviour
 
 This is a desktop-first enterprise product. Tablet works; phone is not the
 target and pretending otherwise produces a compromised desktop.
@@ -1229,7 +1380,7 @@ Charts never simply shrink. Below 1280px they drop the second axis, then the
 legend moves below the plot, then annotations move under the plot. A chart that
 is unreadable at a width is not responsive.
 
-### 14.3 Accessibility — a floor, not an aspiration
+### 15.3 Accessibility — a floor, not an aspiration
 
 - Every semantic colour paired with an icon or text label (§5.3).
 - Full keyboard operability of every control, drawer and palette (§9.5).
@@ -1244,7 +1395,7 @@ is unreadable at a width is not responsive.
 - Full `prefers-reduced-motion` support (§7.5).
 - Tables use real `<th scope>`, sortable headers announce `aria-sort`.
 
-### 14.4 The live system
+### 15.4 The live system
 
 "Liveness" must be honest. The product is alive when there is genuinely
 something happening, and calm when there is not.
@@ -1262,7 +1413,7 @@ something happening, and calm when there is not.
   This is the line between "alive" and "theme park", and the product stays on the
   right side of it.
 
-### 14.5 The simplification mandate
+### 15.5 The simplification mandate
 
 The brief asks for 50% less visible information and 300% more understanding. The
 mechanism is progressive disclosure applied without mercy:
@@ -1280,7 +1431,7 @@ scrolling on a 1440×900 screen. The target is under 20 per page.**
 
 ---
 
-## 15. What ships, and in what order
+## 16. What ships, and in what order
 
 The roadmap is in [REDESIGN_ROADMAP.md](REDESIGN_ROADMAP.md). Summary:
 
@@ -1301,7 +1452,7 @@ is independently shippable and independently revertable.
 
 ---
 
-## 16. Definition of done
+## 17. Definition of done
 
 A page is done when all of these are true:
 
@@ -1309,14 +1460,14 @@ A page is done when all of these are true:
 2. It has exactly one level-1 visual.
 3. Every visual is in the §11 catalogue and cites a real backend field.
 4. Every visual object opens the Inspector.
-5. It states every limit it has, per §12.
+5. It states every limit it has, per §13.
 6. It has designed empty, loading and error states.
 7. It is keyboard-operable and has chart text alternatives.
 8. It holds under 20 visible elements before scroll.
-9. It obeys the §14.1 consistency contract.
+9. It obeys the §15.1 consistency contract.
 10. It renders correctly in both themes and at 1280px and 1920px.
 
-## 17. What this redesign deliberately does not do
+## 18. What this redesign deliberately does not do
 
 Stated plainly, so nobody re-litigates it later:
 
