@@ -145,7 +145,7 @@ function num(v: unknown): number | null {
 }
 
 export function ExplorePage() {
-  const { datasetId } = useDatasetScope();
+  const { datasetId, filter } = useDatasetScope();
   const [measure, setMeasure] = useState<Measure>('energy');
   const [windowSize, setWindowSize] = useState('2160');
   const [view, setView] = useState<View>('shape');
@@ -155,9 +155,24 @@ export function ExplorePage() {
     SAMPLE_SIZES.find((w) => w.value === windowSize)?.label ?? `${windowSize} rows`;
 
   const query = useQuery({
-    queryKey: ['explore', datasetId, windowSize],
+    queryKey: [
+      'explore',
+      datasetId,
+      windowSize,
+      filter.building,
+      filter.floor,
+      filter.room,
+      filter.device,
+    ],
     enabled: Boolean(datasetId),
-    queryFn: () => datasets.getContent(datasetId as string, { limit: Number(windowSize) }),
+    queryFn: () =>
+      datasets.getContent(datasetId as string, {
+        limit: Number(windowSize),
+        building: filter.building ?? null,
+        floor: filter.floor ?? null,
+        room: filter.room ?? null,
+        device: filter.device ?? null,
+      }),
   });
 
   const meta = query.data;
@@ -352,8 +367,9 @@ export function ExplorePage() {
       }
       conclusion={
         <p className="text-md">
-          {int(stats.n)} readings across {int(stats.devices)} devices and {int(stats.buildings)}{' '}
-          buildings, showing {spec.label.toLowerCase()}
+          {int(stats.n)} readings across {int(stats.devices)}{' '}
+          {stats.devices === 1 ? 'device' : 'devices'} and {int(stats.buildings)}{' '}
+          {stats.buildings === 1 ? 'building' : 'buildings'}, showing {spec.label.toLowerCase()}
           {span ? ` over the ${span.hoursLabel} those rows cover` : ''}. Nothing here has been
           cleaned, modelled or scored, so a pattern that looks wrong is the data talking rather than
           a stage failing.

@@ -119,10 +119,31 @@ def content_dataset(
     limit: int = Query(100, ge=0, le=5000),
     offset: int = Query(0, ge=0),
     format: str = Query("rows", pattern="^(rows|records)$"),
+    building: str | None = Query(None, description="Restrict to one building code"),
+    floor: str | None = Query(None, description="Restrict to one floor"),
+    room: str | None = Query(None, description="Restrict to one room"),
+    device: str | None = Query(None, description="Restrict to one device"),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    return dataset_service.dataset_content(db, dataset_id, limit=limit, offset=offset, fmt=format)
+    """A page of readings, narrowed to a part of the estate when a scope is given.
+
+    Without these the scope bar filtered nothing on Explore: the page drew the
+    whole campus while the bar claimed a building was selected.
+    """
+    return dataset_service.dataset_content(
+        db,
+        dataset_id,
+        limit=limit,
+        offset=offset,
+        fmt=format,
+        scope={
+            "building": building,
+            "floor": floor,
+            "room": room,
+            "device": device,
+        },
+    )
 
 
 @router.post("/{dataset_id}/refresh")

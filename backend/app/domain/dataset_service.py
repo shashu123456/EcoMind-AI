@@ -337,10 +337,52 @@ def preview_dataset(db: Session, dataset_id: str, limit: int = 100, start: int =
     return json_safe(preview_payload(df, limit=limit, start=start))
 
 
+def _apply_scope(df: pd.DataFrame, flt: dict) -> pd.DataFrame:
+    """Narrow a frame to one part of the estate.
+
+    The scope has to be applied here, on the rows, rather than in the browser.
+    The payload carries a page of readings rather than the whole dataset, so
+    filtering client-side would quietly describe the campus while claiming to
+    describe a building.
+    """
+    if df.empty:
+        return df
+    out = df
+    for column, key in (
+        ("building_code", "building"),
+        ("floor_no", "floor"),
+        ("room_code", "room"),
+        ("device_code", "device"),
+    ):
+        value = (flt or {}).get(key)
+        if value in (None, "") or column not in out.columns:
+            continue
+        # Values arrive as strings from the URL; floor numbers are read from
+        # mixed-type CSV columns and must not be compared as "2" against 2.
+        out = out[out[column].astype(str) == str(value)]
+        if out.empty:
+            break
+    return out
+
+
 def dataset_content(
-    db: Session, dataset_id: str, limit: int = 100, offset: int = 0, fmt: str = "rows"
+    db: Session,
+    dataset_id: str,
+    limit: int = 100,
+    offset: int = 0,
+    fmt: str = "rows",
+    scope: dict | None = None,
 ) -> dict:
-    return preview_dataset(db, dataset_id, limit=limit, start=offset)
+    """A page of readings, optionally narrowed to one part of the estate.
+
+    `scope` is applied before paging, not after. Paging first and filtering
+    afterwards would return short or empty pages for a scope that genuinely has
+    matching rows further down the file.
+    """
+    ds = _require(db, dataset_id)
+    df = read_csv(_dataset_path(ds))
+    df = _apply_scope(df, scope)
+    return json_safe(preview_payload(df, limit=limit, start=offset))
 
 
 def refresh_dataset(db: Session, user: User | None, dataset_id: str) -> dict:

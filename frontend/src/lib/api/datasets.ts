@@ -67,11 +67,22 @@ export async function getPreview(
 
 export async function getContent(
   datasetId: string,
-  params: { start?: number; limit?: number } = {},
+  params: {
+    start?: number;
+    limit?: number;
+    building?: string | null;
+    floor?: string | null;
+    room?: string | null;
+    device?: string | null;
+  } = {},
 ): Promise<DatasetPreviewResponse> {
   const search = new URLSearchParams();
   if (params.start != null) search.set('start', String(params.start));
   if (params.limit != null) search.set('limit', String(params.limit));
+  if (params.building) search.set('building', params.building);
+  if (params.floor) search.set('floor', params.floor);
+  if (params.room) search.set('room', params.room);
+  if (params.device) search.set('device', params.device);
   const qs = search.toString();
   return request<DatasetPreviewResponse>(`/datasets/${datasetId}/content${qs ? `?${qs}` : ''}`);
 }
