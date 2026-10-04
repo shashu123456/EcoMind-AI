@@ -168,6 +168,58 @@ describe('ScopeBar option identity', () => {
   });
 });
 
+describe('ScopeBar device labels', () => {
+  /**
+   * The third bug in this component, and the one a person notices first.
+   *
+   * The label was `name — category`, so every rooftop air-handling unit in the
+   * estate rendered as the identical string "Rooftop AHU — hvac". On the real
+   * dataset that is fourteen separate rows you cannot tell apart, which makes
+   * the control useless rather than merely untidy: you can pick *a* device but
+   * not the one you meant. The unique part is the code.
+   */
+  it('gives two differently-coded devices of the same name different labels', () => {
+    renderScope();
+    const labels = within(combo('Device scope'))
+      .getAllByRole('option')
+      .map((o) => (o as HTMLOptionElement).textContent ?? '')
+      .filter(Boolean);
+
+    const ahuLabels = labels.filter((l) => l.includes('Rooftop AHU'));
+    expect(ahuLabels.length).toBeGreaterThan(1);
+    expect(new Set(ahuLabels).size).toBe(ahuLabels.length);
+  });
+
+  it('names the code, which is the part that locates the device', () => {
+    renderScope();
+    const labels = within(combo('Device scope'))
+      .getAllByRole('option')
+      .map((o) => (o as HTMLOptionElement).textContent ?? '');
+
+    expect(labels).toContain('Rooftop AHU · HVAC-A201');
+    expect(labels).toContain('Rooftop AHU · HVAC-B101');
+  });
+
+  it('falls back to the code when a device has no name', () => {
+    renderScope();
+    const labels = within(combo('Device scope'))
+      .getAllByRole('option')
+      .map((o) => (o as HTMLOptionElement).textContent ?? '');
+    // MTR-1 is named "Energy Meter", but the fallback must not depend on it.
+    expect(labels.some((l) => l.includes('MTR-1'))).toBe(true);
+  });
+
+  it('does not repeat the category when the code already says it', () => {
+    renderScope();
+    const labels = within(combo('Device scope'))
+      .getAllByRole('option')
+      .map((o) => (o as HTMLOptionElement).textContent ?? '');
+    // "Rooftop AHU · HVAC-A201 — hvac" would be the verbose version. The code
+    // prefix already carries the category, so it is noise.
+    expect(labels).not.toContain('Rooftop AHU · HVAC-A201 — hvac');
+  });
+});
+
 describe('ScopeBar cascading', () => {
   it('narrows floors to the chosen building rather than the whole estate', async () => {
     const user = userEvent.setup();

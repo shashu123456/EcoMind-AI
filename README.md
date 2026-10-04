@@ -86,6 +86,13 @@ hash comparisons rather than a reinstall.
 - **Windows** — double-click **`ecomind.bat`**
 - **macOS / Linux** — `./ecomind.sh`
 
+> **Verified, not assumed.** This path was tested by cloning the repository to
+> an empty directory — no virtualenv, no `node_modules`, no `.env`, no database
+> — and running the single command on the result. It installs, seeds, serves,
+> and accepts a login on the freshly seeded credentials. If a future dependency
+> release breaks it the same way, a fresh clone fails loudly at that first run
+> rather than looking subtly wrong later.
+
 The first run takes a few minutes while dependencies download; later runs start
 in seconds.
 
@@ -217,11 +224,38 @@ Archived planning documents (describing the superseded 17-stage design) live in
 
 ## 🔒 Security Notes
 
-- `SECRET_KEY` defaults to a dev value — **always override it before any real
-  deployment**.
-- Demo credentials are for local evaluation only; change or disable them before
-  exposing the API.
-- JWTs expire in 24h; all protected routes require `Authorization: Bearer`.
+- **Passwords** are hashed with [`bcrypt`](https://pypi.org/project/bcrypt/) at
+  cost 12, called directly rather than through `passlib`. `passlib` 1.7.4 — which
+  was pinned until 2026-10-04 — raises `ValueError` against `bcrypt` 4.1+, so a
+  fresh install could not create a user at all. It is gone for that reason, not
+  for style. Existing password hashes still verify: nothing is invalidated by
+  the upgrade.
+- `ECOMIND_SECRET_KEY` is **generated randomly on first launch** and written to
+  `backend/.env`. If it is ever missing, too short, or still the placeholder from
+  `.env.example`, the launcher replaces it on the next start and the backend
+  warns loudly at startup. Never commit `backend/.env`; it is gitignored.
+- Demo credentials (`admin@ecomind.ai` / `admin123`) are for local evaluation
+  only. Change or disable them before exposing the API.
+- JWTs expire in 24h and every protected route requires `Authorization: Bearer`.
+- **Known limitation:** the SSE `/stream` endpoints authenticate with a JWT in a
+  query parameter, because browsers cannot set headers on an `EventSource`.
+  That token therefore appears in proxy and access logs. HTTP routes and the
+  PDF download correctly use the `Authorization` header. Replacing this needs a
+  short-lived single-use stream token; it is not done yet.
+
+## 🩺 Troubleshooting
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| `No Python interpreter found` | Nothing installed, or the Microsoft Store `python` alias is intercepting | The launcher installs it automatically via winget/Chocolatey/Homebrew/apt. If that fails, install from [python.org](https://www.python.org/downloads/) and tick **Add python.exe to PATH**, then reopen the terminal. |
+| Installed Python, still says none found | The shell's PATH predates the install | Close the window and run the launcher again. |
+| `[FAIL] Seeding failed` | Read `logs/launcher.log` — usually a dependency that failed to install | Run `./ecomind check`, then re-run. |
+| `ECONNREFUSED` in the terminal during startup | The frontend is up before the backend is listening | Should not happen — the launcher waits for the backend before starting the frontend. Harmless if it appears during a restart. |
+| Port 8000 or 5173 already in use | Another process holds it | `./ecomind stop`, or change the port in `launcher/config.json`. |
+| A page renders but shows no data | That pipeline stage has not run | Use **Run remaining** in the top bar. |
+| `ECOMIND_SECRET_KEY is the development placeholder` | `backend/.env` was deleted or never generated | Run `./ecomind` — it regenerates one. |
+
+Useful logs: `logs/launcher.log` (bootstrap), `logs/backend.log`, `logs/frontend.log`.
 
 ## 🗺️ Roadmap
 

@@ -59,10 +59,24 @@ function selectedValue(key: LevelKey, filter: HierarchyFilter, options: SelectOp
 type DeviceNode = HierarchyDevice;
 type BuildingNode = HierarchyBuildingNode;
 
-/** Prefer the human name for a device; fall back to the code when unnamed. */
+/**
+ * A device label a person can tell apart.
+ *
+ * The label used to be `name — category`, which renders fourteen separate
+ * rooftop air-handling units as fourteen identical "Rooftop AHU — hvac"
+ * entries. The dropdown was unusable: you could not pick a device, only pick
+ * *a* device and hope.
+ *
+ * `code` is the unique part — `HVAC-A101` names the type and the room at once —
+ * so it belongs in the label. The category is dropped when a name is present
+ * because the code prefix already carries it (`HVAC-`, `LGT-`, `MTR-`), and
+ * repeating it just makes every row longer for nothing.
+ */
 function deviceLabel(d: DeviceNode): string {
   const cat = d.category ? d.category.replace(/_/g, ' ') : '';
-  return d.name && d.name !== d.code ? `${d.name} — ${cat}` : `${d.code}${cat ? ` — ${cat}` : ''}`;
+  const hasName = Boolean(d.name) && d.name !== d.code;
+  if (hasName && d.code) return `${d.name} · ${d.code}`;
+  return `${d.code}${cat ? ` — ${cat}` : ''}`;
 }
 
 /**
