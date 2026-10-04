@@ -1,6 +1,6 @@
 import { Link, useRouterState } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
-import { Check, Lock, PanelLeft, PanelLeftClose } from 'lucide-react';
+import { Check, PanelLeft, PanelLeftClose } from 'lucide-react';
 import { cn } from '../lib/cn';
 import { health } from '../lib/api';
 import { analyticsReady, progressStats, useJourney, type StageStatuses } from '../lib/journey';
@@ -70,39 +70,39 @@ function Item({
         : 'text-neutral-700 hover:bg-neutral-50 hover:text-neutral-800',
   );
 
+  // Status, not a lock. A stage that has not run is a fact worth surfacing and
+  // is drawn as a hollow dot; only a page that genuinely cannot open is dimmed.
+  const mark =
+    !collapsed && status === 'done' ? (
+      <Check className="h-3 w-3 shrink-0" style={{ color: dotColor ?? undefined }} aria-hidden />
+    ) : null;
+
+  const dot =
+    collapsed && showDot ? (
+      <span
+        aria-hidden
+        className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full"
+        style={{ backgroundColor: dotColor ?? undefined }}
+      />
+    ) : null;
+
   const label = (
     <>
       <Icon className="h-4 w-4 shrink-0" aria-hidden />
       {!collapsed && <span className="min-w-0 flex-1 truncate">{item.label}</span>}
-      {!collapsed && !item.built && (
-        <span className="shrink-0 rounded border border-[var(--line)] px-1 text-2xs font-medium uppercase tracking-wide text-neutral-500">
-          Soon
-        </span>
-      )}
-      {!collapsed && item.built && isLocked && <Lock className="h-3 w-3 shrink-0" aria-hidden />}
-      {!collapsed && item.built && !isLocked && status === 'done' && (
-        <Check className="h-3 w-3 shrink-0" style={{ color: dotColor ?? undefined }} aria-hidden />
-      )}
-      {collapsed && showDot && (
+      {!collapsed && status && status !== 'pending' && status !== 'done' && (
         <span
           aria-hidden
-          className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full"
+          className="h-1.5 w-1.5 shrink-0 rounded-full"
           style={{ backgroundColor: dotColor ?? undefined }}
         />
       )}
-      {collapsed && item.built && isLocked && (
-        <Lock className="absolute bottom-1 right-1 h-2.5 w-2.5 text-neutral-400" aria-hidden />
-      )}
+      {mark}
+      {dot}
     </>
   );
 
-  const title = item.built
-    ? isLocked
-      ? item.gate === 'analytics'
-        ? `${item.label} — complete data preparation to unlock`
-        : `${item.label} — complete the earlier stages first`
-      : item.label
-    : `${item.label} — coming in a later phase`;
+  const title = item.built ? item.label : `${item.label} — coming in a later phase`;
 
   if (!item.built || isLocked) {
     return (

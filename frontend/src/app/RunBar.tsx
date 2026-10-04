@@ -9,7 +9,6 @@ import {
   STAGE_BY_KEY,
   firstIncomplete,
   isDone,
-  isReachable,
   progressStats,
   stagePath,
   useJourney,
@@ -158,9 +157,11 @@ export function RunBar() {
 
   const current = firstIncomplete(STAGES, stageStatuses);
   const progress = progressStats(stageStatuses);
-  const runnable = STAGES.filter(
-    (s) => !isDone(stageStatuses, s.key) && isReachable(s, stageStatuses),
-  );
+  // Any stage that has not run can be run, whatever its prerequisites are. The
+  // pipeline enforces order when it executes; the selector here does not need
+  // to second-guess it, and a list that hides stages makes it impossible to
+  // see what a run is actually missing.
+  const runnable = STAGES.filter((s) => !isDone(stageStatuses, s.key));
   const activeDef = activeKey ? STAGE_BY_KEY[activeKey] : null;
   const allDone = !current;
 
@@ -228,10 +229,7 @@ export function RunBar() {
         </span>
       ) : activeDef ? (
         <span className="inline-flex items-center gap-1.5 text-xs text-neutral-600">
-          <span
-            aria-hidden
-            className="h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--brand)]"
-          />
+          <span aria-hidden className="h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--brand)]" />
           Running {activeDef.label}…
         </span>
       ) : (

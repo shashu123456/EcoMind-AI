@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useNavigate } from '@tanstack/react-router';
+import { useEffect, useState } from 'react';
+import { useLocation, useNavigate } from '@tanstack/react-router';
 import {
   Badge,
   Button,
@@ -9,6 +9,8 @@ import {
   DetailList,
   DetailRow,
   Divider,
+  EmptyState,
+  Inset,
   KpiRow,
   KpiTile,
   Panel,
@@ -16,19 +18,34 @@ import {
   Tabs,
   type Column,
 } from '../lib/ui';
-  Inset,
 import { StageGate } from '../app/StageGate';
 import { PageFrame, PageHero } from '../app/PageFrame';
 import { useStageOutput } from '../lib/stageOutput';
 import { useJourney } from '../lib/journey';
-import { co2Tonnes, dec, int, num, power, rupees, rupeesCompact, stamp } from '../lib/format';
-import type { ReportFigures, ReportResult, ReportSection } from '../lib/api/types';
+import {
+  co2Kg,
+  co2Tonnes,
+  dec,
+  energy,
+  int,
+  num,
+  power,
+  rupees,
+  rupeesCompact,
+  stamp,
+} from '../lib/format';
+import type {
+  RecommendationResult,
+  ReportFigures,
+  ReportResult,
+  ReportSection,
+} from '../lib/api/types';
 
 type View = 'read' | 'figures' | 'action-plan';
 
 const FIGURE_FORMAT: Record<
   string,
-  'number' | 'currency' | 'energy' | 'co2' | 'power' | 'score' | 'text'
+  'number' | 'currency' | 'energy' | 'co2' | 'co2kg' | 'power' | 'score' | 'text'
 > = {
   readings: 'number',
   buildings: 'number',
@@ -63,6 +80,8 @@ function formatFigure(key: string, value: ReportFigures[string]): string {
       return dec(value, 0);
     case 'co2':
       return co2Tonnes(value);
+    case 'co2kg':
+      return co2Kg(value);
     case 'power':
       return power(value);
     case 'score':
@@ -88,12 +107,52 @@ const FIGURE_COLUMNS: readonly Column<{ key: string; value: ReportFigures[string
   },
 ];
 
+const PRIORITY_COLOR: Record<string, string> = {
+  P1: 'var(--critical)',
+  P2: 'var(--warn)',
+  P3: 'var(--info)',
+};
+
+function verdictColor(verdict: string): string {
+  if (verdict === 'viable') return 'var(--ok)';
+  if (verdict === 'marginal') return 'var(--warn)';
+  if (verdict === 'not_viable') return 'var(--critical)';
+  return 'var(--ink-low)';
+}
+
 export function ReportPage() {
   const state = useStageOutput<ReportResult>('report');
+  /**
+   * The action plan is the recommendation stage, read here rather than on a
+   * page of its own. A reader who has the report open should not have to
+   * navigate away to find out what to actually do about it.
+   */
+  const recState = useStageOutput<RecommendationResult>('recommendation');
   const runId = useJourney((s) => s.runId);
   const navigate = useNavigate();
+  const location = useLocation();
   const [view, setView] = useState<View>('read');
   const [open, setOpen] = useState<string | null>(null);
+
+  /**
+   * The action plan is its own URL fragment on this page, so the status
+   * stepper, the run bar and the forecast page can all deep-link straight to
+   * it. Reading the fragment on change means a back/forward navigation also
+   * moves between the tabs, not just a fresh load.
+   */
+  useEffect(() => {
+    if (location.hash.replace('#', '') === 'action-plan') setView('action-plan');
+  }, [location.hash]);
+
+  const selectView = (next: View) => {
+    setView(next);
+    // Keep the address bar honest so the tab someone is reading can be shared.
+    navigate({
+      to: '.',
+      hash: next === 'action-plan' ? 'action-plan' : undefined,
+      replace: true,
+    });
+  };
 
   return (
     <PageFrame
@@ -113,6 +172,19 @@ export function ReportPage() {
           const opportunity = output.summary.opportunity;
           const dq = num(overall?.data_quality_score) ?? 0;
           const allFigures = sections.flatMap((s) => figureRows(s));
+
+          const rec = recState.output;
+          const estate = rec?.programme?.estate;
+          const actions = rec?.recommendations ?? [];
+          // Fastest payback first so a manager can start with the cheapest
+          // slice of the programme and begin recovering cost immediately.
+          const ranked = [...actions].sort((a, b) => {
+            const pa = a.payback_months ?? Number.POSITIVE_INFINITY;
+            const pb = b.payback_months ?? Number.POSITIVE_INFINITY;
+            return pa - pb;
+          });
+          const thresholds = rec?.payback_thresholds_months;
+          const shown = ranked.slice(0, 20);
 
           return (
             <div className="flex min-w-0 flex-col gap-4">
@@ -179,11 +251,11 @@ export function ReportPage() {
 
               <Tabs
                 value={view}
-                onChange={(next) => setView(next as View)}
+                onChange={(next) => selectView(next as View)}
                 tabs={[
                   { value: 'read', label: 'Read it', badge: sections.length },
                   { value: 'figures', label: 'Every figure', badge: allFigures.length },
-                  { value: 'action-plan', label: 'Action plan', badge: 0 },
+                  { value: 'action-plan', label: 'Action plan', badge: rec?.total ?? 0 },
                 ]}
               />
 
@@ -304,77 +376,147 @@ export function ReportPage() {
               ) : null}
 
               {view === 'action-plan' ? (
-                <Section
-                  title="Action plan"
-                  description="The recommendations from the prediction stage, turned into a numbered program you can take to management."
-                >
-                  <Inset className="text-md">
-                    The order below is driven by payback: the fastest-return actions first, so a
-                    manager can start with the third of the cost and start paying back today.
-                  </Inset>
-                  <div className="mt-3">
+                rec ? (
+                  <div className="flex min-w-0 flex-col gap-4">
+                    <Section
+                      title="Action plan"
+                      description="The recommendation stage, carried here so the report and the thing it tells you to do are never more than one click apart."
+                    >
+                      <Inset className="text-md">
+                        Actions are ordered by payback, fastest first — a manager can start with the
+                        cheapest slice of the programme and begin recovering cost immediately, while
+                        the slower capital work is still being approved.
+                      </Inset>
+                    </Section>
+
                     <KpiRow columns={4}>
                       <KpiTile
                         label="Actions"
-                        value={output.recommendations ? int(output.recommendations) : 0}
-                        hint="Total actions across the estate"
+                        value={int(rec.total)}
+                        hint={`${int(rec.by_priority?.P1)} P1 · ${int(rec.by_priority?.P2)} P2 · ${int(rec.by_priority?.P3)} P3`}
                       />
                       <KpiTile
                         label="Monthly recovery"
-                        value={rupees(output.monthly_recoverable_inr ?? 0)}
+                        value={rupees(estate?.monthly_recoverable_inr ?? null)}
                         hint="After the per-class recovery fraction"
                         tone="ok"
                       />
                       <KpiTile
                         label="Annual recovery"
-                        value={rupeesCompact(output.annual_recoverable_inr ?? 0)}
-                        hint={energy(output.recoverable_kwh ?? 0)}
+                        value={rupeesCompact(estate?.annual_recoverable_inr ?? null)}
+                        hint={energy(estate?.recoverable_kwh ?? null)}
                         tone="ok"
                       />
                       <KpiTile
                         label="Programme cost"
-                        value={rupees(output.programme_cost_inr ?? 0)}
-                        hint="One mobilisation for the estate"
+                        value={rupees(estate?.programme_cost_inr ?? null)}
+                        hint={`Pays back in ${dec(estate?.payback_months ?? null, 1)} months`}
                       />
                     </KpiRow>
+
+                    <Callout
+                      tone={estate?.payback_verdict === 'viable' ? 'ok' : 'warn'}
+                      title={`Estate programme payback is ${
+                        estate?.payback_verdict?.replace(/_/g, ' ') ?? 'undetermined'
+                      }`}
+                    >
+                      {rupees(estate?.programme_cost_inr ?? null)} of one-off programme cost returns{' '}
+                      {rupees(estate?.annual_recoverable_inr ?? null)} a year and avoids{' '}
+                      {co2Kg(estate?.annual_recoverable_co2_kg ?? null)}. Priorities were assigned
+                      on {rec.priority_basis.replace(/_/g, ' ')}
+                      {thresholds
+                        ? `, with a payback under ${dec(thresholds.viable, 1)} months called viable and under ${dec(thresholds.marginal, 1)} months called marginal`
+                        : ''}
+                      .
+                    </Callout>
+
+                    {rec.forecast_basis_available ? null : (
+                      <Callout tone="neutral" title="No forecast basis for these figures">
+                        The forecast stage has not produced a demand basis for this dataset, so
+                        payback periods are shown as undetermined rather than estimated. Re-run the
+                        forecast stage to price these actions against projected demand.
+                      </Callout>
+                    )}
+
+                    {shown.length === 0 ? (
+                      <EmptyState
+                        title="No actions were recommended"
+                        description="The recommendation stage ran and found nothing worth funding. That is a legitimate finding — an estate with no anomalies and no waste has no programme to fund."
+                      />
+                    ) : (
+                      <div className="space-y-2">
+                        {shown.map((r, i) => (
+                          <Card key={r.id} className="p-4">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="num w-6 text-2xs text-[var(--ink-low)]">
+                                {i + 1}
+                              </span>
+                              <Badge color={PRIORITY_COLOR[r.priority] ?? 'var(--ink-low)'}>
+                                {r.priority}
+                              </Badge>
+                              <span className="font-medium text-md">{r.title}</span>
+                              <Badge color={verdictColor(r.payback_verdict)}>
+                                {r.payback_verdict.replace(/_/g, ' ')}
+                              </Badge>
+                            </div>
+                            <p className="mt-1 text-md text-[var(--ink-mid)]">{r.reason}</p>
+                            <p className="mt-1 text-md">
+                              <span className="text-[var(--ink-low)]">Do this: </span>
+                              {r.action}
+                            </p>
+                            <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-2xs text-[var(--ink-low)]">
+                              <span className="mono">{r.device_label}</span>
+                              <span className="mono">
+                                {r.building_code}
+                                {r.floor_no ? ` · floor ${r.floor_no}` : ''}
+                                {r.room_code ? ` · ${r.room_code}` : ''}
+                              </span>
+                              <span className="num">{dec(r.savings_kwh, 1)} kWh</span>
+                              <span className="num">{rupees(r.savings_cost_inr)}</span>
+                              <span className="num">{co2Kg(r.savings_co2_kg)}</span>
+                              <span className="num">
+                                {r.payback_months === null || r.payback_months === undefined
+                                  ? 'payback undetermined'
+                                  : `${dec(r.payback_months, 1)} month payback`}
+                              </span>
+                            </div>
+                          </Card>
+                        ))}
+                      </div>
+                    )}
+
+                    {ranked.length > shown.length ? (
+                      <Inset className="text-md">
+                        Showing the {shown.length} fastest-paying of {ranked.length} actions. The
+                        full set of {int(rec.total)} is in the report body and in the stage output
+                        itself — nothing has been dropped, only ordered and paged.
+                      </Inset>
+                    ) : null}
+
+                    {rec.savings_inventory ? (
+                      <Panel title="Where the recoverable energy comes from">
+                        <p className="text-md">
+                          {energy(rec.savings_inventory.grouped_recoverable_kwh)} is recoverable
+                          once
+                          {dec(rec.savings_inventory.groups, 0)} classes of excess are grouped;
+                          grouping alone accounts for {energy(rec.savings_inventory.raw_excess_kwh)}{' '}
+                          of ungrouped excess readings.
+                          {rec.savings_inventory.note}
+                        </p>
+                      </Panel>
+                    ) : null}
                   </div>
-                  <div className="mt-3 space-y-2">
-                    {output.recommendations.slice(0, 20).map((r) => (
-                      <Card key={r.id} className="p-4">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <Badge
-                            color={
-                              r.priority === 'P1'
-                                ? 'var(--critical)'
-                                : r.priority === 'P2'
-                                  ? 'var(--warn)'
-                                  : 'var(--info)'
-                            }
-                          >
-                            {r.priority}
-                          </Badge>
-                          <span className="font-medium text-md">{r.title}</span>
-                          <Badge
-                            color={
-                              r.payback_verdict === 'viable'
-                                ? 'var(--ok)'
-                                : r.payback_verdict === 'marginal'
-                                  ? 'var(--warn)'
-                                  : 'var(--critical)'
-                            }
-                          >
-                            {r.payback_verdict.replace(/_/g, ' ')}
-                          </Badge>
-                        </div>
-                        <p className="mt-1 text-md text-[var(--ink-mid)]">{r.reason}</p>
-                        <p className="mt-1 text-md">Do this: {r.action}</p>
-                        <div className="mt-2 text-2xs text-[var(--ink-low)]">
-                          {dec(r.savings_kwh, 1)} kWh · {rupees(r.savings_cost_inr)} · {co2Tonnes(r.savings_co2_kg)}
-                        </div>
-                      </Card>
-                    ))}
-                  </div>
-                </Section>
+                ) : (
+                  <EmptyState
+                    title="The recommendation stage has not produced an action plan yet"
+                    description="The report is assembled, but the actions behind it are missing. Run the recommendation stage to turn the anomalies and forecast into a costed programme."
+                    action={
+                      <Button variant="primary" onClick={() => selectView('read')}>
+                        Back to the report
+                      </Button>
+                    }
+                  />
+                )
               ) : null}
             </div>
           );

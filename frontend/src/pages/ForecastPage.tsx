@@ -17,13 +17,8 @@ import {
   Tabs,
   type Column,
 } from '../lib/ui';
-import {
-  BarCompare,
-  DemandCurve,
-  ForecastBand,
-  HeatmapGrid,
-  SeasonalityBars,
-} from '../lib/charts';
+import { BarCompare, DemandCurve, ForecastBand, HeatmapGrid, SeasonalityBars } from '../lib/charts';
+import { DeviceForecast } from './DeviceForecast';
 import { StageGate } from '../app/StageGate';
 import { PageFrame, PageHero } from '../app/PageFrame';
 import { useStageOutput } from '../lib/stageOutput';
@@ -96,7 +91,7 @@ function bandTone(pct: number | null): 'ok' | 'warn' | 'critical' {
 
 export function ForecastPage() {
   const state = useStageOutput<ForecastResult>('forecast');
-  const { datasetId } = useDatasetScope();
+  const { datasetId, buildings } = useDatasetScope();
   const navigate = useNavigate();
   const [view, setView] = useState<View>('next-week');
 
@@ -109,10 +104,14 @@ export function ForecastPage() {
           <Button
             variant="primary"
             onClick={() =>
-              void navigate({ to: '/report/$datasetId', params: { datasetId } })
+              void navigate({
+                to: '/report/$datasetId',
+                params: { datasetId },
+                hash: 'action-plan',
+              })
             }
           >
-            Continue to recommendations
+            Continue to the action plan
           </Button>
         ) : undefined
       }
@@ -312,6 +311,7 @@ export function ForecastPage() {
 
               {view === 'buildings' ? (
                 <div className="flex flex-col gap-4">
+                  <DeviceForecast rows={output.scope_totals ?? []} buildings={buildings} />
                   <BarCompare
                     title="Forecast share by building"
                     hint="Share of the coming month, against each building's share of history"
@@ -594,6 +594,7 @@ export function ForecastPage() {
                   <Link
                     to="/report/$datasetId"
                     params={{ datasetId }}
+                    hash="action-plan"
                     className="text-[var(--brand)] underline"
                   >
                     See what these numbers justify spending money on

@@ -21,7 +21,7 @@ import { StageGate } from '../app/StageGate';
 import { PageFrame, PageHero } from '../app/PageFrame';
 import { useStageOutput } from '../lib/stageOutput';
 import { useDatasetScope } from '../lib/ActiveDatasetContext';
-import { co2Tonnes, dec, energy, int, pctValue, rupees } from '../lib/format';
+import { co2Kg, dec, energy, int, pctValue, rupees } from '../lib/format';
 import type {
   AnomalyBuildingRow,
   AnomalyClassRow,
@@ -180,7 +180,7 @@ export function AnomaliesPage() {
               key: 'co2',
               header: 'Excess CO₂',
               numeric: true,
-              cell: (row) => <span className="num">{co2Tonnes(row.excess_kwh * 0.5)}</span>,
+              cell: (row) => <span className="num">{co2Kg(row.excess_kwh * 0.5)}</span>,
             },
           ];
 
@@ -272,7 +272,7 @@ export function AnomaliesPage() {
                     },
                     {
                       label: 'Excess carbon',
-                      value: <span className="num">{co2Tonnes(row.excess_kwh * 0.5)}</span>,
+                      value: <span className="num">{co2Kg(row.excess_kwh * 0.5)}</span>,
                     },
                   ],
                 },
@@ -282,8 +282,7 @@ export function AnomaliesPage() {
           };
 
           const inspectSeverity = (row: AnomalySeverityRow) => {
-            const shareOfExcess =
-              (row.excess_kwh / Math.max(1e-9, output.excess_kwh)) * 100;
+            const shareOfExcess = (row.excess_kwh / Math.max(1e-9, output.excess_kwh)) * 100;
             inspect({
               title: `${row.severity.charAt(0).toUpperCase()}${row.severity.slice(1)} severity`,
               subtitle: `${int(row.count)} readings sat in this band above baseline`,
@@ -380,10 +379,7 @@ export function AnomaliesPage() {
                       label: 'Share of excess energy',
                       value: (
                         <span className="num">
-                          {pctValue(
-                            (row.excess_kwh / Math.max(1e-9, output.excess_kwh)) * 100,
-                            1,
-                          )}
+                          {pctValue((row.excess_kwh / Math.max(1e-9, output.excess_kwh)) * 100, 1)}
                         </span>
                       ),
                     },
@@ -402,7 +398,7 @@ export function AnomaliesPage() {
                     },
                     {
                       label: 'Excess carbon',
-                      value: <span className="num">{co2Tonnes(row.excess_kwh * 0.5)}</span>,
+                      value: <span className="num">{co2Kg(row.excess_kwh * 0.5)}</span>,
                     },
                   ],
                 },
@@ -435,10 +431,7 @@ export function AnomaliesPage() {
                       label: 'Share of excess energy',
                       value: (
                         <span className="num">
-                          {pctValue(
-                            (row.excess_kwh / Math.max(1e-9, output.excess_kwh)) * 100,
-                            1,
-                          )}
+                          {pctValue((row.excess_kwh / Math.max(1e-9, output.excess_kwh)) * 100, 1)}
                         </span>
                       ),
                     },
@@ -461,7 +454,7 @@ export function AnomaliesPage() {
                     },
                     {
                       label: 'Excess carbon',
-                      value: <span className="num">{co2Tonnes(row.excess_kwh * 0.5)}</span>,
+                      value: <span className="num">{co2Kg(row.excess_kwh * 0.5)}</span>,
                     },
                   ],
                 },
@@ -475,7 +468,7 @@ export function AnomaliesPage() {
               <PageHero
                 eyebrow="Energy above baseline"
                 value={energy(output.excess_kwh)}
-                verdict={`${int(output.total)} readings above baseline across ${int(output.devices_affected)} devices — ${rupees(output.excess_cost)} a month and ${co2Tonnes(output.excess_co2_kg)} of carbon`}
+                verdict={`${int(output.total)} readings above baseline across ${int(output.devices_affected)} devices — ${rupees(output.excess_cost)} a month and ${co2Kg(output.excess_co2_kg)} of carbon`}
                 tone={output.excess_cost > 0 ? 'warn' : 'ok'}
               />
 
@@ -515,7 +508,7 @@ export function AnomaliesPage() {
                 />
                 <KpiTile
                   label="Excess carbon"
-                  value={co2Tonnes(output.excess_co2_kg)}
+                  value={co2Kg(output.excess_co2_kg)}
                   hint="At 0.5 kg CO₂ per kWh"
                   tone="warn"
                 />
@@ -649,13 +642,14 @@ export function AnomaliesPage() {
                       case.
                     </p>
                     <p className="mt-2 text-md text-[var(--ink-mid)]">
-                      The specific readings behind each proposed action are cited by id on the
-                      recommendations page.
+                      The specific readings behind each proposed action are cited by id in the
+                      action plan.
                     </p>
                     {datasetId ? (
                       <Link
                         to="/report/$datasetId"
                         params={{ datasetId }}
+                        hash="action-plan"
                         className="mt-3 inline-block text-md text-[var(--brand)] underline"
                       >
                         See the actions these readings support

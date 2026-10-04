@@ -51,7 +51,12 @@ export function StageGate<T>({ stage, state, blockedBy = [], children }: StageGa
     },
   });
 
-  const canRun = Boolean(runId) && blockers.length === 0 && !run.isPending;
+  // Prerequisites are the pipeline's business, not the navigation's. The run
+  // button stays live whatever is upstream: the backend refuses an out-of-order
+  // stage with a specific message, which beats a button that silently does
+  // nothing, and it means a reviewer with a partially-run workflow can still
+  // fill a gap without hunting for whichever control happens to be enabled.
+  const canRun = Boolean(runId) && !run.isPending;
   const runButton = (
     <Button
       variant="primary"
@@ -89,15 +94,18 @@ export function StageGate<T>({ stage, state, blockedBy = [], children }: StageGa
   if (state.notRun || !state.output) {
     return (
       <div className="space-y-4">
+        {blockers.length > 0 ? (
+          <Callout tone="info" title="This stage reads from the ones before it">
+            {def.label} is built on{' '}
+            {blockers.map((key) => STAGE_BY_KEY[key].label.toLowerCase()).join(' and ')}. Those have
+            not run for this dataset yet, so running this now will be refused by the pipeline until
+            they have. Nothing is lost by looking at this page in the meantime -- you are seeing an
+            empty stage, and it will say so rather than showing you zeros that look like findings.
+          </Callout>
+        ) : null}
         <EmptyState
           title={`${def.label} has not been run for this dataset`}
-          description={
-            blockers.length > 0
-              ? `This stage reads what the stages above it produced, so it cannot run yet. Complete ${blockers
-                  .map((key) => STAGE_BY_KEY[key].label.toLowerCase())
-                  .join(', ')} first.`
-              : def.purpose
-          }
+          description={def.purpose}
           action={runButton}
         />
         {run.isError ? (

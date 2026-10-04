@@ -8,7 +8,6 @@ import {
   GitCompareArrows,
   History,
   LayoutDashboard,
-  Lightbulb,
   ShieldCheck,
   TableProperties,
   TrendingUp,
@@ -16,13 +15,7 @@ import {
   Wand2,
   type LucideIcon,
 } from 'lucide-react';
-import {
-  STAGE_BY_KEY,
-  analyticsReady,
-  isReachable,
-  type StageKey,
-  type StageStatuses,
-} from './journey';
+import { type StageKey, type StageStatuses } from './journey';
 
 /**
  * The sidebar model for the application shell.
@@ -90,16 +83,16 @@ export const NAV_SECTIONS: readonly NavSection[] = [
         label: 'Explore',
         to: '/explore/$datasetId',
         icon: Compass,
-        gate: 'analytics',
-        built: false,
+        gate: 'dataset',
+        built: true,
       },
       {
         id: 'compare',
         label: 'Compare',
         to: '/compare/$datasetId',
         icon: GitCompareArrows,
-        gate: 'analytics',
-        built: false,
+        gate: 'dataset',
+        built: true,
       },
       {
         id: 'anomalies',
@@ -116,15 +109,6 @@ export const NAV_SECTIONS: readonly NavSection[] = [
         to: '/forecast/$datasetId',
         icon: TrendingUp,
         stageKey: 'forecast',
-        gate: 'analytics',
-        built: true,
-      },
-      {
-        id: 'recommendations',
-        label: 'Recommendations',
-        to: '/recommendations/$datasetId',
-        icon: Lightbulb,
-        stageKey: 'recommendation',
         gate: 'analytics',
         built: true,
       },
@@ -209,7 +193,7 @@ export const NAV_SECTIONS: readonly NavSection[] = [
         to: '/datasets/$datasetId',
         icon: Building2,
         gate: 'dataset',
-        built: false,
+        built: true,
       },
       {
         id: 'analyses',
@@ -217,7 +201,7 @@ export const NAV_SECTIONS: readonly NavSection[] = [
         to: '/analyses',
         icon: History,
         gate: 'none',
-        built: false,
+        built: true,
       },
     ],
   },
@@ -250,31 +234,34 @@ export function navItemActive(item: NavItem, pathname: string): boolean {
 }
 
 /**
- * Whether an entry is locked for the current dataset and stage statuses.
+ * Whether an entry genuinely cannot be opened right now.
  *
- * A page that has not been built yet is always locked, so navigation never
- * leads somewhere that does not exist. A built page follows its gate: the
- * stage gate honours prerequisites, the analytics gate waits for the whole
- * preparation phase, and a parameterised route needs a dataset to point at.
+ * Two reasons remain, and only two, because both are about the address bar
+ * rather than about the user's judgement:
+ *
+ * - the page does not exist yet;
+ * - the entry is scoped to a dataset and no dataset is active, so there is no
+ *   URL to build.
+ *
+ * Stage prerequisites used to be a third. They are not, and the reason is the
+ * difference between a rule the platform can enforce and one it cannot: the
+ * pipeline will refuse to *execute* anomaly detection before a model exists,
+ * and that refusal is real. Whether a person may open the anomaly page to look
+ * at what is there is a different question, and answering it for them only
+ * ever hid work they were sent to review. Sequencing now shows up where it
+ * belongs -- as an explanation on the page and a disabled control in the run
+ * bar -- rather than as a redirect that discards the URL someone was sent.
+ *
+ * `statuses` is still taken, because the sidebar passes it and because a
+ * caller may legitimately want a readiness hint; it simply no longer decides
+ * whether the link works.
  */
 export function navItemLocked(
   item: NavItem,
   datasetId: string | null,
-  statuses: StageStatuses,
+  _statuses: StageStatuses,
 ): boolean {
   if (!item.built) return true;
-  const needsDataset = navNeedsDataset(item) && !datasetId;
-  switch (item.gate) {
-    case 'none':
-      return false;
-    case 'dataset':
-      return !datasetId;
-    case 'analytics':
-      return needsDataset || !analyticsReady(statuses);
-    case 'stage':
-      return (
-        needsDataset ||
-        (item.stageKey ? !isReachable(STAGE_BY_KEY[item.stageKey], statuses) : false)
-      );
-  }
+  if (navNeedsDataset(item) && !datasetId) return true;
+  return item.gate === 'dataset' && !datasetId;
 }

@@ -12,12 +12,16 @@ import { STAGE_BY_KEY } from './lib/journey';
 import { Button, EmptyState, ErrorState } from './lib/ui';
 import {
   AnomaliesPage,
+  ComparePage,
   DataQualityPage,
+  DatasetDetailPage,
+  ExplorePage,
   ForecastPage,
   ImportPage,
   LibraryPage,
   LoginPage,
   ModelSelectionPage,
+  RecentAnalysesPage,
   ReportPage,
   SchemaPage,
   StatusPage,
@@ -25,12 +29,18 @@ import {
 } from './pages';
 
 /**
- * Twelve routes for a ten-stage product.
+ * Fifteen routes: one sign-in, nine stage routes, four workspace routes, and
+ * the overview that opens at `/`.
  *
  * Each stage owns exactly one path, and the path is declared once in
  * `lib/journey.ts`. This file adds only the parts a router needs — the param,
  * and the component. A stage cannot acquire a second URL, because there is
  * nowhere here to declare one.
+ *
+ * Nine of the ten stages have a route of their own. The tenth — the
+ * recommendation stage — deliberately does not: its action plan is a tab of
+ * the report page, so two stages share one URL and the reader who wants to
+ * know what to do is never navigated away from the document that tells them.
  */
 
 const rootRoute = createRootRoute({
@@ -93,6 +103,21 @@ const anomaliesRoute = stageRoute(STAGE_BY_KEY.anomaly.path, AnomaliesPage);
 const forecastRoute = stageRoute(STAGE_BY_KEY.forecast.path, ForecastPage);
 const reportRoute = stageRoute(STAGE_BY_KEY.report.path, ReportPage);
 
+// Workspace pages. Not stages, so they carry no StageDef: they read the dataset
+// directly and are reachable whether or not any stage has run.
+function workspaceRoute<P extends `/${string}`>(path: P, Component: RouteComponent) {
+  return createRoute({
+    getParentRoute: () => shellRoute,
+    path: path.slice(1) as RelativePath<P>,
+    component: Component,
+  });
+}
+
+const exploreRoute = workspaceRoute('/explore/$datasetId', ExplorePage);
+const compareRoute = workspaceRoute('/compare/$datasetId', ComparePage);
+const datasetRoute = workspaceRoute('/datasets/$datasetId', DatasetDetailPage);
+const analysesRoute = workspaceRoute('/analyses', RecentAnalysesPage);
+
 const routeTree = rootRoute.addChildren([
   loginRoute,
   shellRoute.addChildren([
@@ -106,6 +131,10 @@ const routeTree = rootRoute.addChildren([
     anomaliesRoute,
     forecastRoute,
     reportRoute,
+    exploreRoute,
+    compareRoute,
+    datasetRoute,
+    analysesRoute,
   ]),
 ]);
 

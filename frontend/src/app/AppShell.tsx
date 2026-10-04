@@ -1,7 +1,8 @@
 import { useEffect } from 'react';
 import { Outlet, useRouterState } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
-import { datasets, runs } from '../lib/api';
+import { ApiError, datasets, runs } from '../lib/api';
+import type { DatasetHierarchy } from '../lib/api/types';
 import { datasetIdForPath, isDone, stageForPath, useJourney, type StageKey } from '../lib/journey';
 import {
   ActiveDatasetProvider,
@@ -12,6 +13,7 @@ import { LoadingState } from '../lib/ui';
 import { ToastProvider } from '../lib/ui/Toast';
 import { WorkspaceProvider } from '../lib/workspace';
 import { Sidebar } from './Sidebar';
+import { ScopeBar } from './ScopeBar';
 import { TopBar } from './TopBar';
 import { EventConsole, EventConsoleProvider } from './EventConsole';
 import { InspectorProvider } from './Inspector';
@@ -19,12 +21,23 @@ import { RouteGuard } from './RouteGuard';
 import { RunBar } from './RunBar';
 
 /**
- * There is no hierarchy endpoint, and inventing one from the four counts on the
- * dataset row would be a lie -- a count says how many buildings there are, not
- * which ones. Pages that filter by building read the codes out of the stage
- * payload they are already displaying, so the shell contributes no levels.
+ * Levels come from the dataset's own hierarchy, so the shell stops contributing
+ * an empty list and every page gains real drill targets.
+ *
+ * The endpoint reports only the levels a dataset can resolve: a meter-level
+ * reference set returns building and device and nothing between, because
+ * offering a room panel for buildings that have no room instrumentation would
+ * mean inventing rooms. Rendering straight off this list keeps the UI honest
+ * about what the data can support.
  */
-const NO_LEVELS: HierarchyLevel[] = [];
+function levelsFromHierarchy(hierarchy: DatasetHierarchy | undefined): HierarchyLevel[] {
+  if (!hierarchy) return [];
+  return hierarchy.levels.map((level) => ({
+    key: level.level,
+    label: level.label,
+    values: level.values,
+  }));
+}
 
 /**
  * The application shell: one sidebar, one workspace bar, one scrolling surface.
@@ -55,6 +68,13 @@ export function AppShell() {
     queryFn: () => runs.latestRunDetail(activeDatasetId as string),
     enabled: Boolean(activeDatasetId),
     staleTime: 15_000,
+  });
+  const hierarchyQuery = useQuery({
+    queryKey: ['hierarchy', activeDatasetId],
+    queryFn: () => datasets.getHierarchy(activeDatasetId as string),
+    enabled: Boolean(activeDatasetId),
+    staleTime: 300_000,
+    retry: false,
   });
 
   const dataset = datasetQuery.data ?? null;
@@ -98,13 +118,51 @@ export function AppShell() {
       }
     : null;
 
+  /**
+   * Reconcile the persisted dataset against the server before anything renders.
+   *
+   * The store is a cache, and a cache outlives its entry. If the dataset it
+   * names has since been deleted — or was never a dataset at all — every page
+   * resolves "no dataset active" while the run bar keeps reporting the run's
+   * progress from storage. Two parts of the same screen disagreeing is worse
+   * than either being empty, so the store is corrected here rather than being
+   * defended everywhere downstream.
+   *
+   * Only a definitive 404 is treated as proof the dataset is gone. A dropped
+   * connection, a 500, or a gateway timeout says something about the moment,
+   * not about the dataset, and clearing the store on those would discard a
+   * valid workspace because the network blinked. Losing context is exactly the
+   * confusion this effect exists to prevent, so it must never cause it.
+   *
+   * Clearing the dataset clears the run with it, because a run belongs to a
+   * dataset and reading one against the other is the confusion being removed.
+   * Stage progress goes too, for the same reason.
+   */
+  const datasetMissing =
+    Boolean(activeDatasetId) &&
+    datasetQuery.isFetched &&
+    datasetQuery.isError &&
+    datasetQuery.error instanceof ApiError &&
+    datasetQuery.error.status === 404;
+
+  useEffect(() => {
+    if (!datasetMissing) return;
+    setActive({ datasetId: null, runId: null, modelId: null });
+    setStatuses({});
+  }, [datasetMissing, setActive, setStatuses]);
+
   // Never render a page against half-loaded run state — gating and stage badges
   // would both be lying.
-  const ready = !activeDatasetId || (datasetQuery.isFetched && runQuery.isFetched);
+  const ready =
+    datasetMissing || !activeDatasetId || (datasetQuery.isFetched && runQuery.isFetched);
 
   return (
     <ToastProvider>
-      <ActiveDatasetProvider dataset={active} levels={NO_LEVELS}>
+      <ActiveDatasetProvider
+        dataset={active}
+        levels={levelsFromHierarchy(hierarchyQuery.data)}
+        buildings={hierarchyQuery.data?.tree ?? []}
+      >
         <WorkspaceProvider>
           <InspectorProvider>
             <EventConsoleProvider>
@@ -112,10 +170,14 @@ export function AppShell() {
                 <Sidebar />
                 <div className="flex min-w-0 flex-1 flex-col">
                   <TopBar />
+                  <ScopeBar hierarchy={hierarchyQuery.data} />
                   <RunBar />
                   <main className="min-h-0 flex-1 overflow-y-auto">
                     {ready ? (
-                      <RouteGuard stage={currentStage} datasetId={routeDatasetId ?? activeDatasetId}>
+                      <RouteGuard
+                        stage={currentStage}
+                        datasetId={routeDatasetId ?? activeDatasetId}
+                      >
                         <Outlet />
                       </RouteGuard>
                     ) : (

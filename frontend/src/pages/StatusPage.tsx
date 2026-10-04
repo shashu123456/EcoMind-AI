@@ -4,7 +4,6 @@ import { useDatasetScope } from '../lib/ActiveDatasetContext';
 import { pctValue } from '../lib/format';
 import {
   PHASES,
-  isReachable,
   nextStage,
   phaseProgress,
   progressStats,
@@ -166,7 +165,9 @@ function PhasePanel({ phase, datasetId }: { phase: Phase; datasetId: string | nu
         activeIndex={activeIndex >= 0 ? activeIndex : undefined}
         onSelect={(index) => {
           const stage = stages[index];
-          if (!stage || !isReachable(stage, stageStatuses)) return;
+          // Every stage is open. Sequencing is enforced when a stage runs, not
+          // when someone looks at it.
+          if (!stage) return;
           navigate({ to: stagePath(stage, datasetId) });
         }}
       />
