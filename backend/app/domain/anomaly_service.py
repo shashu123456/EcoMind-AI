@@ -263,6 +263,11 @@ def detect(db: Session, dataset_id: str, params: dict | None = None) -> dict:
         if block.empty:
             continue
         found.extend(_scan_device(block, target, threshold))
+        # A stopped meter sits far below anything the upper-tail scan can see,
+        # so it can never be produced by it at any threshold. This compares
+        # against the device's own overall median, which a short outage cannot
+        # poison -- unlike the hour-of-week baseline above.
+        found.extend(_scan_dead_devices(block, target))
         emit(
             params.get("run"),
             "anomaly_scan_progress",
@@ -371,6 +376,130 @@ def _z_for(threshold: float) -> float:
     noisy one, which a raw score does not.
     """
     return float(np.clip(threshold, 0.0, 1.0)) * Z_SATURATE
+
+
+#: A device reading this far below its own *typical* value is not saving
+#: energy, it has stopped reporting. Chosen to be unambiguous: the module's
+#: stated position is that *only overuse is an anomaly*, because a building 20%
+#: below its baseline has saved money. A meter that has gone to roughly zero is
+#: the one under-consumption case that is unambiguously a fault, and the only
+#: one this module will report.
+DEAD_RATIO = 0.02
+
+#: Consecutive dead readings before it counts. Six hours is long enough to skip a
+#: scheduled shutdown and short enough that a genuinely stuck meter is caught the
+#: same day rather than the following week.
+DEAD_MIN_HOURS = 6
+
+#: The device's typical reading must be meaningful in absolute terms too, or a
+#: meter that always draws 0.001 kWh and then draws nothing reads as "dead" when
+#: it is working exactly as expected.
+DEAD_MIN_EXPECTED_KWH = 0.5
+
+
+def _is_dead(block: pd.DataFrame) -> pd.Series:
+    """Boolean mask: readings flatlined against the device's own typical value.
+
+    Deliberately *not* the hour-of-week baseline. The baseline is built from
+    these same readings, so a meter that has been dead for long enough poisons
+    its own expectation and compares flatly against zero -- invisible to
+    precisely the detector meant to catch it. The device's overall median
+    cannot be poisoned by a six-hour outage, because the rest of the record
+    still says what this meter normally does.
+    """
+    typical = float(block["_value"].median())
+    if typical < DEAD_MIN_EXPECTED_KWH:
+        return pd.Series(False, index=block.index)
+    return block["_value"] < DEAD_RATIO * typical
+
+
+def _scan_dead_devices(block: pd.DataFrame, target: str) -> list[dict]:
+    """Devices that have stopped reporting, as `equipment_failure` episodes.
+
+    Separate from `_scan_device` because the two answer different questions.
+    The overuse scanner flags the upper tail -- a reading that is far *above*
+    its own hour-of-week median. A stopped meter is far *below* it, so it can
+    never appear there no matter how the threshold is tuned. Reporting the two
+    from one pass would mean either dropping "only overuse is an anomaly" or
+    never seeing a dead meter at all.
+
+    Excess is deliberately zero. Nothing is being wasted here; the cost is that
+    a load is running unmonitored, which is a different problem with a different
+    owner. Calling it negative excess would make the waste arithmetic on the
+    page stop meaning what it says.
+    """
+    if block.empty or len(block) < DEAD_MIN_HOURS:
+        return []
+    flag = _is_dead(block)
+    if not flag.any():
+        return []
+
+    grouper = (flag != flag.shift()).cumsum()
+    typical = float(block["_value"].median())
+    out: list[dict] = []
+    for _, group in block[flag].groupby(grouper[flag]):
+        if len(group) < DEAD_MIN_HOURS:
+            continue
+        actual = float(group["_value"].sum())
+        # What the device would have drawn over the same hours at its own
+        # typical rate. This is the load now running unmonitored.
+        expected = typical * len(group)
+        if expected <= 0:
+            continue
+        episode = _dead_episode(group, target, expected, actual)
+        episode["anomaly_class"] = "equipment_failure"
+        episode["severity"] = "high"
+        episode["evidence"] = (
+            f"{episode['readings']} consecutive readings totalled {actual:.3f} kWh, where "
+            f"this device normally draws about {typical:.3f} kWh an hour — "
+            f"{actual / expected:.1%} of the expected {expected:.3f} kWh. That is a stopped or "
+            f"disconnected meter, not efficiency: the load behind it is running and nothing is "
+            f"reporting it."
+        )
+        out.append(episode)
+    return out
+
+
+def _dead_episode(group, target: str, expected: float, actual: float) -> dict:
+    """The episode shape a dead run needs, which `_episode` will not build.
+
+    `_episode` refuses a non-positive excess, which every dead run has by
+    definition. Rather than loosening that guard -- which would let
+    negative-excess rows through the overuse path too -- the row is built here.
+    """
+    first = group.iloc[0]
+    return {
+        "device_code": _text(first.get("device_code")),
+        "device_category": _text(first.get("device_category")),
+        "building_code": _text(first.get("building_code")),
+        "floor_no": _text(first.get("floor_no")),
+        "room_code": _text(first.get("room_code")),
+        "timestamp": first["timestamp"].to_pydatetime(),
+        "window_start": group["timestamp"].iloc[0].to_pydatetime(),
+        "window_end": group["timestamp"].iloc[-1].to_pydatetime(),
+        "hours": [int(h) for h in group["timestamp"].dt.hour.tolist()],
+        "readings": len(group),
+        "expected_kwh": round(expected, 4),
+        "actual_kwh": round(actual, 4),
+        # Deliberately zero, and deliberately not negative. Nothing is being
+        # wasted here; the cost is that a load is unmonitored. A negative
+        # "excess" would quietly corrupt every waste total on the page.
+        "excess_kwh": 0.0,
+        "excess_cost": 0.0,
+        "excess_co2_kg": 0.0,
+        "deviation_pct": round(-(expected - actual) / expected * 100.0, 2),
+        "mean_z": 0.0,
+        "score": 0.75,
+        "mean_ratio": actual / expected,
+        "per_reading_excess": [0.0] * len(group),
+        "per_reading_ratio": [
+            {"ratio": float(a) / expected * len(group) if expected > 0 else 0.0, "excess": 0.0}
+            for a in group["_value"]
+        ],
+        "all_weekend": bool((group["timestamp"].dt.dayofweek >= 5).all()),
+        "is_constant_mirror": False,
+        "touched": target,
+    }
 
 
 def _floor_shares(block: pd.DataFrame) -> dict:
@@ -633,22 +762,24 @@ def _summary(
             # Classes that exist in the taxonomy but that this detector cannot
             # currently produce, each with the reason. Publishing the reason is
             # the difference between "a bug" and "a known limit".
+            #
+            # `equipment_failure` was on this list until 2026-10-04 and no longer
+            # is: the upper-tail scan cannot produce it at any threshold, so a
+            # dedicated flatline detector now runs alongside it and reports a
+            # meter that has gone to roughly zero. What remains unreachable is
+            # the milder under-consumption the module deliberately ignores,
+            # because a building below its baseline has saved money and that is
+            # not a fault.
             "unreachable_classes": [
-                {
-                    "anomaly_class": "equipment_failure",
-                    "reason": (
-                        "Requires sustained under-consumption (ratio < 1.0), but the "
-                        "scanner only flags the upper tail (_z >= threshold). A stopped "
-                        "or offline device is therefore invisible."
-                    ),
-                },
                 {
                     "anomaly_class": "meter_drift",
                     "reason": (
-                        "Requires a sustained ratio of 1.00-1.25 over 12+ readings, but "
-                        "a reading must first clear the detection floor to be scored at "
-                        "all, which implies a ratio far above 1.25."
-                    ),
+                        "Requires a sustained ratio of 1.00-1.25 across 12+ readings, but "
+                        "a reading must first clear the {t} median absolute deviation "
+                        "detection floor to be scored at all, and clearing it implies a "
+                        "ratio far above 1.25. The band between 'normal' and 'obvious' is "
+                        "currently unscored."
+                    ).format(t=round(threshold, 2)),
                 },
             ],
             "analysed_at": datetime.now(timezone.utc).isoformat(),

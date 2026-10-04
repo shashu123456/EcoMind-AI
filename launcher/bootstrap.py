@@ -142,7 +142,11 @@ def _install_python(minv: str) -> bool:
     still bootstrap without an interpreter and re-discover one afterwards.
     """
     osname = _os()
-    short = str(minv).split(".")[0]
+    # winget spells the package `Python.Python.312` -- major and minor joined,
+    # no dot. Taking only the major produced `Python.Python.3`, which is not a
+    # package winget knows, so the install quietly did nothing on every machine
+    # that needed it most.
+    short = "".join(str(minv).split(".")[:2])
     if osname == "windows":
         if shutil.which("winget"):
             _say(f"[..] Installing Python {minv} via winget ...")
@@ -151,16 +155,37 @@ def _install_python(minv: str) -> bool:
                 "--accept-source-agreements", "--accept-package-agreements",
                 "--scope", "user", "--silent",
             ])
-            return bool(shutil.which("python"))
-        _say("[!] winget not found. Install Python "
-             f"{minv}+ from python.org and tick 'Add python.exe to PATH'.")
-        return False
+        elif shutil.which("choco"):
+            # Same order as scripts/install_python.sh. The two disagreed, so a
+            # machine with Chocolatey but no winget installed Python on the
+            # shell path and failed on the launcher path.
+            _say(f"[..] Installing Python {minv} via Chocolatey ...")
+            _stream(["choco", "install", f"python{short}", "-y"])
+        else:
+            _say("[!] No winget or choco. Install Python "
+                 f"{minv}+ from python.org and tick 'Add python.exe to PATH'.")
+            return False
+        # winget with --scope user installs under %LOCALAPPDATA%\Programs\Python;
+        # a machine-wide install goes to C:\Program Files. Neither is on the PATH
+        # of the process that is doing the installing, so make it visible before
+        # re-probing, or the launcher reports failure on a successful install.
+        for candidate in (
+            Path(os.environ.get("LOCALAPPDATA", ""), "Programs", "Python", f"Python{short}"),
+            Path(r"C:\Program Files", f"Python{short}"),
+        ):
+            if (candidate / "python.exe").exists():
+                os.environ["PATH"] = (
+                    str(candidate) + os.pathsep + os.environ.get("PATH", "")
+                )
+                break
+        return bool(shutil.which("python"))
     if osname == "macos":
         if shutil.which("brew"):
             _say(f"[..] Installing Python {minv} via Homebrew ...")
-            return _stream(["brew", "install", f"python@{short}"]) == 0
+            # Homebrew keeps the dot: `python@3.12`, not `python@312`.
+            return _stream(["brew", "install", f"python@{minv}"]) == 0
         _say("[!] Homebrew not found. Install Python "
-             f"{minv}+ from python.org, or run: brew install python@{short}")
+             f"{minv}+ from python.org, or run: brew install python@{minv}")
         return False
     sudo = [] if os.geteuid() == 0 else (["sudo"] if shutil.which("sudo") else [])
     if shutil.which("apt-get"):
