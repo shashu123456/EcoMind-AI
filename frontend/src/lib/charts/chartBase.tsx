@@ -56,7 +56,18 @@ export interface ChartFrameProps {
   hint?: ReactNode;
   actions?: ReactNode;
   legend?: ReactNode;
-  /** Rendered when there is no data — a chart frame with no plot is a lie. */
+  /**
+   * Rendered *instead of* the chart when there is nothing to plot.
+   *
+   * This is a replacement, not an overlay: passing a truthy node here hides
+   * `children` entirely. A caller must therefore decide with a condition and
+   * pass `undefined` when there is data —
+   * `empty={rows.length === 0 ? <EmptyState .../> : undefined}`.
+   *
+   * Passing an always-truthy empty node is a silent, total failure: the plot
+   * never renders and nothing reports an error, which is exactly what happened
+   * to every chart in this directory before it was fixed.
+   */
   empty?: ReactNode;
   height?: number | string;
   /** Print-friendly: drop the card chrome for PDF embedding. */

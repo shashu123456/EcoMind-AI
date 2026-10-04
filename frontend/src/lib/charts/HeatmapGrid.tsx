@@ -100,12 +100,14 @@ export function ForecastBand({
       legend={frame.legend ?? legend}
       height={frame.height ?? 300}
       empty={
-        frame.empty ?? (
-          <EmptyState
-            title="No forecast yet"
-            description="Run the forecast to see projected consumption."
-          />
-        )
+        rows.length === 0
+          ? (frame.empty ?? (
+              <EmptyState
+                title="No forecast yet"
+                description="Run the forecast to see projected consumption."
+              />
+            ))
+          : undefined
       }
       {...frame}
     >
@@ -222,12 +224,14 @@ export function DemandCurve({
       hint="Left edge is your peak hours. Every step right is progressively lower load."
       height={frame.height ?? 280}
       empty={
-        frame.empty ?? (
-          <EmptyState
-            title="No demand profile"
-            description="Demand data appears once readings are imported."
-          />
-        )
+        rows.length === 0
+          ? (frame.empty ?? (
+              <EmptyState
+                title="No demand profile"
+                description="Demand data appears once readings are imported."
+              />
+            ))
+          : undefined
       }
       {...frame}
       title={label}
@@ -495,7 +499,7 @@ export function PipelineFlow({
         frame.legend ?? (
           <p className="num text-2xs text-neutral-600">
             {filled} of {stages.length} stages complete
-            {stages.some((s) => s.status === 'failed') && ' Â· 1 stage failed'}
+            {stages.some((s) => s.status === 'failed') && ' · 1 stage failed'}
           </p>
         )
       }
@@ -591,12 +595,14 @@ export function SeverityBars({
     <ChartFrame
       height={frame.height ?? 200}
       empty={
-        frame.empty ?? (
-          <EmptyState
-            title="No anomalies detected"
-            description="Nothing exceeds the expected profile."
-          />
-        )
+        counts.length === 0
+          ? (frame.empty ?? (
+              <EmptyState
+                title="No anomalies detected"
+                description="Nothing exceeds the expected profile."
+              />
+            ))
+          : undefined
       }
       {...frame}
     >
@@ -663,12 +669,14 @@ export function SeasonalityBars({
       hint="The recurring shape the annual projection is built on."
       height={frame.height ?? 200}
       empty={
-        frame.empty ?? (
-          <EmptyState
-            title="Not enough history"
-            description="Seasonality needs at least 12 months."
-          />
-        )
+        rows.length === 0
+          ? (frame.empty ?? (
+              <EmptyState
+                title="Not enough history"
+                description="Seasonality needs at least 12 months."
+              />
+            ))
+          : undefined
       }
       {...frame}
     >

@@ -39,6 +39,13 @@ export interface StageDef {
   gated: boolean;
   /** The headline question this page answers. Rendered as the page hero. */
   answers: string;
+  /**
+   * Set when this stage's surface is a tab of another stage's page rather than
+   * a page of its own. The action plan is the Action plan tab of the report:
+   * the recommendation still runs and still gates the report, it just has no
+   * separate URL to navigate away to.
+   */
+  tab?: 'action-plan';
 }
 
 // --- Phases ---------------------------------------------------------------
@@ -125,7 +132,8 @@ export const STAGES = [
     label: 'Prediction',
     short: 'Predict',
     phase: 'preparation',
-    purpose: 'Train every candidate model, compare them on real metrics, then auto-select the best one to predict demand.',
+    purpose:
+      'Train every candidate model, compare them on real metrics, then auto-select the best one to predict demand.',
     path: '/model-selection/$datasetId',
     gated: true,
     answers: 'Which model predicts this building best?',
@@ -155,11 +163,16 @@ export const STAGES = [
   {
     key: 'recommendation',
     index: 8,
-    label: 'Recommendations',
+    label: 'Action plan',
     short: 'Actions',
     phase: 'decision',
     purpose: 'Turn anomalies and forecasts into concrete maintenance and optimisation actions.',
-    path: '/recommendations/$datasetId',
+    // The action plan has no page of its own: it is the Action plan tab of the
+    // report, so the reader never has to navigate away from the document that
+    // tells them what to do. The stage itself still runs and still gates the
+    // report -- only its surface moved.
+    path: '/report/$datasetId',
+    tab: 'action-plan',
     gated: true,
     answers: 'What should we do, and how much can we save?',
   },
@@ -203,6 +216,16 @@ const [
   recommendation,
   report,
 ] = STAGES;
+
+/**
+ * Shape of a dataset or run id.
+ *
+ * Used only to locate a dataset parameter on a workspace route, where no
+ * `StageDef` declares one. A run id matches too, which is deliberate: it is why
+ * the guard then asks the server whether the id resolves, instead of trusting a
+ * regex to tell a dataset from a run.
+ */
+const UUID_LIKE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export const STAGE_BY_KEY = {
   library,
@@ -300,8 +323,18 @@ export const STATUS_LABEL: Record<StageStatus, string> = {
 
 // --- Path helpers ---------------------------------------------------------
 
+/**
+ * The URL that opens a stage's output.
+ *
+ * A stage whose surface is a tab of another page carries that tab in a URL
+ * fragment, so every existing link to the action plan -- the status stepper,
+ * the run bar's "View output", the continue button on the forecast page --
+ * lands on the action plan itself instead of on the report's first tab. One
+ * rule in one place, rather than each caller having to remember.
+ */
 export function stagePath(stage: StageDef, datasetId: string | null): string {
-  return stage.path.replace('$datasetId', datasetId ?? '');
+  const path = stage.path.replace('$datasetId', datasetId ?? '');
+  return stage.tab ? `${path}#${stage.tab}` : path;
 }
 
 /**
@@ -311,24 +344,49 @@ export function stagePath(stage: StageDef, datasetId: string | null): string {
  * lookup rather than a router concern — which means the shell can tell whether
  * the user is inside the product at all (`/`, `/login`) without touching router
  * internals.
+ *
+ * Two stages can legitimately share a path, because a stage whose surface is a
+ * tab of another page has no URL of its own (the action plan lives inside the
+ * report). When that happens the owning stage wins: the browser is on the
+ * report, so the report's guard, hero and run bar are the correct ones, and the
+ * action plan is reached through the tab rather than through the URL.
  */
 export function stageForPath(pathname: string): StageKey | null {
   const actual = pathname.replace(/\/+$/, '').split('/').filter(Boolean);
-  for (const stage of STAGES) {
-    const expected = stage.path.split('/').filter(Boolean);
-    if (expected.length !== actual.length) continue;
-    if (expected.every((seg, i) => seg.startsWith('$') || seg === actual[i])) return stage.key;
-  }
-  return null;
+  const matches = (s: StageDef) => {
+    const expected = s.path.split('/').filter(Boolean);
+    return (
+      expected.length === actual.length &&
+      expected.every((seg, i) => seg.startsWith('$') || seg === actual[i])
+    );
+  };
+  return STAGES.find((s) => !('tab' in s) && matches(s))?.key ?? null;
 }
 
 /** The `$datasetId` value carried by a stage path, if the path has one. */
 export function datasetIdForPath(pathname: string, stage: StageKey | null): string | null {
-  if (!stage) return null;
   const actual = pathname.replace(/\/+$/, '').split('/').filter(Boolean);
-  const expected = STAGE_BY_KEY[stage].path.split('/').filter(Boolean);
-  const at = expected.findIndex((seg) => seg.startsWith('$'));
-  return at >= 0 ? (actual[at] ?? null) : null;
+
+  // A stage declares where its parameter sits, so its position is known rather
+  // than guessed.
+  if (stage) {
+    const expected = STAGE_BY_KEY[stage].path.split('/').filter(Boolean);
+    const at = expected.findIndex((seg) => seg.startsWith('$'));
+    if (at >= 0) return actual[at] ?? null;
+    return null;
+  }
+
+  // Workspace routes carry a dataset parameter but are not stages, so there is
+  // no declaration to read a position from. Returning null here left
+  // /explore, /compare and /datasets rendering their own content while the
+  // shell believed no dataset was active -- the top bar read "Select a
+  // dataset" and the sidebar showed no progress, so a user landing on a shared
+  // workspace link got a page with no context around it.
+  //
+  // Rather than hard-coding the workspace paths, take the first segment shaped
+  // like an id. Anything else on these routes is a literal (`analyses`,
+  // `library`), so this cannot mistake one for a dataset.
+  return actual.find((seg) => UUID_LIKE.test(seg)) ?? null;
 }
 
 /**

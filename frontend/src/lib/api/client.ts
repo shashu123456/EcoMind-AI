@@ -191,6 +191,16 @@ export async function downloadFile(path: string, fallbackName = 'download'): Pro
  * parameter — the same compromise the backend's stream routes already accept.
  */
 export function streamUrl(path: string, token?: string | null): string {
+  // `path` is always relative to the API root. Pre-prefixed input used to be
+  // concatenated blindly, which is how a caller's already-wrapped path turned
+  // into /api/v1/api/v1/... and 404'd. One cheap check turns a silent,
+  // intermittent-looking failure into an immediate, readable one.
+  if (path.startsWith(`${API_BASE}/`) || path === API_BASE) {
+    throw new Error(
+      `streamUrl expects a path relative to ${API_BASE}, but received "${path}". ` +
+        'Pass "/workflows/<id>/stream", not an already-prefixed URL.',
+    );
+  }
   const t = token ?? getToken();
   return `${API_BASE}${path}${qs({ token: t ?? undefined })}`;
 }

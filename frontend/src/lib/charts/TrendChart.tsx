@@ -106,12 +106,14 @@ export function TrendChart({
     <ChartFrame
       legend={frame.legend ?? legend}
       empty={
-        empty ?? (
-          <EmptyState
-            title="No readings in this range"
-            description="Widen the time range or clear filters."
-          />
-        )
+        rows.length === 0
+          ? (empty ?? (
+              <EmptyState
+                title="No readings in this range"
+                description="Widen the time range or clear filters."
+              />
+            ))
+          : undefined
       }
       {...frame}
     >
@@ -219,12 +221,14 @@ export function BarCompare({
     <ChartFrame
       legend={colorBy ? undefined : (frame.legend ?? legend)}
       empty={
-        empty ?? (
-          <EmptyState
-            title="Nothing to compare"
-            description="No records match the current filters."
-          />
-        )
+        rows.length === 0
+          ? (empty ?? (
+              <EmptyState
+                title="Nothing to compare"
+                description="No records match the current filters."
+              />
+            ))
+          : undefined
       }
       {...frame}
     >

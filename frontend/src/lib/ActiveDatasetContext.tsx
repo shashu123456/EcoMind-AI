@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from 'react';
 import { useJourney, type StageStatuses } from './journey';
-import type { Granularity } from './api/types';
+import type { Granularity, HierarchyBuildingNode } from './api/types';
 
 /**
  * The active dataset, and the filters that scope every page to it.
@@ -52,6 +52,15 @@ export interface DatasetScope {
   stageStatuses: StageStatuses;
   /** Hierarchy available for the active dataset. */
   levels: readonly HierarchyLevel[];
+  /**
+   * The estate, properly nested.
+   *
+   * Carried here rather than fetched per page so device *names* travel with the
+   * scope. A forecast breakdown that says "HVAC-A101" instead of "Rooftop AHU"
+   * is unreadable to the facilities manager it is meant for, and every page
+   * would otherwise repeat the same hierarchy request.
+   */
+  buildings: readonly HierarchyBuildingNode[];
   filter: HierarchyFilter;
   setFilter: (next: HierarchyFilter) => void;
   /** Applies a level change and clears every deeper level. */
@@ -98,6 +107,7 @@ function deeperThan(key: keyof HierarchyFilter): (keyof HierarchyFilter)[] {
 export function ActiveDatasetProvider({
   dataset,
   levels,
+  buildings,
   runId,
   selectedModelId,
   stageStatuses,
@@ -105,6 +115,7 @@ export function ActiveDatasetProvider({
 }: {
   dataset: ActiveDataset | null;
   levels?: readonly HierarchyLevel[];
+  buildings?: readonly HierarchyBuildingNode[];
   runId?: string | null;
   selectedModelId?: string | null;
   stageStatuses?: StageStatuses;
@@ -137,6 +148,7 @@ export function ActiveDatasetProvider({
       selectedModelId: selectedModelId ?? journey.selectedModelId,
       stageStatuses: stageStatuses ?? journey.stageStatuses,
       levels: levels ?? [],
+      buildings: buildings ?? [],
       filter,
       setFilter,
       drill,
@@ -144,7 +156,18 @@ export function ActiveDatasetProvider({
       limitedTo: dataset ? limitFor(dataset.granularity, levels ?? []) : null,
       setActive: journey.setActive,
     }),
-    [dataset, levels, runId, selectedModelId, stageStatuses, journey, filter, drill, resetFilter],
+    [
+      dataset,
+      levels,
+      buildings,
+      runId,
+      selectedModelId,
+      stageStatuses,
+      journey,
+      filter,
+      drill,
+      resetFilter,
+    ],
   );
 
   return <DatasetScopeContext.Provider value={value}>{children}</DatasetScopeContext.Provider>;

@@ -41,19 +41,22 @@ export function dec(v: unknown, digits = 2, fallback = '—'): string {
 }
 
 /** Energy with an automatically chosen unit. `12345` -> `"12.3 MWh"` */
-const ENERGY_STEPS: Array<[number, string]> = [
-  [1e9, 'GWh'],
-  [1e6, 'MWh'],
-  [1e3, 'kWh'],
-];
-
+/**
+ * Energy given in kWh, scaled to the largest unit that keeps it readable.
+ *
+ * The input is always kWh -- every `*_kwh` field in this API is -- so the
+ * conversion ladder is kWh -> MWh -> GWh and stops there. There is deliberately
+ * no "kWh step" that divides by 1e3: a previous ladder included one, which
+ * rendered 76,956 kWh as "76.96 kWh" and every figure between 1,000 and 1,000,000
+ * kWh was wrong by a factor of a thousand on the anomaly, forecast and report
+ * pages at once.
+ */
 export function energy(v: unknown, fallback = '—'): string {
   const n = num(v);
   if (n === null) return fallback;
   const abs = Math.abs(n);
-  for (const [threshold, unit] of ENERGY_STEPS) {
-    if (abs >= threshold) return `${dec(n / threshold, 2)} ${unit}`;
-  }
+  if (abs >= 1e9) return `${dec(n / 1e9, 2)} GWh`;
+  if (abs >= 1e6) return `${dec(n / 1e6, 2)} MWh`;
   return `${dec(n, 1)} kWh`;
 }
 
@@ -98,12 +101,33 @@ export function rate(v: unknown, fallback = '—'): string {
   return `₹${dec(n, 2)}/kWh`;
 }
 
-/** Metric tonnes of CO2. */
+/**
+ * Metric tonnes of CO2.
+ *
+ * Takes a value already in tonnes -- a stage field named `co2_tonnes`. For a
+ * field named `co2_kg` use {@link co2Kg}, which converts first. Passing
+ * kilograms here is the mistake that renders 461,733 kg as "461,733.64 t".
+ */
 export function co2Tonnes(v: unknown, fallback = '—'): string {
   const n = num(v);
   if (n === null) return fallback;
   if (Math.abs(n) >= 1) return `${dec(n, 2)} t`;
   return `${int(n * 1000)} kg`;
+}
+
+/**
+ * Kilograms of CO2, rendered in whichever unit keeps it readable.
+ *
+ * The backend records carbon in kilograms on every `*_co2_kg` field, so this
+ * is the formatter those fields need: below a tonne it stays in kg, above one
+ * it converts rather than printing a five-digit number and hoping the reader
+ * notices the unit.
+ */
+export function co2Kg(v: unknown, fallback = '—'): string {
+  const n = num(v);
+  if (n === null) return fallback;
+  if (Math.abs(n) >= 1000) return `${dec(n / 1000, 2)} t`;
+  return `${dec(n, 1)} kg`;
 }
 
 /** Percentage from a 0-1 fraction. `0.943` -> `"94.3%"` */

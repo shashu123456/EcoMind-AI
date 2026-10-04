@@ -260,6 +260,14 @@ describe('streamUrl', () => {
       `${API_BASE}/quality/d1/stream?token=other`,
     );
   });
+
+  it('refuses a path that is already prefixed with the API base', () => {
+    // The doubling bug: a caller passed streamUrl(...) into subscribe(...),
+    // which builds the URL again -- /api/v1/api/v1/... and a silent 404 that
+    // looked like a backend blip rather than a bug in this line.
+    expect(() => streamUrl(`${API_BASE}/workflows/r1/stream`)).toThrow(/relative to/);
+    expect(() => streamUrl(API_BASE)).toThrow(/relative to/);
+  });
 });
 
 // --- error messages --------------------------------------------------------

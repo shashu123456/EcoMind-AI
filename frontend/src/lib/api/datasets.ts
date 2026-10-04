@@ -1,6 +1,7 @@
 import { request } from './client';
 import type {
   Dataset,
+  DatasetHierarchy,
   DatasetListResponse,
   DatasetPreviewResponse,
   DatasetResponse,
@@ -10,12 +11,15 @@ import type {
 } from './types';
 
 /**
- * The dataset surface only. There is no hierarchy endpoint and never was in the
- * ten-stage backend: a dataset row carries counts (buildings, floors, rooms,
- * devices) but not the code lists behind them. Pages that need a building or
- * device code read it out of the stage payload they already have -- anomaly
- * roll-ups, forecast scope totals, recommendation programme keys -- rather than
- * asking for a tree the server does not hold.
+ * The dataset surface.
+ *
+ * `getHierarchy` exists because the backend has always held the estate tree --
+ * `dataset_service.get_hierarchy` reads `DatasetBuilding`, `DatasetFloor`,
+ * `DatasetRoom` and `DatasetDevice` -- but nothing routed it, so the client had
+ * no way to learn which buildings, floors, rooms or devices a dataset actually
+ * contains. A dataset row carries only counts, and a count says how many exist,
+ * never which. Every scope filter, estate navigator and cross-filter in the
+ * product is built on this one call.
  */
 
 export async function listDatasets(): Promise<Dataset[]> {
@@ -69,6 +73,10 @@ export async function getContent(
   if (params.limit != null) search.set('limit', String(params.limit));
   const qs = search.toString();
   return request<DatasetPreviewResponse>(`/datasets/${datasetId}/content${qs ? `?${qs}` : ''}`);
+}
+
+export async function getHierarchy(datasetId: string): Promise<DatasetHierarchy> {
+  return request<DatasetHierarchy>(`/datasets/${datasetId}/hierarchy`);
 }
 
 export async function getSchema(datasetId: string): Promise<SchemaResponse> {

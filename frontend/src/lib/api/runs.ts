@@ -1,4 +1,4 @@
-import { streamUrl, subscribe, request } from './client';
+import { subscribe, request } from './client';
 import type {
   Run,
   RunDetailResponse,
@@ -60,10 +60,25 @@ export async function latestRun(datasetId: string): Promise<Run | null> {
  * `stage_statuses` field, so progress has to be reconstructed from the traces
  * rather than from a status map the server does not send.
  */
+/**
+ * The run the analytics pages should read.
+ *
+ * Not simply the newest run. Starting a run creates a row with zero stages
+ * completed, and that row is immediately the newest -- so taking `runs[0]`
+ * meant that merely *starting* a run replaced a fully completed analysis
+ * everywhere, and every stage page then failed against an empty run. Users lost
+ * their results by beginning new work.
+ *
+ * So the newest run that has actually produced stage output wins, and the
+ * newest run overall is only used when nothing has run at all. An abandoned
+ * run therefore cannot hide real results, and a genuine first run still shows
+ * its own progress as it fills in.
+ */
 export async function latestRunDetail(datasetId: string): Promise<RunDetailResponse | null> {
   const runs = await listRuns({ dataset_id: datasetId });
-  if (!runs[0]) return null;
-  return getRun(runs[0].id);
+  if (runs.length === 0) return null;
+  const withOutput = runs.find((r) => (r.stages_completed?.length ?? 0) > 0);
+  return getRun((withOutput ?? runs[0]).id);
 }
 
 /**
@@ -94,10 +109,18 @@ export async function advanceRun(runId: string): Promise<StageExecResponse> {
   return request<StageExecResponse>(`/workflows/${runId}/advance`, { method: 'POST' });
 }
 
+/**
+ * Open the run's SSE stream.
+ *
+ * The path goes to `subscribe` raw, not through `streamUrl`. `subscribe` builds
+ * the URL and attaches the token, so pre-wrapping here produced
+ * `/api/v1/api/v1/workflows/.../stream?token=…?token=…` -- a 404 that silently
+ * dropped the user onto status polling, and looked like a harmless backend blip.
+ */
 export function streamRun(
   runId: string,
   onEvent: (event: StreamEvent) => void,
   onError?: (err: unknown) => void,
 ): () => void {
-  return subscribe<StreamEvent>(streamUrl(`/workflows/${runId}/stream`), onEvent, onError);
+  return subscribe<StreamEvent>(`/workflows/${runId}/stream`, onEvent, onError);
 }

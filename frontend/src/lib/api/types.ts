@@ -106,6 +106,89 @@ export interface DatasetResponse {
   dataset: Dataset;
 }
 
+/**
+ * One drill level, carrying only the values this dataset can actually resolve.
+ *
+ * A meter-level reference dataset returns building and device and nothing
+ * between. The UI renders drill controls straight off this list, so a level
+ * absent here is absent from the interface rather than offered as fiction.
+ */
+export interface DatasetHierarchyLevel {
+  level: 'building_code' | 'floor_no' | 'room_code' | 'device_code';
+  label: string;
+  values: string[];
+  drillable: boolean;
+}
+
+export interface DatasetHierarchyBuilding {
+  code: string;
+  name: string;
+  building_type: string | null;
+  gross_area_sqm: number | null;
+  commissioned_year: number | null;
+  rated_kw: number | null;
+  floors: {
+    floor_no: string;
+    label: string | null;
+    floor_type: string | null;
+    area_sqm: number | null;
+  }[];
+}
+
+export interface HierarchyDevice {
+  code: string;
+  name: string;
+  category: string;
+  rated_kw: number | null;
+  is_critical: boolean;
+  is_meter: boolean;
+}
+
+export interface HierarchyRoom {
+  code: string;
+  name: string;
+  room_type: string | null;
+  area_sqm: number | null;
+  occupancy_capacity: number | null;
+  devices: HierarchyDevice[];
+}
+
+export interface HierarchyFloor {
+  floor_no: string;
+  label: string | null;
+  floor_type: string | null;
+  area_sqm: number | null;
+  rooms: HierarchyRoom[];
+  devices: HierarchyDevice[];
+}
+
+export interface HierarchyBuildingNode {
+  code: string;
+  name: string;
+  building_type: string | null;
+  gross_area_sqm: number | null;
+  commissioned_year: number | null;
+  rated_kw: number | null;
+  floors: HierarchyFloor[];
+  devices: HierarchyDevice[];
+}
+
+export interface DatasetHierarchy {
+  dataset_id: string;
+  granularity: Granularity;
+  levels: DatasetHierarchyLevel[];
+  buildings: DatasetHierarchyBuilding[];
+  /**
+   * The estate, properly nested.
+   *
+   * `levels` answers "which codes exist"; `tree` answers "which rooms belong to
+   * this building". A scope control built from the flat lists would offer every
+   * room in the estate while a single building is selected, and would produce
+   * scopes matching nothing.
+   */
+  tree: HierarchyBuildingNode[];
+}
+
 export interface PreviewColumn {
   name: string;
   data_type?: string;
@@ -716,7 +799,14 @@ export interface Run {
   status: RunStatus;
   current_stage: number;
   total_stages: number;
-  stages_completed: number;
+  /**
+   * Stage keys completed so far, in pipeline order.
+   *
+   * The column is JSON and the API returns an array -- it was previously typed
+   * as `number` here, which was wrong, and any caller that trusted the type got
+   * a value that did not exist at runtime.
+   */
+  stages_completed: string[];
   trace_count: number;
   started_at: string;
   completed_at?: string | null;

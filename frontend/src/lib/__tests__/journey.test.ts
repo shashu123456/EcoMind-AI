@@ -13,6 +13,7 @@ import {
   phaseProgress,
   phaseStatus,
   progressStats,
+  stageForPath,
   stagePath,
   stagesForPhase,
   statusesFromCompleted,
@@ -70,6 +71,35 @@ describe('stage registry', () => {
       if (stage.key === 'library') continue;
       expect(stage.path).toContain('$datasetId');
     }
+  });
+
+  it('gives the action plan a tab of the report rather than a page of its own', () => {
+    // The recommendation stage still runs and still gates the report, but it
+    // deliberately has no route: the reader who wants to know what to do is
+    // never navigated away from the document that tells them.
+    expect(STAGE_BY_KEY.recommendation.tab).toBe('action-plan');
+    expect(STAGE_BY_KEY.recommendation.path).toBe(STAGE_BY_KEY.report.path);
+  });
+});
+
+describe('stageForPath', () => {
+  it('resolves the report URL to the report, not to the stage that shares it', () => {
+    // Both stages declare `/report/$datasetId`. The owning stage has to win or
+    // the shell would guard the report with the recommendation's rules.
+    expect(stageForPath('/report/d1')).toBe('report');
+    expect(stageForPath('/report/d1/')).toBe('report');
+  });
+
+  it('resolves the other dataset-scoped stages unambiguously', () => {
+    expect(stageForPath('/library')).toBe('library');
+    expect(stageForPath('/quality/d1')).toBe('quality');
+    expect(stageForPath('/forecast/d1')).toBe('forecast');
+  });
+
+  it('reports null outside the product', () => {
+    expect(stageForPath('/')).toBeNull();
+    expect(stageForPath('/login')).toBeNull();
+    expect(stageForPath('/report')).toBeNull();
   });
 });
 
