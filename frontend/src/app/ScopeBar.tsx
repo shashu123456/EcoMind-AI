@@ -41,6 +41,27 @@ const LEVELS: readonly { key: LevelKey; label: string; placeholder: string }[] =
   { key: 'device', label: 'Device', placeholder: 'All devices' },
 ];
 
+/**
+ * Recover the bare code from a composite option value.
+ *
+ * Floors and rooms are stored on the wire as `building|floor` and
+ * `building|floor|room` so each option is uniquely identifiable, but the scope
+ * itself -- and every backend query -- wants the plain code. Taking the last
+ * segment keeps the stored filter honest.
+ */
+function wireValue(key: LevelKey, raw: string): string | null {
+  if (!raw) return null;
+  return key === 'building' || key === 'device' ? raw : (raw.split('|').pop() ?? null);
+}
+
+/** The option currently selected for a level, given the stored filter. */
+function selectedValue(key: LevelKey, filter: HierarchyFilter, options: SelectOption[]): string {
+  const stored = filter[key];
+  if (!stored) return '';
+  const match = options.find((o) => wireValue(key, o.value) === stored);
+  return match ? match.value : '';
+}
+
 type DeviceNode = HierarchyDevice;
 type RoomNode = HierarchyRoom;
 type FloorNode = HierarchyFloor;
@@ -66,19 +87,21 @@ function optionsFor(tree: BuildingNode[], filter: HierarchyFilter) {
   const floors: SelectOption[] = scopedBuildings
     .flatMap((b) => b.floors.map((f) => ({ f, b })))
     .map(({ f, b }) => ({
-      value: f.floor_no,
-      // Floor numbers repeat across buildings, so the parent is named here.
-      // Without it the dropdown reads "1, 2, 3" and cannot be told apart.
+      // Composite, because floor numbers repeat across buildings. Keyed on
+      // `floor_no` alone this offered "1" twice, React flagged the duplicate
+      // keys, and choosing a floor was ambiguous about which building it meant.
+      value: `${b.code}|${f.floor_no}`,
       label: `${b.name} · floor ${f.floor_no}${f.floor_type ? ` (${f.floor_type.replace(/_/g, ' ')})` : ''}`,
     }));
 
   const scopedFloors = scopedBuildings
-    .flatMap((b) => b.floors)
-    .filter((f) => (filter.floor ? f.floor_no === filter.floor : true));
+    .flatMap((b) => b.floors.map((f) => ({ f, b })))
+    .filter(({ f }) => (filter.floor ? f.floor_no === filter.floor : true));
   const rooms: SelectOption[] = scopedFloors
-    .flatMap((f) => f.rooms)
-    .map((r) => ({
-      value: r.code,
+    .flatMap(({ f, b }) => f.rooms.map((r) => ({ r, f, b })))
+    .map(({ r, f, b }) => ({
+      // Room codes are unique within a floor, not across the estate.
+      value: `${b.code}|${f.floor_no}|${r.code}`,
       label: `${r.code} — ${r.room_type ? r.room_type.replace(/_/g, ' ') : 'room'}`,
     }));
 
@@ -100,7 +123,7 @@ function optionsFor(tree: BuildingNode[], filter: HierarchyFilter) {
     if (filter.room) {
       return unique(
         scopedFloors
-          .flatMap((f) => f.rooms)
+          .flatMap(({ f }) => f.rooms)
           .filter((r) => r.code === filter.room)
           .flatMap((r) => r.devices),
       ).map((d) => ({ value: d.code, label: deviceLabel(d) }));
@@ -108,8 +131,8 @@ function optionsFor(tree: BuildingNode[], filter: HierarchyFilter) {
     if (filter.floor) {
       return unique(
         scopedFloors
-          .filter((f) => f.floor_no === filter.floor)
-          .flatMap((f) => [...f.devices, ...f.rooms.flatMap((r) => r.devices)]),
+          .filter(({ f }) => f.floor_no === filter.floor)
+          .flatMap(({ f }) => [...f.devices, ...f.rooms.flatMap((r) => r.devices)]),
       ).map((d) => ({ value: d.code, label: deviceLabel(d) }));
     }
     return unique(
@@ -151,7 +174,6 @@ export function ScopeBar({ hierarchy }: { hierarchy?: DatasetHierarchy | null })
         // Hide a level the dataset cannot resolve, and hide one with nothing
         // under it. BDG2 has no floors or rooms; offering them would be fiction.
         if (options.length === 0) return null;
-        const value = filter[key] ?? '';
         return (
           <div key={key} className="flex items-center gap-1.5">
             {deepest && active.some((a) => a.key === key) && key !== deepest.key && (
@@ -161,9 +183,9 @@ export function ScopeBar({ hierarchy }: { hierarchy?: DatasetHierarchy | null })
             )}
             <Select
               label={<span className="sr-only">{label} scope</span>}
-              value={value}
+              value={selectedValue(key, filter, options)}
               placeholder={placeholder}
-              onChange={(next) => drill(key, next || null)}
+              onChange={(next) => drill(key, wireValue(key, next))}
               options={options}
               className="min-w-[9rem]"
             />
