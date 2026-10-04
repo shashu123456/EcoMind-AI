@@ -1,7 +1,7 @@
 /// <reference types="vitest" />
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
-import { fileURLToPath, URL } from 'node:url'
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import { fileURLToPath, URL } from 'node:url';
 
 export default defineConfig({
   plugins: [react()],
@@ -22,8 +22,11 @@ export default defineConfig({
         // Backend restarts must not crash the dev server (ECONNREFUSED).
         configure: (proxy) => {
           proxy.on('error', (err) => {
-            console.warn('[vite] /api proxy error (backend restarting?):', (err as NodeJS.ErrnoException).code ?? err.message)
-          })
+            console.warn(
+              '[vite] /api proxy error (backend restarting?):',
+              (err as NodeJS.ErrnoException).code ?? err.message,
+            );
+          });
         },
       },
       '/ws': {
@@ -33,15 +36,25 @@ export default defineConfig({
         // backend bounces while the dashboard holds an open WebSocket.
         configure: (proxy) => {
           proxy.on('error', (err) => {
-            console.warn('[vite] /ws proxy error (backend restarting?):', (err as NodeJS.ErrnoException).code ?? err.message)
-          })
+            console.warn(
+              '[vite] /ws proxy error (backend restarting?):',
+              (err as NodeJS.ErrnoException).code ?? err.message,
+            );
+          });
         },
       },
     },
   },
   test: {
+    /*
+     * Node stays the default because the pure-logic suites (scales, formatters,
+     * routing) are the majority and jsdom is roughly an order of magnitude
+     * slower to boot. A test that needs a DOM opts in with a
+     * `@vitest-environment jsdom` docblock rather than paying for it twice.
+     */
     environment: 'node',
-    include: ['src/**/*.{test,spec}.ts'],
+    include: ['src/**/*.{test,spec}.{ts,tsx}'],
+    setupFiles: ['src/lib/__tests__/setup.dom.ts'],
     globals: true,
   },
-})
+});
