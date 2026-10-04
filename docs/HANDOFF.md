@@ -104,16 +104,26 @@ that tells them.
 POST   /auth/register          GET /auth/me            POST /auth/login
 GET    /datasets               POST /datasets/upload   GET /datasets/{id}
 DELETE /datasets/{id}          GET /datasets/{id}/preview
+GET    /datasets/{id}/hierarchy                      <-- added
+GET    /datasets/{id}/anomalies                      <-- added
 GET    /datasets/{id}/content  POST /datasets/{id}/refresh
 GET    /datasets/{id}/dq       POST /datasets/{id}/dq/run
 GET    /datasets/{id}/schema   POST /datasets/{id}/schema/discover
-POST   /workflow/start         GET  /workflow           GET /workflow/{run_id}
-GET    /workflow/{id}/traces   POST /workflow/{id}/stages/{key}/exec
-GET    /workflow/{id}/stages/{key}   POST /workflow/{id}/advance
-GET    /workflow/{id}/stream         GET /health
+POST   /workflows/start        GET  /workflows          GET /workflows/{run_id}
+POST   /workflows/{id}/abort                        <-- added
+GET    /workflows/{id}/traces  POST /workflows/{id}/stages/{key}/exec
+GET    /workflows/{id}/stages/{key}   POST /workflows/{id}/advance
+GET    /workflows/{id}/stream         GET /health
 ```
 
+**The workflow mount prefix is `/api/v1/workflows` — plural.** The singular form
+returns 404 and will waste an afternoon if you assume otherwise.
+
 `listRuns()` returns a bare `Run[]`, **not** `{ runs }`. That detail matters.
+
+`/content` and `/anomalies` both accept `building` / `floor` / `room` / `device`
+scope parameters. On `/content` the filter is applied **before** paging, so a
+scoped page 1 really is the first 200 rows of that scope.
 
 ---
 
@@ -204,7 +214,48 @@ fixed a Pydantic settings failure on cold start.
 ### 4g. Design tokens
 
 `--chart-1` … `--chart-8` exposed via the `SERIES` export in `chartBase.tsx`. Note the naming:
-it is `--chart-N`, **not** `--series-N`. `int()` uses en-IN digit grouping (1,14,562).
+it is `--chart-N`, **not** `--series-N**. `int()` uses en-IN digit grouping (1,14,562).
+
+### 4h. The estate scope layer
+
+`ScopeBar` sits under the top bar on every page and narrows the whole app to one
+building / floor / room / device. It is fed by the new
+`GET /datasets/{id}/hierarchy`, which returns the estate as a nested tree of
+buildings → floors → rooms → devices. The Fault Simulation dataset is
+2 buildings / 6 floors / 26 rooms / 102 devices.
+
+The scope actually changes the numbers. Explore's readings, the forecast's
+per-device breakdown, and the anomaly list all narrow with it. Anomalies are
+scoped **server-side** via `GET /datasets/{id}/anomalies` rather than by
+filtering a page of results in the browser, which matters because the list only
+ever covers the worst 200 anomalies — the page says so.
+
+Two subtleties worth knowing before you touch the selects:
+
+- Floor and room codes are only unique **within their parent**, so the `<option>`
+  values are composite (`BLD-A|2`, `BLD-A|1|A101`) and `wireValue()` strips the
+  prefix before the value reaches the filter or the backend. Keying on the bare
+  code produced duplicate React keys.
+- The device list is deduplicated by code, first-appearance order. The hierarchy
+  reports a device once per room it appears in, so the naive list had 306
+  entries for 102 devices.
+
+---
+
+### 4i. Route-level code splitting
+
+Every page except `LoginPage` is loaded through TanStack's `lazyRouteComponent`
+in `frontend/src/pages/index.ts`. Login stays eager on purpose — it is small,
+everyone sees it first, and a login screen that waits on a network round trip
+is worse than 4 kB in the entry chunk.
+
+The router sets `defaultPreload: 'intent'`, and `lazyRouteComponent` returns a
+component with a `preload()` method, so hovering a sidebar link fetches its
+chunk before the click. The split is invisible in normal use.
+
+Use `lazyRouteComponent` rather than React's `lazy` if you extend this: it is
+typed as the router's `RouteComponent` (so the routes need no casts) and it
+keeps the preload hook the router relies on.
 
 ---
 
@@ -213,14 +264,20 @@ it is `--chart-N`, **not** `--series-N`. `int()` uses en-IN digit grouping (1,14
 | Check | Command | Result |
 |---|---|---|
 | Types | `cd frontend && ./node_modules/.bin/tsc -b` | **exit 0** |
-| Frontend tests | `cd frontend && ./node_modules/.bin/vitest run` | **123 passed / 6 files** |
-| Backend tests | `cd backend && ../.venv/Scripts/python.exe -m pytest -q` | **13 passed**, exit 0 |
-| Format | `./node_modules/.bin/prettier --write "src/**/*.{ts,tsx,css}"` | clean |
-| Build | `npm run build` | exit 0 — 891.93 kB / 257.81 kB gzip |
+| Frontend tests | `cd frontend && ./node_modules/.bin/vitest run` | **135 passed / 8 files** |
+| Backend tests | `cd backend && ../.venv/Scripts/python.exe -m pytest -q` | **17 passed**, exit 0 |
+| Format | `./node_modules/.bin/prettier --check "src/**/*.{ts,tsx,css}"` | clean |
+| Build | `npm run build` | exit 0 — **343.67 kB entry / 108.84 kB gzip** |
 | Browser | manual pass over all pages | verified |
 
 Test files: `chartScale` (36), `journey` (29), `request` (27), `format` (12),
-`sseStatusPatch` (10), `nav` (9).
+`sseStatusPatch` (10), `nav` (9), `datasetIdForPath` (8),
+`activeDatasetReconciliation` (6).
+
+The entry chunk fell from 891.93 kB to 343.67 kB when pages became
+route-level lazy chunks — see 4h. The charting stack (387 kB / 107 kB gzip) is
+a shared chunk fetched only once a page that draws is opened, so a visitor
+signing in never downloads it.
 
 ---
 
@@ -266,26 +323,31 @@ Test files: `chartScale` (36), `journey` (29), `request` (27), `format` (12),
 
 ## 8. Recommended next steps, prioritised
 
-### P1 — Commit what exists
-The entire redesign is uncommitted. Review `git diff`, drop `session-ses_f09d.md`, and commit
-in logical chunks: (a) launcher, (b) backend config + stages, (c) chart + format fixes,
-(d) unlock, (e) new pages, (f) report merge. Then open a PR.
+### P1 — Push the branch
+All work is committed locally on `main` (10 commits on top of `13c1d53`) but
+**nothing has been pushed**. Everything below is a next step on top of a clean tree.
 
-### P2 — Route-level code splitting
-`React.lazy` every page in `router.tsx` behind the existing `stageRoute`/`workspaceRoute`
-helpers. Target: under 400 kB initial. This is mostly mechanical and fixes the only build
-warning in the project.
+### P2 — Get a DOM under test
+There is no jsdom or React Testing Library, so `environment: 'node'` in
+`vite.config.ts`. Both bugs fixed in the scope round — the 306-entry device
+list and the duplicate React keys on the scope selects — were caught by hand in
+a browser and would both have been caught by a test. This is the single highest
+leverage thing left.
 
-### P3 — Seasonality honesty
+### P3 — Explain `critical: 0`
+Every anomaly scope reports zero criticals. Either the detector genuinely never
+finds them or the bucketing is wrong; nothing in the UI says which.
+
+### P4 — Seasonality honesty
 When span < 12 months, render the chart *with* a visible caveat rather than letting the
 empty-state text contradict it. Same pattern as the "Read the band before the number" callout
 already on the forecast page.
 
-### P4 — Accessibility and interaction audit
+### P5 — Accessibility and interaction audit
 No systematic keyboard/contrast/screen-reader pass has been done. There is a command palette
 and a live console; both need real focus-management testing.
 
-### P5 — ESLint + CI
+### P6 — ESLint + CI
 Wire up ESLint and a GitHub Actions workflow running `tsc -b`, `vitest run`, `pytest`, and
 `prettier --check` on every push. Prevents the entire class of regression above.
 
