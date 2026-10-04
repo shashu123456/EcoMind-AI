@@ -38,7 +38,7 @@ before any decision stage is reachable.
 | 6 | `model_selection` | `/model-selection` | preparation |
 | 7 | `anomaly` | `/anomalies` | decision |
 | 8 | `forecast` | `/forecast` | decision |
-| 9 | `recommendation` | `/recommendations` | decision |
+| 9 | `recommendation` | `/report#action-plan` | decision |
 | 10 | `report` | `/report` | decision |
 
 **There are no per-stage REST endpoints.** Every stage reads its content from

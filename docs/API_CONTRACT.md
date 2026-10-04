@@ -27,10 +27,18 @@ reachable only after all six preparation stages have passed.
 | 6 | `model_selection` | `/model-selection` | preparation |
 | 7 | `anomaly` | `/anomalies` | decision |
 | 8 | `forecast` | `/forecast` | decision |
-| 9 | `recommendation` | `/recommendations` | decision |
+| 9 | `recommendation` | `/report#action-plan` | decision |
 | 10 | `report` | `/report` | decision |
 
 Canonical definitions: `backend/app/workflow/stages.py`.
+
+Nine of the ten stages own a URL of their own. The tenth — `recommendation` —
+deliberately does not: its action plan is the **Action plan** tab of
+`/report`, so a reader who has the report open is never navigated away from the
+document that tells them what to do. The `#action-plan` fragment deep-links
+straight to that tab, which is what `lib/journey.ts`'s `stagePath()` emits for
+this stage. The stage still runs in sequence and still gates the report; only
+its surface moved.
 
 **There are no per-stage REST resources** (`/anomalies/{id}`, `/forecast/{id}`,
 etc. do not exist). A stage is executed through the workflow and read back
