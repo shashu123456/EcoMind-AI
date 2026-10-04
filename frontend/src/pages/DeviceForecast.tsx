@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { BarCompare } from '../lib/charts';
 import { Callout, KpiRow, KpiTile } from '../lib/ui';
+import { useDatasetScope } from '../lib/ActiveDatasetContext';
 import { dec, energy, int } from '../lib/format';
 import type { HierarchyBuildingNode, ScopeTotal } from '../lib/api/types';
 
@@ -33,6 +34,10 @@ export function DeviceForecast({
   rows: readonly ScopeTotal[];
   buildings: readonly HierarchyBuildingNode[];
 }) {
+  const { filter } = useDatasetScope();
+  const scopedBuilding = filter.building ?? null;
+  const scopedDevice = filter.device ?? null;
+
   // Flatten the tree once: device code -> the human name that belongs to it.
   const named = useMemo(() => {
     const out = new Map<string, string>();
@@ -53,15 +58,29 @@ export function DeviceForecast({
     return out;
   }, [buildings]);
 
+  /**
+   * Apply the scope.
+   *
+   * `scope_totals` carries `building_code` and `device_code` per row, so this
+   * filter is exact rather than approximate -- unlike the anomaly aggregates,
+   * which cannot be re-summed client-side because the underlying rows are not
+   * in the payload. Filtering here is therefore arithmetic, not estimation.
+   *
+   * Both totals and shares are computed *after* the filter, so a building
+   * selected in the scope bar reads 100% of a scope that is itself that
+   * building, which is the honest answer.
+   */
   const enriched = useMemo(
     () =>
       rows
         .filter((r) => r.total_kwh > 0)
+        .filter((r) => (scopedBuilding ? r.building_code === scopedBuilding : true))
+        .filter((r) => (scopedDevice ? r.device_code === scopedDevice : true))
         .map((r) => ({
           ...r,
           label: named.get(r.device_code) ?? r.device_code,
         })),
-    [rows, named],
+    [rows, named, scopedBuilding, scopedDevice],
   );
 
   const total = enriched.reduce((s, r) => s + r.total_kwh, 0);
@@ -100,7 +119,7 @@ export function DeviceForecast({
         <KpiTile
           label="That device's share"
           value={`${dec((shown[0].total_kwh / total) * 100, 1)}%`}
-          hint="Of projected campus energy"
+          hint={scopedBuilding ? `Of ${scopedBuilding} only` : 'Of projected campus energy'}
         />
       </KpiRow>
       <BarCompare
