@@ -24,7 +24,7 @@ if /i "%COMMAND%"=="help" goto :usage
 if /i "%COMMAND%"=="-h" goto :usage
 if /i "%COMMAND%"=="--help" goto :usage
 
-if /i not "%COMMAND%"=="start" if /i not "%COMMAND%"=="stop" if /i not "%COMMAND%"=="check" (
+if /i not "%COMMAND%"=="start" if /i not "%COMMAND%"=="stop" if /i not "%COMMAND%"=="check" if /i not "%COMMAND%"=="verify" (
   echo   [!] Unknown command '%COMMAND%'.
   echo.
   goto :usage
@@ -152,6 +152,13 @@ if /i "%COMMAND%"=="check" (
   endlocal & exit /b 0
 )
 
+rem verify: install everything, prove it worked, then exit. Used by CI.
+if /i "%COMMAND%"=="verify" (
+  %PY% -m launcher.start --verify %2 %3 %4 %5 %6 %7 %8 %9
+  set "RC=%ERRORLEVEL%"
+  endlocal & exit /b %RC%
+)
+
 rem stop
 %PY% -m launcher.stop %2 %3 %4 %5 %6 %7 %8 %9
 echo.
@@ -166,6 +173,7 @@ echo.
 echo    ecomind.bat            start the app ^(installs anything missing^)
 echo    ecomind.bat stop       stop every service
 echo    ecomind.bat check      report on the machine without changing it
+echo    ecomind.bat verify     install everything, prove it worked, exit
 echo    ecomind.bat help       this list
 echo.
 pause

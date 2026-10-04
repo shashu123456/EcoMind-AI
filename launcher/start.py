@@ -190,6 +190,11 @@ def main():
     parser.add_argument("--no-install", action="store_true", help="do not auto-install; only verify")
     parser.add_argument("--force-install", action="store_true", help="rebuild .venv and reinstall everything")
     parser.add_argument("--check", action="store_true", help="run checks only, do not start services")
+    parser.add_argument(
+        "--verify",
+        action="store_true",
+        help="run the full bootstrap, then exit without starting services",
+    )
     args = parser.parse_args()
 
     _banner()
@@ -211,6 +216,29 @@ def main():
     if args.check:
         clear_launcher_pid()
         sys.exit(0 if all_ok else 1)
+
+    # `verify` is `start` without the long-running part. It exists so CI can
+    # prove that a bare checkout really does install itself and seed a usable
+    # database, and then exit instead of monitoring services forever.
+    #
+    # This is the check that would have caught the passlib break: the seeder
+    # crashed on a fresh install, and nothing in the ordinary test suite ever
+    # installed the project from scratch to notice.
+    if args.verify:
+        db = project_root() / cfg["paths"]["database_file"]
+        if not db.exists():
+            print(f"\n[FAIL] {cfg['paths']['database_file']} was not created.")
+            clear_launcher_pid()
+            sys.exit(1)
+        env_file = project_root() / "backend" / ".env"
+        if not env_file.exists():
+            print("\n[FAIL] backend/.env was not created.")
+            clear_launcher_pid()
+            sys.exit(1)
+        print("\n[OK] Bootstrap verified: dependencies installed, database seeded, "
+              "environment written. No services were started.")
+        clear_launcher_pid()
+        sys.exit(0)
     failed = [r for r in rows if not r["ok"]]
     if failed:
         print("\n[FAIL] The following requirements are not met:")

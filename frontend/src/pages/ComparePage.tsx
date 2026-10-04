@@ -145,6 +145,15 @@ function useEnergyShape(datasetId: string | null, enabled: boolean) {
   });
 }
 
+/**
+ * A stable stand-in for an empty result set.
+ *
+ * `list.data ?? []` produced a new array identity on every render while the
+ * query was loading, which made the `options` memo below recompute on every
+ * render and defeat the point of having it.
+ */
+const NO_DATASETS: readonly Listed[] = [];
+
 export function ComparePage() {
   const { datasetId } = useDatasetScope();
   const activeDatasetId = useJourney((s) => s.activeDatasetId);
@@ -153,7 +162,7 @@ export function ComparePage() {
 
   const list = useQuery({ queryKey: ['datasets'], queryFn: () => datasets.listDatasets() });
 
-  const items = (list.data ?? []) as Listed[];
+  const items = (list.data ?? NO_DATASETS) as Listed[];
   const options = useMemo(
     () =>
       items.map((d) => ({

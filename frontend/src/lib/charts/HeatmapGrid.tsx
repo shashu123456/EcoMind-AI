@@ -58,6 +58,16 @@ export interface ForecastBandProps extends Omit<ChartFrameProps, 'children'> {
  * RÂ², no RMSE, no confidence-gate verdict — a building manager needs "how much
  * could this be", not how well a regressor scored.
  */
+/**
+ * A stable stand-in for absent data.
+ *
+ * `data ?? []` allocates a fresh array on every render, so every `useMemo`
+ * below that depends on `rows` sees a new reference each time and recomputes
+ * anyway -- the memo costs its dependency bookkeeping and buys nothing. One
+ * shared empty array keeps the identity constant.
+ */
+const NO_ROWS: readonly never[] = [];
+
 export function ForecastBand({
   data,
   x,
@@ -70,7 +80,7 @@ export function ForecastBand({
   annotation,
   ...frame
 }: ForecastBandProps) {
-  const rows = data ?? [];
+  const rows = data ?? NO_ROWS;
   const forecastFrom = useMemo(() => {
     const first = rows.find((r) => numeric(r[midKey]) !== null);
     return first ? String(first[x]) : null;

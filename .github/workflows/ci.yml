@@ -93,6 +93,73 @@ jobs:
       - name: Test
         run: python -m pytest -q --no-header -p no:cacheprovider
 
+  fresh-clone:
+    name: One-click bootstrap (bare checkout)
+    runs-on: ubuntu-latest
+    # The job that would have caught the passlib break. That one shipped because
+    # requirements.txt pinned passlib 1.7.4 while leaving bcrypt unpinned: the
+    # working tree survived on a bcrypt 4.0.1 left over from years of history,
+    # and every ordinary test run used that same environment. Nothing installed
+    # the project from scratch, so nothing noticed that a new clone came up with
+    # no admin user and no way to log in.
+    #
+    # `actions/checkout` is already a bare clone -- .venv, node_modules, .env and
+    # the database are all gitignored -- so there is nothing to strip. Running
+    # the real launcher here is the point: it exercises the same code path a
+    # person who just cloned the repository runs.
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Confirm the checkout really is bare
+        run: |
+          set -euo pipefail
+          for p in .venv frontend/node_modules backend/.env backend/data/ecomind.db; do
+            if [ -e "$p" ]; then
+              echo "::error::Fresh clone should not contain '$p' -- this job is not testing what it claims."
+              exit 1
+            fi
+          done
+          echo "bare checkout confirmed"
+
+      # `verify` is start without the long-running part: it creates the
+      # virtualenv, installs both dependency sets, generates backend/.env and
+      # seeds the database, then exits instead of monitoring forever.
+      - name: Run the one-click bootstrap
+        run: ./ecomind.sh verify
+
+      - name: Prove the seeded database can actually create a user
+        # A green bootstrap is not enough on its own. This is the exact line
+        # that used to fail: passlib raised "password cannot be longer than 72
+        # bytes" while hashing the admin password, so the seeder died and the
+        # app came up unusable.
+        run: |
+          set -euo pipefail
+          ./.venv/bin/python backend/seed.py
+          ./.venv/bin/python - <<'PY'
+          import sys
+          # Must happen before the app imports: the package lives in backend/,
+          # not on the path by default when python is invoked from the root.
+          sys.path.insert(0, "backend")
+          from app.db.base import SessionLocal
+          from app.db.models import User
+          from app.core.security import verify_password
+          db = SessionLocal()
+          user = db.query(User).first()
+          db.close()
+          assert user is not None, "no user was seeded"
+          assert verify_password("admin123", user.hashed_password), \
+              "the seeded password does not verify against its own hash"
+          print("seeded user authenticates correctly")
+          PY
+
   bundle-report:
     name: Bundle sizes
     runs-on: ubuntu-latest

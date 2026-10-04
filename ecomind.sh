@@ -4,6 +4,7 @@
 #   ./ecomind.sh            start the app (installs anything missing)
 #   ./ecomind.sh stop       stop every service
 #   ./ecomind.sh check      report on the machine without changing it
+#   ./ecomind.sh verify     install everything, prove it worked, exit
 #   ./ecomind.sh help       this list
 #
 # Why one file and not launch.sh / stop.sh / check.sh: three scripts meant three
@@ -21,7 +22,7 @@ cd "$(dirname "$0")"
 usage() {
   # The command list only -- the rationale below it is for whoever edits this
   # file, not for whoever runs it.
-  sed -n '4,7p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '4,8p' "$0" | sed 's/^# \{0,1\}//'
 }
 
 COMMAND=${1:-start}
@@ -32,7 +33,7 @@ case "$COMMAND" in
     usage
     exit 0
     ;;
-  start | stop | check) ;;
+  start | stop | check | verify) ;;
   *)
     echo "[!] Unknown command '$COMMAND'." >&2
     echo >&2
@@ -93,6 +94,12 @@ fi
 
 if [ "$COMMAND" = "check" ]; then
   exec "$PY_BIN" -m launcher.start --check "$@"
+fi
+
+# Install everything and prove the result, then exit. Used by CI: it is the
+# only check that actually installs the project from scratch.
+if [ "$COMMAND" = "verify" ]; then
+  exec "$PY_BIN" -m launcher.start --verify "$@"
 fi
 
 exec "$PY_BIN" -m launcher.stop "$@"
