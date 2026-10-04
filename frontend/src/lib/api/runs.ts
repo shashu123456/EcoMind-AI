@@ -1,4 +1,4 @@
-import { subscribe, request } from './client';
+import { getToken, subscribe, request } from './client';
 import type {
   Run,
   RunDetailResponse,
@@ -123,4 +123,47 @@ export function streamRun(
   onError?: (err: unknown) => void,
 ): () => void {
   return subscribe<StreamEvent>(`/workflows/${runId}/stream`, onEvent, onError);
+}
+
+/**
+ * Download the rendered report PDF.
+ *
+ * Fetched with the bearer header rather than a token in the query string: a
+ * query token ends up in access logs, browser history and any proxy in
+ * between. Buffering the document into a blob is the right trade for a report
+ * of a few pages, and it lets a failure surface as a real error message
+ * instead of a browser tab that silently downloads a 401.
+ */
+export async function downloadReportPdf(runId: string): Promise<void> {
+  const response = await fetch(`/api/v1/workflows/${encodeURIComponent(runId)}/report.pdf`, {
+    headers: (() => {
+      const headers = new Headers();
+      const token = getToken();
+      if (token) headers.set('Authorization', `Bearer ${token}`);
+      return headers;
+    })(),
+  });
+
+  if (!response.ok) {
+    let detail = `Report download failed (HTTP ${response.status})`;
+    try {
+      const payload = await response.json();
+      if (typeof payload?.detail === 'string') detail = payload.detail;
+    } catch {
+      /* keep the generic message when the body is not JSON */
+    }
+    throw new Error(detail);
+  }
+
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = 'EcoMind energy report.pdf';
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  // Revoking immediately can cancel the download in some browsers; a short
+  // delay is the standard workaround.
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }

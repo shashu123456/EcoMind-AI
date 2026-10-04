@@ -740,6 +740,32 @@ def generate(db: Session, dataset_id: str, params: dict | None = None) -> dict:
     row.generated_at = datetime.now(timezone.utc)
     db.flush()
 
+    # Render the PDF the row has always claimed to have.
+    #
+    # Deliberately outside the try above: the section output is the real
+    # deliverable and it is already persisted. A rendering failure must not undo
+    # a finished analysis, so it is recorded on the row and the stage still
+    # completes. The alternative — failing the whole report because a font or
+    # a directory is unavailable — would cost the user the numbers they came for.
+    try:
+        from app.domain.report_pdf import render_to_path
+
+        size = render_to_path(
+            path=str(settings.reports_dir / f"{row.id}.pdf"),
+            title=row.title,
+            organization=row.organization_name or "",
+            sections=row.sections or [],
+            summary=row.summary or {},
+            generated_at=row.generated_at,
+        )
+        row.file_path = f"{row.id}.pdf"
+        row.file_size_bytes = size
+    except Exception as exc:  # noqa: BLE001 - recorded, not raised
+        row.file_path = None
+        row.file_size_bytes = None
+        row.error = f"PDF rendering failed: {exc}"
+    db.flush()
+
     payload = _payload(row)
     snapshots.snapshot(db, dataset_id, "report", payload, run_id=run_id, row_count=len(sections))
     payload["elapsed_ms"] = int((time.time() - started) * 1000)

@@ -1,0 +1,112 @@
+name: CI
+
+# Every check that has to pass before a change is considered safe. These are the
+# same commands run locally, so a green local run and a green CI run mean the
+# same thing -- the most common way CI becomes noise is letting it diverge from
+# what developers actually run.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# A new push makes an in-flight run irrelevant. Without this, a five-commit
+# branch queues five redundant full builds.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    name: Frontend (typecheck, lint, test, build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      # `npm ci` not `npm install`: it installs exactly the lockfile, so CI
+      # cannot pass against a dependency that was never committed.
+      - run: npm ci
+
+      # Typecheck and lint before tests, because they fail fast and a broken
+      # type means the test results below are not worth reading.
+      - name: Typecheck
+        run: ./node_modules/.bin/tsc -b
+
+      - name: Lint
+        run: ./node_modules/.bin/eslint .
+
+      - name: Format
+        run: ./node_modules/.bin/prettier --check "src/**/*.{ts,tsx,css}"
+
+      - name: Test
+        run: ./node_modules/.bin/vitest run
+
+      - name: Build
+        run: npm run build
+
+      # Guards the bundle ceiling the roadmap set. Without a hard limit, a
+      # convenient `import` can quietly add a hundred kilobytes and nobody
+      # notices until users do.
+      - name: Check bundle budget
+        run: |
+          set -euo pipefail
+          # Bytes, not kB: Vite reports kB as bytes/1000 while most shell
+          # arithmetic divides by 1024, so a kB budget silently drifts from
+          # what the build log says. Comparing raw bytes removes the ambiguity.
+          budget_bytes=368640000   # 360 kB decimal, matching Vite's own unit
+          actual=$(ls -S dist/assets/index-*.js | head -1)
+          size=$(stat -c%s "$actual")
+          echo "entry chunk: $(( size / 1000 )) kB / $size bytes (budget $(( budget_bytes / 1000 )) kB)"
+          if [ "$size" -gt "$budget_bytes" ]; then
+            echo "::error::Entry chunk $(( size / 1000 )) kB exceeds the $(( budget_bytes / 1000 )) kB budget."
+            exit 1
+          fi
+
+  backend:
+    name: Backend tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - run: pip install -r requirements.txt
+
+      # No test database service: the suite runs against SQLite and creates its
+      # own fixtures, so there is nothing external to depend on.
+      - name: Test
+        run: python -m pytest -q --no-header -p no:cacheprovider
+
+  bundle-report:
+    name: Bundle sizes
+    runs-on: ubuntu-latest
+    needs: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+        working-directory: frontend
+      - run: npm run build
+        working-directory: frontend
+      - name: Largest chunks
+        run: ls -lS dist/assets/*.js | head -8 | awk '{printf "%.1f kB  %s\n", $5/1024, $9}'

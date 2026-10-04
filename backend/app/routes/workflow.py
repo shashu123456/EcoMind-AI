@@ -8,9 +8,10 @@ from __future__ import annotations
 import json
 from datetime import datetime, timedelta
 
+from app.core.config import settings
 from app.core.security import decode_token, get_current_user
 from app.db.base import get_db
-from app.db.models import AuditLog, StageTrace, User, WorkflowRun
+from app.db.models import AuditLog, Report, StageTrace, User, WorkflowRun
 from app.domain.data import json_safe
 from app.events.event_bus import event_bus
 from app.workflow.events import emit
@@ -22,7 +23,7 @@ from app.workflow.stages import (
     missing_prior_stages,
 )
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -214,6 +215,60 @@ def get_run(run_id: str, db: Session = Depends(get_db), user: User = Depends(get
         "run": json_safe(_run_payload(run, len(traces))),
         "traces": json_safe([_trace_payload(t) for t in traces]),
     }
+
+
+@router.get("/{run_id}/report.pdf")
+def download_report_pdf(
+    run_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """
+    Stream the rendered report.
+
+    The report stage has always advertised `format="pdf"`; this is the endpoint
+    that makes that true. It re-renders on demand rather than serving the stored
+    file, because the stored copy is a cache of a specific generation and a
+    reader who asks today should get the sections as they stand now.
+    """
+    run = _require_run(db, run_id)
+    report = (
+        db.query(Report)
+        .filter(Report.run_id == run_id)
+        .order_by(Report.created_at.desc())
+        .first()
+    )
+    if report is None or not report.sections:
+        raise HTTPException(status_code=404, detail="No report has been generated for this run.")
+
+    # Rendered per request so the download always matches the current content.
+    # Falls back to the stored file if rendering is unavailable, so a report
+    # that was generated successfully is never lost to a later failure.
+    try:
+        from app.domain.report_pdf import build_pdf
+
+        data = build_pdf(
+            title=report.title,
+            organization=report.organization_name or "",
+            sections=list(report.sections or []),
+            summary=report.summary or {},
+            generated_at=report.generated_at,
+        )
+    except Exception:  # noqa: BLE001
+        stored = settings.reports_dir / (report.file_path or "")
+        if report.file_path and stored.exists():
+            data = stored.read_bytes()
+        else:
+            raise HTTPException(
+                status_code=503,
+                detail="PDF is not available for this report.",
+            ) from None
+
+    return Response(
+        content=data,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="EcoMind-report.pdf"'},
+    )
 
 
 @router.get("/{run_id}/traces")

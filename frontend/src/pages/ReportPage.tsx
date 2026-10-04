@@ -16,11 +16,13 @@ import {
   Panel,
   Section,
   Tabs,
+  useToast,
   type Column,
 } from '../lib/ui';
 import { StageGate } from '../app/StageGate';
 import { PageFrame, PageHero } from '../app/PageFrame';
 import { useStageOutput } from '../lib/stageOutput';
+import { downloadReportPdf } from '../lib/api/runs';
 import { useJourney } from '../lib/journey';
 import {
   co2Kg,
@@ -154,6 +156,9 @@ export function ReportPage() {
    * it. Reading the fragment on change means a back/forward navigation also
    * moves between the tabs, not just a fresh load.
    */
+  const toast = useToast();
+  const [downloading, setDownloading] = useState(false);
+
   const selectView = (next: View) => {
     // Keep the address bar honest so the tab someone is reading can be shared.
     void navigate({
@@ -168,9 +173,30 @@ export function ReportPage() {
       stage="report"
       status={state.output ? 'done' : 'pending'}
       actions={
-        <Button variant="secondary" onClick={() => void navigate({ to: '/' })}>
-          Back to status
-        </Button>
+        <>
+          {/* Only offered once a report exists. The backend genuinely renders
+              a PDF now, so this button leads to a file rather than to a
+              promise the platform used to make and could not keep. */}
+          {state.output?.run_id && (
+            <Button
+              variant="secondary"
+              loading={downloading}
+              onClick={() => {
+                setDownloading(true);
+                void downloadReportPdf(state.output!.run_id)
+                  .catch((err: unknown) => {
+                    toast.error(err instanceof Error ? err.message : 'Download failed');
+                  })
+                  .finally(() => setDownloading(false));
+              }}
+            >
+              Download PDF
+            </Button>
+          )}
+          <Button variant="secondary" onClick={() => void navigate({ to: '/' })}>
+            Back to status
+          </Button>
+        </>
       }
     >
       <StageGate stage="report" state={state} blockedBy={['forecast', 'recommendation']}>
