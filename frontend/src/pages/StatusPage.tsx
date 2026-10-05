@@ -11,7 +11,19 @@ import {
   stagesForPhase,
   type Phase,
 } from '../lib/journey';
-import { Button, EmptyState, Panel, ProgressBar, Stepper, type StepperStep } from '../lib/ui';
+import {
+  Button,
+  Cluster,
+  DeltaBadge,
+  EmptyState,
+  KpiRow,
+  KpiTile,
+  Panel,
+  ProgressBar,
+  Stack,
+  Stepper,
+  type StepperStep,
+} from '../lib/ui';
 
 /**
  * Where the product lands, and where it resumes.
@@ -24,6 +36,8 @@ export function StatusPage() {
   const { dataset, datasetId, stageStatuses } = useDatasetScope();
   const stats = progressStats(stageStatuses);
   const upcoming = nextStage(stageStatuses);
+  const prep = phaseProgress(stageStatuses, 'preparation');
+  const decision = phaseProgress(stageStatuses, 'decision');
 
   if (!dataset) {
     return (
@@ -63,29 +77,72 @@ export function StatusPage() {
           }
           tone={stats.pct === 100 ? 'ok' : 'neutral'}
         >
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <Cluster space="4" className="flex-wrap">
             {PHASES.map((phase) => {
               const progress = phaseProgress(stageStatuses, phase.key);
               return (
-                <div key={phase.key} className="min-w-[7rem] flex-1 sm:min-w-[9rem]">
-                  <div className="flex items-baseline justify-between gap-2">
+                <Stack key={phase.key} space="1" className="min-w-[7rem] flex-1 sm:min-w-[9rem]">
+                  <Stack direction="row" space="1" justify="between" align="baseline">
                     <span className="text-2xs font-semibold uppercase tracking-widest text-neutral-600">
                       {phase.label}
                     </span>
                     <span className="num text-2xs font-medium text-neutral-600">
                       {progress.done}/{progress.total}
                     </span>
-                  </div>
+                  </Stack>
                   <ProgressBar
-                    className="mt-1"
                     value={progress.pct / 100}
                     size="sm"
                     tone={progress.done === progress.total ? 'ok' : 'brand'}
                   />
-                </div>
+                </Stack>
               );
             })}
-          </div>
+          </Cluster>
+          <KpiRow columns={3} className="mt-4">
+            <KpiTile
+              label="Stages"
+              value={stats.done}
+              unit={`of ${stats.total}`}
+              tone={stats.pct === 100 ? 'ok' : stats.pct > 0 ? 'info' : 'neutral'}
+              delta={
+                <DeltaBadge
+                  value={stats.done > 0 ? `+${stats.done}` : '—'}
+                  direction="up"
+                  tone={stats.done > 0 ? 'good' : 'neutral'}
+                />
+              }
+              className="crt-glow"
+            />
+            <KpiTile
+              label="Preparation"
+              value={pctValue(prep.pct)}
+              unit="%"
+              tone={prep.pct === 100 ? 'ok' : prep.pct > 0 ? 'info' : 'neutral'}
+              delta={
+                <DeltaBadge
+                  value={prep.done > 0 ? `+${prep.done}` : '—'}
+                  direction="up"
+                  tone={prep.done > 0 ? 'good' : 'neutral'}
+                />
+              }
+              className="crt-glow"
+            />
+            <KpiTile
+              label="Decision"
+              value={pctValue(decision.pct)}
+              unit="%"
+              tone={decision.pct === 100 ? 'ok' : decision.pct > 0 ? 'info' : 'neutral'}
+              delta={
+                <DeltaBadge
+                  value={decision.done > 0 ? `+${decision.done}` : '—'}
+                  direction="up"
+                  tone={decision.done > 0 ? 'good' : 'neutral'}
+                />
+              }
+              className="crt-glow"
+            />
+          </KpiRow>
         </PageHero>
       }
       actions={
@@ -155,9 +212,16 @@ function PhasePanel({ phase, datasetId }: { phase: Phase; datasetId: string | nu
       title={`${meta?.label} phase`}
       hint={meta?.purpose}
       actions={
-        <span className="num text-xs font-medium text-neutral-600">
-          {progress.done} of {progress.total} complete
-        </span>
+        <Stack
+          direction="row"
+          space="1"
+          align="center"
+          className="text-xs font-medium text-neutral-600"
+        >
+          <span className="num">
+            {progress.done} of {progress.total} complete
+          </span>
+        </Stack>
       }
     >
       <Stepper
