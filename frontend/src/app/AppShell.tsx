@@ -155,9 +155,9 @@ export function AppShell() {
   // would both be lying.
   const ready =
     datasetMissing || !activeDatasetId || (datasetQuery.isFetched && runQuery.isFetched);
-
   return (
     <ToastProvider>
+      <div className="scanlines" aria-hidden="true" />
       <ActiveDatasetProvider
         dataset={active}
         levels={levelsFromHierarchy(hierarchyQuery.data)}

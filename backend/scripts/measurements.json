@@ -1,0 +1,61 @@
+{
+  "measured_at": "2026-10-05",
+  "dataset": {
+    "id": "317babde-23b5-4c06-a68e-51bea9769f4d",
+    "name": "BDG2 Electricity Meters (3-year hourly, open data)",
+    "source": "UCI ElectricityLoadDiagrams20112014 (Trindade, 2015) via Zenodo 3898439, CC BY 4.0",
+    "buildings": 9,
+    "devices": 9,
+    "rows": 236757,
+    "readings_scanned": 235574,
+    "granularity": "meter"
+  },
+  "anomaly": {
+    "episodes": 5541,
+    "devices_affected": 9,
+    "readings_scanned": 235574,
+    "detection_rate_pct": 2.35,
+    "wall_seconds": 57.4,
+    "rows_per_second": 4100,
+    "excess_kwh": 15153699.12,
+    "excess_cost_inr": 2820218.48,
+    "excess_co2_kg": 7576849.54,
+    "by_class": {
+      "extreme_spike": 783,
+      "sustained_overuse": 3655,
+      "weekend_anomaly": 924,
+      "night_usage": 177,
+      "equipment_failure": 2,
+      "meter_drift": 0
+    },
+    "by_severity": {
+      "critical": 220,
+      "high": 3051,
+      "moderate": 522,
+      "low": 1748
+    },
+    "severity_bands": [
+      {"severity": "critical", "score_floor": 0.90, "sigma_floor": 9.0},
+      {"severity": "high", "score_floor": 0.75, "sigma_floor": 7.5},
+      {"severity": "moderate", "score_floor": 0.60, "sigma_floor": 6.0}
+    ],
+    "z_saturate": 10.0,
+    "baseline_method": "median_hour_of_week",
+    "unreachable": ["meter_drift"]
+  },
+  "dq": { "overall_score": 99.8, "null_rate_pct": 0.04 },
+  "forecast": {
+    "selected_model": "linear",
+    "mape_backtest": 49.23,
+    "wall_seconds": 12.5,
+    "history_hours": 26304
+  },
+  "recommend": { "count": 33, "top_device": "BLDG-009-MTR" },
+  "tariff": {
+    "currency": "INR",
+    "peak_rate_inr_per_kwh": 0.28,
+    "shoulder_rate_inr_per_kwh": 0.17,
+    "offpeak_rate_inr_per_kwh": 0.09,
+    "co2_kg_per_kwh": 0.5
+  }
+}

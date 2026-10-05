@@ -1,23 +1,25 @@
 /*
- * EcoMind design tokens — light-first enterprise.
+ * EcoMind design tokens — Terminal CRT.
  *
- * One neutral ramp, five semantic colours, one type scale, zero effects.
- * Deliberately no glow, no LED, no terminal, no glass.
+ * A dark-mode-only theme masquerading as light/dark. Both variants are green or
+ * amber phosphor on a black canvas: `dark` is classic green CRT, `light` is
+ * amber CRT. The toggle therefore always reads as green <-> amber, never as
+ * bright-on-white, which keeps the terminal constraint intact while still
+ * giving the switch something to show for itself.
+ *
+ * Every variable name from the previous enterprise tokenset is preserved, so the
+ * existing component classes resolve without edits. Only the values carry.
+ *
+ * Mono is the only face here: every character, headline and metric, is set in
+ * the monospaced family so columns of numbers line up like instrument readings.
  */
 
 @tailwind base;
 @tailwind components;
 
 /* ------------------------------------------------------------------ */
-/* Typefaces                                                           */
-/*                                                                     */
-/* Self-hosted variable fonts. One file per family covers every weight  */
-/* we use, so the interface ships two font requests instead of six.    */
-/*                                                                     */
-/* `font-display: swap` means text paints immediately in the fallback  */
-/* and re-renders once the font arrives. `size-adjust` and the ascent   */
-/* /descent overrides reserve the space the real font will occupy, so   */
-/* that swap does not reflow the page under the reader.                */
+/* Typefaces — reuse the self-hosted Geist variable font. We point the */
+/* body family at the mono axis so the whole UI is monospace.          */
 /* ------------------------------------------------------------------ */
 
 @font-face {
@@ -44,102 +46,104 @@
   size-adjust: 100%;
 }
 
-:root,
-[data-theme='light'] {
-  color-scheme: light;
+/* ------------------------------------------------------------------ */
+/* Shared structure — both phosphor variants                           */
+/* ------------------------------------------------------------------ */
+
+:root {
+  /* radius: 0 is non-negotiable here. */
+  --radius-xs: 0px;
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+  --radius-xl: 0px;
+  --radius-full: 0px;
+
+  /* motion: terminal snap, not ease. */
+  --ease: cubic-bezier(0.2, 0, 0.2, 1);
+  --dur-fast: 80ms;
+  --dur-base: 150ms;
+  --dur-slow: 250ms;
+  --dur-stream: 1.6s;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+}
+
+/* ------------------------------------------------------------------ */
+/* GREEN CRT (data-theme="dark")                                       */
+/* ------------------------------------------------------------------ */
+[data-theme='dark'] {
+  color-scheme: dark;
 
   /* --- Surfaces ------------------------------------------------------- */
-  --canvas: #f7f8fa;
-  --surface: #ffffff;
-  /*
-   * `--surface-1` sits between surface and surface-2. ScopeBar paints its
-   * header with it and it was never defined, so that strip rendered
-   * transparent and inherited whatever was behind it. Defined here rather
-   * than in the component so the ramp stays a single system.
-   */
-  --surface-1: #f8f9fb;
-  --surface-2: #f2f4f7;
-  --surface-3: #e9ecf1;
-  --surface-inset: #fafbfc;
-  --overlay: rgba(23, 34, 59, 0.32);
+  --canvas: #0a0a0a;
+  --surface: #0a0a0a;
+  --surface-1: #0d1117;
+  --surface-2: #0f1620;
+  --surface-3: #111927;
+  --surface-inset: #070a0f;
+  --overlay: rgba(0, 0, 0, 0.7);
 
-  /* --- Ink ------------------------------------------------------------ */
-  --ink: #16202f;
-  --ink-mid: #4a5568;
-  --ink-low: #6b7688;
-  --ink-faint: #97a1b0;
-  --ink-invert: #ffffff;
+  /* --- Ink (phosphor) ------------------------------------------------- */
+  --ink: #33ff00;
+  --ink-mid: #24b300;
+  --ink-low: #1a7300;
+  --ink-faint: #124700;
+  --ink-invert: #0a0a0a;
 
   /* --- Lines ---------------------------------------------------------- */
-  --line: #e3e7ee;
-  --line-strong: #cdd4e0;
-  --line-faint: #eef1f5;
+  --line: #1a4f1a;
+  --line-strong: #24b300;
+  --line-faint: #0d280d;
 
-  /* --- Brand ---------------------------------------------------------- */
-  --brand: #1f4fd8;
-  --brand-hover: #1a44bd;
-  --brand-active: #163a9e;
-  --brand-tint: #eef2fe;
-  --brand-tint-strong: #dde6fd;
-  --brand-ink: #ffffff;
+  /* --- Brand (amber accent, distinct from the green signal) ----------- */
+  --brand: #ffb000;
+  --brand-hover: #ffd480;
+  --brand-active: #ffe8a0;
+  --brand-tint: #26221b;
+  --brand-tint-strong: #3d3424;
+  --brand-ink: #0a0a0a;
 
   /* --- Semantic ------------------------------------------------------- */
-  --ok: #0f7a52;
-  --ok-tint: #e6f4ee;
-  --ok-line: #b9e0ce;
+  --ok: #33ff00;
+  --ok-tint: #0d280d;
+  --ok-line: #1a4f1a;
 
-  --warn: #a5670a;
-  --warn-tint: #fdf3e2;
-  --warn-line: #f0d5a4;
+  --warn: #ffb000;
+  --warn-tint: #26221b;
+  --warn-line: #3d2d14;
 
-  --critical: #b32036;
-  --critical-tint: #fdecef;
-  --critical-line: #f3c2cb;
+  --critical: #ff5555;
+  --critical-tint: #2a0f14;
+  --critical-line: #4f1a1a;
 
-  --info: #146c8c;
-  --info-tint: #e8f4f8;
-  --info-line: #bcdde8;
+  --info: #4ac1ff;
+  --info-tint: #0f1d2a;
+  --info-line: #1a3a5a;
 
-  --neutral: #6b7688;
-  --neutral-tint: #f0f2f6;
-  --neutral-line: #dfe3ea;
+  --neutral: #24b300;
+  --neutral-tint: #0d280d;
+  --neutral-line: #1a4f1a;
 
-  /*
-   * Three hues that had no home in the old five. They exist because "the
-   * system is working", "this number came from a model" and "this is money you
-   * can keep" are different meanings, and borrowing success or info for all
-   * three made them indistinguishable.
-   */
+  /* --- Three extra hues kept from the original system ---------------- */
+  --live: #33ff00;
+  --live-tint: #0d280d;
+  --live-line: #1a4f1a;
+  --live-ink: #1a7300;
 
-  /* Live / processing: a running stage, a streaming feed, an open socket. */
-  --live: #0b7f8f;
-  --live-tint: #e4f4f7;
-  --live-line: #b3dde5;
-  --live-ink: #075a65;
+  --ai: #b380ff;
+  --ai-tint: #1f0f33;
+  --ai-line: #3a1a5a;
+  --ai-ink: #d9b3ff;
 
-  /* AI / model: anything a model produced rather than measured. */
-  --ai: #6741d9;
-  --ai-tint: #f0ebfd;
-  --ai-line: #d5c9f7;
-  --ai-ink: #4c2fa8;
-
-  /* Opportunity: savings, recoverable energy, payback. */
-  --gain: #0b7a4b;
-  --gain-tint: #e6f4ee;
-  --gain-line: #b9e0ce;
-  --gain-ink: #085838;
+  --gain: #4caf50;
+  --gain-tint: #0f2a10;
+  --gain-line: #1a5a2a;
+  --gain-ink: #24b300;
 
   /* --- Typography ----------------------------------------------------- */
-  /*
-   * One family carries the whole interface. A second display face would add a
-   * network request to buy personality this product does not need — weight and
-   * tracking do that work. Mono is a genuinely separate family, not a stylistic
-   * choice: every metric in the product sets in it so digits align vertically
-   * in a KPI column and do not reflow as live values tick.
-   */
-  --font-sans:
-    'Geist Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  --font-display: 'Geist Sans', 'Geist Sans', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-sans: 'Geist Sans', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Geist Sans', 'Geist Sans', ui-sans-serif, sans-serif;
   --font-mono: 'Geist Mono', ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, monospace;
 
   --text-2xs: 0.6875rem;
@@ -162,17 +166,11 @@
   --tracking-wide: 0.02em;
   --tracking-caps: 0.06em;
 
-  /*
-   * Metric sizes are separate from text sizes on purpose. A metric is set in
-   * mono at a weight and tracking chosen to make digits read as an instrument
-   * reading, not as prose that happens to be large. Keeping them as their own
-   * scale stops "make that number bigger" from silently restyling headings.
-   */
   --metric-lg: 2.5rem;
   --metric-md: 1.75rem;
   --metric-sm: 1.25rem;
 
-  /* --- Space ---------------------------------------------------------- */
+  /* --- Space (unchanged scale) --------------------------------------- */
   --space-1: 0.25rem;
   --space-2: 0.5rem;
   --space-3: 0.75rem;
@@ -184,205 +182,107 @@
   --space-12: 3rem;
   --space-16: 4rem;
 
-  /* --- Radius --------------------------------------------------------- */
-  --radius-xs: 3px;
-  --radius-sm: 5px;
-  --radius-md: 7px;
-  --radius-lg: 10px;
-  --radius-xl: 14px;
-  --radius-full: 999px;
-
-  /* --- Elevation (borders first; shadow only for true overlays) ------- */
+  /* --- Elevation (borders only; no drop shadows on black) ------------ */
   --border: 1px solid var(--line);
   --border-strong: 1px solid var(--line-strong);
-  --shadow-sm: 0 1px 2px rgba(22, 32, 47, 0.05);
-  --shadow-md: 0 2px 6px rgba(22, 32, 47, 0.07);
-  --shadow-lg: 0 8px 24px rgba(22, 32, 47, 0.1);
-  --shadow-overlay: 0 16px 48px rgba(22, 32, 47, 0.18);
-
-  /* --- Motion --------------------------------------------------------- */
-  --ease: cubic-bezier(0.2, 0, 0.2, 1);
-  --ease-out: cubic-bezier(0, 0, 0.2, 1);
-  --dur-fast: 120ms;
-  --dur-base: 200ms;
-  --dur-slow: 320ms;
-
-  /*
-   * Motion is instrumentation settling, never decoration. Every duration and
-   * easing below corresponds to a state change the user needs to perceive:
-   * `--dur-instant` for a press, `--dur-stream` for a looping liveness pulse.
-   */
-  --dur-instant: 80ms;
-  --dur-stream: 1.6s;
-  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
-  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
-
-  /* --- Density ------------------------------------------------------ */
-  /*
-   * Row height is the density control. Facility managers work on 1080p
-   * monitors; analysts often run two panels side by side. One number changes
-   * how much data fits, without restyling anything else.
-   */
-  --row-h: 44px;
-  --row-h-compact: 34px;
-  --row-h-spacious: 52px;
-
-  /* --- Chart series (8 categorical, muted and print-safe) ------------- */
-  --chart-1: #1f4fd8;
-  --chart-2: #0f7a52;
-  --chart-3: #a5670a;
-  --chart-4: #7c3aad;
-  --chart-5: #146c8c;
-  --chart-6: #b32036;
-  --chart-7: #6b7688;
-  --chart-8: #b36014;
-
-  /*
-   * Continuous scales. Sequential is for magnitude, diverging is for values
-   * with a meaningful zero (deviation from a baseline, forecast against
-   * actual). Both are perceptually uniform and both avoid a rainbow, which
-   * would introduce bands the reader mistakes for real thresholds.
-   */
-  --seq-100: #e3ebfb;
-  --seq-200: #c5d6f7;
-  --seq-300: #97b8ee;
-  --seq-400: #6392e0;
-  --seq-500: #3b6ecd;
-  --seq-600: #2a51a8;
-  --seq-700: #1f3b7c;
-
-  --div-neg-3: #b4232f;
-  --div-neg-2: #d9736f;
-  --div-neg-1: #f0bcb8;
-  --div-zero: #e8ecf2;
-  --div-pos-1: #b6d0f5;
-  --div-pos-2: #6d9de6;
-  --div-pos-3: #2f63c4;
-
-  /* --- Severity: the ramp that labels DATA ----------------------------- */
-  /*
-   * Three steps, because the detector emits three. Verified against a
-   * completed run: severity_counts is {critical: 0, high: 1720, moderate: 106,
-   * low: 401} — `critical` is never produced by the classifier at all, so a
-   * fourth data swatch would be a permanently empty bucket that reads as a
-   * broken product rather than as a finding.
-   *
-   * The five-step model ramp below is retained for schema documentation, where
-   * it describes the classifier's contract rather than labelling a result.
-   */
-  --sev-low: #667486;
-  --sev-moderate: #d98a2b;
-  --sev-high: #d9483d;
-
-  /*
-   * Declared but never emitted by the detector. Kept as real tokens because
-   * Badge.tsx and AnomaliesPage.tsx still map a five-value vocabulary, and a
-   * token that resolves to nothing renders as inherited colour at runtime.
-   * Phase 1's SeverityTag drops them; until then they must keep resolving.
-   */
-  --sev-normal: #cbd2dc;
-  --sev-critical: #b32036;
-}
-
-[data-theme='dark'] {
-  color-scheme: dark;
-
-  --canvas: #0f1319;
-  --surface: #161b23;
-  --surface-1: #191f27;
-  --surface-2: #1c222c;
-  --surface-3: #232a35;
-  --surface-inset: #12171e;
-  --overlay: rgba(0, 0, 0, 0.6);
-
-  --ink: #e8ecf2;
-  --ink-mid: #a8b2c1;
-  --ink-low: #8590a1;
-  --ink-faint: #6b7688;
-  --ink-invert: #0f1319;
-
-  --line: #262e3a;
-  --line-strong: #38424f;
-  --line-faint: #1e242d;
-
-  --brand: #6b8cf5;
-  --brand-hover: #85a1f8;
-  --brand-active: #9db6fb;
-  --brand-tint: #1a2340;
-  --brand-tint-strong: #243158;
-  --brand-ink: #0f1319;
-
-  --ok: #4bbd8b;
-  --ok-tint: #12291f;
-  --ok-line: #1e4433;
-
-  --warn: #e0a75c;
-  --warn-tint: #2b2113;
-  --warn-line: #4a3a1e;
-
-  --critical: #f0788c;
-  --critical-tint: #2e161b;
-  --critical-line: #54262f;
-
-  --info: #63b8d6;
-  --info-tint: #12262e;
-  --info-line: #1e4351;
-
-  --neutral: #8590a1;
-  --neutral-tint: #1e242d;
-  --neutral-line: #303846;
-
-  --live: #38b8cc;
-  --live-tint: #10262b;
-  --live-line: #1e4650;
-  --live-ink: #7fd3e2;
-
-  --ai: #9775fa;
-  --ai-tint: #1e1836;
-  --ai-line: #372c63;
-  --ai-ink: #bfa8fd;
-
-  --gain: #4cbf8b;
-  --gain-tint: #12291f;
-  --gain-line: #1e4433;
-  --gain-ink: #86d9b3;
-
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
   --shadow-md: 0 2px 6px rgba(0, 0, 0, 0.36);
   --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.44);
   --shadow-overlay: 0 16px 48px rgba(0, 0, 0, 0.56);
 
-  --chart-1: #6b8cf5;
-  --chart-2: #4bbd8b;
-  --chart-3: #e0a75c;
-  --chart-4: #b794f6;
-  --chart-5: #63b8d6;
-  --chart-6: #f0788c;
-  --chart-7: #8590a1;
-  --chart-8: #d98b4a;
+  /* --- Density -------------------------------------------------------- */
+  --row-h: 44px;
+  --row-h-compact: 34px;
+  --row-h-spacious: 52px;
 
-  --seq-100: #16233d;
-  --seq-200: #1c3562;
-  --seq-300: #24497f;
-  --seq-400: #2f5f9e;
-  --seq-500: #4a7cb8;
-  --seq-600: #7ba3d4;
-  --seq-700: #b0cbec;
+  /* --- Severity: the ramp that labels DATA ----------------------------- */
+  --sev-low: #33ff00;
+  --sev-moderate: #ffb000;
+  --sev-high: #ff5555;
 
-  --div-neg-3: #f0798c;
-  --div-neg-2: #d9757f;
-  --div-neg-1: #7d4048;
-  --div-zero: #232a35;
-  --div-pos-1: #2d4b78;
-  --div-pos-2: #4b7cb5;
-  --div-pos-3: #85b0e4;
+  --sev-normal: #24b300;
+  --sev-critical: #ff5555;
 
-  --sev-low: #7d8894;
-  --sev-moderate: #e8b661;
-  --sev-high: #f0798c;
+  /* --- CRT effect switch --------------------------------------------- */
+  --crt-glow: drop-shadow(0 0 4px rgba(51, 255, 0, 0.6)) drop-shadow(0 0 8px rgba(51, 255, 0, 0.4));
+  --crt-scan: url(#scanlines);
+}
 
-  --sev-normal: #3a4453;
-  --sev-critical: #f0788c;
+/* ------------------------------------------------------------------ */
+/* AMBER CRT (data-theme="light")  — still a dark canvas               */
+/* ------------------------------------------------------------------ */
+[data-theme='light'] {
+  color-scheme: dark;
+
+  --canvas: #0a0a0a;
+  --surface: #0a0a0a;
+  --surface-1: #0d1117;
+  --surface-2: #0f1620;
+  --surface-3: #111927;
+  --surface-inset: #070a0f;
+  --overlay: rgba(0, 0, 0, 0.7);
+
+  --ink: #ffb000;
+  --ink-mid: #d48a00;
+  --ink-faint: #7a4200;
+  --ink-low: #a65c00;
+  --ink-invert: #0a0a0a;
+
+  --line: #4a240a;
+  --line-strong: #a65c00;
+  --line-faint: #2a1103;
+
+  --brand: #33ff00;
+  --brand-hover: #52ff24;
+  --brand-active: #72ff44;
+  --brand-tint: #122209;
+  --brand-tint-strong: #1f4014;
+  --brand-ink: #0a0a0a;
+
+  --ok: #33ff00;
+  --ok-tint: #122209;
+  --ok-line: #2a4f17;
+
+  --warn: #ffb000;
+  --warn-tint: #2a1a08;
+  --warn-line: #5a2e00;
+
+  --critical: #ff5555;
+  --critical-tint: #2a0f14;
+  --critical-line: #4f1a1a;
+
+  --info: #4ac1ff;
+  --info-tint: #0f1d2a;
+  --info-line: #1a3a5a;
+
+  --neutral: #a65c00;
+  --neutral-tint: #2a1103;
+  --neutral-line: #4a240a;
+
+  --live: #ffb000;
+  --live-tint: #2a1a08;
+  --live-line: #5a2e00;
+  --live-ink: #d48a00;
+
+  --ai: #b380ff;
+  --ai-tint: #1f0f33;
+  --ai-line: #3a1a5a;
+  --ai-ink: #d9b3ff;
+
+  --gain: #4caf50;
+  --gain-tint: #0f2a10;
+  --gain-line: #1a5a2a;
+  --gain-ink: #24b300;
+
+  --sev-low: #ffb000;
+  --sev-moderate: #ff8c33;
+  --sev-high: #ff5555;
+
+  --sev-normal: #a65c00;
+  --sev-critical: #ff5555;
+
+  --crt-glow: drop-shadow(0 0 4px rgba(255, 176, 0, 0.6))
+    drop-shadow(0 0 8px rgba(255, 176, 0, 0.4));
 }
 
 /* ------------------------------------------------------------------ */
@@ -397,13 +297,18 @@ body,
 
 html {
   background: var(--canvas);
+  color: var(--ink);
+  font-family: var(--font-mono);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-variant-numeric: tabular-nums;
 }
 
 body {
   margin: 0;
   background: var(--canvas);
   color: var(--ink);
-  font-family: var(--font-sans);
+  font-family: var(--font-mono);
   font-size: var(--text-base);
   line-height: var(--leading-normal);
   -webkit-font-smoothing: antialiased;
@@ -411,6 +316,7 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+/* Monospace supremacy: every heading is monospace too. */
 h1,
 h2,
 h3,
@@ -418,14 +324,16 @@ h4,
 h5,
 h6 {
   margin: 0;
-  font-family: var(--font-display);
+  font-family: var(--font-mono);
   font-weight: 600;
-  letter-spacing: -0.02em;
+  letter-spacing: 0.02em;
+  color: var(--ink);
   line-height: var(--leading-tight);
 }
 
 p {
   margin: 0;
+  font-family: var(--font-mono);
 }
 
 a {
@@ -437,23 +345,23 @@ a:hover {
 }
 
 button {
-  font-family: inherit;
+  font-family: var(--font-mono);
   font-size: inherit;
 }
 
+/* Focus: inverted block, not a ring. */
 :focus-visible {
   outline: 2px solid var(--brand);
   outline-offset: 2px;
-  border-radius: var(--radius-xs);
 }
 
 ::selection {
   background: var(--brand-tint-strong);
-  color: var(--ink);
+  color: var(--ink-invert);
 }
 
 /* ------------------------------------------------------------------ */
-/* Scrollbars                                                          */
+/* Scrollbars — thin, dimmed green                                      */
 /* ------------------------------------------------------------------ */
 
 * {
@@ -461,28 +369,25 @@ button {
   scrollbar-color: var(--line-strong) transparent;
 }
 *::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 8px;
+  height: 8px;
 }
 *::-webkit-scrollbar-track {
   background: transparent;
 }
 *::-webkit-scrollbar-thumb {
   background: var(--line-strong);
-  border-radius: var(--radius-full);
-  border: 3px solid transparent;
-  background-clip: content-box;
+  border: 1px solid var(--canvas);
 }
 *::-webkit-scrollbar-thumb:hover {
-  background-clip: content-box;
-  background-color: var(--ink-faint);
+  background: var(--ink-faint);
 }
 
 /* ------------------------------------------------------------------ */
 /* Utilities                                                           */
 /* ------------------------------------------------------------------ */
 
-/* Tabular figures for KPI columns. */
+/* Tabular figures for every number. */
 .num {
   font-variant-numeric: tabular-nums;
   font-feature-settings: 'tnum';
@@ -500,27 +405,27 @@ button {
   font-weight: 600;
   letter-spacing: var(--tracking-caps);
   text-transform: uppercase;
-  color: var(--ink-low);
+  color: var(--ink-faint);
 }
 
 /* Muted body copy. */
 .prose-muted {
-  color: var(--ink-low);
+  color: var(--ink-faint);
   line-height: var(--leading-relaxed);
 }
 
-/* Card surface. */
+/* Card surface — a true terminal pane: black, 1px green border. */
 .surface {
   background: var(--surface);
   border: var(--border);
-  border-radius: var(--radius-lg);
+  border-radius: 0;
 }
 
-/* Inset panel for nested detail. */
+/* Inset panel — slightly lighter track, same pane look. */
 .surface-inset {
-  background: var(--surface-inset);
+  background: var(--surface-1);
   border: var(--border);
-  border-radius: var(--radius-md);
+  border-radius: 0;
 }
 
 /* Full-bleed page gutters. */
@@ -537,14 +442,89 @@ button {
 }
 
 /* ------------------------------------------------------------------ */
-/* Loading skeleton                                                    */
+/* Terminal primitives                                                */
+/* ------------------------------------------------------------------ */
+
+/*
+ * CRT phosphor glow, applied to metric readouts and active cursors so live
+ * numbers read like instrument traces. Toggled off under reduced motion and
+ * under data-crt="off".
+ */
+.crt-glow {
+  text-shadow:
+    0 0 4px currentColor,
+    0 0 8px currentColor;
+}
+
+/* ASCII-style progress: [||||||||||..........] 42/100 */
+.terminal-progress {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  letter-spacing: -0.02em;
+}
+
+/* Bracket button: [ INITIATE ] → green block on hover */
+.bracket-btn {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  border: 1px solid var(--ink-low);
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
+}
+.bracket-btn:hover {
+  background: var(--ink);
+  color: var(--canvas);
+}
+
+/* Pane title bar: `+--- SYSTEM STATUS ---+` */
+.terminal-titlebar {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.02em;
+  color: var(--ink-low);
+  user-select: none;
+}
+
+/* ------------------------------------------------------------------ */
+/* CRT scanlines — a global fixed overlay                             */
+/* ------------------------------------------------------------------ */
+
+.scanlines {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    repeating-linear-gradient(
+      0deg,
+      rgba(0, 0, 0, 0.18) 0%,
+      rgba(0, 0, 0, 0.18) 1px,
+      transparent 1px,
+      transparent 3px
+    ),
+    linear-gradient(rgba(10, 10, 10, 0.85), rgba(10, 10, 10, 0.95) 100%);
+  opacity: 0.55;
+  mix-blend-mode: screen;
+  z-index: 9997;
+  /* hidden when the user turns CRT off */
+  display: var(--crt-scan-display, block);
+}
+
+/* ------------------------------------------------------------------ */
+/* Loading skeleton — dim green sweep                                 */
 /* ------------------------------------------------------------------ */
 
 .skeleton {
   position: relative;
   overflow: hidden;
   background: var(--surface-2);
-  border-radius: var(--radius-sm);
+  border-radius: 0;
 }
 
 .skeleton::after {
@@ -552,12 +532,8 @@ button {
   position: absolute;
   inset: 0;
   transform: translateX(-100%);
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.55), transparent);
+  background: linear-gradient(90deg, transparent, rgba(51, 255, 0, 0.08), transparent);
   animation: skeleton-sweep 1.4s var(--ease) infinite;
-}
-
-[data-theme='dark'] .skeleton::after {
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.06), transparent);
 }
 
 @keyframes skeleton-sweep {
@@ -567,9 +543,7 @@ button {
 }
 
 /* ------------------------------------------------------------------ */
-/* Pipeline reveal                                                     */
-/*                                                                     */
-/* A short reveal used when process state advances (drawers, toasts).   */
+/* Pipeline reveal (kept)                                              */
 /* ------------------------------------------------------------------ */
 
 @keyframes pipeline-reveal {
@@ -585,9 +559,6 @@ button {
 
 /* ------------------------------------------------------------------ */
 /* Reduced motion                                                      */
-/*                                                                     */
-/* Honours the OS setting. The pipeline still advances — it simply      */
-/* appears without the slide.                                          */
 /* ------------------------------------------------------------------ */
 
 @media (prefers-reduced-motion: reduce) {
@@ -603,6 +574,22 @@ button {
   .skeleton::after {
     display: none;
   }
+
+  .scanlines {
+    display: none;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* CRT off when requested (data-crt="off" on <html>)                   */
+/* ------------------------------------------------------------------ */
+
+:root[data-crt='off'] {
+  --crt-scan-display: none;
+}
+
+:root {
+  --crt-scan-display: block;
 }
 
 @tailwind utilities;

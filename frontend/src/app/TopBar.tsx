@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from '@tanstack/react-router';
-import { Menu, Moon, Search, Sun } from 'lucide-react';
+import { Menu, Search } from 'lucide-react';
 import { cn } from '../lib/cn';
 import { auth, getUser } from '../lib/api';
 import { useDatasetScope } from '../lib/ActiveDatasetContext';
@@ -129,10 +129,22 @@ export function TopBar() {
         <button
           type="button"
           onClick={toggleTheme}
-          aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
-          className="rounded-md p-1.5 text-neutral-600 transition-colors hover:bg-neutral-50 hover:text-neutral-800"
+          aria-label={theme === 'dark' ? 'Switch to amber phosphor' : 'Switch to green phosphor'}
+          title={theme === 'dark' ? 'Green CRT' : 'Amber CRT'}
+          className="relative isolate rounded-md p-1.5 text-neutral-600 transition-colors hover:bg-neutral-50 hover:text-neutral-800"
         >
-          {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+          <span className="isolate flex items-center gap-1">
+            <span
+              aria-hidden
+              className="block h-2 w-2 rounded-full"
+              style={{ backgroundColor: theme === 'dark' ? 'var(--ink)' : 'var(--line)' }}
+            />
+            <span
+              aria-hidden
+              className="block h-2 w-2 rounded-full"
+              style={{ backgroundColor: theme === 'light' ? 'var(--ink)' : 'var(--line)' }}
+            />
+          </span>
         </button>
 
         <div className="flex min-w-0 items-center gap-2 border-l border-[var(--line)] pl-3">

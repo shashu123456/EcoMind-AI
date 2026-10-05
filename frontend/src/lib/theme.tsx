@@ -13,8 +13,9 @@ interface ThemeCtx {
 const ThemeContext = createContext<ThemeCtx | null>(null);
 
 /**
- * Light-first. An energy analytics platform is read on printed dashboards and
- * in bright plant rooms, so light is the default rather than the alternate.
+ * Both variants are phosphor-on-black terminals: `dark` is green CRT, `light` is
+ * amber CRT. Green is the default; the toggle swaps the phosphor colour while
+ * staying dark-mode-only, which is what a CRT aesthetic demands.
  */
 function initialTheme(): Theme {
   try {
@@ -23,7 +24,7 @@ function initialTheme(): Theme {
   } catch {
     /* storage unavailable */
   }
-  return 'light';
+  return 'dark';
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
