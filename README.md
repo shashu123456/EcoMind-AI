@@ -147,6 +147,39 @@ A fresh clone needs no downloads — setup generates and registers:
 Regenerate them without the launcher:
 `.venv\Scripts\python.exe scripts\build_datasets.py` (`--dataset healthy|faulty|reference|all`).
 
+### Twenty more fields — EcoMind is not a buildings-only tool
+
+`scripts/build_field_datasets.py` generates and registers **twenty energy domains**, each with its own
+hierarchy codes, equipment, cadence and target column, and each deterministic so a re-run reproduces
+the same file:
+
+| Field | Target | Field | Target |
+|---|---|---|---|
+| Commercial building | `energy_kwh` | Solar PV plant | `generation_kwh` |
+| Manufacturing plant | `energy_kwh` | Wind farm | `generation_kwh` |
+| Hospital | `energy_kwh` | EV charging hub | `energy_kwh` |
+| University campus | `energy_kwh` | District heating | `heat_kwh` |
+| Shopping mall | `energy_kwh` | Water treatment | `energy_kwh` |
+| Warehouse / cold chain | `energy_kwh` | Airport terminal | `energy_kwh` |
+| Office complex | `energy_kwh` | Hotel resort | `energy_kwh` |
+| Data centre | `energy_kwh` | Telecom tower site | `energy_kwh` |
+| Cold storage facility | `energy_kwh` | Mining site | `energy_kwh` |
+| Railway station | `energy_kwh` | Cement plant | `energy_kwh` |
+
+```bash
+.venv\Scripts\python.exe scripts\build_field_datasets.py            # write + register
+.venv\Scripts\python.exe scripts\build_field_datasets.py --prune    # replace its own earlier uploads
+.venv\Scripts\python.exe scripts\build_field_datasets.py --no-upload --days 30
+```
+
+Each file carries a planted fault window (so anomaly detection has something real to find) and one
+malformed row (so the quality stage has a real defect to repair). The CSVs land in `sample-datasets/`,
+which is gitignored — re-run the script to recreate them.
+
+The frontend adapts to whichever field is loaded: the domain vocabulary, the unit vocabulary and the
+signal-family vocabulary all cover generation, transport, telecom and water quantities, so a solar
+plant is not labelled a manufacturing plant and `clinker_tonnes` is not labelled `kWh`.
+
 ---
 
 ## 📁 Project structure
@@ -170,7 +203,7 @@ EcoMind-AI/
 │   └── package.json       # pnpm
 ├── launcher/              # bootstrap, checks, spawn, stop — one start path
 ├── ecomind.bat / .sh      # the single entry point per platform
-├── docs/STATUS.md         # what is built, broken, and next
+├── docs/                  # report, changelog, decisions, status, IEEE paper
 └── .venv/                 # Python virtualenv (repository root)
 ```
 
@@ -178,7 +211,10 @@ EcoMind-AI/
 
 | Document | Description |
 |---|---|
-| [`docs/STATUS.md`](docs/STATUS.md) | **The single status doc** — what is built, what is broken, what comes next |
+| [`docs/PROJECT_REPORT.md`](docs/PROJECT_REPORT.md) | **End-to-end report** — architecture, the stage-by-stage pipeline, API surface, verified status, demo script |
+| [`docs/CHANGELOG.md`](docs/CHANGELOG.md) | Every change, with the evidence it was verified against |
+| [`docs/DESIGN_DECISIONS.md`](docs/DESIGN_DECISIONS.md) | The design system and the reasoning behind each decision |
+| [`docs/STATUS.md`](docs/STATUS.md) | Backend truth: what is implemented, what is deliberately absent |
 | [`docs/EcoMind_IEEE_Paper.tex`](docs/EcoMind_IEEE_Paper.tex) | IEEE-format technical paper (+ `docs/research/` assets) |
 
 ## 🔒 Security Notes
@@ -207,15 +243,33 @@ EcoMind-AI/
 | Installed Python, still says none found | The shell's PATH predates the install | Close the window and run the launcher again. |
 | `[FAIL] Seeding failed` | Read `logs/launcher.log` — usually a dependency that failed to install | Run `.\ecomind.bat check`, then re-run. |
 | Port 8000 already in use | Another process holds it | `.\ecomind.bat stop`, or change the port in `launcher/config.json`. |
-| A page renders but shows no data | That pipeline stage has not run | Sign in again (first sign-in auto-runs the pipeline), or re-run a stage. |
+| A page renders but shows no data | That pipeline stage has not run for this dataset | Press **Run** in the bar at the top of any page, or **Step** to advance one stage. |
 | `ECOMIND_SECRET_KEY is the development placeholder` | `backend/.env` was deleted or never generated | Run `.\ecomind.bat` — it regenerates one. |
 
 Useful logs: `logs/launcher.log` (bootstrap), `logs/backend.log`.
 
+## 🎬 Running a demonstration
+
+The run controls live in the bar under the topbar, on **every** page, so a walkthrough never has to
+hunt for them:
+
+| Control | What it does |
+|---|---|
+| **Run** | Executes every remaining stage, then opens the executive report |
+| **Step** | Executes exactly one stage |
+| **Stop** | Aborts the active run; everything recorded before the stop is kept |
+| **New run** | Starts a fresh run for the active dataset from stage 01 |
+
+Every one of these works on a dataset that has never been analysed — they start a run when none
+exists rather than sitting disabled. **Guided tour** on Mission control additionally opens each page
+as its stage completes, so the pipeline can be narrated. A short chime marks the start of a run and
+another marks its completion.
+
+A ten-minute script is in [`docs/PROJECT_REPORT.md`](docs/PROJECT_REPORT.md) §10.
+
 ## 🗺️ Roadmap
 
-- [ ] See `docs/STATUS.md` §5 — the live plan (fresh-clone reliability,
-      frontend elite pass, CI/Makefile repair)
+- [ ] Archive the orphaned/failed workflow runs so the library and run history stay clean
 - [ ] Docker Compose for one-command full-stack startup
 - [ ] Multi-tenant workspaces with role-based access
 - [ ] Live meter integrations (MQTT / Modbus / BACnet)

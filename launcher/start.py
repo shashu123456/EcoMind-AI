@@ -21,7 +21,7 @@ from launcher.checks import run_checks, render_checks
 from launcher.bootstrap import ensure_all
 from launcher.processes import (
     port_in_use, http_ok, pid_alive, kill_tree, start_service,
-    write_pid_map, clear_pid_map, write_launcher_pid, read_launcher_pid,
+    write_pid_map, clear_pid_map, read_pid_map, write_launcher_pid, read_launcher_pid,
     clear_launcher_pid, tail_log, pid_dir, our_launcher_alive, LAUNCHER_MARKER,
 )
 
@@ -39,12 +39,32 @@ def _banner():
     print(BANNER)
 
 
+def _launcher_owns_a_live_service() -> bool:
+    """True when the recorded launcher still has at least one service running."""
+    for pid in read_pid_map().values():
+        try:
+            if int(pid) > 0 and pid_alive(int(pid)):
+                return True
+        except (TypeError, ValueError):
+            continue
+    return False
+
+
 def _check_duplicate() -> bool:
     mine = read_launcher_pid()
     if mine and mine != os.getpid() and our_launcher_alive(mine, LAUNCHER_MARKER):
-        print(f"[!] Another EcoMind launcher is already running (pid {mine}).")
-        print("    Run `ecomind stop` first, or let it keep monitoring.")
-        return True
+        # A launcher process that owns no running service is a leftover from a
+        # crash or a killed terminal, not a live session. Refusing to start on
+        # the strength of its pid file is what left a machine unable to launch
+        # at all after one hard shutdown, so reclaim it and carry on.
+        if _launcher_owns_a_live_service():
+            print(f"[!] Another EcoMind launcher is already running (pid {mine}).")
+            print("    Run `ecomind stop` first, or let it keep monitoring.")
+            return True
+        print(f"[..] Reclaiming launcher pid {mine} - it is alive but owns no running service.")
+        kill_tree(mine)
+        time.sleep(0.5)
+        clear_pid_map()
     # Stale pid file: the process exited, or Windows recycled the pid onto an
     # unrelated exe (e.g. TextInputHost.exe). Clear it and continue.
     if mine:

@@ -14,7 +14,7 @@ import { useTheme } from "@/contexts/ThemeContext";
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Line, LineChart, ReferenceLine,
   ResponsiveContainer, Tooltip as RechartsTooltip, XAxis, YAxis } from "recharts";
 import "./AppShell.css";
-import { useSound, playCompletionChime } from "@/lib/useSound";
+import { useSound, playCompletionChime, playStartTone, unlockAudio } from "@/lib/useSound";
 import { auth, datasets as datasetsApi, domain, getToken, workflow, type AuthUser } from "@/lib/api";
 import { displayUnit, unitForColumn } from "@/lib/units";
 import { FAMILY_LABEL, ROLE_LABEL, ROLE_NOTE, ROLE_ORDER, familyForColumn, roleForColumn, type FieldFamily, type FieldRole } from "@/lib/schema";
@@ -848,13 +848,56 @@ export function AppShell() {
     }
   };
 
+  /** Abort the active run. Completed stages keep their recorded output. */
+  const stopRun = async () => {
+    const runId = workspace?.runId;
+    if (!runId) {
+      setToast("No active run to stop.");
+      return;
+    }
+    try {
+      await workflow.abort(runId);
+      setAutoRunning(false);
+      setStageBusy("");
+      setToast("Run stopped. Everything recorded before the stop is kept.");
+      await refreshWorkspace();
+    } catch (err) {
+      setToast(err instanceof Error ? err.message : "Could not stop the run.");
+    }
+  };
+
+  /**
+   * "Open related chart" in the inspector: close the drawer, go to the anomaly
+   * view and widen the window so the selected event is actually on screen.
+   */
+  const focusAnomalyOnChart = (anomaly: (typeof anomalies)[number]) => {
+    setSelectedAnomaly(null);
+    goTo("anomalies");
+    const widest = windowOptions[windowOptions.length - 1];
+    if (widest) setAnomalyWindow(widest.id);
+    setToast(`${anomaly.type} at ${anomaly.timestamp} — highlighted on the recorded deviation chart.`);
+  };
+
+  /** Start a fresh run for the active dataset, from stage 01. */
+  const startFreshRun = async () => {
+    setStageBusy("starting");
+    try {
+      const runId = await ensureRun(true);
+      if (!runId) return;
+      await refreshWorkspace();
+      goTo("overview");
+    } finally {
+      setStageBusy("");
+    }
+  };
+
   /**
    * Start a run for the active dataset when the backend has none yet. Without
    * this, Step / Guided tour / Run all stay disabled forever on a dataset that
    * has never been analysed — which is every newly imported file.
    */
-  const ensureRun = async (): Promise<string | null> => {
-    if (workspace?.runId) return workspace.runId;
+  const ensureRun = async (force = false): Promise<string | null> => {
+    if (!force && workspace?.runId) return workspace.runId;
     try {
       const started = (await workflow.start(activeDataset.id)) as unknown as {
         run?: { id?: string };
@@ -867,6 +910,7 @@ export function AppShell() {
         return null;
       }
       setToast(`Run started for ${activeDataset.name}.`);
+      void playStartTone();
       return id;
     } catch (err) {
       setToast(err instanceof Error ? err.message : "Could not start a run for this dataset.");
@@ -878,6 +922,7 @@ export function AppShell() {
   const execAllAndReport = async () => {
     const runId = await ensureRun();
     if (!runId) return;
+    void playStartTone();
     const remaining = STAGE_KEYS.filter(key => !liveStages.some(s => s.id === key && s.status === "completed"));
     if (!remaining.length) {
       goTo("reports");
@@ -1030,6 +1075,26 @@ export function AppShell() {
     return () => window.clearTimeout(timer);
   }, [toast]);
 
+  // The Import page's domain strip should open on the domain the backend
+  // recorded for the active dataset, not on a default. Anything the user then
+  // picks is a deliberate override and is marked as one.
+  useEffect(() => {
+    setUploadDomain(activeDataset.domain);
+  }, [activeDataset.domain]);
+
+  // Audio can only start from a gesture. Unlock on the first real interaction
+  // so the start tone and completion chime are audible for the rest of the
+  // session instead of being silently dropped by the browser autoplay policy.
+  useEffect(() => {
+    const unlock = () => unlockAudio();
+    window.addEventListener("pointerdown", unlock, { once: true });
+    window.addEventListener("keydown", unlock, { once: true });
+    return () => {
+      window.removeEventListener("pointerdown", unlock);
+      window.removeEventListener("keydown", unlock);
+    };
+  }, []);
+
   if (!signedIn) return <SignInView onEnter={() => setSignedIn(true)} />;
 
   const goTo = (view: NavId) => {
@@ -1057,6 +1122,7 @@ export function AppShell() {
   const execStage = async (stageKey: string) => {
     const runId = await ensureRun();
     if (!runId) return;
+    void playStartTone();
     setStageBusy(stageKey);
     try {
       await workflow.execStage(runId, stageKey);
@@ -1082,6 +1148,7 @@ export function AppShell() {
   const execRemainingStages = async () => {
     const runId = await ensureRun();
     if (!runId) return;
+    void playStartTone();
     const remaining = STAGE_KEYS.filter(key => !liveStages.some(s => s.id === key && s.status === "completed"));
     if (!remaining.length) {
       setToast("All ten stages are already complete for this run.");
@@ -1193,13 +1260,15 @@ export function AppShell() {
             activeDataset={activeDataset}
             onSelect={dataset => {
               setActiveDataset(dataset);
-              setToast(`${dataset.name} is now the active dataset.`);
               sound.play({ volume: 0.14, rate: 0.9 });
-              // Reload the recorded outputs for the chosen dataset instead of
-              // leaving the previous dataset's stages on screen.
+              // Selecting a dataset is step one of a journey, not a dead end:
+              // load its recorded outputs and continue to schema discovery so
+              // the flow keeps moving instead of stopping on a toast.
               void loadWorkspace(dataset.id).then(res => {
                 if (res) applyWorkspace(res.workspace);
               });
+              goTo("schema");
+              setToast(`${dataset.name} is now the active dataset — showing what was discovered.`);
             }}
             onImport={() => goTo("import")}
             onPreview={dataset => void openPreview(dataset)}
@@ -1570,6 +1639,49 @@ export function AppShell() {
               {activeDataset.freshness}
             </strong>
           </span>
+          {/* Present on every page: a demonstration should never have to hunt
+              for the run controls, and they must never be dead. */}
+          <div className="pipeline-quick">
+            <button
+              type="button"
+              className="pipeline-quick__button pipeline-quick__button--primary"
+              onClick={() => void execAllAndReport()}
+              disabled={!!stageBusy || autoRunning}
+              title="Run every remaining stage, then open the executive report"
+            >
+              <Play size={13} />
+              {autoRunning ? "Running…" : "Run"}
+            </button>
+            <button
+              type="button"
+              className="pipeline-quick__button"
+              onClick={() => void execNextStage()}
+              disabled={!!stageBusy || autoRunning}
+              title="Execute the next stage only"
+            >
+              Step
+            </button>
+            <button
+              type="button"
+              className="pipeline-quick__button"
+              onClick={() => void stopRun()}
+              disabled={!liveRunId && !autoRunning}
+              title="Stop the active run — completed stages keep their output"
+            >
+              <Pause size={13} />
+              Stop
+            </button>
+            <button
+              type="button"
+              className="pipeline-quick__button"
+              onClick={() => void startFreshRun()}
+              disabled={!!stageBusy || autoRunning}
+              title="Start a new run for this dataset from stage 01"
+            >
+              <RefreshCw size={13} />
+              New run
+            </button>
+          </div>
         </div>
         <div className="view-shell">
           <div className="view-header">
@@ -1596,7 +1708,12 @@ export function AppShell() {
         onToggle={() => setTerminalOpen(value => !value)}
         onPause={() => setTerminalPaused(value => !value)}
       />
-      <InspectorDrawer anomaly={selectedAnomaly} baselineName={baselineName} onClose={() => setSelectedAnomaly(null)} />
+      <InspectorDrawer
+        anomaly={selectedAnomaly}
+        baselineName={baselineName}
+        onClose={() => setSelectedAnomaly(null)}
+        onOpenChart={focusAnomalyOnChart}
+      />
       {preview ? (
         <DatasetPreviewModal
           dataset={preview.dataset}
@@ -1745,10 +1862,12 @@ function InspectorDrawer({
   anomaly,
   baselineName,
   onClose,
+  onOpenChart,
 }: {
   anomaly: (typeof anomalies)[number] | null;
   baselineName: string;
   onClose: () => void;
+  onOpenChart: (anomaly: (typeof anomalies)[number]) => void;
 }) {
   const sound = useSound({ onPlay: () => {} });
   return (
@@ -1820,8 +1939,8 @@ function InspectorDrawer({
               <span className="section-eyebrow">TECHNICAL EVIDENCE</span>
               <code>feature = {anomaly.feature}</code>
               <code>reason = {anomaly.reason}</code>
+              <code>detected_at = {anomaly.timestamp}</code>
               <code>baseline = {baselineName.toLowerCase().replace(/\s+/g, "_")}</code>
-              <code>source = shared_evidence_index</code>
             </div>
           </div>
           <div className="inspector-actions">
@@ -1829,6 +1948,7 @@ function InspectorDrawer({
               type="button"
               className="action-button action-button--secondary"
               onClick={() => {
+                onOpenChart(anomaly);
                 sound.play({ volume: 0.1, rate: 0.95 });
               }}
             >
@@ -2070,7 +2190,10 @@ function OverviewView({
           </div>
           <div className="mini-chart-wrap">
             <div className="mini-chart-label">
-              <span>ENERGY LOAD / LAST 24H</span>
+              <span>
+                OBSERVED VS BASELINE / {energyData.length} RECORDED POINT
+                {energyData.length === 1 ? "" : "S"}
+              </span>
               <strong>{energyData.length ? withUnit(fmtCount(energyTotal)) : "—"} <em>{energyDelta}</em></strong>
             </div>
             <div className="mini-chart">
@@ -2101,6 +2224,11 @@ function OverviewView({
                 </AreaChart>
               </ResponsiveContainer>
             </div>
+            <span className="axis-note mini-chart-note">
+              {energyData.length
+                ? `Solid: the measured ${liveTargetColumn || "target"} recorded for this dataset. Dashed: the adaptive baseline the pipeline learned from the same rows.`
+                : "No recorded series for this dataset yet — run the pipeline to plot it."}
+            </span>
           </div>
         </section>
         <section className="panel panel--health">
@@ -2433,7 +2561,7 @@ function LibraryView({
             <UploadCloud size={22} />
           </div>
           <strong>Import a new dataset</strong>
-          <span>CSV, Parquet, JSON · up to 5 GB</span>
+          <span>CSV or Excel · the two formats the API accepts</span>
           <div className="dataset-card--import__line" />
         </button>
       </div>
@@ -2536,12 +2664,42 @@ function ImportView({
     { id: "telecom", label: "Telecom site", icon: RadioTower, accent: "violet" },
     { id: "water", label: "Water utility", icon: Droplets, accent: "blue" },
   ];
+  // Two different facts live on this page and used to be reported as one: a
+  // file chosen *now*, and the dataset the workspace already holds. Merging
+  // them is why the panel could announce "upload accepted" with nothing
+  // uploaded. Each line below names which of the two it is describing.
+  const detectedDomain = domainMeta[activeDataset.domain] ?? domainMeta.building;
+  const hasFile = Boolean(selectedFile);
+  const hasDataset = Boolean(activeDataset.id);
   const scanSteps = [
-    { title: "Upload accepted", detail: activeFile || "waiting for a file", icon: CloudUpload },
-    { title: "Scanning data surface", detail: activeDataset.rowCount ? `Reading ${activeDataset.rows} rows and ${activeDataset.columnCount ?? "—"} columns` : "No dataset loaded yet", icon: Activity },
-    { title: "Detecting metadata", detail: `Timezone, cadence, units, ${domain.label.toLowerCase()}`, icon: WandSparkles },
-    { title: "Ready for schema discovery", detail: `${domain.label} / energy telemetry`, icon: CheckCircle2 },
+    {
+      title: hasFile ? "File chosen this session" : hasDataset ? "Active dataset" : "Source",
+      detail: hasFile
+        ? activeFile
+        : hasDataset
+          ? activeDataset.name
+          : "No file chosen yet — drop one on the left",
+      icon: CloudUpload,
+    },
+    {
+      title: "Data surface",
+      detail: activeDataset.rowCount
+        ? `${activeDataset.rows} rows · ${activeDataset.columnCount ?? "—"} columns recorded`
+        : "Nothing recorded yet",
+      icon: Activity,
+    },
+    {
+      title: "Detected domain",
+      detail: hasDataset ? `${detectedDomain.label} · classified by the backend` : "No dataset to classify",
+      icon: WandSparkles,
+    },
+    {
+      title: "Next step",
+      detail: hasDataset ? "Schema discovery is available" : "Choose a file to begin",
+      icon: CheckCircle2,
+    },
   ];
+  const scannable = hasFile && scanStage > 0;
   const selectFile = async (file?: File) => {
     if (!file) return;
     setSelectedFile(file.name);
@@ -2621,16 +2779,22 @@ function ImportView({
         <section className="import-status-panel">
           <div className="status-panel__head">
             <div>
-              <div className="section-eyebrow">AI PREFLIGHT</div>
+              <div className="section-eyebrow">INGESTION STATE</div>
               <h2>
-                {scanRunning ? "Reading the signal..." : scanStage === 3 ? "Dataset is ready." : "Waiting for a dataset."}
+                {scanRunning
+                  ? "Reading the signal…"
+                  : scannable
+                    ? "File ingested."
+                    : hasDataset
+                      ? "Active dataset loaded."
+                      : "Nothing selected yet."}
               </h2>
             </div>
             <span
-              className={`status-badge ${scanRunning ? "status-badge--processing" : scanStage === 3 ? "status-badge--done" : ""}`}
+              className={`status-badge ${scanRunning ? "status-badge--processing" : scannable ? "status-badge--done" : ""}`}
             >
               <span className="status-dot status-dot--lime" />
-              {scanRunning ? "PROCESSING" : scanStage === 3 ? "COMPLETE" : "STANDBY"}
+              {scanRunning ? "PROCESSING" : scannable ? "COMPLETE" : hasDataset ? "ACTIVE" : "STANDBY"}
             </span>
           </div>
           <div className="scan-progress">
@@ -2682,7 +2846,7 @@ function ImportView({
               </p>
             </div>
           </div>
-          {scanStage === 3 ? (
+          {hasDataset || scannable ? (
             <ActionButton icon={ArrowRight} onClick={onContinue}>
               Continue to schema discovery
             </ActionButton>
@@ -2691,53 +2855,60 @@ function ImportView({
               className="scan-demo-button"
               type="button"
               onClick={() => onScan(activeFile, currentDomain)}
+              disabled={scanRunning}
             >
-              {scanRunning ? "AI is processing this dataset" : "Run AI preflight"}
+              {scanRunning ? "Reading the file…" : "Run preflight"}
               <ArrowRight size={14} />
             </button>
           )}
         </section>
       </div>
       <div className="import-domain-picker">
-        <span className="section-eyebrow">ADAPTIVE DOMAIN PREVIEW</span>
-        <h2>Which signal is this?</h2>
+        <span className="section-eyebrow">DOMAIN DETECTION</span>
+        <h2>What kind of energy system is this?</h2>
         <p>
-          EcoMind inspects the first rows and adjusts the import visuals, meter families, and baseline template
-          to match the domain.
+          EcoMind classifies a dataset from its own name, hierarchy codes and sampling cadence — nothing is
+          chosen for you. The highlighted card is the domain recorded for{" "}
+          <strong>{activeDataset.name}</strong>. Selecting a different card only overrides the classification
+          of the next file you upload.
         </p>
         <div className="domain-selector">
-          {domains.map(domain => {
-            const DomainIcon = domain.icon;
-            const active = uploadDomain === domain.id;
-            const hover = hoveredDomain === domain.id;
+          {domains.map(entry => {
+            const DomainIcon = entry.icon;
+            const detected = activeDataset.domain === entry.id;
+            const override = uploadDomain === entry.id && !detected;
+            const active = detected || override;
+            const hover = hoveredDomain === entry.id;
             return (
               <button
-                key={domain.id}
+                key={entry.id}
                 type="button"
+                aria-pressed={active}
                 className={`domain-card ${active ? "domain-card--active" : ""} ${hover ? "domain-card--hover" : ""}`}
                 onMouseEnter={() => {
-                  setHoveredDomain(domain.id);
+                  setHoveredDomain(entry.id);
                   sound.play({ volume: 0.08, rate: 0.9 });
                 }}
                 onMouseLeave={() => setHoveredDomain(null)}
                 onClick={() => {
-                  onSelectDomain(domain.id);
-                  onDomainChange(domain.id);
+                  onSelectDomain(entry.id);
+                  onDomainChange(entry.id);
                   setHoveredDomain(null);
                   sound.play({ volume: 0.12, rate: 1.0 });
                 }}
               >
-                <div className={`domain-card__icon domain-card__icon--${domain.accent}`}>
+                <div className={`domain-card__icon domain-card__icon--${entry.accent}`}>
                   <DomainIcon size={20} />
                 </div>
-                <strong>{domain.label}</strong>
-                <span>{domainMeta[domain.id].scene}</span>
+                <strong>{entry.label}</strong>
+                <span>{domainMeta[entry.id].scene}</span>
                 <span className="domain-card__foot">
-                  <span className={`domain-card__badge domain-card__badge--${domain.accent}`}>
-                    {domainMeta[domain.id].anchor}
+                  <span className={`domain-card__badge domain-card__badge--${entry.accent}`}>
+                    {detected ? "detected" : domainMeta[entry.id].anchor}
                   </span>
-                  <span className="mono-note">{domainMeta[domain.id].cadence}</span>
+                  <span className="mono-note">{domainMeta[entry.id].cadence}</span>
                 </span>
+                {override ? <span className="domain-card__override">override · next upload</span> : null}
               </button>
             );
           })}
@@ -4271,6 +4442,24 @@ function PredictionView({
   const forecastTotal = forecastPoints.reduce((sum, d) => sum + (d.forecast || 0), 0);
   const savingsInr = liveRecMeta?.savingsInr ?? 0;
   const savingsCo2 = liveRecMeta?.savingsCo2 ?? 0;
+  // Read the chart's own recorded values so the annotations below describe the
+  // series on screen rather than a summary computed from something else.
+  const observedPoints = forecastPoints.filter(p => p.actual != null);
+  const futurePoints = forecastPoints.filter(p => p.actual == null);
+  const observedAvg = observedPoints.length
+    ? observedPoints.reduce((sum, p) => sum + (p.actual || 0), 0) / observedPoints.length
+    : 0;
+  const futureAvg = futurePoints.length
+    ? futurePoints.reduce((sum, p) => sum + p.forecast, 0) / futurePoints.length
+    : 0;
+  const horizonDeltaPct = observedAvg > 0 ? ((futureAvg - observedAvg) / observedAvg) * 100 : null;
+  const peakDay = forecastPoints.length
+    ? forecastPoints.reduce((best, p) => (p.forecast > best.forecast ? p : best), forecastPoints[0])
+    : null;
+  const originDay = observedPoints.length ? observedPoints[observedPoints.length - 1].day : "";
+  const bandWidth = forecastPoints.length
+    ? forecastPoints.reduce((sum, p) => sum + Math.max(0, p.high - p.low), 0) / forecastPoints.length
+    : 0;
   return (
     <div className="view-content">
       <div className="prediction-topline">
@@ -4339,11 +4528,19 @@ function PredictionView({
           </div>
           <div className="prediction-chart">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={forecastData} margin={{ top: 14, right: 18, left: -14, bottom: 0 }}>
+              <AreaChart data={forecastPoints} margin={{ top: 20, right: 22, left: -6, bottom: 4 }}>
                 <defs>
                   <linearGradient id="confidenceFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#8d86ff" stopOpacity={0.25} />
+                    <stop offset="0%" stopColor="#8d86ff" stopOpacity={0.22} />
                     <stop offset="100%" stopColor="#8d86ff" stopOpacity={0.02} />
+                  </linearGradient>
+                  <linearGradient id="observedFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#b6f36b" stopOpacity={0.28} />
+                    <stop offset="100%" stopColor="#b6f36b" stopOpacity={0.01} />
+                  </linearGradient>
+                  <linearGradient id="forecastFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#8d86ff" stopOpacity={0.34} />
+                    <stop offset="100%" stopColor="#8d86ff" stopOpacity={0.03} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid stroke="#24342d" strokeDasharray="2 5" vertical={false} />
@@ -4352,37 +4549,82 @@ function PredictionView({
                   stroke="#61776a"
                   tickLine={false}
                   axisLine={false}
+                  interval="preserveStartEnd"
+                  minTickGap={22}
                   tick={{ fill: "#768e7f", fontSize: 10 }}
                 />
                 <YAxis
                   stroke="#61776a"
                   tickLine={false}
                   axisLine={false}
+                  width={58}
                   tick={{ fill: "#768e7f", fontSize: 10 }}
+                  tickFormatter={value => fmtCount(Number(value))}
                 />
                 <RechartsTooltip
                   contentStyle={{ background: "#15231b", border: "1px solid #30473a", borderRadius: 8, color: "#eff8f1", fontSize: 11 }}
+                  labelFormatter={label => `Day ${label}`}
+                  formatter={(value, name) => [withUnit(fmtCount(Number(value))), String(name)]}
                 />
+                {originDay ? (
+                  <ReferenceLine
+                    x={originDay}
+                    stroke="#5d7765"
+                    strokeDasharray="4 4"
+                    label={{ value: "now", position: "insideTopRight", fill: "#8fa79a", fontSize: 10 }}
+                  />
+                ) : null}
                 <Area type="monotone" dataKey="high" stroke="none" fill="url(#confidenceFill)" />
                 <Area type="monotone" dataKey="low" stroke="none" fill="#132119" />
-                <Line
+                <Area
                   type="monotone"
                   dataKey="actual"
                   stroke="#b6f36b"
-                  strokeWidth={2.7}
-                  dot={{ fill: "#b6f36b", r: 3, strokeWidth: 0 }}
+                  strokeWidth={2.6}
+                  fill="url(#observedFill)"
+                  dot={{ fill: "#b6f36b", r: 2.4, strokeWidth: 0 }}
                   connectNulls={false}
                 />
-                <Line
+                <Area
                   type="monotone"
                   dataKey="forecast"
                   stroke="#8d86ff"
-                  strokeWidth={2.3}
-                  strokeDasharray="5 4"
-                  dot={{ fill: "#8d86ff", r: 3, strokeWidth: 0 }}
+                  strokeWidth={2.4}
+                  fill="url(#forecastFill)"
+                  dot={{ fill: "#8d86ff", r: 2.4, strokeWidth: 0 }}
                 />
               </AreaChart>
             </ResponsiveContainer>
+          </div>
+          <div className="forecast-readout">
+            {/* Only cells the recorded horizon can actually fill are shown: a
+                row of dashes is noise, not information. */}
+            {observedPoints.length ? (
+              <div className="forecast-readout__cell">
+                <small>OBSERVED DAYS</small>
+                <strong>{observedPoints.length}</strong>
+              </div>
+            ) : null}
+            <div className="forecast-readout__cell">
+              <small>FORECAST DAYS</small>
+              <strong>{futurePoints.length || "—"}</strong>
+            </div>
+            <div className="forecast-readout__cell">
+              <small>PEAK DAY</small>
+              <strong>{peakDay ? `${peakDay.day} · ${withUnit(fmtCount(peakDay.forecast))}` : "—"}</strong>
+            </div>
+            <div className="forecast-readout__cell">
+              <small>AVG CONFIDENCE BAND</small>
+              <strong>{bandWidth ? `±${withUnit(fmtCount(bandWidth / 2))}` : "—"}</strong>
+            </div>
+            {horizonDeltaPct != null ? (
+              <div className="forecast-readout__cell">
+                <small>HORIZON VS OBSERVED</small>
+                <strong className={horizonDeltaPct < 0 ? "forecast-readout__down" : ""}>
+                  {`${horizonDeltaPct >= 0 ? "+" : ""}${horizonDeltaPct.toFixed(1)}%`}
+                </strong>
+              </div>
+            ) : null}
           </div>
           <div className="chart-legend">
             <span>

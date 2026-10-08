@@ -4,11 +4,103 @@ All work at the presentation layer. The backend pipeline, stage order, business 
 contracts were not touched in any entry below.
 
 Format: newest first. Each entry lists **what changed**, **why**, and **how it was verified**.
-Companion documents: [`PROJECT_AUDIT.md`](PROJECT_AUDIT.md) · [`PROJECT_ROADMAP.md`](PROJECT_ROADMAP.md) ·
-[`DESIGN_DECISIONS.md`](DESIGN_DECISIONS.md) · [`IMPLEMENTATION_PROGRESS.md`](IMPLEMENTATION_PROGRESS.md).
+Companion documents: [`PROJECT_REPORT.md`](PROJECT_REPORT.md) · [`DESIGN_DECISIONS.md`](DESIGN_DECISIONS.md)
+· [`STATUS.md`](STATUS.md).
+
+The agent-facing scaffolding docs (`PROJECT_AUDIT`, `PROJECT_ROADMAP`, `IMPLEMENTATION_PROGRESS`,
+`FRONTEND_SPEC`) were removed in Session 5 — their live content sits in the report and this log, and
+they are recoverable from git history.
 
 Legend: `FIX` correctness · `FEAT` new capability · `PERF` performance · `A11Y` accessibility ·
 `DOC` documentation · `CHORE` hygiene.
+
+---
+
+## [Unreleased] — Session 5b (make it demonstrable: sound, controls, charts, launcher)
+
+Reviewing the product as a user rather than as a diff turned up a second wave of things that looked
+finished but were not.
+
+### FIX — The completion chime never played
+
+- The chime scheduled its notes on an `AudioContext` that was never resumed. A suspended context has a
+  frozen clock, so every note was scheduled at a time that never arrived — **silence**, on every
+  machine, every time. `playNotes()` now awaits `resume()` and bails if the context is still not
+  running.
+- Chrome's autoplay policy only permits audio after a real gesture. `unlockAudio()` is now called from
+  the first `pointerdown`/`keydown`, so the context is already running by the time a run begins.
+- Added **`playStartTone()`** — a short, quiet two-note rise fired when a run or a stage starts. The
+  product previously acknowledged only completion, which left a long stage feeling dead.
+
+### FIX — A leftover launcher could block every future start
+
+- `_check_duplicate()` refused to start whenever the recorded launcher pid was alive. A launcher left
+  behind by a crashed terminal or a hard shutdown is alive but owns no running service, and it blocked
+  the app from ever launching again. It is now reclaimed automatically; a launcher that *does* own a
+  live service still blocks, with the same message.
+- Verified: `python -m launcher.start --check` after reclaiming a zombie reported the environment clean.
+
+### FEAT — Run controls on every page
+
+- The only run controls lived on Mission control, so a demonstration had to keep navigating back to
+  find **Run**. The context strip — which already travels with the user — now carries
+  **Run · Step · Stop · New run** on every view.
+- **Stop** is new: it calls `POST /workflows/{id}/abort` and states plainly that everything recorded
+  before the stop is kept. **New run** starts a fresh run from stage 01.
+- All four work on a dataset with no run; none of them can be permanently dead.
+
+### FIX — Selecting a dataset was a dead end
+
+- Clicking a dataset in the library only raised a toast. It now loads that dataset's recorded outputs
+  and continues to **Schema discovery**, so the journey keeps moving instead of stopping on a
+  notification.
+
+### FIX — "Open related chart" did nothing
+
+- The evidence inspector's primary action only played a sound. It now closes the drawer, opens the
+  anomaly view and widens the time window so the selected event is actually on screen — and says so in
+  the toast.
+- The invented `source = shared_evidence_index` line was removed; the panel lists only recorded fields
+  (`feature`, `reason`, `detected_at`, `baseline`).
+
+### FIX — The Import page claimed an upload that never happened
+
+- The right-hand panel merged two different facts — *a file chosen now* and *the dataset already in the
+  workspace* — so it announced "Upload accepted: …" and "Dataset is ready" before anything was
+  uploaded. It is now an **Ingestion state** panel that names which of the two it is describing, and
+  the badge reads `ACTIVE` rather than `COMPLETE` for a dataset that was simply loaded.
+- **Domain detection replaces the manual picker.** The section led with "Which signal is this?" and
+  asked the user to choose — for a product whose whole claim is that it detects the domain. The card
+  for the active dataset's recorded domain is now highlighted and labelled `detected`; clicking
+  another card is explicitly an *override for the next upload* and is marked as such.
+- The library import tile advertised `CSV, Parquet, JSON · up to 5 GB`. The API accepts `.csv` and
+  `.xlsx`; the tile now says so. (The dropzone carried the same false claim; fixed in 5a.)
+
+### FIX — Charts that did not explain themselves
+
+- **Mission control** plotted the recorded observed-vs-baseline series under the label
+  "ENERGY LOAD / LAST 24H", which was wrong on both counts: it is not always 24 hours, and it is a
+  comparison, not a single load. It is now labelled with the recorded point count and carries a caption
+  naming the solid series, the dashed series and the column they came from.
+- **Prediction** ignored its own time-window control: the chart plotted the full series while the
+  selector sliced a variable that was never drawn. It now plots the windowed series.
+- The forecast gained a filled projection area, a `now` reference line at the observed/forecast
+  boundary, unit-aware tooltips and axis ticks, and a readout strip (observed days, forecast days,
+  peak day, average confidence band, horizon vs observed).
+
+### FIX — Schema discovery left half the panel blank
+
+- The derived signal families stacked in one narrow column, so the map left the right half of its panel
+  empty and read as a broken layout. They now flow into as many columns as the panel can hold, at every
+  width.
+
+### CHORE — Fewer documents, one honest front door
+
+- Removed `PROJECT_AUDIT.md`, `PROJECT_ROADMAP.md`, `IMPLEMENTATION_PROGRESS.md` and `FRONTEND_SPEC.md`,
+  plus generated build artifacts (`IEEE_Paper.aux`, `IEEE_Paper.log`, a superseded draft) and the
+  `logs/` tree. Their live content is in this log, `PROJECT_REPORT.md` and `DESIGN_DECISIONS.md`.
+- `README.md` now documents the run controls, the twenty-field generator and the corrected document
+  set, and no longer claims the pipeline auto-runs on first sign-in.
 
 ---
 
@@ -329,7 +421,12 @@ business rule was changed, and no number was invented.
   navigation, motion, charts, icons, numbers and units, cards and panels, sign-in, accessibility
   commitments, plus a decision log D-1…D-12 and a `GAP` register.
 - [`docs/CHANGELOG.md`](CHANGELOG.md) — this file.
-- [`docs/IMPLEMENTATION_PROGRESS.md`](IMPLEMENTATION_PROGRESS.md) — exact resume instructions.
+- `docs/IMPLEMENTATION_PROGRESS.md` — exact resume instructions.
+
+> Four of those files (`PROJECT_AUDIT`, `PROJECT_ROADMAP`, `IMPLEMENTATION_PROGRESS`, `FRONTEND_SPEC`)
+> were removed in Session 5. They existed so an interrupted agent could resume; the product no longer
+> ships scaffolding. Their live content is in this log, `PROJECT_REPORT.md` and `DESIGN_DECISIONS.md`,
+> and the full text remains in git history.
 
 ### Verification (Session 2)
 

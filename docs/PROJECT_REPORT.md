@@ -9,9 +9,7 @@ verified versus still open.
 exit 0 · **Backend:** running on `127.0.0.1:8000`, health `ok`.
 
 Companion documents: [`README`](../README.md) · [`STATUS.md`](STATUS.md) (backend truth) ·
-[`PROJECT_AUDIT.md`](PROJECT_AUDIT.md) · [`PROJECT_ROADMAP.md`](PROJECT_ROADMAP.md) ·
-[`DESIGN_DECISIONS.md`](DESIGN_DECISIONS.md) · [`CHANGELOG.md`](CHANGELOG.md) ·
-[`IMPLEMENTATION_PROGRESS.md`](IMPLEMENTATION_PROGRESS.md).
+[`DESIGN_DECISIONS.md`](DESIGN_DECISIONS.md) · [`CHANGELOG.md`](CHANGELOG.md).
 
 ---
 
@@ -145,10 +143,17 @@ and signal family (hvac, chiller, cold chain, it load, …) from the real column
   Run history, Notifications, Workspace settings, plus the sign-in entry and the evidence inspector.
 - **Live state** is a module-level set of `live*` bindings (`liveStages`, `liveCompetition`,
   `liveBaseline`, `liveTransform`, …) filled by `loadWorkspace()` and `applyWorkspace()`.
-- **Pipeline control.** The pipeline never starts by itself, but the rail's three controls are never
-  dead: **Step** runs one stage, **Guided tour** runs the remainder *visiting each page as its stage
-  completes*, and **Run all → report** runs the remainder without leaving the page and lands on the
-  executive report. All three call `ensureRun()`, so they work on a dataset that has never been run.
+- **Pipeline control.** The pipeline never starts by itself, but the controls are never dead. The
+  context strip — which travels with the user — carries **Run · Step · Stop · New run** on *every*
+  page, and Mission control adds **Guided tour**, which runs the remaining stages while *opening each
+  page as its stage completes*. Every one of them calls `ensureRun()`, so they work on a dataset that
+  has never been run. **Stop** calls `POST /workflows/{id}/abort` and states that everything recorded
+  before the stop is kept. A start tone marks a run or stage beginning; a chime marks completion.
+- **One entry point.** `ecomind.bat` / `ecomind.sh` (both driving `launcher/`) find a Python and a Node,
+  create `.venv`, install requirements and pnpm packages, generate `backend/.env` with a random secret,
+  seed the database, **build the SPA** (a fresh clone has no `frontend/dist`), start the backend from
+  the venv, wait for health, then open the browser — and monitor afterwards. A launcher left behind by
+  a crash is reclaimed automatically rather than blocking every future start.
 - **One dataset per workspace.** `workspace.activeDatasetId` names the dataset every other field was
   recorded for, and the run lookup is strict — the heading and the panels can never disagree. Selecting
   a dataset (or uploading one) reloads its recorded outputs.
@@ -182,6 +187,11 @@ and signal family (hvac, chiller, cold chain, it load, …) from the real column
 | Report preview | structured sections (summary / competition / analytics / anomalies / recommendations), Copy + Download .md |
 | `Run all → report` on a never-run dataset | *Water Treatment Plant* 0/10 → 10/10, landed on its report |
 | `Guided tour` | *Railway Station* observed walking Model competition → Prediction → Recommendations → Reports to 10/10 |
+| Persistent controls | **Run · Step · Stop · New run** present and enabled on Mission control, Import, Schema, Anomalies and Prediction |
+| Library → next page | selecting a dataset loads its recorded outputs and continues to Schema discovery |
+| Inspector → *Open related chart* | closes the drawer, opens Anomaly detection, selects the widest window, explains itself in a toast |
+| Import panel | reads `ACTIVE` for a loaded dataset and `Transport hub · detected` for the domain — no upload is implied |
+| Launcher | `python -m launcher.start` on this machine: rebuilt the SPA, started the backend **from `.venv`**, health `ok`, served the new bundle |
 | Identity | `Admin User` / `AU` from `/auth/me` (no hardcoded name remains) |
 | JS exceptions | 0 |
 
@@ -268,9 +278,10 @@ pnpm build:static         # writes ../dist, which the API serves
    Open **Preview rows** on any card and point at the units column: `energy_kwh → kWh`,
    `clinker_tonnes → t`, `kiln_temp_c → °C`, `power_factor → ratio`, `cost_inr → ₹`. Export CSV.
 3. **Import** — upload a file, then stop. Nothing runs. The pipeline is staged, not started.
-4. **Guided tour** — press it. The app walks Library → Import → Schema → Quality → Transformation →
-   Models → Anomalies → Prediction → Recommendations → Reports, one stage at a time, opening each page
-   as its stage completes. (Or press **Run all → report** to run everything and land on the report.)
+4. **Guided tour** — press it on Mission control. The app walks Library → Import → Schema → Quality →
+   Transformation → Models → Anomalies → Prediction → Recommendations → Reports, one stage at a time,
+   opening each page as its stage completes. The same walk can be driven from any page with the
+   **Run · Step · Stop · New run** controls in the bar under the topbar.
 5. **Schema** — the animated map shows the dataset flowing into the signal families it actually
    contains, with role counts underneath.
 6. **Quality** — the overall rule run comes first, then the filter narrows it. State clearly that
