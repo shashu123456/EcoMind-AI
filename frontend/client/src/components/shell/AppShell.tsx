@@ -3,75 +3,72 @@ import type { LucideIcon } from "lucide-react";
 import {
   Activity, AlertTriangle, ArrowDownRight, ArrowRight, ArrowUpRight, BarChart3, Bell, Building2,
   CalendarClock, Check, CheckCircle2, ChevronDown, ChevronRight, ChevronUp, CircleDot, Clock3, CloudUpload,
-  Cpu, Database, DatabaseZap, Download, Eye, Factory, FileCheck2, FileClock, FileText, Filter,
-  Gauge, HardDrive, History, Info, Layers3, Leaf, Lightbulb, ListFilter, LockKeyhole, Mail, Moon, MousePointer2, Network,
-  PanelLeftClose, PanelLeftOpen, Pause, Play, Plus, RefreshCw, Search, Settings2, ShieldCheck,
-  SlidersHorizontal, Sparkles, Sun, Table2, TrendingDown, TrendingUp, UploadCloud, UserRound,
-  WandSparkles, Warehouse, X, Zap
+  Briefcase, Cpu, Database, DatabaseZap, Download, Eye, Factory, FileCheck2, FileClock, FileText, Filter,
+  Gauge, GraduationCap, HardDrive, HeartPulse, History, IndianRupee, Info, Layers3, Leaf, Lightbulb, ListFilter, LockKeyhole, Mail, Moon, MousePointer2, Network,
+  PanelLeftClose, PanelLeftOpen, Pause, Play, Plus, RefreshCw, Search, Server, Settings2, ShieldCheck,
+  ShoppingBag, SlidersHorizontal, Sparkles, Sun, SunMedium, Table2, TrendingDown, TrendingUp, UploadCloud, UserRound,
+  WandSparkles, Warehouse, X, Zap, Boxes
 } from "lucide-react";
 import { EcoMindMark } from "@/components/icons/EcoMindMark";
 import { useTheme } from "@/contexts/ThemeContext";
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Line, LineChart, ReferenceLine,
   ResponsiveContainer, Tooltip as RechartsTooltip, XAxis, YAxis } from "recharts";
 import "./AppShell.css";
-import { useSound } from "@/lib/useSound";
-import { auth, getToken } from "@/lib/api";
+import { useSound, playCompletionChime } from "@/lib/useSound";
+import { auth, datasets as datasetsApi, domain, getToken, workflow, type AuthUser } from "@/lib/api";
+import { displayUnit, unitForColumn } from "@/lib/units";
+import { FAMILY_LABEL, ROLE_LABEL, ROLE_NOTE, ROLE_ORDER, familyForColumn, roleForColumn, type FieldFamily, type FieldRole } from "@/lib/schema";
 import {
-  loadWorkspace, runPipeline,
+  loadWorkspace, runPipeline, STAGE_KEYS,
   type LiveWorkspace, type LiveDataset, type LiveIssue, type LiveModel, type LivePoint,
   type LiveAnomalyPoint, type LiveAnomaly, type LiveForecastPoint, type LiveRec, type LiveActivity,
+  type LiveStage, type LiveCompetition, type LiveQualityMeta, type LiveAnomalyMeta,
+  type LiveTransform, type LiveBaseline, type LiveBaselineCell, type BackendDomain,
+  type LiveForecastMeta, type LiveRecMeta, type LiveRun, type LiveSchemaField, type LiveBaselineVersion,
 } from "@/lib/workspace";
 import { Snowflake, Thermometer, Waves, ArrowUpDown, Cog } from "lucide-react";
 
 type NavId = "overview" | "library" | "import" | "schema" | "quality" | "transform" | "models" | "anomalies" | "prediction" | "recommendations" | "reports" | "history" | "notifications" | "settings";
-type DatasetDomain = "building" | "industry" | "logistics";
-type Dataset = { id: string; name: string; domain: DatasetDomain; type: string; detail: string; rows: string; freshness: string; health: string; accent: string; icon: LucideIcon; location: string; unitSystem: "metric-india" | "metric-eu" };
-type MeterFamily = "motor" | "hvac" | "lighting" | "compressor" | "conveyor" | "coldroom" | "chiller" | "lift" | "pump" | "utility";
-type DatasetField = { name: string; family: MeterFamily; unit: string; role: string; onboarded: boolean };
+type DatasetDomain = BackendDomain;
+type Dataset = { id: string; name: string; domain: DatasetDomain; type: string; detail: string; rows: string; freshness: string; health: string; accent: string; icon: LucideIcon; location: string; unitSystem: "metric-india" | "metric-eu"; fieldCount?: number; rowCount?: number; columnCount?: number };
 
-let datasets: Dataset[] = [
-  { id: "BLDG-042", name: "Northstar Campus", domain: "building", type: "Commercial building", detail: "Energy + occupancy telemetry", rows: "2.4M", freshness: "18 min ago", health: "98.7%", accent: "lime", icon: Building2, location: "Bengaluru · IN", unitSystem: "metric-india" },
-  { id: "IND-017", name: "Riverton Works", domain: "industry", type: "Industrial plant", detail: "Production line + utility loads", rows: "841K", freshness: "2 hr ago", health: "94.1%", accent: "orange", icon: Factory, location: "Pune · IN", unitSystem: "metric-india" },
-  { id: "WH-008", name: "Aster Logistics", domain: "logistics", type: "Distribution center", detail: "HVAC + cold-chain meters", rows: "6.8M", freshness: "Yesterday", health: "99.2%", accent: "violet", icon: Warehouse, location: "Hyderabad · IN", unitSystem: "metric-india" },
-];
-
-const domainMeta: Record<DatasetDomain, { label: string; sub: string; matchStrength: string; scene: string; icon: LucideIcon; accent: string; fmt: string; cadence: string; anchor: string }> = {
-  building: { label: "Commercial building", sub: "Energy + occupancy telemetry", matchStrength: "98.7%", scene: "Meter rooms, tenant zones, BMS feeds", icon: Building2, accent: "lime", fmt: "kWh / m² · INR · kgCO₂", cadence: "10-minute", anchor: "floor level" },
-  industry: { label: "Industrial plant", sub: "Production line + utility loads", matchStrength: "97.4%", scene: "Motors, chillers, compressors, shift cadence", icon: Factory, accent: "orange", fmt: "kWh / tonne · INR · kgCO₂", cadence: "5-minute", anchor: "machine group" },
-  logistics: { label: "Distribution center", sub: "HVAC + cold-chain meters", matchStrength: "99.1%", scene: "Dock doors, cold rooms, conveyor banks", icon: Warehouse, accent: "violet", fmt: "kWh / pallet · INR · kgCO₂", cadence: "15-minute", anchor: "door / zone" },
+// Explicit empty state used before any dataset is loaded. It is NOT sample
+// data: nothing renders as a metric until the backend returns a real dataset.
+const EMPTY_DATASET: Dataset = {
+  id: "—",
+  name: "No dataset loaded",
+  domain: "building",
+  type: "Not classified",
+  detail: "Import a dataset to begin the ten-stage pipeline.",
+  rows: "—",
+  freshness: "—",
+  health: "—",
+  accent: "lime",
+  icon: Building2,
+  location: "—",
+  unitSystem: "metric-india",
 };
+let datasets: Dataset[] = [];
 
-const defaultFieldsByDomain: Record<DatasetDomain, DatasetField[]> = {
-  building: [
-    { name: "meter_kw", family: "utility", unit: "kW", role: "primary load", onboarded: true },
-    { name: "hvac_kw", family: "hvac", unit: "kW", role: "hvac load", onboarded: true },
-    { name: "lighting_kw", family: "lighting", unit: "kW", role: "lighting load", onboarded: true },
-    { name: "occupancy", family: "utility", unit: "people", role: "context", onboarded: true },
-    { name: "co2_kg", family: "utility", unit: "kgCO₂", role: "derived emissions", onboarded: true },
-    { name: "zone_id", family: "utility", unit: "id", role: "entity", onboarded: true },
-  ],
-  industry: [
-    { name: "motor_kw", family: "motor", unit: "kW", role: "primary load", onboarded: true },
-    { name: "compressor_kw", family: "compressor", unit: "kW", role: "compressed air", onboarded: true },
-    { name: "chiller_kw", family: "chiller", unit: "kW", role: "cooling load", onboarded: true },
-    { name: "conveyor_kw", family: "conveyor", unit: "kW", role: "line load", onboarded: true },
-    { name: "shift_id", family: "utility", unit: "id", role: "context", onboarded: true },
-    { name: "tonnes", family: "utility", unit: "t", role: "production volume", onboarded: true },
-  ],
-  logistics: [
-    { name: "coldroom_kw", family: "coldroom", unit: "kW", role: "cold chain", onboarded: true },
-    { name: "dock_kw", family: "utility", unit: "kW", role: "dock load", onboarded: true },
-    { name: "conveyor_kw", family: "conveyor", unit: "kW", role: "sorting load", onboarded: true },
-    { name: "hvac_kw", family: "hvac", unit: "kW", role: "ambient hvac", onboarded: true },
-    { name: "pallets", family: "utility", unit: "palettes", role: "throughput", onboarded: true },
-    { name: "zone_id", family: "utility", unit: "id", role: "entity", onboarded: true },
-  ],
+/**
+ * Per-domain identity. `scene` and `anchor` describe what the domain's telemetry
+ * actually contains; they never assert a measurement the dataset does not have.
+ */
+const domainMeta: Record<DatasetDomain, { label: string; sub: string; matchStrength: string; scene: string; icon: LucideIcon; accent: string; cadence: string; anchor: string }> = {
+  building: { label: "Commercial building", sub: "Energy + occupancy telemetry", matchStrength: "heuristic match", scene: "Meter rooms, tenant zones, BMS feeds", icon: Building2, accent: "lime", cadence: "10-minute", anchor: "floor level" },
+  industry: { label: "Industrial plant", sub: "Production line + utility loads", matchStrength: "heuristic match", scene: "Motors, chillers, compressors, shift cadence", icon: Factory, accent: "orange", cadence: "5-minute", anchor: "machine group" },
+  logistics: { label: "Distribution center", sub: "HVAC + cold-chain meters", matchStrength: "heuristic match", scene: "Dock doors, cold rooms, conveyor banks", icon: Warehouse, accent: "violet", cadence: "15-minute", anchor: "door / zone" },
+  hospital: { label: "Hospital", sub: "Ward, theatre and equipment load", matchStrength: "heuristic match", scene: "Wards, operating theatres, imaging suites, HVAC", icon: HeartPulse, accent: "coral", cadence: "15-minute", anchor: "ward / department" },
+  campus: { label: "University campus", sub: "Academic + residential estates", matchStrength: "heuristic match", scene: "Lecture halls, labs, hostels, central plant", icon: GraduationCap, accent: "blue", cadence: "30-minute", anchor: "building" },
+  mall: { label: "Shopping mall", sub: "Retail zones + common areas", matchStrength: "heuristic match", scene: "Anchor stores, food court, common area HVAC", icon: ShoppingBag, accent: "yellow", cadence: "15-minute", anchor: "tenancy" },
+  office: { label: "Office complex", sub: "Tenant floor + base building", matchStrength: "heuristic match", scene: "Floor distributions, AHUs, tenant sub-meters", icon: Briefcase, accent: "lime", cadence: "15-minute", anchor: "floor" },
+  datacentre: { label: "Data centre", sub: "IT load + facility cooling", matchStrength: "heuristic match", scene: "Rack rows, PDUs, CRAC/CRAH, UPS", icon: Server, accent: "violet", cadence: "1-minute", anchor: "rack row" },
 };
 
 const navSections: { label: string; items: { id: NavId; label: string; icon: LucideIcon; status?: string }[] }[] = [
-  { label: "Workspace", items: [{ id: "overview", label: "Mission control", icon: Gauge }, { id: "library", label: "Dataset library", icon: Layers3, status: "3" }, { id: "import", label: "Import dataset", icon: UploadCloud }] },
-  { label: "Understand", items: [{ id: "schema", label: "Schema discovery", icon: Network }, { id: "quality", label: "Data quality", icon: ShieldCheck, status: "19" }, { id: "transform", label: "Transformation", icon: WandSparkles }] },
-  { label: "Analyze", items: [{ id: "models", label: "Model competition", icon: Cpu }, { id: "anomalies", label: "Anomaly detection", icon: AlertTriangle, status: "7" }, { id: "prediction", label: "Prediction", icon: TrendingUp }, { id: "recommendations", label: "Recommendations", icon: Lightbulb, status: "4" }, { id: "reports", label: "Reports", icon: FileText }] },
+  { label: "Workspace", items: [{ id: "overview", label: "Mission control", icon: Gauge }, { id: "library", label: "Dataset library", icon: Layers3 }, { id: "import", label: "Import dataset", icon: UploadCloud }] },
+  { label: "Understand", items: [{ id: "schema", label: "Schema discovery", icon: Network }, { id: "quality", label: "Data quality", icon: ShieldCheck }, { id: "transform", label: "Transformation", icon: WandSparkles }] },
+  { label: "Analyze", items: [{ id: "models", label: "Model competition", icon: Cpu }, { id: "anomalies", label: "Anomaly detection", icon: AlertTriangle }, { id: "prediction", label: "Prediction", icon: TrendingUp }, { id: "recommendations", label: "Recommendations", icon: Lightbulb }, { id: "reports", label: "Reports", icon: FileText }] },
   { label: "System", items: [{ id: "history", label: "Run history", icon: History }, { id: "notifications", label: "Notifications", icon: Bell }, { id: "settings", label: "Workspace settings", icon: Settings2 }] },
 ];
 
@@ -88,65 +85,32 @@ const pipelineStages: { id: NavId; label: string; short: string; icon: LucideIco
   { id: "reports", label: "Reports", short: "10", icon: FileText },
 ];
 
-let energyData: LivePoint[] = [
-  { time: "00:00", energy: 38, baseline: 36 },
-  { time: "04:00", energy: 33, baseline: 35 },
-  { time: "08:00", energy: 61, baseline: 56 },
-  { time: "12:00", energy: 73, baseline: 68 },
-  { time: "16:00", energy: 67, baseline: 64 },
-  { time: "20:00", energy: 49, baseline: 47 },
-  { time: "24:00", energy: 42, baseline: 39 },
-];
+let energyData: LivePoint[] = [];
 
-let forecastData: LiveForecastPoint[] = [
-  { day: "08 Oct", actual: 72, forecast: 72, low: 67, high: 78 },
-  { day: "09 Oct", actual: 66, forecast: 66, low: 61, high: 72 },
-  { day: "10 Oct", actual: 71, forecast: 71, low: 64, high: 77 },
-  { day: "11 Oct", actual: null, forecast: 76, low: 69, high: 83 },
-  { day: "12 Oct", actual: null, forecast: 74, low: 67, high: 81 },
-  { day: "13 Oct", actual: null, forecast: 69, low: 62, high: 76 },
-  { day: "14 Oct", actual: null, forecast: 64, low: 58, high: 71 },
-];
+let forecastData: LiveForecastPoint[] = [];
 
-let qualityIssues: LiveIssue[] = [
-  { id: "Q-1024", type: "Null value", field: "meter_kw", row: "18,204", raw: "—", context: "meter_kw at 18:00 is 42.8 kW", fixed: "42.8", confidence: "99.8%" },
-  { id: "Q-1025", type: "Missing timestamp", field: "timestamp", row: "18,205", raw: "2026-10-06 18:10 → —", context: "Cadence inferred from adjacent rows", fixed: "2026-10-06 18:20", confidence: "98.4%" },
-  { id: "Q-1026", type: "Duplicate", field: "event_id", row: "31,990", raw: "evt_9f12", context: "Duplicate of row 31,989", fixed: "Removed in v1.4", confidence: "100%" },
-  { id: "Q-1027", type: "Datatype mismatch", field: "occupancy", row: "42,116", raw: '"n/a"', context: "Occupancy schema expects integer", fixed: "0", confidence: "97.1%" },
-  { id: "Q-1028", type: "Invalid value", field: "co2_kg", row: "52,881", raw: "-18.4", context: "Negative emissions are not valid", fixed: "18.4", confidence: "96.6%" },
-];
+let qualityIssues: LiveIssue[] = [];
 
-let modelData: LiveModel[] = [
-  { name: "Gradient Boost", short: "GB", mae: 4.82, rmse: 7.31, r2: 0.94, color: "#b6f36b" },
-  { name: "XGBoost", short: "XGB", mae: 5.14, rmse: 7.92, r2: 0.92, color: "#79d6c4" },
-  { name: "Random Forest", short: "RF", mae: 5.78, rmse: 8.46, r2: 0.90, color: "#8d86ff" },
-  { name: "Prophet", short: "PRO", mae: 7.12, rmse: 10.11, r2: 0.84, color: "#f5a56d" },
-];
+let modelData: LiveModel[] = [];
 
-let anomalyData: LiveAnomalyPoint[] = [
-  { time: "00:00", actual: 38, baseline: 36, anomaly: null },
-  { time: "04:00", actual: 33, baseline: 35, anomaly: null },
-  { time: "08:00", actual: 61, baseline: 56, anomaly: null },
-  { time: "10:00", actual: 81, baseline: 60, anomaly: 81 },
-  { time: "12:00", actual: 73, baseline: 68, anomaly: null },
-  { time: "14:00", actual: 94, baseline: 66, anomaly: 94 },
-  { time: "16:00", actual: 67, baseline: 64, anomaly: null },
-  { time: "20:00", actual: 49, baseline: 47, anomaly: null },
-  { time: "24:00", actual: 42, baseline: 39, anomaly: null },
-];
+let anomalyData: LiveAnomalyPoint[] = [];
 
-let anomalies: LiveAnomaly[] = [
-  { id: "AN-2048", severity: "Critical", type: "Load spike", timestamp: "06 Oct · 14:10", feature: "meter_kw", reason: "+42% above seasonal baseline", color: "coral" },
-  { id: "AN-2047", severity: "High", type: "After-hours load", timestamp: "06 Oct · 10:24", feature: "hvac_kw", reason: "Occupancy signal at 0; HVAC remains active", color: "orange" },
-  { id: "AN-2041", severity: "Medium", type: "Drift", timestamp: "05 Oct · 21:06", feature: "co2_kg", reason: "Baseline drift across 4 consecutive windows", color: "yellow" },
-  { id: "AN-2033", severity: "Low", type: "Gap", timestamp: "05 Oct · 03:12", feature: "timestamp", reason: "10-minute telemetry gap detected", color: "blue" },
-];
+let anomalies: LiveAnomaly[] = [];
 
-let recommendations: LiveRec[] = [
-  { priority: "01", title: "Schedule a 30-minute HVAC setback", body: "The 14:00 load spike repeats on 4 of the last 7 days. Shift pre-cooling to 13:30 and cap zone 3 to 72%.", impact: "Save ~₹18,400 / mo", confidence: "94%", color: "lime" },
-  { priority: "02", title: "Inspect chiller loop 02", body: "After-hours load is 17% above the learned occupancy baseline. A valve inspection is recommended before the next peak window.", impact: "Avoid 1.2 tCO₂ / mo", confidence: "89%", color: "orange" },
-  { priority: "03", title: "Move the peak tariff window", body: "Your load forecast shows a 16:00–18:00 crest. Consider shifting batch processing to 11:00 while the tariff is lower.", impact: "Save ~₹9,600 / mo", confidence: "86%", color: "violet" },
-];
+let recommendations: LiveRec[] = [];
+
+let liveStages: LiveStage[] = [];
+let liveCompetition: LiveCompetition | null = null;
+let liveQualityMeta: LiveQualityMeta | null = null;
+let liveAnomalyMeta: LiveAnomalyMeta | null = null;
+let liveForecastMeta: LiveForecastMeta | null = null;
+let liveRecMeta: LiveRecMeta | null = null;
+let liveRuns: LiveRun[] = [];
+let liveSchema: LiveSchemaField[] | null = null;
+let liveBaselineVersions: LiveBaselineVersion[] = [];
+let liveRunId: string | null = null;
+let liveTargetUnit = "";
+let liveTargetColumn = "";
 
 const viewMeta: Record<NavId, { kicker: string; title: string; description: string }> = {
   overview: { kicker: "Mission control / 07 OCT 2026", title: "From raw signal to resilient operations.", description: "EcoMind orchestrates the full energy intelligence pipeline with every AI decision kept inspectable." },
@@ -160,7 +124,7 @@ const viewMeta: Record<NavId, { kicker: string; title: string; description: stri
   prediction: { kicker: "Analyze / Prediction", title: "Forecast what the next window will cost.", description: "Use the selected baseline and processed data to project energy, spend, and carbon." },
   recommendations: { kicker: "Analyze / Recommendations", title: "Turn insight into an operating decision.", description: "Practical actions ranked by expected impact, evidence, and confidence." },
   reports: { kicker: "Analyze / Reports", title: "A clear record of what the AI found.", description: "Export project-scoped summaries, analytics, anomalies, predictions, and recommendations." },
-  history: { kicker: "System / Run history", title: "Every run, versioned.", description: "Traceable pipeline operations for Northstar Campus." },
+  history: { kicker: "System / Run history", title: "Every run, versioned.", description: "Traceable pipeline operations for every dataset." },
   notifications: { kicker: "System / Notifications", title: "Signals that need your attention.", description: "High-value events from the active project, without the noise." },
   settings: { kicker: "System / Workspace settings", title: "Shape the intelligence layer.", description: "Manage defaults, retention, permissions, and project preferences." },
 };
@@ -272,6 +236,263 @@ function EmptySystemView({
   );
 }
 
+const RUN_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const fmtRunClock = (iso?: string): string => {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "—";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${pad(d.getDate())} ${RUN_MONTHS[d.getMonth()]} · ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};
+const fmtCount = (n?: number): string =>
+  n == null || !isFinite(n) ? "—" : Math.round(n).toLocaleString("en-IN");
+
+const fmtRunDuration = (started: string | null, completed: string | null): string => {
+  if (!started || !completed) return "—";
+  const ms = Date.parse(completed) - Date.parse(started);
+  if (!isFinite(ms) || ms < 0) return "—";
+  if (ms < 1000) return `${Math.round(ms)}ms`;
+  if (ms < 60_000) return `${(ms / 1000).toFixed(1)}s`;
+  return `${Math.floor(ms / 60_000)}m ${Math.round((ms % 60_000) / 1000)}s`;
+};
+
+const STAGE_LABEL_TEXT: Record<string, string> = {
+  schema: "Schema",
+  quality: "Quality",
+  transformation: "Transform",
+  model_selection: "Model",
+};
+
+// Inverse of STAGE_KEY_BY_VIEW: which page shows the output of each stage.
+// The Auto run walks these in pipeline order so a demonstration follows the
+// product the same way the data does.
+const VIEW_BY_STAGE_KEY: Record<string, NavId> = {
+  library: "library",
+  import: "import",
+  schema: "schema",
+  quality: "quality",
+  transformation: "transform",
+  model_selection: "models",
+  anomaly: "anomalies",
+  forecast: "prediction",
+  recommendation: "recommendations",
+  report: "reports",
+};
+
+const STAGE_KEY_BY_VIEW: Record<string, string> = {
+  transform: "transformation",
+  models: "model_selection",
+  anomalies: "anomaly",
+  prediction: "forecast",
+  recommendations: "recommendation",
+  reports: "report",
+};
+
+/** Append the modelled unit only when the backend actually recorded one. */
+const withUnit = (value: string, unit = liveTargetUnit): string =>
+  unit ? `${value} ${displayUnit(unit)}` : value;
+
+const fmtLiveDuration = (ls: LiveStage | undefined): string => {
+  if (!ls) return "";
+  if (ls.durationMs == null) return ls.status;
+  if (ls.durationMs < 1000) return `${Math.round(ls.durationMs)}ms`;
+  if (ls.durationMs < 60_000) return `${(ls.durationMs / 1000).toFixed(1)}s`;
+  return `${Math.floor(ls.durationMs / 60_000)}m ${Math.round((ls.durationMs % 60_000) / 1000)}s`;
+};
+
+function HistoryView({ runs, onReplay }: { runs: LiveRun[]; onReplay: (datasetId: string) => void }) {
+  if (!runs.length) {
+    return (
+      <EmptySystemView
+        icon={FileClock}
+        title="No pipeline runs yet."
+        description="Runs appear here the moment a dataset enters the ten-stage pipeline — with status, stage coverage, and timing."
+      />
+    );
+  }
+  const done = runs.filter(r => r.status === "completed").length;
+  return (
+    <div className="view-content">
+      <div className="quality-kpis">
+        <Metric label="TOTAL RUNS" value={String(runs.length)} delta="recorded" accent="blue" />
+        <Metric label="COMPLETED" value={String(done)} delta={`${runs.length - done} other`} accent="lime" />
+        <Metric label="STAGES PER RUN" value="10" delta="fixed pipeline" direction="down" accent="violet" />
+      </div>
+      <section className="panel table-panel">
+        <SectionHeading
+          eyebrow="SYSTEM / RUN HISTORY"
+          title="Every run, versioned."
+          detail="Status, stage coverage, and wall-clock timing straight from the backend traces."
+        />
+        <div className="data-table">
+          <div className="data-table__head">
+            <span>STATUS</span>
+            <span>DATASET</span>
+            <span>STAGES</span>
+            <span>STARTED</span>
+            <span>DURATION</span>
+            <span>RUN ID</span>
+            <span />
+          </div>
+          {runs.map(r => (
+            <div className="data-table__row" key={r.id}>
+              <span>
+                <TinyTag tone={r.status === "completed" ? "lime" : r.status === "failed" ? "coral" : "orange"}>
+                  {r.status}
+                </TinyTag>
+              </span>
+              <strong>{r.datasetName}</strong>
+              <span className="mono-note">
+                {r.stagesDone} / {r.total}
+              </span>
+              <span className="mono-note">{fmtRunClock(r.started || undefined)}</span>
+              <span className="mono-note">{fmtRunDuration(r.started || null, r.completed)}</span>
+              <code>{r.id.slice(0, 8)}</code>
+              <button
+                type="button"
+                aria-label={`Replay pipeline for ${r.datasetName}`}
+                title="Replay the ten-stage pipeline for this dataset"
+                onClick={() => onReplay(r.datasetId)}
+              >
+                <Play size={13} />
+              </button>
+            </div>
+          ))}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function NotificationsView() {
+  const alerts = activityEvents
+    .filter(e => e.severity === "warning" || e.status === "WARN" || /generat|promot|complet|upload|detect/i.test(e.operation))
+    .slice(0, 24);
+  const criticals = (liveAnomalyMeta?.severity?.critical ?? 0) + (liveAnomalyMeta?.severity?.high ?? 0);
+  if (!alerts.length && !criticals) {
+    return (
+      <EmptySystemView
+        icon={Bell}
+        title="No high-value events yet."
+        description="Stage completions, model promotions, and critical anomalies surface here as soon as the pipeline records them."
+      />
+    );
+  }
+  return (
+    <div className="view-content">
+      <div className="quality-kpis">
+        <Metric label="EVENTS" value={String(alerts.length)} delta="from audit log" accent="blue" />
+        <Metric label="CRITICAL/HIGH" value={String(criticals)} delta="anomalies" accent={criticals ? "coral" : "lime"} />
+        <Metric label="PIPELINE" value={`${liveStages.filter(s => s.status === "completed").length} / 10`} delta="stages complete" direction="down" accent="violet" />
+      </div>
+      <section className="panel table-panel">
+        <SectionHeading
+          eyebrow="SYSTEM / ACTIVITY"
+          title="Evidence, as it happens."
+          detail="Mapped from the backend audit log — action, source, and recorded detail."
+        />
+        <div className="data-table">
+          <div className="data-table__head">
+            <span>STATUS</span>
+            <span>TIME</span>
+            <span>SOURCE</span>
+            <span>EVENT</span>
+            <span>DETAIL</span>
+            <span />
+          </div>
+          {alerts.map((e, i) => (
+            <div className="data-table__row" key={`${e.time}-${i}`}>
+              <span>
+                <TinyTag tone={e.status === "WARN" ? "coral" : e.status === "DONE" ? "lime" : "blue"}>{e.status}</TinyTag>
+              </span>
+              <span className="mono-note">{e.time}</span>
+              <code>{e.service}</code>
+              <strong>{e.operation}</strong>
+              <span>{e.result}</span>
+              <span className="mono-note">{e.duration}</span>
+            </div>
+          ))}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function SettingsView({
+  workspace,
+  baselineName,
+  modelName,
+}: {
+  workspace: LiveWorkspace | null;
+  baselineName: string;
+  modelName: string;
+}) {
+  const [me, setMe] = useState<{ email?: string; full_name?: string; role?: string } | null>(null);
+  const [health, setHealth] = useState<string>("checking…");
+  useEffect(() => {
+    let cancelled = false;
+    auth.me().then(u => { if (!cancelled) setMe(u as { email?: string; full_name?: string; role?: string }); }).catch(() => {});
+    fetch("/api/v1/health")
+      .then(r => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+      .then(() => { if (!cancelled) setHealth("connected"); })
+      .catch(() => { if (!cancelled) setHealth("unreachable"); });
+    return () => { cancelled = true; };
+  }, []);
+  const comp = liveCompetition;
+  return (
+    <div className="view-content">
+      <div className="dashboard-grid dashboard-grid--overview">
+        <section className="panel">
+          <SectionHeading eyebrow="SYSTEM / SESSION" title="Signed-in workspace." detail="Auth comes from the FastAPI JWT layer." />
+          <div className="operation-list">
+            <div className="operation-row">
+              <span className="operation-row__icon operation-row__icon--lime"><UserRound size={15} /></span>
+              <div><strong>{me?.full_name || me?.email || "Analyst"}</strong><span className="mono-note">{me?.role ?? "user"} · bearer token {getToken() ? "active" : "missing"}</span></div>
+            </div>
+            <div className="operation-row">
+              <span className="operation-row__icon operation-row__icon--blue"><Network size={15} /></span>
+              <div><strong>Backend /api/v1</strong><span className="mono-note">health: {health}</span></div>
+            </div>
+          </div>
+        </section>
+        <section className="panel">
+          <SectionHeading eyebrow="SYSTEM / PIPELINE" title="Active configuration." detail="What the loaded run is currently using." />
+          <div className="operation-list">
+            <div className="operation-row">
+              <span className="operation-row__icon operation-row__icon--orange"><Cpu size={15} /></span>
+              <div><strong>{modelName}</strong><span className="mono-note">{comp ? `${comp.features} features · target ${comp.target}` : "model competition"}</span></div>
+            </div>
+            <div className="operation-row">
+              <span className="operation-row__icon operation-row__icon--violet"><ShieldCheck size={15} /></span>
+              <div><strong>{baselineName}</strong><span className="mono-note">{liveBaselineVersions.length} ledger version{liveBaselineVersions.length === 1 ? "" : "s"} · {workspace?.runId ? `run ${workspace.runId.slice(0, 8)}` : "no run"}</span></div>
+            </div>
+          </div>
+        </section>
+        <section className="panel">
+          <SectionHeading eyebrow="SYSTEM / BASELINE LEDGER" title="Versioned artifacts." detail="Immutable snapshots recorded by the backend." />
+          {liveBaselineVersions.length ? (
+            <div className="data-table">
+              <div className="data-table__head">
+                <span>VERSION</span><span>ROWS</span><span>RECORDED</span><span />
+              </div>
+              {liveBaselineVersions.slice(0, 8).map(v => (
+                <div className="data-table__row" key={v.version}>
+                  <strong>v{v.version}</strong>
+                  <span className="mono-note">{fmtCount(v.rowCount)}</span>
+                  <span className="mono-note">{fmtRunClock(v.created ?? undefined)}</span>
+                  <span />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="mono-note">No baseline versions recorded yet — they appear after the first pipeline run.</p>
+          )}
+        </section>
+      </div>
+    </div>
+  );
+}
+
 type SoundPlayerProps = {
   kind: SoundKind;
   onPlay?: () => void;
@@ -291,34 +512,51 @@ function SoundPlayer({ kind, onPlay, when = true }: SoundPlayerProps) {
 }
 
 function SignInView({ onEnter }: { onEnter: () => void }) {
-  const [email, setEmail] = useState("analyst@northstar.energy");
-  const [password, setPassword] = useState("");
+  // Prefilled with the seeded workspace account so a demonstration never starts
+  // with an unknown credential set. See docs/STATUS.md for the seed.
+  const [email, setEmail] = useState("admin@ecomind.ai");
+  const [password, setPassword] = useState("admin123");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [focused, setFocused] = useState<"email" | "password" | null>(null);
   const signinSound = useSound({ onPlay: () => {} });
-  const submit = async (fallbackRegister = false) => {
+  /** Register a brand-new workspace account (the backend has no SSO flow). */
+  const createAccount = async () => {
     if (busy) return;
     setBusy(true);
     setError("");
     const pass = password || "Passw0rd!";
     try {
-      try {
-        await auth.login(email, pass);
-      } catch (err) {
-        const status = (err as { status?: number }).status;
-        if (!fallbackRegister && (status === 401 || status === 400 || status === 404)) {
-          await auth.register(email, pass, email.split("@")[0] || "Analyst");
-        } else if (!fallbackRegister) {
-          throw err;
-        } else {
-          await auth.register(email, pass, email.split("@")[0] || "Analyst");
-        }
-      }
-      signinSound.play({ volume: 0.2, rate: 1.1 });
+      await auth.register(email, pass, email.split("@")[0] || "Analyst");
+      playCompletionChime();
       onEnter();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Sign in failed. Check the API is running.");
+      setError(err instanceof Error ? err.message : "Account creation failed. Check the API is running.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  const submit = async () => {
+    if (busy) return;
+    if (!password) {
+      setError("Enter your password to continue.");
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      await auth.login(email, password);
+      playCompletionChime();
+      onEnter();
+    } catch (err) {
+      const status = (err as { status?: number }).status;
+      setError(
+        status === 401 || status === 400
+          ? "Those credentials were not accepted. Check the email and password, or create a new workspace account."
+          : err instanceof Error
+            ? err.message
+            : "Sign in failed. Check the API is running."
+      );
     } finally {
       setBusy(false);
     }
@@ -350,6 +588,7 @@ function SignInView({ onEnter }: { onEnter: () => void }) {
           <p>One inspectable AI pipeline for teams turning energy data into confident operating decisions.</p>
           <div className="signin-flow">
             <div className="signin-flow__line" />
+            <span className="signin-flow__spark" />
             {[
               { label: "INGEST", icon: UploadCloud },
               { label: "UNDERSTAND", icon: Network },
@@ -375,8 +614,22 @@ function SignInView({ onEnter }: { onEnter: () => void }) {
             <span className="status-dot status-dot--lime" />
             AI core online
           </span>
-          <span>Northstar Campus / workspace preview</span>
-          <span>Build 1.4.0</span>
+          <span>EcoMind Energy OS / workspace preview</span>
+          <span>Build {__BUILD_STAMP__}</span>
+        </div>
+        <div className="signin-chips">
+          <span className="signin-chip">
+            <Network size={13} />
+            10-stage pipeline
+          </span>
+          <span className="signin-chip">
+            <DatabaseZap size={13} />
+            Raw data immutable
+          </span>
+          <span className="signin-chip">
+            <BarChart3 size={13} />
+            Score-ranked models
+          </span>
         </div>
         <div className="signin-radar">
           <div className="signin-radar__ring signin-radar__ring--one" />
@@ -401,7 +654,7 @@ function SignInView({ onEnter }: { onEnter: () => void }) {
           <form
             onSubmit={event => {
               event.preventDefault();
-              void submit(false);
+              void submit();
             }}
           >
             <label className={focused === "email" ? "is-focused" : ""}>
@@ -432,44 +685,42 @@ function SignInView({ onEnter }: { onEnter: () => void }) {
               </span>
             </label>
             <div className="signin-options">
-              <label className="signin-check">
-                <input type="checkbox" defaultChecked />
-                {" "}
-                <span>Remember this device</span>
-              </label>
-              <button type="button">Forgot password?</button>
+              <span className="signin-demo-note">
+                <CircleDot size={11} />
+                Seeded workspace account — replace before deploying
+              </span>
             </div>
-            {error ? <p className="signin-error">{error}</p> : null}
+            {error ? <p className="signin-error" role="alert">{error}</p> : null}
             <button className="signin-submit" type="submit" disabled={busy}>
-              <span>{busy ? "Connecting…" : "Enter workspace"}</span>
+              <span>{busy ? "Connecting…" : "Sign in to workspace"}</span>
               <ArrowRight size={16} />
             </button>
           </form>
           <div className="signin-divider">
-            <span>or continue with</span>
+            <span>New workspace</span>
           </div>
           <button
             className="sso-button"
             type="button"
             disabled={busy}
-            onClick={() => void submit(true)}
+            onClick={() => void createAccount()}
           >
-            <span className="sso-button__glyph">N</span>{" "}
-            Continue with Northstar SSO
+            <Plus size={14} />{" "}
+            Create an account with this email
           </button>
           <p className="signin-legal">
-            By continuing, you agree to the workspace security policy.<br />
-            Your data remains scoped to this project.
+            Every pipeline run stays scoped to this project.<br />
+            Uploaded datasets are never modified — repairs create new versions.
           </p>
         </div>
         <div className="signin-card__meta">
           <span>
             <LockKeyhole size={12} />
-            SOC2-ready workspace controls
+            Bearer-token scoped API
           </span>
           <span>
             <ShieldCheck size={12} />
-            Human-in-the-loop by default
+            Raw source is never rewritten
           </span>
         </div>
       </div>
@@ -477,23 +728,33 @@ function SignInView({ onEnter }: { onEnter: () => void }) {
   );
 }
 
-function fieldIconFor(family: MeterFamily): LucideIcon {
+function fieldIconFor(family: FieldFamily): LucideIcon {
   if (family === "motor") return Cpu;
   if (family === "hvac") return Activity;
   if (family === "lighting") return Lightbulb;
+  if (family === "process") return Factory;
   if (family === "compressor") return Cog;
-  if (family === "conveyor") return Warehouse;
-  if (family === "coldroom") return Snowflake;
+  if (family === "conveyor") return ArrowUpDown;
+  if (family === "coldchain") return Snowflake;
   if (family === "chiller") return Thermometer;
-  if (family === "lift") return ArrowUpDown;
+  if (family === "thermal") return Thermometer;
+  if (family === "humidity") return Waves;
   if (family === "pump") return Waves;
+  if (family === "itload") return Server;
+  if (family === "dock") return Warehouse;
+  if (family === "generation") return SunMedium;
+  if (family === "emissions") return Leaf;
+  if (family === "cost") return IndianRupee;
+  if (family === "occupancy") return UserRound;
+  if (family === "production") return Boxes;
+  if (family === "voltage") return Zap;
+  if (family === "current") return Zap;
+  if (family === "powerfactor") return Gauge;
   return Zap;
 }
 
 function datasetDomainIcon(domain: DatasetDomain): LucideIcon {
-  if (domain === "industry") return Factory;
-  if (domain === "logistics") return Warehouse;
-  return Building2;
+  return (domainMeta[domain] ?? domainMeta.building).icon;
 }
 
 export function AppShell() {
@@ -501,7 +762,7 @@ export function AppShell() {
   const sound = useSound({ onPlay: () => {} });
   const [signedIn, setSignedIn] = useState(false);
   const [activeView, setActiveView] = useState<NavId>("overview");
-  const [activeDataset, setActiveDataset] = useState<Dataset>(datasets[0]);
+  const [activeDataset, setActiveDataset] = useState<Dataset>(datasets[0] ?? EMPTY_DATASET);
   const [sidebarExpanded, setSidebarExpanded] = useState(true);
   const [searchOpen, setSearchOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
@@ -509,13 +770,19 @@ export function AppShell() {
   const [toast, setToast] = useState("");
   const [scanRunning, setScanRunning] = useState(false);
   const [scanStage, setScanStage] = useState(0);
-  const [uploadedFileName, setUploadedFileName] = useState("northstar-campus-oct.csv");
+  const [uploadedFileName, setUploadedFileName] = useState("energy-meters-oct.csv");
   const [uploadDomain, setUploadDomain] = useState<DatasetDomain>("building");
   const [qualityFilter, setQualityFilter] = useState("All issues");
   const [qualityRepaired, setQualityRepaired] = useState(false);
   const [versionSaved, setVersionSaved] = useState(false);
-  const [enabledTransforms, setEnabledTransforms] = useState(["resample", "normalize", "baseline"]);
-  const [selectedModel, setSelectedModel] = useState("Gradient Boost");
+  const [selectedModel, setSelectedModel] = useState("");
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
+  const [preview, setPreview] = useState<{
+    dataset: Dataset;
+    rows: Record<string, unknown>[];
+    loading: boolean;
+    error: string;
+  } | null>(null);
   const [anomalyWindow, setAnomalyWindow] = useState("24H");
   const [forecastWindow, setForecastWindow] = useState("7 days");
   const [reportDraft, setReportDraft] = useState<string | null>(null);
@@ -524,22 +791,57 @@ export function AppShell() {
   const [terminalOpen, setTerminalOpen] = useState(true);
   const [terminalPaused, setTerminalPaused] = useState(false);
   const [workspace, setWorkspace] = useState<LiveWorkspace | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
+  const [stageBusy, setStageBusy] = useState("");
+  const [autoRunning, setAutoRunning] = useState(false);
+  const [awaitingRun, setAwaitingRun] = useState(false);
   const isDark = theme === "dark";
   const filteredQuality = qualityIssues.filter(
     issue => qualityFilter === "All issues" || issue.type === qualityFilter
   );
   const domainInfo = useMemo(() => domainMeta[activeDataset.domain] ?? domainMeta.building, [activeDataset.domain]);
-  const baselineName = useMemo(() => workspace?.baselineLabel ?? "Baseline v1", [workspace]);
-  const modelName = useMemo(() => workspace?.modelName || selectedModel, [workspace, selectedModel]);
+  const baselineName = useMemo(() => workspace?.baselineLabel ?? "", [workspace]);
+  const modelName = useMemo(() => workspace?.modelName || "", [workspace]);
+  const stagesDone = liveStages.filter(s => s.status === "completed").length;
+  const displayName = currentUser?.full_name || currentUser?.email || "Signed-in user";
+  const initials = (() => {
+    const parts = (currentUser?.full_name?.trim() || currentUser?.email || "")
+      .split(/[\s@._-]+/)
+      .filter(Boolean);
+    if (!parts.length) return "·";
+    return (parts.length > 1 ? `${parts[0][0]}${parts[1][0]}` : parts[0].slice(0, 2)).toUpperCase();
+  })();
+  const severityRank: Record<string, number> = { critical: 4, high: 3, medium: 2, low: 1 };
+  const attentionQueue = [...anomalies]
+    .sort((a, b) => (severityRank[b.severity] ?? 0) - (severityRank[a.severity] ?? 0))
+    .slice(0, 3);
+  const attentionCount =
+    (liveAnomalyMeta?.severity?.critical ?? 0) + (liveAnomalyMeta?.severity?.high ?? 0);
 
   useEffect(() => {
     if (!signedIn && getToken()) setSignedIn(true);
   }, [signedIn]);
 
+  // The real signed-in identity, straight from GET /auth/me. The topbar and the
+  // profile popover show this instead of a hardcoded name.
   useEffect(() => {
-    if (!signedIn) return;
+    if (!signedIn) {
+      setCurrentUser(null);
+      return;
+    }
     let cancelled = false;
-    const apply = (loaded: LiveWorkspace) => {
+    auth
+      .me()
+      .then(user => {
+        if (!cancelled) setCurrentUser(user);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [signedIn]);
+
+  const applyWorkspace = (loaded: LiveWorkspace) => {
       if (loaded.datasets.length) datasets = loaded.datasets;
       if (loaded.energy) energyData = loaded.energy;
       if (loaded.forecast) forecastData = loaded.forecast;
@@ -549,6 +851,19 @@ export function AppShell() {
       if (loaded.anomalies) anomalies = loaded.anomalies;
       if (loaded.recs) recommendations = loaded.recs;
       if (loaded.activity?.length) activityEvents = loaded.activity;
+      liveStages = loaded.stages ?? [];
+      liveCompetition = loaded.competition ?? null;
+      liveQualityMeta = loaded.qualityMeta ?? null;
+      liveAnomalyMeta = loaded.anomalyMeta ?? null;
+      liveForecastMeta = loaded.forecastMeta ?? null;
+      liveRecMeta = loaded.recMeta ?? null;
+      liveRuns = loaded.runs ?? [];
+      liveSchema = loaded.schema ?? null;
+      liveBaselineVersions = loaded.baselineVersions ?? [];
+      liveRunId = loaded.runId ?? null;
+      liveTargetUnit = loaded.targetUnit ?? "";
+      liveTargetColumn = loaded.targetColumn ?? "";
+      if (loaded.modelName) setSelectedModel(loaded.modelName);
       navSections.forEach(section =>
         section.items.forEach(item => {
           if (item.id === "library") item.status = String(datasets.length);
@@ -557,9 +872,24 @@ export function AppShell() {
           else if (item.id === "recommendations") item.status = String(recommendations.length);
         })
       );
-      setActiveDataset(prev => datasets.find(d => d.id === prev.id) ?? datasets[0]);
-      setWorkspace(loaded);
-    };
+    setActiveDataset(prev => datasets.find(d => d.id === prev.id) ?? datasets[0] ?? EMPTY_DATASET);
+    setWorkspace(loaded);
+  };
+
+  /** Re-read every recorded stage output for the active dataset. */
+  const refreshWorkspace = async (): Promise<boolean> => {
+    const res = await loadWorkspace();
+    if (!res) {
+      if (!getToken()) setSignedIn(false);
+      return false;
+    }
+    applyWorkspace(res.workspace);
+    return true;
+  };
+
+  useEffect(() => {
+    if (!signedIn) return;
+    let cancelled = false;
     (async () => {
       const res = await loadWorkspace();
       if (cancelled) return;
@@ -568,25 +898,21 @@ export function AppShell() {
         else setWorkspace(null);
         return;
       }
-      apply(res.workspace);
+      applyWorkspace(res.workspace);
       if (res.pendingRun) {
-        setToast("No completed run for this dataset — executing pipeline stages.");
-        try {
-          await runPipeline(res.pendingRun, key => {
-            if (!cancelled) setToast(`Stage “${key}” complete.`);
-          });
-          const again = await loadWorkspace();
-          if (!cancelled && again) apply(again.workspace);
-        } catch {
-          if (!cancelled) setToast("Pipeline run failed — showing recorded backend data.");
-        }
+        // The pipeline is never started without an explicit choice. Step runs
+        // one stage, Auto runs the remainder — both live in the pipeline rail.
+        setAwaitingRun(true);
+        setToast("Run staged. Choose Step to execute one stage, or Auto to run the remaining stages.");
+      } else {
+        setAwaitingRun(false);
       }
     })();
     return () => {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [signedIn]);
+  }, [signedIn, reloadKey]);
 
   useEffect(() => {
     if (!scanRunning) return;
@@ -595,7 +921,7 @@ export function AppShell() {
         if (current >= 3) {
           window.clearInterval(timer);
           setScanRunning(false);
-          setToast(`${uploadDomain === "building" ? "Commercial building" : uploadDomain === "industry" ? "Industrial plant" : "Distribution center"} dataset classified.`);
+          setToast(`${domainMeta[uploadDomain].label} dataset classified.`);
           sound.play({ volume: 0.2, rate: 1.1 });
           return 3;
         }
@@ -632,8 +958,149 @@ export function AppShell() {
     if (domain) setUploadDomain(domain);
     setScanStage(0);
     setScanRunning(true);
-    setToast("Upload accepted. AI preflight is starting.");
-    sound.play({ volume: 0.16, rate: 0.95 });
+  };
+
+  const handleUploaded = (datasetId: string) => {
+    setToast(`Upload accepted. Running the ten-stage pipeline for ${datasetId.slice(0, 8)}.`);
+    playCompletionChime();
+    setReloadKey(key => key + 1);
+  };
+
+  const execStage = async (stageKey: string) => {
+    const runId = workspace?.runId;
+    if (!runId) {
+      setToast("No active run. Import or select a dataset first.");
+      return;
+    }
+    setStageBusy(stageKey);
+    try {
+      await workflow.execStage(runId, stageKey);
+      playCompletionChime();
+      await refreshWorkspace();
+      setToast(`Stage "${stageKey}" complete.`);
+    } catch (err) {
+      setToast(err instanceof Error ? err.message : "Stage execution failed.");
+    } finally {
+      setStageBusy("");
+    }
+  };
+
+  const execNextStage = async () => {
+    const nextKey = STAGE_KEYS.find(key => !liveStages.some(s => s.id === key && s.status === "completed"));
+    if (!nextKey) {
+      setToast("All ten stages are already complete for this run.");
+      return;
+    }
+    await execStage(nextKey);
+  };
+
+  const execRemainingStages = async () => {
+    const runId = workspace?.runId;
+    if (!runId) {
+      setToast("No active run. Import or select a dataset first.");
+      return;
+    }
+    const remaining = STAGE_KEYS.filter(key => !liveStages.some(s => s.id === key && s.status === "completed"));
+    if (!remaining.length) {
+      setToast("All ten stages are already complete for this run.");
+      return;
+    }
+    setAutoRunning(true);
+    try {
+      for (const key of remaining) {
+        setStageBusy(key);
+        const target = VIEW_BY_STAGE_KEY[key];
+        const label = pipelineStages.find(stage => stage.id === target)?.label ?? key;
+        if (target) goTo(target);
+        setToast(`Running ${label} — the page in front of you updates as it completes.`);
+        await workflow.execStage(runId, key);
+        playCompletionChime();
+        await refreshWorkspace();
+        setToast(`${label} complete. Moving to the next stage.`);
+      }
+      setToast("All ten stages complete. Every page now shows its recorded output.");
+    } catch (err) {
+      setToast(err instanceof Error ? err.message : "Pipeline run failed.");
+    } finally {
+      setStageBusy("");
+      setAutoRunning(false);
+    }
+  };
+
+  const handleReplay = async (datasetId: string) => {
+    try {
+      setToast("Replaying the ten-stage pipeline for the selected dataset.");
+      await runPipeline(datasetId, () => playCompletionChime());
+      await refreshWorkspace();
+      setToast("Replay complete.");
+    } catch (err) {
+      setToast(err instanceof Error ? err.message : "Replay failed.");
+    }
+  };
+
+  /** Read the recorded rows for a dataset and open them in the preview modal. */
+  const openPreview = async (dataset: Dataset) => {
+    setPreview({ dataset, rows: [], loading: true, error: "" });
+    try {
+      const res = await domain.preview(dataset.id);
+      const rows = Array.isArray(res.rows) ? (res.rows as Record<string, unknown>[]) : [];
+      setPreview({
+        dataset,
+        rows,
+        loading: false,
+        error: rows.length ? "" : "This dataset recorded no preview rows.",
+      });
+    } catch (err) {
+      setPreview({
+        dataset,
+        rows: [],
+        loading: false,
+        error: err instanceof Error ? err.message : "Preview failed.",
+      });
+    }
+  };
+
+  /** Export exactly the rows the preview is showing. No row is transformed. */
+  const exportPreviewCsv = () => {
+    if (!preview?.rows.length) {
+      setToast("Nothing to export — the preview has no rows.");
+      return;
+    }
+    const headers = Object.keys(preview.rows[0]);
+    const cell = (value: unknown) => `"${String(value ?? "").replace(/"/g, '""')}"`;
+    const csv = [headers.join(","), ...preview.rows.map(row => headers.map(h => cell(row[h])).join(","))].join("\n");
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `${preview.dataset.name.replace(/[^\w.-]+/g, "-").toLowerCase()}-preview.csv`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+    setToast(`Exported ${preview.rows.length} recorded rows as CSV.`);
+  };
+
+  const exportReportPdf = async () => {
+    const runId = workspace?.runId;
+    if (!runId) {
+      setToast("No pipeline run recorded — the PDF report is not available yet.");
+      return;
+    }
+    try {
+      const res = await fetch(domain.reportPdfUrl(runId), {
+        headers: getToken() ? { Authorization: `Bearer ${getToken()}` } : {},
+      });
+      if (!res.ok) throw new Error(`Report PDF unavailable (${res.status})`);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `ecomind-${activeDataset.id.toLowerCase()}-report.pdf`;
+      link.click();
+      window.setTimeout(() => URL.revokeObjectURL(url), 0);
+      setReportExported(true);
+      setToast("Executive report PDF exported.");
+    } catch (err) {
+      setToast(err instanceof Error ? err.message : "Report export failed.");
+    }
   };
 
   const renderView = () => {
@@ -648,6 +1115,7 @@ export function AppShell() {
               sound.play({ volume: 0.14, rate: 0.9 });
             }}
             onImport={() => goTo("import")}
+            onPreview={dataset => void openPreview(dataset)}
           />
         );
       case "import":
@@ -656,10 +1124,12 @@ export function AppShell() {
             scanRunning={scanRunning}
             scanStage={scanStage}
             fileName={uploadedFileName}
+            activeDataset={activeDataset}
             uploadDomain={uploadDomain}
             onDomainChange={setUploadDomain}
             onScan={handleScan}
             onContinue={() => goTo("schema")}
+            onUploaded={handleUploaded}
             onSelectDomain={domain => {
               setUploadDomain(domain);
               setToast(`Previewing ${domainMeta[domain].label} ingestion.`);
@@ -672,19 +1142,21 @@ export function AppShell() {
       case "quality":
         return (
           <QualityView
+            dataset={activeDataset}
             filter={qualityFilter}
             setFilter={setQualityFilter}
             filteredQuality={filteredQuality}
             repaired={qualityRepaired}
             onRepair={() => {
               setQualityRepaired(true);
-              setToast("19 repair candidates resolved. Source v1.3 remains unchanged.");
+              const pending = filteredQuality.filter(i => !i.fixed.startsWith("Passed")).length;
+              setToast(`${pending || qualityIssues.length} structural checks reviewed. Raw source remains immutable.`);
               sound.play({ volume: 0.18, rate: 1.0 });
             }}
             saved={versionSaved}
             onSave={() => {
               setVersionSaved(true);
-              setToast("Clean dataset saved as database version v1.4.");
+              setToast(`Clean snapshot saved. Baseline ledger recorded as ${baselineName}.`);
               sound.play({ volume: 0.2, rate: 1.1 });
             }}
           />
@@ -692,12 +1164,8 @@ export function AppShell() {
       case "transform":
         return (
           <TransformView
-            enabled={enabledTransforms}
-            setEnabled={setEnabledTransforms}
-            onRun={() => {
-              setToast("Transformation graph executed and indexed as v1.5.");
-              sound.play({ volume: 0.2, rate: 1.15 });
-            }}
+            transform={workspace?.transform}
+            baseline={workspace?.baseline}
             dataset={activeDataset}
             baselineName={baselineName}
           />
@@ -733,26 +1201,17 @@ export function AppShell() {
             exported={reportExported}
             draft={reportDraft}
             onDraft={() => {
+              const totalAnoms = liveAnomalyMeta?.total ?? anomalies.length;
+              const pri = (liveAnomalyMeta?.severity?.critical ?? 0) + (liveAnomalyMeta?.severity?.high ?? 0);
+              const fcTotal = forecastData.reduce((sum, d) => sum + d.forecast, 0);
+              const recCount = liveRecMeta?.total ?? recommendations.length;
+              const savings = liveRecMeta?.savingsInr ?? 0;
               setReportDraft(
-                `EcoMind AI — ${activeDataset.name}\n\nProject summary\nDataset: ${activeDataset.name} / ${activeDataset.id}\nDomain: ${domainInfo.label}\nVersion: v1.5 transformed\nModel: ${modelName} / R² 0.94\n\nAnalytics\nForecast: 4,812 kWh next 7 days\nEstimated cost: ₹68,420\nCO₂e: 1.82 t\n\nAnomalies\n7 detected; 2 high priority\n\nRecommendations\n4 ranked operating actions\n`
+                `EcoMind AI — ${activeDataset.name}\n\nProject summary\nDataset: ${activeDataset.name} / ${activeDataset.id}\nDomain: ${domainInfo.label}\nRows: ${activeDataset.rows} · Fields: ${activeDataset.fieldCount ?? "—"}\nPipeline run: ${workspace?.runId ?? "—"}\n\nModel competition\nWinner: ${modelName}\n${liveCompetition ? `Target: ${liveCompetition.target} · Features: ${liveCompetition.features} · Train/test: ${liveCompetition.trainRows}/${liveCompetition.testRows}\n${liveCompetition.rationale}\n` : ""}Baseline\n${baselineName} · DQ score ${liveQualityMeta?.score ?? "—"} / 100\n\nAnalytics\nForecast next 7 days: ${withUnit(Math.round(fcTotal).toLocaleString("en-IN"))}\nModel MAPE backtest: ${liveForecastMeta?.mapeLabel ?? "—"}\n\nAnomalies\n${totalAnoms} detected; ${pri} critical/high priority\n\nRecommendations\n${recCount} ranked actions · est. savings ${displayUnit("INR")}${Math.round(savings).toLocaleString("en-IN")}/mo\n`
               );
               sound.play({ volume: 0.16, rate: 1.0 });
             }}
-            onExport={() => {
-              const report = reportDraft ?? "";
-              if (!report) return;
-              const blob = new Blob([report], { type: "text/plain;charset=utf-8" });
-              const url = URL.createObjectURL(blob);
-              const link = document.createElement("a");
-              link.href = url;
-              link.download = `ecomind-${activeDataset.id.toLowerCase()}-report.txt`;
-              link.click();
-              window.setTimeout(() => URL.revokeObjectURL(url), 0);
-              setReportExported(true);
-              setReportDraft(null);
-              setToast("Project report exported with scoped analysis sections only.");
-              sound.play({ volume: 0.22, rate: 1.15 });
-            }}
+            onExport={() => void exportReportPdf()}
             dataset={activeDataset}
             domainInfo={domainInfo}
             baselineName={baselineName}
@@ -760,19 +1219,32 @@ export function AppShell() {
           />
         );
       case "history":
-        return <EmptySystemView icon={FileClock} title="Run history is ready." description="Every pipeline version, model decision, and export is captured here as your workspace grows." />;
+        return <HistoryView runs={liveRuns} onReplay={handleReplay} />;
       case "notifications":
-        return <EmptySystemView icon={Bell} title="No unread alerts." description="High-value events from Northstar Campus will appear here with the evidence that triggered them." />;
+        return <NotificationsView />;
       case "settings":
-        return <EmptySystemView icon={Settings2} title="Workspace settings." description="Defaults for data retention, baseline refresh, and report visibility live here." />;
+        return <SettingsView workspace={workspace} baselineName={baselineName} modelName={modelName} />;
       default:
-        return <OverviewView onNavigate={goTo} activeDataset={activeDataset} domainInfo={domainInfo} />;
+        return (
+          <OverviewView
+            onNavigate={goTo}
+            activeDataset={activeDataset}
+            domainInfo={domainInfo}
+            baselineName={baselineName}
+            onStep={() => void execNextStage()}
+            onAuto={() => void execRemainingStages()}
+            stageBusy={stageBusy}
+            autoRunning={autoRunning}
+          />
+        );
     }
   };
 
   return (
     <div
-      className={`eco-app ${isDark ? "eco-app--dark" : "eco-app--light"} ${sidebarExpanded ? "eco-app--nav-open" : "eco-app--nav-closed"}`}
+      className={`eco-app ${isDark ? "eco-app--dark" : "eco-app--light"} ${
+        sidebarExpanded ? "eco-app--nav-open" : "eco-app--nav-closed"
+      } ${terminalOpen ? "eco-app--terminal" : ""}`}
     >
       <a className="skip-link" href="#main-content">
         Skip to main content
@@ -787,10 +1259,10 @@ export function AppShell() {
           <span className="brand-live-dot" aria-label="AI core online" />
         </div>
         <div className="workspace-select">
-          <div className="workspace-select__mark">NC</div>
+          <div className="workspace-select__mark">{activeDataset.id.slice(0, 2)}</div>
           <div>
             <span className="workspace-select__label">Workspace</span>
-            <strong>Northstar Campus</strong>
+            <strong>{activeDataset.name}</strong>
           </div>
           <AppIcon icon={ChevronDown} size={14} />
         </div>
@@ -850,7 +1322,7 @@ export function AppShell() {
       </aside>
       <header className="app-topbar">
         <div className="topbar-breadcrumb">
-          <span>Northstar Campus</span>
+          <span>{activeDataset.name}</span>
           <AppIcon icon={ChevronRight} size={13} />
           <strong>{viewMeta[activeView].title.split(".")[0]}</strong>
         </div>
@@ -903,30 +1375,40 @@ export function AppShell() {
               sound.play({ volume: 0.08, rate: 0.9 });
             }}
           >
-            <span className="avatar">AK</span>
-            <span className="profile-button__name">Aarav Khanna</span>
+            <span className="avatar">{initials}</span>
+            <span className="profile-button__name">{displayName}</span>
             <AppIcon icon={ChevronDown} size={13} />
           </button>
           {notificationsOpen ? (
             <div className="popover popover--notifications">
               <div className="popover__head">
                 <strong>Attention queue</strong>
-                <TinyTag tone="coral">4 open</TinyTag>
+                <TinyTag tone={attentionCount ? "coral" : "neutral"}>
+                  {attentionCount ? `${attentionCount} critical / high` : "no alerts"}
+                </TinyTag>
               </div>
-              <div className="popover-row">
-                <span className="status-dot status-dot--coral" />
-                <div>
-                  <strong>Load spike detected</strong>
-                  <span>06 Oct · 14:10 / meter_kw</span>
-                </div>
-              </div>
-              <div className="popover-row">
-                <span className="status-dot status-dot--orange" />
-                <div>
-                  <strong>HVAC after-hours load</strong>
-                  <span>06 Oct · 10:24 / hvac_kw</span>
-                </div>
-              </div>
+              {attentionQueue.length ? (
+                attentionQueue.map(item => (
+                  <div className="popover-row" key={item.id}>
+                    <span
+                      className={`status-dot status-dot--${
+                        item.severity === "critical" ? "coral" : item.severity === "high" ? "orange" : "blue"
+                      }`}
+                    />
+                    <div>
+                      <strong>{item.reason || item.feature || "Detected anomaly"}</strong>
+                      <span>
+                        {item.feature ? `${item.feature} · ` : ""}
+                        {item.timestamp} · {item.severity}
+                      </span>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p className="mono-note popover-empty">
+                  No anomalies recorded yet. Run the pipeline to populate this queue.
+                </p>
+              )}
               <button
                 type="button"
                 className="popover__link"
@@ -942,10 +1424,13 @@ export function AppShell() {
           {profileOpen ? (
             <div className="popover popover--profile">
               <div className="profile-card">
-                <span className="avatar avatar--large">AK</span>
+                <span className="avatar avatar--large">{initials}</span>
                 <div>
-                  <strong>Aarav Khanna</strong>
-                  <span>Energy operations / Admin</span>
+                  <strong>{displayName}</strong>
+                  <span>
+                    {currentUser?.role ? `${currentUser.role} account` : "workspace account"}
+                    {currentUser?.email ? ` · ${currentUser.email}` : ""}
+                  </span>
                 </div>
               </div>
               <button type="button" onClick={() => goTo("settings")}>
@@ -972,21 +1457,27 @@ export function AppShell() {
           </span>
           <span className="context-strip__item">
             <span className="context-strip__label">BASELINE</span>
-            <strong>{baselineName}</strong>
+            <strong className={baselineName ? "" : "context-strip__value--pending"}>
+              {baselineName || "awaiting stage 06"}
+            </strong>
           </span>
           <span className="context-strip__item">
             <span className="context-strip__label">MODEL</span>
-            <strong>{modelName}</strong>
+            <strong className={modelName ? "" : "context-strip__value--pending"}>
+              {modelName || "awaiting stage 07"}
+            </strong>
           </span>
           <span className="context-strip__item">
-            <span className="context-strip__label">WINDOW</span>
-            <strong>01–07 Oct 2026</strong>
+            <span className="context-strip__label">STAGES</span>
+            <strong className={stagesDone ? "" : "context-strip__value--pending"}>
+              {stagesDone ? `${stagesDone} / 10 complete` : "not started"}
+            </strong>
           </span>
           <span className="context-strip__item context-strip__item--status">
             <span className="context-strip__label">SYNC</span>
             <strong>
               <span className="status-dot status-dot--lime" />
-              18 min ago
+              {activeDataset.freshness}
             </strong>
           </span>
         </div>
@@ -1002,7 +1493,7 @@ export function AppShell() {
                 <span className="status-dot status-dot--lime" />
                 AI core online
               </span>
-              <span className="mono-note">v1.4 / {domainInfo.accent} domain</span>
+              <span className="mono-note">{baselineName} / {domainInfo.label}</span>
             </div>
           </div>
           {renderView()}
@@ -1015,7 +1506,17 @@ export function AppShell() {
         onToggle={() => setTerminalOpen(value => !value)}
         onPause={() => setTerminalPaused(value => !value)}
       />
-      <InspectorDrawer anomaly={selectedAnomaly} onClose={() => setSelectedAnomaly(null)} />
+      <InspectorDrawer anomaly={selectedAnomaly} baselineName={baselineName} onClose={() => setSelectedAnomaly(null)} />
+      {preview ? (
+        <DatasetPreviewModal
+          dataset={preview.dataset}
+          rows={preview.rows}
+          loading={preview.loading}
+          error={preview.error}
+          onClose={() => setPreview(null)}
+          onExport={exportPreviewCsv}
+        />
+      ) : null}
       {toast ? (
         <div className="toast">
           <span className="toast__icon">
@@ -1039,13 +1540,7 @@ export function AppShell() {
   );
 }
 
-let activityEvents: LiveActivity[] = [
-  { time: "08:44:21", status: "STREAM", service: "forecast-engine", operation: "Prediction generated", duration: "1.8s", result: "4,812 kWh / 7d", severity: "info" },
-  { time: "08:43:58", status: "DONE", service: "recommendation-ai", operation: "Recommendation generated", duration: "2.4s", result: "4 actions ranked", severity: "success" },
-  { time: "08:42:12", status: "DONE", service: "schema-engine", operation: "Database index committed", duration: "0.6s", result: "42 fields / 5 joins", severity: "success" },
-  { time: "08:41:46", status: "WARN", service: "quality-engine", operation: "Repair candidates found", duration: "3.1s", result: "19 rows / 5 rules", severity: "warning" },
-  { time: "08:38:03", status: "DONE", service: "model-lab", operation: "Gradient Boost promoted", duration: "11.7s", result: "R² 0.94 / MAE 4.82", severity: "success" },
-];
+let activityEvents: LiveActivity[] = [];
 
 function ActivityTerminal({
   activeView,
@@ -1066,7 +1561,8 @@ function ActivityTerminal({
     const timer = window.setInterval(() => setCursor(value => value + 1), 3800);
     return () => window.clearInterval(timer);
   }, [paused]);
-  const live = activityEvents[cursor % activityEvents.length];
+  const rowCount = Math.min(activityEvents.length, 4);
+  const activeRow = rowCount ? cursor % rowCount : -1;
   const sound = useSound({ onPlay: () => {} });
   return (
     <section
@@ -1116,34 +1612,39 @@ function ActivityTerminal({
             <span>RESULT</span>
             <span>SEVERITY</span>
           </div>
-          <div className="activity-terminal__row activity-terminal__row--live">
-            <span>{live.time}</span>
-            <span>
-              <i className="terminal-live-dot" />
-              {live.status}
-            </span>
-            <span>{live.service}</span>
-            <strong>{live.operation}</strong>
-            <span>{live.duration}</span>
-            <span>{live.result}</span>
-            <TinyTag
-              tone={live.severity === "warning" ? "orange" : live.severity === "success" ? "lime" : "blue"}
-            >
-              {live.severity}
-            </TinyTag>
-          </div>
-          <div className="activity-terminal__row">
-            <span>08:35:28</span>
-            <span>
-              <i className="terminal-done-dot" />
-              DONE
-            </span>
-            <span>anomaly-engine</span>
-            <strong>Evidence window indexed</strong>
-            <span>0.9s</span>
-            <span>7 anomalies / 2 priority</span>
-            <TinyTag tone="coral">review</TinyTag>
-          </div>
+          {activityEvents.length ? (
+            activityEvents.slice(0, 4).map((event, index) => (
+              <div
+                className={`activity-terminal__row ${index === activeRow && !paused ? "activity-terminal__row--live" : ""}`}
+                key={`${event.time}-${event.operation}-${index}`}
+              >
+                <span>{event.time}</span>
+                <span>
+                  <i className={index === activeRow && !paused ? "terminal-live-dot" : "terminal-done-dot"} />
+                  {event.status}
+                </span>
+                <span>{event.service}</span>
+                <strong>{event.operation}</strong>
+                <span>{event.duration}</span>
+                <span>{event.result}</span>
+                <TinyTag
+                  tone={event.severity === "warning" ? "orange" : event.severity === "success" ? "lime" : "blue"}
+                >
+                  {event.severity}
+                </TinyTag>
+              </div>
+            ))
+          ) : (
+            <div className="activity-terminal__row activity-terminal__empty">
+              <span>--:--:--</span>
+              <span>IDLE</span>
+              <span>system</span>
+              <strong>No backend activity recorded yet</strong>
+              <span>&mdash;</span>
+              <span>Run the pipeline to stream live events</span>
+              <TinyTag tone="blue">empty</TinyTag>
+            </div>
+          )}
         </div>
       ) : null}
     </section>
@@ -1152,9 +1653,11 @@ function ActivityTerminal({
 
 function InspectorDrawer({
   anomaly,
+  baselineName,
   onClose,
 }: {
   anomaly: (typeof anomalies)[number] | null;
+  baselineName: string;
   onClose: () => void;
 }) {
   const sound = useSound({ onPlay: () => {} });
@@ -1198,23 +1701,27 @@ function InspectorDrawer({
           </div>
           <div className="inspector-metrics">
             <div>
-              <span>ENERGY IMPACT</span>
-              <strong>+42%</strong>
-              <small>above baseline</small>
+              <span>DEVIATION</span>
+              <strong>
+                {anomaly.deviationPct != null
+                  ? `${anomaly.deviationPct >= 0 ? "+" : ""}${anomaly.deviationPct.toFixed(0)}%`
+                  : "—"}
+              </strong>
+              <small>vs learned baseline</small>
             </div>
             <div>
               <span>COST IMPACT</span>
-              <strong>₹4,820</strong>
-              <small>estimated / month</small>
+              <strong>{anomaly.excessCost != null ? `${displayUnit("INR")}${fmtCount(anomaly.excessCost)}` : "—"}</strong>
+              <small>recorded excess</small>
             </div>
             <div>
               <span>CO₂ IMPACT</span>
-              <strong>+180 kg</strong>
-              <small>estimated / month</small>
+              <strong>{anomaly.excessCo2 != null ? `${fmtCount(anomaly.excessCo2)} kg` : "—"}</strong>
+              <small>recorded excess</small>
             </div>
             <div>
-              <span>CONFIDENCE</span>
-              <strong>96.2%</strong>
+              <span>DETECTION SCORE</span>
+              <strong>{anomaly.score != null ? anomaly.score.toFixed(2) : "—"}</strong>
               <small>evidence score</small>
             </div>
           </div>
@@ -1223,8 +1730,8 @@ function InspectorDrawer({
               <span className="section-eyebrow">TECHNICAL EVIDENCE</span>
               <code>feature = {anomaly.feature}</code>
               <code>reason = {anomaly.reason}</code>
-              <code>baseline = {anomaly.id.includes("2048") ? "northstar_v1.3" : "northstar_v1.3"}</code>
-              <code>source = quality_v1.4</code>
+              <code>baseline = {baselineName.toLowerCase().replace(/\s+/g, "_")}</code>
+              <code>source = shared_evidence_index</code>
             </div>
           </div>
           <div className="inspector-actions">
@@ -1274,11 +1781,33 @@ function OverviewView({
   onNavigate,
   activeDataset,
   domainInfo,
+  baselineName,
+  onStep,
+  onAuto,
+  stageBusy,
+  autoRunning,
 }: {
   onNavigate: (view: NavId) => void;
   activeDataset: Dataset;
   domainInfo: (typeof domainMeta)[DatasetDomain];
+  baselineName: string;
+  onStep: () => void;
+  onAuto: () => void;
+  stageBusy: string;
+  autoRunning: boolean;
 }) {
+  const completedStages = liveStages.filter(s => s.status === "completed").length;
+  const energyTotal = Math.round(energyData.reduce((sum, p) => sum + p.energy, 0));
+  const baselineTotal = energyData.reduce((sum, p) => sum + p.baseline, 0);
+  const energyDeltaPct = baselineTotal > 0 ? ((energyTotal - baselineTotal) / baselineTotal) * 100 : 0;
+  const energyDelta = energyData.length
+    ? `${energyDeltaPct >= 0 ? "+" : ""}${energyDeltaPct.toFixed(1)}% vs baseline`
+    : "no live readings";
+  const healthScore = liveQualityMeta?.score ?? null;
+  const failedChecks = liveQualityMeta?.failed ?? null;
+  const recentActivity = activityEvents.slice(0, 4);
+  const topAnomaly = anomalies[0] ?? null;
+  const stageState = (key: string) => liveStages.find(s => s.id === key)?.status ?? "pending";
   return (
     <div className="view-content view-content--overview">
       <section className="hero-panel">
@@ -1306,7 +1835,7 @@ function OverviewView({
           <div className="hero-panel__proof">
             <span>
               <CheckCircle2 size={14} />{" "}
-              10 stages orchestrated
+              {liveStages.length ? `${liveStages.length} stages orchestrated` : "10 stages orchestrated"}
             </span>
             <span>
               <CheckCircle2 size={14} />{" "}
@@ -1325,12 +1854,12 @@ function OverviewView({
               <Leaf size={23} />
             </div>
             <span>AI CORE</span>
-            <strong>98.7%</strong>
-            <small>confidence</small>
+            <strong>{healthScore != null ? `${healthScore}%` : "—"}</strong>
+            <small>quality score</small>
           </div>
           <div className="hero-visual-label hero-visual-label--top">
             <span className="status-dot status-dot--lime" />
-            LIVE PIPELINE <strong>10 / 10</strong>
+            LIVE PIPELINE <strong>{liveStages.filter(s => s.status === "completed").length} / 10</strong>
           </div>
           <div className="hero-visual-label hero-visual-label--bottom">
             <span>ENERGY INTELLIGENCE</span>
@@ -1347,15 +1876,37 @@ function OverviewView({
             <div className="section-eyebrow">INTELLIGENCE PIPELINE</div>
             <h2>One continuous thread from data to decision.</h2>
           </div>
-          <span className="mono-note">RUN ID / eco_2026_10_07_042</span>
+          <div className="pipeline-controls">
+            <span className="mono-note">RUN ID / {liveRunId ? liveRunId.slice(0, 12) : "no run yet"}</span>
+            <button
+              type="button"
+              className="pipeline-control"
+              onClick={onStep}
+              disabled={!!stageBusy || autoRunning || !liveRunId}
+            >
+              <Play size={13} />
+              {stageBusy ? `Running ${stageBusy}` : "Step"}
+            </button>
+            <button
+              type="button"
+              className="pipeline-control pipeline-control--primary"
+              onClick={onAuto}
+              disabled={!!stageBusy || autoRunning || !liveRunId}
+            >
+              <Play size={13} />
+              {autoRunning ? "Running..." : "Auto"}
+            </button>
+          </div>
         </div>
         <div className="pipeline-rail">
           {pipelineStages.map(stage => {
             const Icon = stage.icon;
+            const ls = liveStages.find(s => s.id === (STAGE_KEY_BY_VIEW[stage.id] ?? stage.id));
+            const done = ls?.status === "completed";
             return (
               <button
                 type="button"
-                className="pipeline-stage"
+                className={`pipeline-stage ${done ? "pipeline-stage--done" : ""}`}
                 key={stage.id}
                 onClick={() => onNavigate(stage.id)}
               >
@@ -1364,6 +1915,11 @@ function OverviewView({
                 </span>
                 <span className="pipeline-stage__num">{stage.short}</span>
                 <strong>{stage.label}</strong>
+                {ls ? (
+                  <span className="pipeline-stage__meta">
+                    {done ? fmtLiveDuration(ls) : ls.status}
+                  </span>
+                ) : null}
                 {stage.id !== "reports" ? <span className="pipeline-stage__connector" /> : null}
               </button>
             );
@@ -1387,12 +1943,12 @@ function OverviewView({
             </div>
             <div className="dataset-summary__details">
               <div>
-                <span className="mono-note">INGESTED 06 OCT 2026</span>
+                <span className="mono-note">FRESHNESS / {activeDataset.freshness.toUpperCase()}</span>
                 <TinyTag tone={activeDataset.accent}>AI CLASSIFIED</TinyTag>
               </div>
               <strong>{activeDataset.detail}</strong>
               <span>
-                {activeDataset.rows} rows · 42 fields · {activeDataset.freshness} freshness
+                {activeDataset.rows} rows · {activeDataset.fieldCount ?? activeDataset.columnCount ?? "—"} fields · {activeDataset.freshness} freshness
               </span>
             </div>
             <div className="dataset-summary__health">
@@ -1406,7 +1962,7 @@ function OverviewView({
           <div className="mini-chart-wrap">
             <div className="mini-chart-label">
               <span>ENERGY LOAD / LAST 24H</span>
-              <strong>1,248 kWh <em>−6.2%</em></strong>
+              <strong>{energyData.length ? withUnit(fmtCount(energyTotal)) : "—"} <em>{energyDelta}</em></strong>
             </div>
             <div className="mini-chart">
               <ResponsiveContainer width="100%" height="100%">
@@ -1449,13 +2005,13 @@ function OverviewView({
             }
           />
           <div className="health-score">
-            <div className="health-score__ring">
-              <span>94</span>
+            <div className="health-score__ring" data-score={healthScore ?? ""}>
+              <span>{healthScore ?? "—"}</span>
               <small>health</small>
             </div>
             <div>
               <strong>Good to model</strong>
-              <p>2 quality checks need attention before the next run.</p>
+              <p>{failedChecks == null ? "No quality run recorded for this dataset yet." : failedChecks === 0 ? "Every structural quality rule passed on the active run." : `${failedChecks} quality ${failedChecks === 1 ? "check" : "checks"} need attention before the next run.`}</p>
               <button
                 className="panel-link"
                 type="button"
@@ -1466,34 +2022,27 @@ function OverviewView({
             </div>
           </div>
           <div className="health-list">
-            <div>
-              <span>
-                <span className="status-dot status-dot--lime" />
-                Schema
-              </span>
-              <strong>Complete</strong>
-            </div>
-            <div>
-              <span>
-                <span className="status-dot status-dot--lime" />
-                Quality
-              </span>
-              <strong>94 / 100</strong>
-            </div>
-            <div>
-              <span>
-                <span className="status-dot status-dot--orange" />
-                Transform
-              </span>
-              <strong>Ready</strong>
-            </div>
-            <div>
-              <span>
-                <span className="status-dot status-dot--violet" />
-                Model
-              </span>
-              <strong>Selected</strong>
-            </div>
+            {(["schema", "quality", "transformation", "model_selection"] as const).map(key => {
+              const st = stageState(key);
+              const tone = st === "completed" ? "lime" : st === "failed" ? "coral" : "orange";
+              return (
+                <div key={key}>
+                  <span>
+                    <span className={`status-dot status-dot--${tone}`} />
+                    {STAGE_LABEL_TEXT[key]}
+                  </span>
+                  <strong>
+                    {st === "completed"
+                      ? key === "quality" && healthScore != null
+                        ? `${healthScore} / 100`
+                        : "Complete"
+                      : st === "failed"
+                        ? "Failed"
+                        : "Pending"}
+                  </strong>
+                </div>
+              );
+            })}
           </div>
         </section>
         <section className="panel panel--activity">
@@ -1508,46 +2057,30 @@ function OverviewView({
             }
           />
           <div className="operation-list">
-            <div className="operation-row">
-              <span className="operation-row__icon operation-row__icon--lime">
-                <DatabaseZap size={14} />
-              </span>
-              <div>
-                <strong>Indexed schema relationships</strong>
-                <span>Schema discovery · 08:42:12</span>
-              </div>
-              <TinyTag tone="lime">DONE</TinyTag>
-            </div>
-            <div className="operation-row">
-              <span className="operation-row__icon operation-row__icon--blue">
-                <ShieldCheck size={14} />
-              </span>
-              <div>
-                <strong>Scanned 42 fields for quality</strong>
-                <span>Data quality · 08:41:46</span>
-              </div>
-              <TinyTag tone="blue">19 ISSUES</TinyTag>
-            </div>
-            <div className="operation-row">
-              <span className="operation-row__icon operation-row__icon--violet">
-                <Cpu size={14} />
-              </span>
-              <div>
-                <strong>Gradient Boost promoted</strong>
-                <span>Model competition · 08:38:03</span>
-              </div>
-              <TinyTag tone="violet">R² 0.94</TinyTag>
-            </div>
-            <div className="operation-row">
-              <span className="operation-row__icon operation-row__icon--orange">
-                <AlertTriangle size={14} />
-              </span>
-              <div>
-                <strong>Load spike detected at 14:10</strong>
-                <span>Anomaly detection · 08:35:28</span>
-              </div>
-              <TinyTag tone="orange">REVIEW</TinyTag>
-            </div>
+            {recentActivity.length ? (
+              recentActivity.map((event, index) => (
+                <div className="operation-row" key={`${event.time}-${event.operation}-${index}`}>
+                  <span
+                    className={`operation-row__icon operation-row__icon--${
+                      event.severity === "warning" ? "orange" : event.severity === "success" ? "lime" : "blue"
+                    }`}
+                  >
+                    <DatabaseZap size={14} />
+                  </span>
+                  <div>
+                    <strong>{event.operation}</strong>
+                    <span>
+                      {event.service} / {event.time}
+                    </span>
+                  </div>
+                  <TinyTag tone={event.severity === "warning" ? "orange" : event.severity === "success" ? "lime" : "blue"}>
+                    {event.status}
+                  </TinyTag>
+                </div>
+              ))
+            ) : (
+              <p className="mono-note">No pipeline activity recorded yet.</p>
+            )}
           </div>
         </section>
         <section className="panel panel--next">
@@ -1556,9 +2089,11 @@ function OverviewView({
               <span className="section-eyebrow">NEXT BEST ACTION</span>
               <TinyTag tone="lime">AI SUGGESTED</TinyTag>
             </div>
-            <h3>Review the after-hours HVAC anomaly.</h3>
+            <h3>{topAnomaly ? `Review ${topAnomaly.type.toLowerCase()} on ${topAnomaly.feature}.` : "No action required yet."}</h3>
             <p>
-              One anomaly is blocking a higher confidence cost forecast. Inspect the evidence before exporting.
+              {topAnomaly
+                ? `${topAnomaly.severity} severity · ${topAnomaly.reason}. Inspect the evidence before exporting.`
+                : "Run the pipeline to derive the next best action from live anomalies and recommendations."}
             </p>
             <ActionButton variant="secondary" icon={ArrowRight} onClick={() => onNavigate("anomalies")}>
               Inspect anomaly
@@ -1569,10 +2104,91 @@ function OverviewView({
       <div className="overview-footer">
         <span>
           <span className="status-dot status-dot--lime" />
-          Data synced 18 minutes ago
+          {liveRunId ? `Run ${liveRunId.slice(0, 8)} / ${completedStages} of 10 stages complete` : "Pipeline idle — no run recorded"}
         </span>
-        <span>Original source preserved · Version v1.3</span>
-        <span>Workspace: Northstar Campus</span>
+        <span>Original source preserved{baselineName ? ` · ${baselineName}` : ""}</span>
+        <span>Workspace: {activeDataset.name}</span>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Dataset preview. Shows the rows the backend recorded for a dataset, with the
+ * unit derived from each column name, and can export exactly those rows as CSV.
+ * Read-only: it never writes back to the source.
+ */
+function DatasetPreviewModal({
+  dataset,
+  rows,
+  loading,
+  error,
+  onClose,
+  onExport,
+}: {
+  dataset: Dataset;
+  rows: Record<string, unknown>[];
+  loading: boolean;
+  error: string;
+  onClose: () => void;
+  onExport: () => void;
+}) {
+  const columns = rows.length ? Object.keys(rows[0]) : [];
+  return (
+    <div className="modal-scrim" role="dialog" aria-modal="true" aria-label={`Preview of ${dataset.name}`}>
+      <div className="modal">
+        <div className="modal__head">
+          <div>
+            <span className="section-eyebrow">DATASET PREVIEW / READ-ONLY</span>
+            <h2>{dataset.name}</h2>
+            <span className="mono-note">
+              {dataset.id} · {dataset.rows} rows · {dataset.columnCount ?? "—"} columns · {dataset.type}
+            </span>
+          </div>
+          <div className="modal__actions">
+            <button type="button" className="pipeline-control" onClick={onExport} disabled={!rows.length}>
+              <Download size={13} /> Export CSV
+            </button>
+            <button type="button" className="icon-button" aria-label="Close preview" onClick={onClose}>
+              <X size={16} />
+            </button>
+          </div>
+        </div>
+        <div className="modal__body">
+          {loading ? <p className="mono-note table-empty-note">Reading recorded rows…</p> : null}
+          {!loading && error ? <p className="mono-note table-empty-note">{error}</p> : null}
+          {!loading && !error && rows.length ? (
+            <>
+              <table className="preview-table">
+                <thead>
+                  <tr>
+                    {columns.map(column => {
+                      const unit = unitForColumn(column);
+                      return (
+                        <th key={column}>
+                          <span className="preview-table__name">{column}</span>
+                          <span className="mono-note">{unit ? displayUnit(unit) : "—"}</span>
+                        </th>
+                      );
+                    })}
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((row, index) => (
+                    <tr key={index}>
+                      {columns.map(column => (
+                        <td key={column}>{String(row[column] ?? "—")}</td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p className="mono-note preview-table__foot">
+                Showing the first {rows.length} recorded rows. Export downloads these rows as CSV.
+              </p>
+            </>
+          ) : null}
+        </div>
       </div>
     </div>
   );
@@ -1582,13 +2198,20 @@ function LibraryView({
   activeDataset,
   onSelect,
   onImport,
+  onPreview,
 }: {
   activeDataset: Dataset;
   onSelect: (dataset: Dataset) => void;
   onImport: () => void;
+  onPreview: (dataset: Dataset) => void;
 }) {
   const activeDomain = activeDataset.domain;
   const sound = useSound({ onPlay: () => {} });
+  const domainCounts = datasets.reduce<Record<string, number>>((acc, d) => {
+    acc[d.domain] = (acc[d.domain] ?? 0) + 1;
+    return acc;
+  }, {});
+  const domainPct = (n: number) => (datasets.length ? `${Math.round((n / datasets.length) * 100)}%` : "—");
   return (
     <div className="view-content">
       <div className="toolbar-row">
@@ -1605,8 +2228,8 @@ function LibraryView({
               sound.play({ volume: 0.08, rate: 0.9 });
             }}
           >
-            <Filter size={14} />{" "}
-            Filter <span>3</span>
+<Filter size={14} />{" "}
+            Filter <span>{datasets.length}</span>
           </button>
           <ActionButton icon={Plus} onClick={onImport}>
             Import dataset
@@ -1618,9 +2241,9 @@ function LibraryView({
           const Icon = dataset.icon;
           const active = activeDataset.id === dataset.id;
           return (
+            <div className="dataset-card-wrap" key={dataset.id}>
             <button
               className={`dataset-card ${active ? "dataset-card--active" : ""}`}
-              key={dataset.id}
               type="button"
               onClick={() => onSelect(dataset)}
             >
@@ -1630,14 +2253,15 @@ function LibraryView({
                   <Icon size={22} />
                 </div>
                 <div className="dataset-card__head-copy">
-                  <span className="mono-note">{dataset.id}</span>
+                  <span className="mono-note" title={dataset.id}>
+                    {dataset.id}
+                  </span>
                   <TinyTag
                     tone={dataset.accent === "lime" ? "lime" : dataset.accent === "orange" ? "orange" : "violet"}
                   >
                     AI CLASSIFIED
                   </TinyTag>
                 </div>
-                <span className="dataset-card__more">···</span>
               </div>
               <h3>{dataset.name}</h3>
               <p>{dataset.detail}</p>
@@ -1667,8 +2291,22 @@ function LibraryView({
                 <ArrowUpRight size={15} />
               </div>
             </button>
+            <div className="dataset-card__actions">
+              <button type="button" onClick={() => onPreview(dataset)}>
+                <Eye size={13} /> Preview rows
+              </button>
+              <button type="button" onClick={() => onSelect(dataset)}>
+                <ArrowUpRight size={13} /> Open
+              </button>
+            </div>
+            </div>
           );
         })}
+        {!datasets.length ? (
+          <p className="mono-note library-empty">
+            No datasets available. Import your first dataset to begin the ten-stage pipeline.
+          </p>
+        ) : null}
         <button
           className="dataset-card dataset-card--import"
           type="button"
@@ -1696,17 +2334,17 @@ function LibraryView({
             <div>
               <Building2 size={16} />
               <span>Buildings</span>
-              <strong>42%</strong>
+              <strong>{domainPct(domainCounts.building ?? 0)}</strong>
             </div>
             <div>
               <Factory size={16} />
               <span>Industry</span>
-              <strong>36%</strong>
+              <strong>{domainPct(domainCounts.industry ?? 0)}</strong>
             </div>
             <div>
               <Warehouse size={16} />
               <span>Logistics</span>
-              <strong>22%</strong>
+              <strong>{domainPct(domainCounts.logistics ?? 0)}</strong>
             </div>
           </div>
         </section>
@@ -1716,7 +2354,7 @@ function LibraryView({
           </div>
           <div>
             <span className="section-eyebrow">DATABASE / OBJECT STORE</span>
-            <h3>3 analyzed datasets</h3>
+            <h3>{datasets.length} analyzed dataset{datasets.length === 1 ? "" : "s"}</h3>
             <p>
               All versions are immutable, searchable, and traceable to their original import.
             </p>
@@ -1746,6 +2384,8 @@ function ImportView({
   onScan,
   onContinue,
   onSelectDomain,
+  onUploaded,
+  activeDataset,
 }: {
   scanRunning: boolean;
   scanStage: number;
@@ -1755,29 +2395,50 @@ function ImportView({
   onScan: (fileName?: string, domain?: DatasetDomain) => void;
   onContinue: () => void;
   onSelectDomain: (domain: DatasetDomain) => void;
+  onUploaded: (datasetId: string) => void;
+  activeDataset: Dataset;
 }) {
   const [selectedFile, setSelectedFile] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState("");
   const [hoveredDomain, setHoveredDomain] = useState<DatasetDomain | null>(null);
   const activeFile = selectedFile || fileName;
   const sound = useSound({ onPlay: () => {} });
   const currentDomain = hoveredDomain ?? uploadDomain;
   const domain = domainMeta[currentDomain] ?? domainMeta.building;
+  // Every supported domain, each with the hierarchy EcoMind looks for and the
+  // sampling cadence that domain's telemetry normally carries.
   const domains: { id: DatasetDomain; label: string; icon: LucideIcon; accent: string }[] = [
     { id: "building", label: "Buildings", icon: Building2, accent: "lime" },
     { id: "industry", label: "Industry", icon: Factory, accent: "orange" },
     { id: "logistics", label: "Logistics", icon: Warehouse, accent: "violet" },
+    { id: "hospital", label: "Hospital", icon: HeartPulse, accent: "coral" },
+    { id: "campus", label: "Campus", icon: GraduationCap, accent: "blue" },
+    { id: "mall", label: "Shopping mall", icon: ShoppingBag, accent: "yellow" },
+    { id: "office", label: "Office complex", icon: Briefcase, accent: "lime" },
+    { id: "datacentre", label: "Data centre", icon: Server, accent: "violet" },
   ];
   const scanSteps = [
-    { title: "Upload accepted", detail: `${activeFile} · 284 MB`, icon: CloudUpload },
-    { title: "Scanning data surface", detail: "Reading 2.4M rows and 42 columns", icon: Activity },
+    { title: "Upload accepted", detail: activeFile || "waiting for a file", icon: CloudUpload },
+    { title: "Scanning data surface", detail: activeDataset.rowCount ? `Reading ${activeDataset.rows} rows and ${activeDataset.columnCount ?? "—"} columns` : "No dataset loaded yet", icon: Activity },
     { title: "Detecting metadata", detail: `Timezone, cadence, units, ${domain.label.toLowerCase()}`, icon: WandSparkles },
     { title: "Ready for schema discovery", detail: `${domain.label} / energy telemetry`, icon: CheckCircle2 },
   ];
-  const selectFile = (file?: File) => {
+  const selectFile = async (file?: File) => {
     if (!file) return;
     setSelectedFile(file.name);
-    onScan(file.name, currentDomain);
-    sound.play({ volume: 0.18, rate: 1.0 });
+    setUploadError("");
+    setUploading(true);
+    try {
+      const created = await datasetsApi.upload(file, file.name);
+      sound.play({ volume: 0.18, rate: 1.0 });
+      onScan(file.name, currentDomain);
+      onUploaded(created.id);
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : "Upload failed — check that the backend is running.");
+    } finally {
+      setUploading(false);
+    }
   };
   return (
     <div className="view-content">
@@ -1787,7 +2448,7 @@ function ImportView({
           onDragOver={event => event.preventDefault()}
           onDrop={event => {
             event.preventDefault();
-            selectFile(event.dataTransfer.files[0]);
+            void selectFile(event.dataTransfer.files[0]);
           }}
         >
           <div className="import-dropzone__top">
@@ -1811,15 +2472,16 @@ function ImportView({
             id="ecomind-file-upload"
             type="file"
             accept=".csv,.json,.parquet,.xlsx,.xls"
-            onChange={event => selectFile(event.currentTarget.files?.[0])}
+            onChange={event => void selectFile(event.currentTarget.files?.[0])}
           />
           <label className="dropzone-button" htmlFor="ecomind-file-upload">
             <UploadCloud size={17} />
-            {scanRunning ? "Processing dataset..." : "Choose a dataset"}
+            {uploading ? "Uploading dataset..." : "Choose a dataset"}
           </label>
           <span className="dropzone-note">
             CSV · JSON · Parquet · Excel <span>or drag and drop</span>
           </span>
+          {uploadError ? <p className="signin-error dropzone-error">{uploadError}</p> : null}
           <div className="dropzone-footer">
             <span>
               <ShieldCheck size={13} />
@@ -1898,7 +2560,7 @@ function ImportView({
               <h3>{domain.label}</h3>
               <p>
                 {domain.sub}{" "}
-                <span>· {domain.matchStrength} confidence</span>
+                <span>· {domain.matchStrength}</span>
               </p>
             </div>
           </div>
@@ -1952,8 +2614,11 @@ function ImportView({
                 </div>
                 <strong>{domain.label}</strong>
                 <span>{domainMeta[domain.id].scene}</span>
-                <span className={`domain-card__badge domain-card__badge--${domain.accent}`}>
-                  {domainMeta[domain.id].matchStrength}
+                <span className="domain-card__foot">
+                  <span className={`domain-card__badge domain-card__badge--${domain.accent}`}>
+                    {domainMeta[domain.id].anchor}
+                  </span>
+                  <span className="mono-note">{domainMeta[domain.id].cadence}</span>
                 </span>
               </button>
             );
@@ -1974,44 +2639,217 @@ function ImportView({
   );
 }
 
+/**
+ * Schema understanding map. The recorded dataset sits on the left, every signal
+ * family its columns actually produced sits on the right, and light travels
+ * from the source into each family. Both sides are derived from the recorded
+ * schema — this is a view of what the backend found, not a catalogue.
+ */
+/**
+ * Chart axis annotation. Explains what a series measures, the unit it is
+ * expressed in and where that unit came from, so a chart can be read without
+ * documentation. Hover or focus for the full explanation.
+ */
+const SEVERITY_ORDER = ["critical", "high", "medium", "low"] as const;
+
+function AxisNote({ quantity, unit, origin }: { quantity: string; unit?: string | null; origin: string }) {
+  const shown = unit ? displayUnit(unit) : "";
+  return (
+    <span
+      className="axis-note"
+      tabIndex={0}
+      aria-label={`${quantity}${shown ? ` in ${shown}` : ""}. ${origin}`}
+    >
+      <Info size={11} aria-hidden="true" />
+      <span>
+        {quantity}
+        {shown ? ` / ${shown}` : ""}
+      </span>
+      <span className="axis-note__pop" role="tooltip">
+        <strong>
+          {quantity}
+          {shown ? ` · ${shown}` : ""}
+        </strong>
+        <span>{origin}</span>
+        {!shown ? <em>No unit was recorded for this series, so none is shown.</em> : null}
+      </span>
+    </span>
+  );
+}
+
+function SchemaFlowMap({
+  dataset,
+  families,
+  roleCounts,
+}: {
+  dataset: Dataset;
+  families: { family: FieldFamily; units: string[]; count: number }[];
+  roleCounts: Record<FieldRole, number>;
+}) {
+  const rows = families.length;
+  const centerOf = (index: number) => (rows ? ((index + 0.5) / rows) * 100 : 50);
+  return (
+    <div className="schema-flow">
+      <div className="schema-flow__source">
+        <span className="schema-flow__source-icon">
+          <Database size={19} />
+        </span>
+        <strong>{dataset.name}</strong>
+        <span className="mono-note">
+          {dataset.rows} rows · {dataset.columnCount ?? "—"} columns
+        </span>
+        <span className="schema-flow__source-status">
+          <span className="status-dot status-dot--lime" />
+          schema recorded
+        </span>
+      </div>
+      <svg className="schema-flow__lines" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+        <line className="flow-line" x1="50" y1={centerOf(0)} x2="50" y2={centerOf(rows - 1)} vectorEffect="non-scaling-stroke" />
+        {families.map((node, index) => (
+          <line key={`branch-${node.family}`} className="flow-line" x1="0" y1={centerOf(index)} x2="100" y2={centerOf(index)} vectorEffect="non-scaling-stroke" />
+        ))}
+        <line className="flow-line flow-line--live flow-line--spine" x1="50" y1={centerOf(0)} x2="50" y2={centerOf(rows - 1)} vectorEffect="non-scaling-stroke" />
+        {families.map((node, index) => (
+          <line
+            key={`light-${node.family}`}
+            className="flow-line flow-line--live"
+            style={{ animationDelay: `${(index * 0.24).toFixed(2)}s` }}
+            x1="0"
+            y1={centerOf(index)}
+            x2="100"
+            y2={centerOf(index)}
+            vectorEffect="non-scaling-stroke"
+          />
+        ))}
+      </svg>
+      <div className="schema-flow__targets">
+        {!rows ? <p className="mono-note table-empty-note">No columns recorded yet.</p> : null}
+        {families.map((node, index) => {
+          const Icon = fieldIconFor(node.family);
+          const units = node.units.filter(Boolean);
+          return (
+            <div className="schema-flow-chip" key={node.family} style={{ animationDelay: `${(index * 0.08).toFixed(2)}s` }}>
+              <span className="schema-flow-chip__icon">
+                <Icon size={16} />
+              </span>
+              <div className="schema-flow-chip__copy">
+                <strong>{FAMILY_LABEL[node.family]}</strong>
+                <span className="mono-note">
+                  {node.count} field{node.count === 1 ? "" : "s"}
+                  {units.length ? ` · ${units.join(", ")}` : ""}
+                </span>
+              </div>
+              <span className="schema-flow-chip__pulse" aria-hidden="true" />
+            </div>
+          );
+        })}
+      </div>
+      <div className="schema-flow__roles">
+        {ROLE_ORDER.filter(role => roleCounts[role] > 0).map(role => (
+          <span className={`schema-role schema-role--${role}`} key={role}>
+            <i aria-hidden="true" />
+            <strong>{ROLE_LABEL[role]}</strong>
+            <span className="mono-note">{roleCounts[role]}</span>
+            {ROLE_NOTE[role]}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function SchemaView({ dataset }: { dataset: Dataset }) {
-  const fields = [
-    { name: "timestamp", type: "datetime", role: "index", icon: CalendarClock },
-    { name: "meter_kw", type: "float", role: "signal", icon: Zap },
-    { name: "occupancy", type: "integer", role: "context", icon: UserRound },
-    { name: "hvac_kw", type: "float", role: "signal", icon: Activity },
-    { name: "co2_kg", type: "float", role: "target", icon: Leaf },
-    { name: "zone_id", type: "string", role: "entity", icon: Building2 },
-  ];
-  const domainFields = defaultFieldsByDomain[dataset.domain] ?? defaultFieldsByDomain.building;
-  const domainSignalCount = domainFields.length;
-  const summaryField = domainFields[0] ?? fields[1];
+  const iconForRole = (role: FieldRole): LucideIcon =>
+    role === "index"
+      ? CalendarClock
+      : role === "target"
+        ? Leaf
+        : role === "entity"
+          ? Building2
+          : role === "context"
+            ? UserRound
+            : Zap;
+  // Every field, role, family and unit below is derived from the columns the
+  // backend actually recorded for this dataset.
+  const fields = (liveSchema ?? [])
+    .map(f => {
+      const role = roleForColumn(f.name, f.role);
+      return {
+        name: f.name,
+        type: f.dtype,
+        unit: unitForColumn(f.name),
+        family: familyForColumn(f.name),
+        role,
+        icon: iconForRole(role),
+      };
+    })
+    // Stable sort: index/entity/context/target first, backend order preserved inside a role.
+    .sort((a, b) => ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role));
+  const roleCount = (role: FieldRole) => fields.filter(f => f.role === role).length;
+  const roleCounts = ROLE_ORDER.reduce<Record<FieldRole, number>>(
+    (acc, role) => {
+      acc[role] = roleCount(role);
+      return acc;
+    },
+    { index: 0, entity: 0, context: 0, target: 0, signal: 0 }
+  );
+  const summaryField = fields.find(f => f.name === liveTargetColumn) ?? fields.find(f => f.role === "target") ?? null;
+  const targetFamily = summaryField ? summaryField.family : null;
+  const families = (() => {
+    const map = new Map<FieldFamily, { family: FieldFamily; units: Set<string>; count: number }>();
+    fields.forEach(f => {
+      const entry = map.get(f.family) ?? { family: f.family, units: new Set<string>(), count: 0 };
+      if (f.unit) entry.units.add(f.unit);
+      entry.count += 1;
+      map.set(f.family, entry);
+    });
+    const all = [...map.values()].sort((a, b) => b.count - a.count || a.family.localeCompare(b.family));
+    // Lead with the family the model actually modelled, then everything else.
+    const ordered = targetFamily ? all.filter(f => f.family === targetFamily).concat(all.filter(f => f.family !== targetFamily)) : all;
+    return ordered.slice(0, 6);
+  })();
   const domainInfo = domainMeta[dataset.domain] ?? domainMeta.building;
+  const domainSignalCount = fields.filter(f => f.role === "signal" || f.role === "target").length;
   const sound = useSound({ onPlay: () => {} });
+  const indexField = fields.find(f => f.role === "index");
+  const firstEntity = fields.find(f => f.role === "entity");
   const operations = [
-    { label: "Store", detail: "raw/northstar/v1.3", icon: HardDrive, state: "complete" },
-    { label: "Load", detail: "2.4M rows / 42 cols", icon: Database, state: "complete" },
-    { label: "Index", detail: "timestamp + zone_id", icon: DatabaseZap, state: "complete" },
-    { label: "Retrieve", detail: "query plan ready", icon: Eye, state: "live" },
+    { label: "Store", detail: `${dataset.rows} rows ingested as v1`, icon: HardDrive, state: "complete" },
+    { label: "Load", detail: `${dataset.rows} rows / ${dataset.columnCount ?? "—"} cols`, icon: Database, state: "complete" },
+    {
+      label: "Index",
+      detail: indexField ? `${indexField.name}${firstEntity ? ` + ${firstEntity.name}` : ""}` : "no index field detected yet",
+      icon: DatabaseZap,
+      state: indexField ? "complete" : "pending",
+    },
+    {
+      label: "Retrieve",
+      detail: fields.length ? `${fields.length} fields served to the pipeline` : "waiting for a schema",
+      icon: Eye,
+      state: fields.length ? "live" : "pending",
+    },
   ];
   return (
     <div className="view-content">
       <div className="schema-summary-row">
         <div className="schema-summary-card">
           <span className="section-eyebrow">AI UNDERSTANDING</span>
-          <strong>6 entity groups</strong>
-          <span>42 fields mapped · 5 relationships found</span>
+          <strong>{liveSchema ? `${liveSchema.length} fields` : "—"}</strong>
+          <span>{liveSchema ? `${new Set(liveSchema.map(f => f.role)).size} roles detected` : "no schema recorded yet"}</span>
         </div>
         <div className="schema-summary-card">
           <span className="section-eyebrow">TEMPORAL GRAIN</span>
-          <strong>10 minute cadence</strong>
-          <span>2026-09-01 → 2026-10-06 · Asia/Kolkata</span>
-        </div>
-        <div className="schema-summary-card">
-          <span className="section-eyebrow">PRIMARY TARGET</span>
-          <strong>{summaryField.name}</strong>
-          <span>{summaryField.unit} · {summaryField.role}</span>
-        </div>
+          <strong>{dataset.rowCount ? `${fmtCount(dataset.rowCount)} rows` : "—"}</strong>
+          <span>{dataset.columnCount ? `${dataset.columnCount} columns detected` : "no dataset loaded"}</span>
+        </div>          <div className="schema-summary-card">
+            <span className="section-eyebrow">PRIMARY TARGET</span>
+            <strong>{summaryField ? summaryField.name : "—"}</strong>
+            <span>
+              {summaryField
+                ? `${displayUnit(summaryField.unit) || summaryField.type} · ${summaryField.role}`
+                : "no target recorded yet"}
+            </span>
+          </div>
         <div className="schema-summary-card">
           <span className="section-eyebrow">DOMAIN FIT</span>
           <strong>{domainInfo.label}</strong>
@@ -2036,6 +2874,9 @@ function SchemaView({ dataset }: { dataset: Dataset }) {
             }
           />
           <div className="schema-fields">
+            {!fields.length ? (
+              <p className="mono-note table-empty-note">No schema recorded yet for this dataset.</p>
+            ) : null}
             {fields.map(field => {
               const Icon = field.icon;
               return (
@@ -2046,7 +2887,8 @@ function SchemaView({ dataset }: { dataset: Dataset }) {
                   <div>
                     <strong>{field.name}</strong>
                     <span>
-                      {field.type} · {field.role}
+                      {field.type}
+                      {field.unit ? ` · ${displayUnit(field.unit)}` : ""} · {field.role}
                     </span>
                   </div>
                   <span className={`field-role field-role--${field.role}`}>{field.role}</span>
@@ -2056,85 +2898,49 @@ function SchemaView({ dataset }: { dataset: Dataset }) {
             })}
           </div>
           <div className="schema-field-family-strip">
-            <span className="section-eyebrow">METER FAMILIES</span>
-            <h3>
-              {dataset.domain === "building" ? "Building meter families" : dataset.domain === "industry" ? "Industrial meter families" : "Logistics meter families"}
-            </h3>
+            <span className="section-eyebrow">SIGNAL FAMILIES</span>
+            <h3>Families detected in {dataset.name}</h3>
             <div className="family-mesh">
-              {domainFields.slice(0, 5).map(field => {
-                const Icon = fieldIconFor(field.family);
+              {!families.length ? (
+                <p className="mono-note table-empty-note">No signal families until a schema is recorded.</p>
+              ) : null}
+              {families.map(node => {
+                const Icon = fieldIconFor(node.family);
+                const units = [...node.units].map(displayUnit).filter(Boolean);
                 return (
-                  <div className="family-node" key={field.name}>
+                  <div className="family-node" key={node.family}>
                     <span className="family-node__icon">
                       <Icon size={14} />
                     </span>
-                    <span>{field.family}</span>
-                    <span className="mono-note">{field.unit}</span>
+                    <span>{FAMILY_LABEL[node.family]}</span>
+                    <span className="mono-note">
+                      {node.count} field{node.count === 1 ? "" : "s"}
+                      {units.length ? ` · ${units.join(", ")}` : ""}
+                    </span>
                   </div>
                 );
               })}
             </div>
           </div>
           <button type="button" className="panel-link panel-link--bottom">
-            View all 42 fields <ArrowRight size={13} />
+            View all {liveSchema?.length ?? 0} fields <ArrowRight size={13} />
           </button>
         </section>
         <section className="panel relationship-panel">
           <SectionHeading
-            eyebrow="RELATIONSHIP GRAPH"
-            title="How the data connects"
-            detail="The schema becomes a queryable map of the operational system."
+            eyebrow="SCHEMA UNDERSTANDING"
+            title="How EcoMind reads this dataset"
+            detail="Every family below is a group of columns the backend actually recorded. Light travels from the dataset into each one it understands."
           />
-          <div className="relationship-map">
-            <div className="relationship-lines">
-              <span />
-              <span />
-              <span />
-              <span />
-            </div>
-            <div className="relationship-node relationship-node--root">
-              <Database size={17} />
-              <strong>northstar_readings</strong>
-              <span>2.4M rows</span>
-            </div>
-            <div className="relationship-node relationship-node--top">
-              <Building2 size={15} />
-              <strong>building</strong>
-              <span>1 entity</span>
-            </div>
-            <div className="relationship-node relationship-node--left">
-              <Activity size={15} />
-              <strong>meter</strong>
-              <span>42 signals</span>
-            </div>
-            <div className="relationship-node relationship-node--right">
-              <UserRound size={15} />
-              <strong>occupancy</strong>
-              <span>context</span>
-            </div>
-            <div className="relationship-node relationship-node--bottom">
-              <Leaf size={15} />
-              <strong>emissions</strong>
-              <span>derived</span>
-            </div>
-            <div className="relationship-map__legend">
-              <span>
-                <i className="legend-dot legend-dot--lime" />
-                {" "}
-                primary table
-              </span>
-              <span>
-                <i className="legend-dot legend-dot--blue" />
-                {" "}
-                relationship
-              </span>
-              <span>
-                <i className="legend-dot legend-dot--violet" />
-                {" "}
-                derived
-              </span>
-            </div>
-          </div>
+          <SchemaFlowMap
+            dataset={dataset}
+            families={families.map(node => ({
+              family: node.family,
+              count: node.count,
+              units: [...node.units].map(displayUnit).filter(Boolean),
+            }))}
+            roleCounts={roleCounts}
+          />
         </section>
       </div>
       <section className="panel operations-panel">
@@ -2166,9 +2972,9 @@ function SchemaView({ dataset }: { dataset: Dataset }) {
         <div className="operations-panel__foot">
           <span>
             <Database size={13} />{" "}
-            storage path: raw/northstar/v1.3
+            {dataset.name} · import v1
           </span>
-          <span className="mono-note">v1.3 / immutable</span>
+          <span className="mono-note">{liveBaselineVersions.length ? `v${liveBaselineVersions[0].version} / immutable` : "immutable"}</span>
         </div>
       </section>
     </div>
@@ -2176,6 +2982,7 @@ function SchemaView({ dataset }: { dataset: Dataset }) {
 }
 
 function QualityView({
+  dataset,
   filter,
   setFilter,
   filteredQuality,
@@ -2184,6 +2991,7 @@ function QualityView({
   saved,
   onSave,
 }: {
+  dataset: Dataset;
   filter: string;
   setFilter: (filter: string) => void;
   filteredQuality: typeof qualityIssues;
@@ -2194,13 +3002,39 @@ function QualityView({
 }) {
   const filters = ["All issues", "Null value", "Missing timestamp", "Duplicate", "Datatype mismatch", "Invalid value"];
   const sound = useSound({ onPlay: () => {} });
+  const totalIssues = qualityIssues.length;
+  const typeCounts = qualityIssues.reduce<Record<string, number>>((acc, issue) => {
+    acc[issue.type] = (acc[issue.type] ?? 0) + 1;
+    return acc;
+  }, {});
+  const avgConfidence = qualityIssues.length
+    ? qualityIssues.reduce((sum, issue) => sum + (parseFloat(issue.confidence) || 0), 0) / qualityIssues.length
+    : 0;
+  const qScore = liveQualityMeta?.score ?? null;
   return (
     <div className="view-content">
       <div className="quality-topline">
         <div className="quality-kpis">
-          <Metric label="ISSUES" value="19" delta="5 types flagged" accent="coral" />
-          <Metric label="REPAIRS" value={repaired ? "19" : "0"} delta={repaired ? "ready to save" : "pending"} direction="up" accent="lime" />
-          <Metric label="SOURCE" value="v1.3" delta="preserved" direction="down" accent="blue" />
+          <Metric
+            label="ISSUES"
+            value={String(totalIssues)}
+            delta={`${Object.keys(typeCounts).length} types flagged`}
+            accent="coral"
+          />
+          <Metric
+            label="REPAIRS"
+            value={repaired ? String(totalIssues) : "0"}
+            delta={repaired ? "ready to save" : "pending"}
+            direction="up"
+            accent="lime"
+          />
+          <Metric
+            label="DQ SCORE"
+            value={qScore != null ? `${qScore} / 100` : "—"}
+            delta="structural rules only"
+            direction="down"
+            accent="blue"
+          />
         </div>
         <div className="quality-actions">
           <ActionButton variant="secondary" icon={RefreshCw} onClick={() => sound.play({ volume: 0.08, rate: 0.9 })}>
@@ -2211,6 +3045,52 @@ function QualityView({
           </ActionButton>
         </div>
       </div>
+      {/* The overall run comes first; filtering is a drill-down on top of it. */}
+      <section className="panel quality-process">
+        <SectionHeading
+          eyebrow="QUALITY PROCESS / STAGE 04"
+          title="What the structural check evaluated"
+          detail="Missing values, timestamps, duplicates, data types, units, schema shape and invalid categoricals. Outliers and abnormal behaviour are deliberately excluded — the anomaly stage owns those."
+        />
+        <div className="quality-process__grid">
+          <div className="quality-process__rules">
+            <span className="section-eyebrow">RULE OUTCOMES</span>
+            {Object.entries(typeCounts).length ? (
+              Object.entries(typeCounts)
+                .sort((a, b) => b[1] - a[1])
+                .map(([type, count]) => (
+                  <div className="quality-rule" key={type}>
+                    <span className="quality-rule__dot quality-rule__dot--flag" />
+                    <span className="quality-rule__label">{type}</span>
+                    <span className="mono-note">{count} flagged</span>
+                  </div>
+                ))
+            ) : (
+              <p className="mono-note table-empty-note">
+                Every structural rule passed on this dataset — nothing was repaired.
+              </p>
+            )}
+          </div>
+          <div className="quality-process__meter">
+            <span className="section-eyebrow">DATA QUALITY SCORE</span>
+            <strong>{qScore != null ? `${qScore} / 100` : "—"}</strong>
+            <span
+              className="quality-meter"
+              role="img"
+              aria-label={qScore != null ? `Data quality score ${qScore} of 100` : "No quality score recorded"}
+            >
+              <span className="quality-meter__fill" style={{ width: `${qScore ?? 0}%` }} />
+            </span>
+            <span className="mono-note">
+              {totalIssues} flagged rows · {Object.keys(typeCounts).length} rule types ·{" "}
+              {avgConfidence ? `average confidence ${avgConfidence.toFixed(1)}%` : "no confidences recorded"}
+            </span>
+            <span className="mono-note">
+              {repaired ? "Repairs applied and versioned" : "Source preserved — no repair written yet"}
+            </span>
+          </div>
+        </div>
+      </section>
       <div className="quality-filters">
         <span className="section-eyebrow">FILTER BY ISSUE TYPE</span>
         {filters.map(item => (
@@ -2226,7 +3106,7 @@ function QualityView({
             {item}
             {item !== "All issues" ? (
               <span>
-                {item === "Null value" ? "7" : item === "Missing timestamp" ? "4" : item === "Duplicate" ? "3" : item === "Datatype mismatch" ? "3" : "2"}
+                {typeCounts[item] ?? 0}
               </span>
             ) : null}
           </button>
@@ -2245,6 +3125,9 @@ function QualityView({
             <TinyTag tone="coral">{repaired ? "RESOLVED" : "BEFORE"}</TinyTag>
           </div>
           <div className="quality-table">
+            {!filteredQuality.length ? (
+              <p className="mono-note table-empty-note">No structural quality issues recorded for this dataset.</p>
+            ) : null}
             {filteredQuality.map(issue => (
               <div className="quality-row" key={issue.id}>
                 <span className="quality-row__id">{issue.id}</span>
@@ -2260,7 +3143,7 @@ function QualityView({
           <div className="quality-panel__footer">
             <span>
               <AlertTriangle size={13} />{" "}
-              showing {filteredQuality.length} of 19 flagged rows
+              showing {filteredQuality.length} of {totalIssues} flagged rows
             </span>
             <button
               type="button"
@@ -2288,7 +3171,7 @@ function QualityView({
           <div className="repair-console">
             <div className="repair-console__header">
               <span className="terminal-glyph">›_</span>
-              <span>repair_context / northstar_v1.3</span>
+              <span>repair_context / {dataset.id.toLowerCase()}</span>
               <span className="repair-console__cursor" />
             </div>
             {filteredQuality.slice(0, 4).map((issue, index) => (
@@ -2314,7 +3197,7 @@ function QualityView({
               <CircleDot size={13} />{" "}
               {repaired ? "Repair applied with audit trail" : "Repairs are reversible until saved"}
             </span>
-            <span className="mono-note">CONFIDENCE / 98.4%</span>
+            <span className="mono-note">CONFIDENCE / {avgConfidence ? `${avgConfidence.toFixed(1)}%` : "—"}</span>
           </div>
         </section>
         <section className="quality-panel">
@@ -2326,7 +3209,7 @@ function QualityView({
                 <h2>Corrected rows</h2>
               </div>
             </div>
-            <TinyTag tone="lime">{repaired ? "v1.4" : "PREVIEW"}</TinyTag>
+            <TinyTag tone="lime">{repaired ? "SAVED" : "PREVIEW"}</TinyTag>
           </div>
           <div className="quality-table">
             {filteredQuality.map(issue => (
@@ -2344,7 +3227,7 @@ function QualityView({
           <div className="quality-panel__footer">
             <span>
               <Database size={13} />{" "}
-              {saved ? "New version persisted" : "Original v1.3 stays untouched"}
+              {saved ? "New version persisted" : "Original source stays untouched"}
             </span>
             <button
               type="button"
@@ -2363,11 +3246,11 @@ function QualityView({
           <div className="quality-save-note">
             <Database size={15} />
             <span>
-              Saving creates <strong>northstar_v1.4</strong>. The raw source remains available as v1.3.
+              Saving creates a new immutable version. The raw source remains available for audit.
             </span>
           </div>
           <ActionButton icon={DatabaseZap} onClick={onSave} disabled={!repaired}>
-            {saved ? "v1.4 saved" : "Save new version"}
+            {saved ? "Version saved" : "Save new version"}
           </ActionButton>
         </div>
       )}
@@ -2386,27 +3269,51 @@ function QualityView({
   );
 }
 
+const WEEKDAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+/**
+ * Transformation view.
+ *
+ * Everything here is recorded by the backend: the steps the transformation
+ * stage actually ran (with before -> after evidence per column) and the adaptive
+ * baseline record it produced (identity, statistics, learned hour-of-week
+ * profile). The view re-runs nothing and offers no toggles - a stage is
+ * executed from the pipeline rail, never from a chart.
+ */
 function TransformView({
-  enabled,
-  setEnabled,
-  onRun,
+  transform,
+  baseline,
   dataset,
   baselineName,
 }: {
-  enabled: string[];
-  setEnabled: (steps: string[]) => void;
-  onRun: () => void;
+  transform?: LiveTransform;
+  baseline?: LiveBaseline;
   dataset: Dataset;
   baselineName: string;
 }) {
-  const sound = useSound({ onPlay: () => {} });
-  const steps = [
-    { id: "resample", label: "Temporal resampling", detail: "10 min → 30 min windows", icon: Clock3, color: "lime" },
-    { id: "normalize", label: "Feature normalization", detail: "Robust scale / meter_kw", icon: SlidersHorizontal, color: "blue" },
-    { id: "baseline", label: "Seasonal baseline", detail: "weekday + occupancy aware", icon: TrendingUp, color: "violet" },
-    { id: "derive", label: "Derived emissions", detail: "kWh × grid factor", icon: Leaf, color: "orange" },
-  ];
+  const [openStep, setOpenStep] = useState<string | null>(null);
   const domainInfo = domainMeta[dataset.domain] ?? domainMeta.building;
+  const unit = displayUnit(baseline?.unit || liveTargetUnit);
+  const steps = transform?.steps ?? [];
+  const cells = baseline?.hourOfWeek ?? [];
+
+  const heat = useMemo(() => {
+    if (!cells.length) return null;
+    const medians = cells.map(c => c.median);
+    const lo = Math.min(...medians);
+    const hi = Math.max(...medians);
+    const grid: (LiveBaselineCell | null)[][] = Array.from({ length: 7 }, () =>
+      Array.from({ length: 24 }, () => null)
+    );
+    cells.forEach(c => {
+      if (c.day >= 0 && c.day < 7 && c.hour >= 0 && c.hour < 24) grid[c.day][c.hour] = c;
+    });
+    return { grid, lo, hi };
+  }, [cells]);
+
+  const fmtValue = (n: number): string =>
+    n >= 1000 ? Math.round(n).toLocaleString("en-IN") : n.toFixed(1);
+
   return (
     <div className="view-content">
       <div className="transform-banner">
@@ -2414,62 +3321,95 @@ function TransformView({
           <WandSparkles size={24} />
         </div>
         <div>
-          <span className="section-eyebrow">DATASET-SPECIFIC BASELINE</span>
+          <span className="section-eyebrow">ADAPTIVE BASELINE / GENERATED FROM THIS DATASET</span>
           <h2>
             {dataset.name} / {domainInfo.label.toLowerCase()} aware
           </h2>
           <p>
-            The baseline learns from occupancy, weekday, and local tariff context — not a generic global average.
+            {baseline
+              ? `Learned from ${fmtCount(baseline.rowCount)} readings of ${
+                  baseline.target || "the target column"
+                } for this dataset only - never a global profile.`
+              : "No adaptive baseline has been recorded for this dataset yet."}
           </p>
         </div>
         <div className="transform-banner__metric">
           <span>BASELINE FIT</span>
-          <strong>0.94 R²</strong>
-          <TinyTag tone="lime">SELECTED</TinyTag>
+          <strong>
+            {modelData.find(m => m.selected)?.r2 != null
+              ? `${modelData.find(m => m.selected)?.r2} R²`
+              : "—"}
+          </strong>
+          <TinyTag tone="lime">{baseline ? "GENERATED" : "PENDING"}</TinyTag>
         </div>
       </div>
+
       <div className="transform-layout">
         <section className="panel transform-steps-panel">
           <SectionHeading
-            eyebrow="PROCESSING GRAPH"
-            title="Transform in the open"
-            detail="Toggle each step and watch the versioned flow."
-            action={
-              <ActionButton icon={Play} onClick={onRun}>
-                Run transform
-              </ActionButton>
-            }
+            eyebrow="RECORDED TRANSFORMATION"
+            title="What the stage actually did"
+            detail="Every step is a record from the transformation stage, with the columns it touched and the value it wrote."
           />
           <div className="transform-steps">
+            {!steps.length ? (
+              <p className="mono-note table-empty-note">
+                No transformation has been recorded for this run yet.
+              </p>
+            ) : null}
             {steps.map((step, index) => {
-              const Icon = step.icon;
-              const active = enabled.includes(step.id);
+              const open = openStep === step.key;
               return (
-                <div
-                  className={`transform-step ${active ? "transform-step--active" : ""}`}
-                  key={step.id}
-                >
-                  <span className="transform-step__index">0{index + 1}</span>
-                  <span className={`transform-step__icon transform-step__icon--${step.color}`}>
-                    <Icon size={16} />
-                  </span>
-                  <div>
-                    <strong>{step.label}</strong>
-                    <span>{step.detail}</span>
-                  </div>
+                <div className={`transform-step ${open ? "transform-step--open" : ""}`} key={step.key}>
                   <button
-                    className={`toggle ${active ? "toggle--on" : ""}`}
                     type="button"
-                    aria-label={`Toggle ${step.label}`}
-                    aria-pressed={active}
-                    onClick={() => {
-                      setEnabled(active ? enabled.filter(item => item !== step.id) : [...enabled, step.id]);
-                      sound.play({ volume: 0.08, rate: 0.9 });
-                    }}
+                    className="transform-step__head"
+                    aria-expanded={open}
+                    onClick={() => setOpenStep(open ? null : step.key)}
                   >
-                    <span />
+                    <span className="transform-step__index">{String(index + 1).padStart(2, "0")}</span>
+                    <div>
+                      <strong>{step.label}</strong>
+                      <span>{step.purpose}</span>
+                    </div>
+                    <div className="transform-step__meta">
+                      <TinyTag tone={step.status === "done" ? "lime" : "neutral"}>
+                        {step.status || "recorded"}
+                      </TinyTag>
+                      <span className="mono-note">{fmtCount(step.rowsChanged)} rows</span>
+                      <span className="mono-note">{step.columns.length} columns</span>
+                    </div>
+                    <ChevronDown size={15} className={open ? "transform-step__chevron--open" : ""} />
                   </button>
-                  {index < steps.length - 1 ? <span className="transform-step__connector" /> : null}
+                  {open ? (
+                    <div className="transform-step__evidence">
+                      {!step.fields.length ? (
+                        <p className="mono-note table-empty-note">No per-column evidence recorded.</p>
+                      ) : null}
+                      {step.fields.map(field => (
+                        <div
+                          className={`transform-evidence ${field.changed ? "transform-evidence--changed" : ""}`}
+                          key={field.column}
+                        >
+                          <span className="transform-evidence__column">{field.column}</span>
+                          <code>{field.before}</code>
+                          <ArrowRight size={12} />
+                          <code>{field.after}</code>
+                          <span className="mono-note">
+                            {field.unitBefore || field.unitAfter
+                              ? `${field.unitBefore || "—"} → ${field.unitAfter || "—"}`
+                              : ""}
+                          </span>
+                          {field.changed ? (
+                            <TinyTag tone="blue">changed</TinyTag>
+                          ) : (
+                            <TinyTag tone="neutral">kept</TinyTag>
+                          )}
+                        </div>
+                      ))}
+                      {step.note ? <p className="transform-step__note">{step.note}</p> : null}
+                    </div>
+                  ) : null}
                 </div>
               );
             })}
@@ -2477,79 +3417,154 @@ function TransformView({
           <div className="transform-step-footer">
             <span>
               <DatabaseZap size={13} />{" "}
-              output will save as <strong>northstar_v1.5</strong>
+              every step writes a new immutable version — the uploaded file is never modified
             </span>
-            <span className="mono-note">{enabled.length} steps / 42 fields</span>
+            <span className="mono-note">
+              {steps.length} step{steps.length === 1 ? "" : "s"} recorded
+            </span>
           </div>
         </section>
-        <section className="panel transform-chart-panel">
+
+        <section className="panel transform-baseline-panel">
           <SectionHeading
-            eyebrow="PREVIEW / MODEL INPUT"
-            title="Signal after transformation"
-            detail="Baseline and cleaned load, shown together."
+            eyebrow="BASELINE DATASET PREVIEW"
+            title="The normal EcoMind learned"
+            detail="Computed from this dataset alone — the reference every later stage compares against."
           />
-          <div className="transform-chart">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={energyData}>
-                <CartesianGrid stroke="#24342d" strokeDasharray="2 5" vertical={false} />
-                <XAxis
-                  dataKey="time"
-                  stroke="#61776a"
-                  tickLine={false}
-                  axisLine={false}
-                  tick={{ fill: "#768e7f", fontSize: 10 }}
-                />
-                <YAxis
-                  stroke="#61776a"
-                  tickLine={false}
-                  axisLine={false}
-                  tick={{ fill: "#768e7f", fontSize: 10 }}
-                />
-                <RechartsTooltip
-                  contentStyle={{ background: "#15231b", border: "1px solid #30473a", borderRadius: 8, color: "#eff8f1", fontSize: 11 }}
-                />
-                <Line type="monotone" dataKey="energy" stroke="#b6f36b" strokeWidth={2.5} dot={false} />
-                <Line
-                  type="monotone"
-                  dataKey="baseline"
-                  stroke="#718b7b"
-                  strokeDasharray="4 4"
-                  strokeWidth={1.4}
-                  dot={false}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="chart-legend">
-            <span>
-              <i style={{ background: "#b6f36b" }} />
-              {" "}
-              transformed load
-            </span>
-            <span>
-              <i style={{ background: "#718b7b" }} />
-              {" "}
-              learned baseline
-            </span>
-            <span className="mono-note">kW / 24h</span>
-          </div>
+          {!baseline ? (
+            <p className="mono-note table-empty-note">
+              Run the adaptive baseline stage to generate this dataset’s own normal behaviour.
+            </p>
+          ) : (
+            <>
+              <div className="baseline-identity">
+                <span className="baseline-identity__cell">
+                  <small>TARGET</small>
+                  <strong>{baseline.target || "—"}</strong>
+                </span>
+                <span className="baseline-identity__cell">
+                  <small>UNIT</small>
+                  <strong>{unit || "—"}</strong>
+                </span>
+                <span className="baseline-identity__cell">
+                  <small>LEARNED FROM</small>
+                  <strong>{fmtCount(baseline.rowCount)} rows</strong>
+                </span>
+                <span className="baseline-identity__cell">
+                  <small>ENTITY COLUMN</small>
+                  <strong>{baseline.deviceColumn || "—"}</strong>
+                </span>
+                <span className="baseline-identity__cell">
+                  <small>GENERATED</small>
+                  <strong>{baseline.generatedAt ? fmtRunClock(baseline.generatedAt) : "—"}</strong>
+                </span>
+                <span className="baseline-identity__cell">
+                  <small>VERSION</small>
+                  <strong>{baselineName || "—"}</strong>
+                </span>
+              </div>
+              <div className="baseline-stats">
+                {(
+                  [
+                    ["MIN", baseline.stats.min],
+                    ["P25", baseline.stats.p25],
+                    ["MEDIAN", baseline.stats.median],
+                    ["MEAN", baseline.stats.mean],
+                    ["P75", baseline.stats.p75],
+                    ["P95", baseline.stats.p95],
+                    ["MAX", baseline.stats.max],
+                    ["STD DEV", baseline.stats.std],
+                  ] as [string, number][]
+                ).map(([label, value]) => (
+                  <span className="baseline-stat" key={label}>
+                    <small>{label}</small>
+                    <strong>{fmtValue(value)}</strong>
+                  </span>
+                ))}
+              </div>
+            </>
+          )}
         </section>
       </div>
+
+      {heat ? (
+        <section className="panel baseline-heat-panel">
+          <SectionHeading
+            eyebrow="LEARNED PROFILE / HOUR OF WEEK"
+            title="When this dataset behaves normally"
+            detail={`Median ${
+              baseline?.target || "load"
+            } for every hour of every weekday, learned from this dataset alone. Hover a cell for the exact value.`}
+          />
+          <div
+            className="baseline-heat"
+            role="img"
+            aria-label={`Hour-of-week median ${baseline?.target || "load"} heatmap`}
+          >
+            <div className="baseline-heat__hours">
+              <span />
+              {Array.from({ length: 24 }, (_, hour) => (
+                <span key={hour}>{hour % 3 === 0 ? String(hour).padStart(2, "0") : ""}</span>
+              ))}
+            </div>
+            {heat.grid.map((row, day) => (
+              <div className="baseline-heat__row" key={day}>
+                <span className="baseline-heat__day">{WEEKDAY_LABELS[day] ?? `D${day}`}</span>
+                {row.map((cell, hour) => {
+                  const span = heat.hi - heat.lo;
+                  const alpha = cell ? (span > 0 ? 10 + 78 * ((cell.median - heat.lo) / span) : 45) : 0;
+                  return (
+                    <span
+                      className={`baseline-heat__cell ${cell ? "" : "baseline-heat__cell--empty"}`}
+                      key={hour}
+                      style={cell ? { background: `rgb(182 243 107 / ${alpha.toFixed(1)}%)` } : undefined}
+                      title={
+                        cell
+                          ? `${WEEKDAY_LABELS[day] ?? day} ${String(hour).padStart(2, "0")}:00 — median ${fmtValue(
+                              cell.median
+                            )}${unit ? ` ${unit}` : ""} · mean ${fmtValue(cell.mean)} · ${fmtCount(
+                              cell.count
+                            )} readings`
+                          : undefined
+                      }
+                    >
+                      {cell ? fmtValue(cell.median) : "—"}
+                    </span>
+                  );
+                })}
+              </div>
+            ))}
+            <div className="chart-legend">
+              <span>
+                <i style={{ background: "rgb(182 243 107 / 20%)" }} /> low
+              </span>
+              <span>
+                <i style={{ background: "rgb(182 243 107 / 88%)" }} /> high
+              </span>
+              <span className="mono-note">
+                {heat.lo.toLocaleString("en-IN")} – {heat.hi.toLocaleString("en-IN")}
+                {unit ? ` ${unit}` : ""} median
+              </span>
+            </div>
+          </div>
+        </section>
+      ) : null}
+
       <div className="database-trace">
         <div className="database-trace__label">
           <Database size={15} />
           <span>VERSIONED DATABASE TRACE</span>
         </div>
         <div className="database-trace__flow">
-          <span>v1.4 cleaned</span>
+          <span>uploaded source</span>
           <ArrowRight size={13} />
-          <span className="database-trace__active">v1.5 transformed</span>
+          <span className="database-trace__active">transformed</span>
           <ArrowRight size={13} />
           <span>model input</span>
         </div>
         <span className="trace-status">
           <span className="status-dot status-dot--lime" />
-          ready
+          {steps.length ? `${steps.length} steps recorded` : "awaiting stage 05"}
         </span>
       </div>
     </div>
@@ -2564,17 +3579,40 @@ function ModelsView({
   setSelectedModel: (model: string) => void;
 }) {
   const sound = useSound({ onPlay: () => {} });
+  const comp = liveCompetition;
+  const winner = modelData.find(m => m.selected) ?? modelData[0] ?? null;
+  const second = modelData[1] ?? null;
+  const topR2 = winner ? winner.r2 : null;
+  const topMae = winner ? winner.mae : null;
+  const maeGain = winner && second && second.mae > 0 ? ((winner.mae - second.mae) / second.mae) * 100 : null;
   return (
     <div className="view-content">
       <div className="models-topline">
         <div className="models-kpis">
-          <Metric label="BEST MODEL" value="R² 0.94" delta="+2.1% vs next" accent="lime" />
-          <Metric label="ERROR / MAE" value="4.82 kW" delta="−18.4%" direction="down" accent="blue" />
-          <Metric label="TRAIN WINDOW" value="35 days" delta="same dataset" direction="down" accent="violet" />
+          <Metric
+            label="BEST MODEL"
+            value={topR2 != null ? `R² ${topR2}` : "—"}
+            delta={winner ? "selected on measured results" : "no run yet"}
+            accent="lime"
+          />
+          <Metric
+            label="ERROR / MAE"
+            value={topMae != null ? withUnit(String(topMae)) : "—"}
+            delta={maeGain != null ? `${maeGain <= 0 ? "" : "+"}${maeGain.toFixed(1)}% vs next` : "no run yet"}
+            direction={maeGain != null && maeGain < 0 ? "down" : "up"}
+            accent="blue"
+          />
+          <Metric
+            label="TRAIN SPLIT"
+            value={comp ? `${fmtCount(comp.trainRows)} rows` : "—"}
+            delta={comp ? `${comp.features} features / test ${fmtCount(comp.testRows)}` : "no run yet"}
+            direction="down"
+            accent="violet"
+          />
         </div>
         <div className="system-chip">
           <span className="status-dot status-dot--violet" />
-          4 models compared
+          {modelData.length ? `${modelData.length} model${modelData.length === 1 ? "" : "s"} compared` : "no competition recorded"}
         </div>
       </div>
       <div className="models-layout">
@@ -2607,7 +3645,11 @@ function ModelsView({
                 <div className="model-row__name">
                   <strong>{model.name}</strong>
                   <span>
-                    {index === 0 ? "best fit for current baseline" : "validation candidate"}
+                    {model.rationale
+                      ? model.rationale.length > 110
+                        ? `${model.rationale.slice(0, 107)}...`
+                        : model.rationale
+                      : `rank ${index + 1} candidate`}
                   </span>
                 </div>
                 <div className="model-row__metrics">
@@ -2624,7 +3666,7 @@ function ModelsView({
                     <strong>{model.r2}</strong>
                   </span>
                 </div>
-                {index === 0 ? (
+                {model.selected ? (
                   <TinyTag tone="lime">PROMOTED</TinyTag>
                 ) : (
                   <ChevronRight size={15} />
@@ -2668,7 +3710,11 @@ function ModelsView({
             </ResponsiveContainer>
           </div>
           <div className="model-chart-footer">
-            <span>MAE / kW</span>
+            <AxisNote
+              quantity="MAE"
+              unit={liveTargetUnit}
+              origin="Recorded by the model selection stage: mean absolute error of this model on the held-out test split, in the unit of the modelled target column."
+            />
             <span className="mono-note">VALIDATION / 20%</span>
           </div>
         </section>
@@ -2678,11 +3724,14 @@ function ModelsView({
           <Sparkles size={18} />
         </div>
         <div>
-          <span className="section-eyebrow">WHY GRADIENT BOOST</span>
-          <h3>Best balance of precision and stability.</h3>
+          <span className="section-eyebrow">WHY {comp?.winner ? comp.winner.toUpperCase() : "THIS MODEL"}</span>
+          <h3>{comp?.nearTie ? "A near-tie, decided on stability." : "Chosen on measured results."}</h3>
           <p>
-            It reduces error by 18.4% over the next model while holding a 0.94 R² across occupancy and after-hours
-            slices.
+            {comp && comp.rationale
+              ? comp.rationale
+              : winner
+                ? `${winner.name} led the competition on one identical train/test split.`
+                : "Run the pipeline to record the selection rationale."}
           </p>
         </div>
         <ActionButton variant="secondary" icon={Eye}>
@@ -2707,13 +3756,35 @@ function AnomaliesView({
   baselineName: string;
 }) {
   const sound = useSound({ onPlay: () => {} });
+  const meta = liveAnomalyMeta;
+  const anomalyTotal = meta?.total ?? anomalies.length;
+  const criticalHigh = (meta?.severity?.critical ?? 0) + (meta?.severity?.high ?? 0);
+  const baselineMax = anomalyData.length ? Math.max(...anomalyData.map(p => p.baseline)) : 0;
+  const thresholdLine = baselineMax > 0 ? Number((baselineMax * 1.2).toFixed(1)) : 0;
   return (
     <div className="view-content">
       <div className="anomaly-topline">
         <div className="quality-kpis">
-          <Metric label="ANOMALIES" value="07" delta="2 high priority" accent="coral" />
-          <Metric label="BASELINE DRIFT" value="3.2%" delta="within threshold" direction="down" accent="lime" />
-          <Metric label="LAST DETECTED" value="14:10" delta="06 Oct 2026" direction="down" accent="orange" />
+          <Metric
+            label="ANOMALIES"
+            value={String(anomalyTotal)}
+            delta={`${criticalHigh} critical / high`}
+            accent="coral"
+          />
+          <Metric
+            label="DETECTION RATE"
+            value={meta ? `${meta.ratePct.toFixed(2)}%` : "—"}
+            delta={meta ? `${fmtCount(meta.scanned)} readings scanned` : "no run yet"}
+            direction="down"
+            accent="lime"
+          />
+          <Metric
+            label="EXCESS COST"
+            value={meta ? `${displayUnit("INR")}${fmtCount(meta.excessCost)}` : "—"}
+            delta={meta ? `${fmtCount(meta.excessCo2)} ${displayUnit("kgCO2")}` : "no run yet"}
+            direction="up"
+            accent="orange"
+          />
         </div>
         <div className="segmented-control">
           {["24H", "7D", "30D"].map(item => (
@@ -2735,7 +3806,7 @@ function AnomaliesView({
         <div className="anomaly-chart-head">
           <div>
             <div className="section-eyebrow">DEVIATION FROM BASELINE / {window}</div>
-            <h2>Two moments broke the pattern.</h2>
+            <h2>{anomalyTotal ? `${anomalyTotal} event${anomalyTotal === 1 ? "" : "s"} broke the pattern.` : "No anomalies recorded."}</h2>
           </div>
           <div className="chart-legend">
             <span>
@@ -2753,6 +3824,11 @@ function AnomaliesView({
               {" "}
               anomaly
             </span>
+            <AxisNote
+              quantity="Observed load"
+              unit={liveTargetUnit}
+              origin="Recorded by the anomaly stage: the measured target column compared against the adaptive baseline for this dataset. Readings outside the learned threshold are marked as anomalies."
+            />
           </div>
         </div>
         <div className="anomaly-chart">
@@ -2773,7 +3849,7 @@ function AnomaliesView({
                 tick={{ fill: "#768e7f", fontSize: 10 }}
               />
               <ReferenceLine
-                y={76}
+                y={thresholdLine}
                 stroke="#f5a56d"
                 strokeDasharray="3 5"
                 strokeOpacity={0.5}
@@ -2809,7 +3885,7 @@ function AnomaliesView({
         </div>
         <div className="anomaly-chart-footer">
           <span className="mono-note">BASELINE / {baselineName}</span>
-          <span>Threshold: +20% over learned baseline</span>
+          <span>Threshold: {meta ? `+${meta.threshold}%` : "—"} over learned baseline</span>
         </div>
         <div className="anomaly-chart-sub">
           <div className="anomaly-chart-sub__item">
@@ -2824,6 +3900,65 @@ function AnomaliesView({
           </div>
         </div>
       </section>
+      <section className="panel anomaly-breakdown">
+        <SectionHeading
+          eyebrow="DETECTION BREAKDOWN"
+          title="How the anomalies split"
+          detail="Severity counts and the classes EcoMind detected, both recorded by the anomaly stage."
+        />
+        {!anomalyTotal ? (
+          <p className="mono-note table-empty-note">No anomalies recorded for this run yet.</p>
+        ) : (
+          <div className="anomaly-breakdown__grid">
+            <div className="anomaly-breakdown__block">
+              <span className="section-eyebrow">SEVERITY</span>
+              <div className="severity-bar" role="img" aria-label="Anomaly severity split">
+                {SEVERITY_ORDER.map(sev => {
+                  const count = meta?.severity?.[sev] ?? 0;
+                  const width = anomalyTotal ? (count / anomalyTotal) * 100 : 0;
+                  return count ? (
+                    <span
+                      key={sev}
+                      className={`severity-bar__seg severity-bar__seg--${sev}`}
+                      style={{ width: `${width.toFixed(2)}%` }}
+                      title={`${sev}: ${fmtCount(count)}`}
+                    />
+                  ) : null;
+                })}
+              </div>
+              <div className="severity-legend">
+                {SEVERITY_ORDER.map(sev => (
+                  <span className={`severity-legend__item severity-legend__item--${sev}`} key={sev}>
+                    <i aria-hidden="true" /> {sev} · {fmtCount(meta?.severity?.[sev] ?? 0)}
+                  </span>
+                ))}
+              </div>
+            </div>
+            <div className="anomaly-breakdown__block">
+              <span className="section-eyebrow">DETECTED CLASSES</span>
+              <div className="class-rank">
+                {!(meta?.byClass ?? []).length ? (
+                  <p className="mono-note table-empty-note">No class breakdown recorded.</p>
+                ) : null}
+                {(meta?.byClass ?? []).map(item => {
+                  const share = anomalyTotal ? (item.count / anomalyTotal) * 100 : 0;
+                  return (
+                    <div className="class-rank__row" key={item.label}>
+                      <span className="class-rank__label">{item.label}</span>
+                      <span className="class-rank__track">
+                        <span className="class-rank__fill" style={{ width: `${Math.min(100, share).toFixed(1)}%` }} />
+                      </span>
+                      <span className="mono-note">
+                        {fmtCount(item.count)} · {share.toFixed(1)}%
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+      </section>
       <section className="panel anomaly-table-panel">
         <div className="table-panel-head">
           <div>
@@ -2836,7 +3971,7 @@ function AnomaliesView({
             onClick={() => sound.play({ volume: 0.08, rate: 0.9 })}
           >
             <ListFilter size={14} />{" "}
-            Filter <span>4</span>
+            Filter <span>{anomalies.length}</span>
           </button>
         </div>
         <div className="data-table">
@@ -2903,28 +4038,32 @@ function PredictionView({
   modelName: string;
 }) {
   const sound = useSound({ onPlay: () => {} });
+  const fm = liveForecastMeta;
+  const forecastTotal = forecastData.reduce((sum, d) => sum + (d.forecast || 0), 0);
+  const savingsInr = liveRecMeta?.savingsInr ?? 0;
+  const savingsCo2 = liveRecMeta?.savingsCo2 ?? 0;
   return (
     <div className="view-content">
       <div className="prediction-topline">
         <div className="prediction-kpis">
           <Metric
-            label="NEXT 7 DAYS"
-            value="4,812 kWh"
-            delta="−6.2% vs baseline"
+            label="FORECAST HORIZON"
+            value={forecastData.length ? withUnit(fmtCount(forecastTotal)) : "—"}
+            delta={fm ? `${fm.mape.toFixed(1)}% MAPE backtest` : "no run yet"}
             direction="down"
             accent="lime"
           />
           <Metric
-            label="EST. COST"
-            value="₹68,420"
-            delta="₹4,900 avoided"
+            label="SAVINGS / MONTH"
+            value={liveRecMeta ? `${displayUnit("INR")}${fmtCount(savingsInr)}` : "—"}
+            delta="from ranked actions"
             direction="down"
             accent="orange"
           />
           <Metric
-            label="CO₂e"
-            value="1.82 t"
-            delta="−8.4%"
+            label="CO₂ AVOIDED"
+            value={liveRecMeta ? `${fmtCount(savingsCo2)} kg` : "—"}
+            delta="per month"
             direction="down"
             accent="blue"
           />
@@ -2960,7 +4099,7 @@ function PredictionView({
                 {modelName} · {baselineName} · confidence band shown
               </p>
             </div>
-            <TinyTag tone="violet">R² 0.94</TinyTag>
+            <TinyTag tone="violet">{fm ? `${fm.algorithm} · ${fm.mape.toFixed(1)}% MAPE` : "no run yet"}</TinyTag>
           </div>
           <div className="prediction-chart">
             <ResponsiveContainer width="100%" height="100%">
@@ -3025,54 +4164,121 @@ function PredictionView({
               {" "}
               confidence band
             </span>
-            <span className="mono-note">kWh / day</span>
+            <AxisNote
+              quantity="Daily total"
+              unit={liveTargetUnit}
+              origin="Recorded by the forecast stage: the selected model's prediction for each day of the horizon, with the backtest confidence band."
+            />
           </div>
         </section>
         <section className="panel forecast-breakdown">
           <SectionHeading eyebrow="FORECAST BREAKDOWN" title="What moves the number" />
-          <div className="forecast-factor">
-            <span className="forecast-factor__icon forecast-factor__icon--lime">
-              <CalendarClock size={15} />
-            </span>
-            <div>
-              <strong>Operating hours</strong>
-              <span>Largest signal / 42% influence</span>
-            </div>
-            <strong>+18%</strong>
-          </div>
-          <div className="forecast-factor">
-            <span className="forecast-factor__icon forecast-factor__icon--violet">
-              <CloudUpload size={15} />
-            </span>
-            <div>
-              <strong>Occupancy profile</strong>
-              <span>Current pattern / 28% influence</span>
-            </div>
-            <strong>−7%</strong>
-          </div>
-          <div className="forecast-factor">
-            <span className="forecast-factor__icon forecast-factor__icon--orange">
-              <Zap size={15} />
-            </span>
-            <div>
-              <strong>Tariff window</strong>
-              <span>Weekday schedule / 18% influence</span>
-            </div>
-            <strong>+4%</strong>
-          </div>
-          <div className="forecast-factor">
-            <span className="forecast-factor__icon forecast-factor__icon--blue">
-              <Leaf size={15} />
-            </span>
-            <div>
-              <strong>Weather proxy</strong>
-              <span>Temperature signal / 12% influence</span>
-            </div>
-            <strong>−2%</strong>
-          </div>
+          {liveCompetition?.weights?.length ? (
+            liveCompetition.weights.slice(0, 4).map(weight => (
+              <div className="forecast-factor" key={weight.label}>
+                <span className="forecast-factor__icon forecast-factor__icon--lime">
+                  <TrendingUp size={15} />
+                </span>
+                <div>
+                  <strong>{weight.label}</strong>
+                  <span>recorded model weight</span>
+                </div>
+                <strong>{weight.weight.toFixed(2)}</strong>
+              </div>
+            ))
+          ) : (
+            <p className="mono-note forecast-breakdown__empty">No model weights recorded for this run.</p>
+          )}
           <div className="forecast-breakdown__note">
             <Sparkles size={14} />
             <span>Forecast is stable across all validation slices.</span>
+          </div>
+        </section>
+      </div>
+      <div className="prediction-detail">
+        <section className="panel forecast-days">
+          <SectionHeading
+            eyebrow="DAY BY DAY"
+            title="The horizon, one line at a time"
+            detail="Every recorded forecast value with its backtest interval, in the unit of the modelled target column."
+          />
+          {!forecastData.length ? (
+            <p className="mono-note table-empty-note">No forecast recorded for this dataset yet.</p>
+          ) : (
+            <div className="data-table">
+              <div className="data-table__head forecast-days__row">
+                <span>DAY</span>
+                <span>OBSERVED</span>
+                <span>FORECAST</span>
+                <span>INTERVAL</span>
+                <span>VS OBSERVED</span>
+              </div>
+              {forecastData.map(point => {
+                const delta =
+                  point.actual != null && point.actual !== 0
+                    ? ((point.forecast - point.actual) / point.actual) * 100
+                    : null;
+                const u = liveTargetUnit ? ` ${displayUnit(liveTargetUnit)}` : "";
+                return (
+                  <div className="data-table__row forecast-days__row" key={point.day}>
+                    <span>{point.day}</span>
+                    <span>{point.actual != null ? `${fmtCount(point.actual)}${u}` : "—"}</span>
+                    <span>
+                      {fmtCount(point.forecast)}
+                      {u}
+                    </span>
+                    <span className="mono-note">
+                      {fmtCount(point.low)} – {fmtCount(point.high)}
+                    </span>
+                    <span className={delta == null ? "mono-note" : delta > 0 ? "delta-up" : "delta-down"}>
+                      {delta == null ? "—" : `${delta > 0 ? "+" : ""}${delta.toFixed(1)}%`}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
+        <section className="panel forecast-impact">
+          <SectionHeading
+            eyebrow="BUSINESS IMPACT"
+            title="What this horizon is worth"
+            detail="Recorded alongside the forecast: cost, carbon and the model that produced it."
+          />
+          <div className="impact-list">
+            <div className="impact-row">
+              <span>Cost opportunity</span>
+              <strong>
+                {liveRecMeta ? `${displayUnit("INR")}${fmtCount(savingsInr)}` : "—"}
+                <small> / month</small>
+              </strong>
+            </div>
+            <div className="impact-row">
+              <span>Carbon avoided</span>
+              <strong>
+                {liveRecMeta ? fmtCount(savingsCo2) : "—"}
+                <small> {displayUnit("kgCO2")} / month</small>
+              </strong>
+            </div>
+            <div className="impact-row">
+              <span>Backtest error</span>
+              <strong>
+                {fm?.mape ? `${fm.mape.toFixed(1)}` : "—"}
+                <small> % MAPE</small>
+              </strong>
+            </div>
+            <div className="impact-row">
+              <span>Selected model</span>
+              <strong>{modelName || "—"}</strong>
+            </div>
+            <div className="impact-row">
+              <span>Horizon origin</span>
+              <strong>{fm?.origin || "—"}</strong>
+            </div>
+            <div className="impact-row">
+              <span>Baseline compared</span>
+              <strong>{baselineName || "—"}</strong>
+            </div>
           </div>
         </section>
       </div>
@@ -3082,7 +4288,7 @@ function PredictionView({
           Cost uses current tariff schedule · carbon uses regional grid factor
         </span>
         <span className="mono-note">
-          GENERATED / 07 OCT 2026 · 08:44
+          GENERATED / {fm?.origin ?? "—"}
         </span>
       </div>
     </div>
@@ -3097,6 +4303,13 @@ function RecommendationsView({
   baselineName: string;
 }) {
   const sound = useSound({ onPlay: () => {} });
+  const recCount = liveRecMeta?.total ?? recommendations.length;
+  const savingsInr = liveRecMeta?.savingsInr ?? 0;
+  const savingsCo2 = liveRecMeta?.savingsCo2 ?? 0;
+  const anomalyCount = liveAnomalyMeta?.total ?? anomalies.length;
+  const avgConf = recommendations.length
+    ? recommendations.reduce((sum, r) => sum + (parseFloat(r.confidence) || 0), 0) / recommendations.length
+    : 0;
   return (
     <div className="view-content">
       <div className="recommendation-banner">
@@ -3105,19 +4318,22 @@ function RecommendationsView({
         </div>
         <div>
           <span className="section-eyebrow">AI ACTION LAYER</span>
-          <h2>Four actions are worth your attention.</h2>
+          <h2>{recCount ? `${recCount} action${recCount === 1 ? "" : "s"} ${recCount === 1 ? "is" : "are"} worth your attention.` : "No recommendations recorded."}</h2>
           <p>
-            Generated from 7 anomalies, the {baselineName} baseline, and the next 7-day forecast.
+            Generated from {anomalyCount} anomalies, the {baselineName} baseline, and the recorded forecast.
           </p>
         </div>
         <div className="recommendation-banner__score">
           <span>EXPECTED MONTHLY IMPACT</span>
-          <strong>₹28,000</strong>
-          <span>+ 1.2 tCO₂ avoided</span>
+          <strong>{displayUnit("INR")}{fmtCount(savingsInr)}</strong>
+          <span>{fmtCount(savingsCo2)} {displayUnit("kgCO2")} avoided</span>
         </div>
       </div>
       <div className="recommendation-layout">
         <section className="recommendation-list">
+          {!recommendations.length ? (
+            <p className="mono-note table-empty-note">No recommendations recorded for this dataset.</p>
+          ) : null}
           {recommendations.map(item => (
             <article className={`recommendation-card recommendation-card--${item.color}`} key={item.priority}>
               <div className="recommendation-card__index">{item.priority}</div>
@@ -3168,22 +4384,6 @@ function RecommendationsView({
               </button>
             </article>
           ))}
-          <article className="recommendation-card recommendation-card--more">
-            <div className="recommendation-card__index">04</div>
-            <div>
-              <span className="section-eyebrow">LOWER CONFIDENCE</span>
-              <h3>Review the 10-minute telemetry gap</h3>
-              <p>Low risk, but worth checking before the next model refresh.</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                sound.play({ volume: 0.1, rate: 0.95 });
-              }}
-            >
-              <ArrowRight size={15} />
-            </button>
-          </article>
         </section>
         <aside className="recommendation-aside">
           <section className="panel evidence-panel">
@@ -3194,14 +4394,14 @@ function RecommendationsView({
             />
             <div className="evidence-ring">
               <div className="evidence-ring__circle">
-                <strong>94</strong>
+                <strong>{avgConf ? Math.round(avgConf) : "—"}</strong>
                 <span>confidence</span>
               </div>
               <div className="evidence-ring__labels">
                 <span>
                   <i style={{ background: "#b6f36b" }} />
                   {" "}
-                  7 anomalies
+                  {anomalyCount} anomalies
                 </span>
                 <span>
                   <i style={{ background: "#8d86ff" }} />
@@ -3218,11 +4418,11 @@ function RecommendationsView({
             <div className="evidence-foot">
               <span>
                 <Database size={13} />{" "}
-                {dataset.id.toLowerCase()}_v1.5
+                {dataset.id.toLowerCase()}
               </span>
               <span>
                 <Clock3 size={13} />{" "}
-                refreshed 18 min ago
+                refreshed {dataset.freshness}
               </span>
             </div>
           </section>
@@ -3260,10 +4460,26 @@ function ReportsView({
 }) {
   const sound = useSound({ onPlay: () => {} });
   const sections = [
-    { label: "Project summary", detail: "Scope, dataset, versions, run health", icon: FileText },
-    { label: "Analytics", detail: "Model metrics + forecast breakdown", icon: BarChart3 },
-    { label: "Anomalies", detail: "7 flagged events with evidence", icon: AlertTriangle },
-    { label: "Recommendations", detail: "4 ranked operating actions", icon: Lightbulb },
+    {
+      label: "Project summary",
+      detail: liveRunId ? `Dataset ${dataset.id} / run ${liveRunId.slice(0, 8)}` : "No run recorded yet",
+      icon: FileText,
+    },
+    {
+      label: "Analytics",
+      detail: `${modelName} metrics + forecast breakdown`,
+      icon: BarChart3,
+    },
+    {
+      label: "Anomalies",
+      detail: `${liveAnomalyMeta?.total ?? anomalies.length} flagged events with evidence`,
+      icon: AlertTriangle,
+    },
+    {
+      label: "Recommendations",
+      detail: `${liveRecMeta?.total ?? recommendations.length} ranked operating actions`,
+      icon: Lightbulb,
+    },
   ];
   return (
     <div className="view-content">
@@ -3275,7 +4491,7 @@ function ReportsView({
               <EcoMindMark size={23} />
               <strong>EcoMind</strong>
             </span>
-            <span className="mono-note">REPORT / 07 OCT 2026</span>
+            <span className="mono-note">REPORT / {fmtRunClock(new Date().toISOString())}</span>
           </div>
           <div className="report-cover__content">
             <span className="section-eyebrow">
@@ -3301,7 +4517,7 @@ function ReportsView({
               </span>
               <span>
                 <small>VERSION</small>
-                <strong>v1.5 transformed</strong>
+                <strong>{baselineName}</strong>
               </span>
               <span>
                 <small>MODEL</small>
@@ -3314,7 +4530,7 @@ function ReportsView({
               <span className="status-dot status-dot--lime" />
               AI decisions inspectable
             </span>
-            <span>Page 01 / 08</span>
+            <span>Page 01 / {String(sections.length + 5).padStart(2, "0")}</span>
           </div>
         </section>
         <section className="panel report-export-panel">
@@ -3352,7 +4568,7 @@ function ReportsView({
           </div>
           <div className="report-export-panel__footer">
             <div>
-              <span className="mono-note">EST. 8 PAGES / 1.2 MB</span>
+              <span className="mono-note">{sections.length} SECTIONS / DATASET {dataset.id}</span>
               <span>{exported ? "Exported just now" : "Last generated: never"}</span>
             </div>
             <div className="report-export-actions">
@@ -3419,7 +4635,7 @@ function ReportsView({
           <Database size={15} />
           <span>
             <strong>Source</strong>{" "}
-            {dataset.name} / v1.5
+            {dataset.name} / {baselineName}
           </span>
         </div>
         <div>

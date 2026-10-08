@@ -3,7 +3,18 @@
  * AppShell views already render (the original mock arrays). Anything that has
  * not run yet simply stays undefined so the caller keeps its mock fallback.
  */
-import { Building2, Factory, Warehouse, type LucideIcon } from "lucide-react";
+import {
+  Briefcase,
+  Building2,
+  Factory,
+  GraduationCap,
+  HeartPulse,
+  Server,
+  ShoppingBag,
+  Warehouse,
+  type LucideIcon,
+} from "lucide-react";
+import { displayUnit, unitForColumn } from "@/lib/units";
 import {
   activity as activityApi,
   datasets as datasetsApi,
@@ -17,7 +28,7 @@ import {
 export type LiveDataset = {
   id: string;
   name: string;
-  domain: "building" | "industry" | "logistics";
+  domain: BackendDomain;
   type: string;
   detail: string;
   rows: string;
@@ -27,6 +38,9 @@ export type LiveDataset = {
   icon: LucideIcon;
   location: string;
   unitSystem: "metric-india" | "metric-eu";
+  fieldCount?: number;
+  rowCount?: number;
+  columnCount?: number;
 };
 export type LiveIssue = {
   id: string;
@@ -38,7 +52,19 @@ export type LiveIssue = {
   fixed: string;
   confidence: string;
 };
-export type LiveModel = { name: string; short: string; mae: number; rmse: number; r2: number; color: string };
+export type LiveModel = {
+  name: string;
+  short: string;
+  mae: number;
+  rmse: number;
+  r2: number;
+  color: string;
+  rank?: number;
+  selected?: boolean;
+  score?: number;
+  rationale?: string;
+  family?: string;
+};
 export type LivePoint = { time: string; energy: number; baseline: number };
 export type LiveAnomalyPoint = { time: string; actual: number; baseline: number; anomaly: number | null };
 export type LiveAnomaly = {
@@ -49,6 +75,10 @@ export type LiveAnomaly = {
   feature: string;
   reason: string;
   color: string;
+  deviationPct?: number;
+  excessCost?: number;
+  excessCo2?: number;
+  score?: number;
 };
 export type LiveForecastPoint = { day: string; actual: number | null; forecast: number; low: number; high: number };
 export type LiveRec = {
@@ -69,6 +99,138 @@ export type LiveActivity = {
   severity: string;
 };
 
+export type LiveStage = {
+  id: string;
+  label: string;
+  number: number;
+  status: "completed" | "failed" | "pending";
+  durationMs: number;
+  decision: string;
+  ranAt?: string;
+};
+
+export type LiveCompetition = {
+  winner: string;
+  rationale: string;
+  nearTie: boolean;
+  margin: number;
+  target: string;
+  trainRows: number;
+  testRows: number;
+  features: number;
+  weights: { label: string; weight: number }[];
+  criteria: string[];
+  lostCriteria: string[];
+};
+
+export type LiveQualityMeta = { score: number; passed: number; failed: number };
+
+export type LiveAnomalyMeta = {
+  total: number;
+  severity: Record<string, number>;
+  byClass: { label: string; count: number }[];
+  devices: number;
+  ratePct: number;
+  threshold: number;
+  excessCost: number;
+  excessCo2: number;
+  scanned: number;
+};
+
+export type LiveForecastMeta = {
+  algorithm: string;
+  mape: number;
+  origin: string;
+  mapeLabel: string;
+  baselineVersion?: number;
+};
+
+export type LiveRecMeta = {
+  total: number;
+  p1: number;
+  savingsInr: number;
+  savingsKwh: number;
+  savingsCo2: number;
+};
+
+export type LiveRun = {
+  id: string;
+  datasetId: string;
+  datasetName: string;
+  status: string;
+  started: string;
+  completed: string | null;
+  stagesDone: number;
+  total: number;
+};
+
+export type LiveSchemaField = {
+  name: string;
+  dtype: string;
+  nullable: boolean;
+  nullPct: string;
+  unique?: string;
+  sample: string;
+  role: string;
+};
+
+export type LiveBaselineVersion = {
+  version: number;
+  rowCount: number;
+  created: string | null;
+};
+
+/** One recorded transformation step (label, purpose and before → after evidence). */
+export type LiveTransformField = {
+  column: string;
+  before: string;
+  after: string;
+  changed: boolean;
+  unitBefore: string;
+  unitAfter: string;
+};
+
+export type LiveTransformStep = {
+  key: string;
+  order: number;
+  label: string;
+  purpose: string;
+  status: string;
+  rowsChanged: number;
+  columns: string[];
+  fields: LiveTransformField[];
+  note: string | null;
+  appliedAt: string | null;
+};
+
+export type LiveTransform = {
+  steps: LiveTransformStep[];
+  decision: string;
+};
+
+/** One learned hour-of-week cell of the adaptive baseline. */
+export type LiveBaselineCell = {
+  /** 0 = Monday … 6 = Sunday (pandas dayofweek on the backend). */
+  day: number;
+  hour: number;
+  median: number;
+  mean: number;
+  count: number;
+};
+
+/** The adaptive baseline record the backend computed for this dataset. */
+export type LiveBaseline = {
+  target: string;
+  unit: string;
+  deviceColumn: string;
+  rowCount: number;
+  generatedAt: string | null;
+  rangeStart: string | null;
+  rangeEnd: string | null;
+  stats: { mean: number; median: number; std: number; min: number; max: number; p25: number; p75: number; p95: number };
+  hourOfWeek: LiveBaselineCell[];
+};
+
 export type LiveWorkspace = {
   datasets: LiveDataset[];
   energy?: LivePoint[];
@@ -81,7 +243,21 @@ export type LiveWorkspace = {
   activity?: LiveActivity[];
   baselineLabel?: string;
   modelName?: string;
+  targetColumn?: string;
+  targetUnit?: string;
   runId?: string | null;
+  stages?: LiveStage[];
+  competition?: LiveCompetition;
+  qualityMeta?: LiveQualityMeta;
+  anomalyMeta?: LiveAnomalyMeta;
+  forecastMeta?: LiveForecastMeta;
+  recMeta?: LiveRecMeta;
+  runs?: LiveRun[];
+  schema?: LiveSchemaField[];
+  baselineVersions?: LiveBaselineVersion[];
+  transform?: LiveTransform;
+  baseline?: LiveBaseline;
+  lastStage?: string;
 };
 
 /* ── Formatters ─────────────────────────────────────────────────────── */
@@ -134,19 +310,62 @@ const fmtClock = (iso?: string, seconds = true): string => {
 };
 
 /* ── Dataset mapping ────────────────────────────────────────────────── */
-const ACCENTS = ["lime", "orange", "violet"];
-const DOMAIN_LABELS: Record<string, string> = {
+// Accent cycles per library index. Tokens map to the semantic colour system in
+// DESIGN_DECISIONS.md §2; each has a matching `.accent--<name>` rule in CSS.
+const ACCENTS = ["lime", "blue", "violet", "orange", "yellow", "coral"];
+export type BackendDomain =
+  | "building"
+  | "industry"
+  | "logistics"
+  | "hospital"
+  | "campus"
+  | "mall"
+  | "office"
+  | "datacentre";
+
+const DOMAIN_LABELS: Record<BackendDomain, string> = {
   building: "Commercial building",
   industry: "Industrial plant",
   logistics: "Distribution center",
+  hospital: "Hospital",
+  campus: "University campus",
+  mall: "Shopping mall",
+  office: "Office complex",
+  datacentre: "Data centre",
 };
-const DOMAIN_ICONS: Record<string, LucideIcon> = { building: Building2, industry: Factory, logistics: Warehouse };
+const DOMAIN_ICONS: Record<BackendDomain, LucideIcon> = {
+  building: Building2,
+  industry: Factory,
+  logistics: Warehouse,
+  hospital: HeartPulse,
+  campus: GraduationCap,
+  mall: ShoppingBag,
+  office: Briefcase,
+  datacentre: Server,
+};
 
-const domainOf = (d: BackendDataset): "building" | "industry" | "logistics" => {
+/**
+ * Domain heuristic. Only the dataset's recorded name, description and
+ * granularity are consulted — the backend owns classification, this is a
+ * display-time label. Most specific match wins; unclaimed text is a building.
+ */
+const DOMAIN_RULES: { domain: BackendDomain; pattern: RegExp }[] = [
+  { domain: "hospital", pattern: /hospital|clinic|medical|healthcare|patient|ward|diagnos|pharma|surgic/ },
+  { domain: "datacentre", pattern: /data ?cent\b|datacent|colocat|server farm|compute hall|hyperscale|cabinet|ups \+|crac/ },
+  { domain: "campus", pattern: /campus|universit|college|school|academy|dormitor|hostel|faculty|lecture/ },
+  { domain: "mall", pattern: /\bmall\b|retail|shopping cent|hypermarket|showroom|anchor store|footfall|food court/ },
+  { domain: "logistics", pattern: /warehous|logistic|distribut|cold chain|cold-room|coldroom|transit|freight|depot|pallet/ },
+  { domain: "industry", pattern: /plant|factory|industri|manufact|production line|machin|motor|compressor|kiln|furnace/ },
+  { domain: "office", pattern: /office|headquarter|\bhq\b|cowork|business park|corporate campus|desk/ },
+];
+
+const domainOf = (d: BackendDataset): BackendDomain => {
+  const declared = String(d.domain ?? "").toLowerCase().replace(/[\s_-]/g, "");
+  const known = Object.keys(DOMAIN_LABELS) as BackendDomain[];
+  const declaredHit = known.find(key => key.replace(/[\s_-]/g, "") === declared);
+  if (declaredHit) return declaredHit;
   const s = `${d.name ?? ""} ${d.description ?? ""} ${d.granularity ?? ""}`.toLowerCase();
-  if (/warehous|logistic|distribut|cold|chain|transit|freight/.test(s)) return "logistics";
-  if (/plant|factory|industri|manufact|production|machin/.test(s)) return "industry";
-  return "building";
+  return DOMAIN_RULES.find(rule => rule.pattern.test(s))?.domain ?? "building";
 };
 
 const mapDataset = (d: BackendDataset, index: number): LiveDataset => {
@@ -165,6 +384,9 @@ const mapDataset = (d: BackendDataset, index: number): LiveDataset => {
     icon: DOMAIN_ICONS[dom],
     location: "Local · IN",
     unitSystem: "metric-india",
+    fieldCount: typeof d.column_count === "number" ? d.column_count : undefined,
+    rowCount: typeof d.row_count === "number" ? d.row_count : undefined,
+    columnCount: typeof d.column_count === "number" ? d.column_count : undefined,
   };
 };
 
@@ -224,6 +446,8 @@ const mapModels = (out: StageOutput): LiveModel[] => {
       const metrics = (c.metrics ?? {}) as Record<string, number>;
       const num = (v: number | undefined, digits: number) =>
         typeof v === "number" && isFinite(v) ? Number(v.toFixed(digits)) : 0;
+      const rationale = c.selection_rationale;
+      const score = typeof c.composite_score === "number" ? c.composite_score : undefined;
       return {
         name: (c.display_name as string) ?? (c.algorithm as string) ?? `Model ${i + 1}`,
         short: shortModelName(c.algorithm as string | undefined),
@@ -231,8 +455,232 @@ const mapModels = (out: StageOutput): LiveModel[] => {
         rmse: num(metrics.rmse, 2),
         r2: num(metrics.r2, 3),
         color: MODEL_COLORS[i % MODEL_COLORS.length],
+        rank: Number(c.selection_rank ?? i + 1),
+        selected: Boolean(c.is_selected),
+        score: score != null ? Number(score.toFixed(3)) : undefined,
+        rationale: typeof rationale === "string" && rationale ? rationale : undefined,
+        family: typeof c.family === "string" ? c.family : undefined,
       };
     });
+};
+
+const toStrList = (v: unknown): string[] =>
+  Array.isArray(v) ? v.filter(x => x != null).map(String) : [];
+
+const mapCompetition = (out: StageOutput): LiveCompetition | undefined => {
+  const algo = out.selected_algorithm;
+  if (typeof algo !== "string" || !algo) return undefined;
+  const weightsRaw = (out.weights ?? {}) as Record<string, unknown>;
+  return {
+    winner: algo,
+    rationale: typeof out.rationale === "string" ? out.rationale : "",
+    nearTie: Boolean(out.near_tie),
+    margin: Number(out.margin_over_second ?? 0),
+    target: typeof out.target_column === "string" ? out.target_column : "—",
+    trainRows: Number(out.train_rows ?? 0),
+    testRows: Number(out.test_rows ?? 0),
+    features: Number(out.feature_count ?? 0),
+    weights: Object.entries(weightsRaw)
+      .map(([label, weight]) => ({ label: label.replace(/_/g, " "), weight: Number(weight) || 0 }))
+      .filter(w => w.weight > 0),
+    criteria: toStrList(out.winning_criteria),
+    lostCriteria: toStrList(out.lost_criteria),
+  };
+};
+
+const mapQualityMeta = (out: StageOutput): LiveQualityMeta => ({
+  score: Math.round(Number(out.overall_score ?? 0)),
+  passed: Number(out.passed_count ?? 0),
+  failed: Number(out.failed_count ?? 0),
+});
+
+const mapAnomalyMeta = (
+  out: StageOutput | null,
+  listRaw: Record<string, unknown> | undefined,
+): LiveAnomalyMeta => {
+  const sev = (listRaw?.severity_counts ?? out?.by_severity ?? {}) as Record<string, number>;
+  const classes = (listRaw?.class_counts ?? out?.by_class ?? {}) as Record<string, number>;
+  const num = (v: unknown) => (typeof v === "number" && isFinite(v) ? v : 0);
+  return {
+    total: num(listRaw?.total) || num(out?.total),
+    severity: Object.fromEntries(Object.entries(sev).map(([k, v]) => [k, num(v)])),
+    byClass: Object.entries(classes)
+      .map(([label, count]) => ({ label, count: num(count) }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 6),
+    devices: num(out?.devices_affected),
+    ratePct: num(out?.detection_rate_pct),
+    threshold: num(out?.threshold),
+    excessCost: num(out?.excess_cost),
+    excessCo2: num(out?.excess_co2_kg),
+    scanned: num(out?.readings_scanned),
+  };
+};
+
+const mapForecastMeta = (out: StageOutput | null, chart: Record<string, unknown> | undefined): LiveForecastMeta | undefined => {
+  if (!out) return undefined;
+  const origin = typeof out.origin_timestamp === "string" ? out.origin_timestamp : "";
+  return {
+    algorithm: typeof out.selected_algorithm === "string" ? out.selected_algorithm : "—",
+    mape: Number(out.mape_backtest ?? 0),
+    origin: origin ? fmtTimestamp(origin) : "—",
+    mapeLabel: Number(out.mape_backtest ?? 0) ? `${Number(out.mape_backtest).toFixed(1)}% MAPE backtest` : "backtest pending",
+    ...(chart && chart.baseline_version != null ? { baselineVersion: Number(chart.baseline_version) } : {}),
+  };
+};
+
+const mapRecMeta = (out: StageOutput, recs: LiveRec[]): LiveRecMeta => {
+  const raw = Array.isArray(out.recommendations) ? (out.recommendations as Record<string, unknown>[]) : [];
+  const sum = (key: string) => raw.reduce((acc, r) => acc + Number(r[key] ?? 0), 0);
+  const p1 = raw.filter(r => String(r.priority ?? "").toUpperCase() === "P1").length;
+  return {
+    total: Number(out.total ?? raw.length) || recs.length,
+    p1,
+    savingsInr: sum("savings_cost_inr"),
+    savingsKwh: sum("savings_kwh"),
+    savingsCo2: sum("savings_co2_kg"),
+  };
+};
+
+const STAGE_LABELS: Record<string, string> = {
+  library: "Library",
+  import: "Import",
+  schema: "Schema",
+  quality: "Quality",
+  transformation: "Transform",
+  model_selection: "Models",
+  anomaly: "Anomalies",
+  forecast: "Prediction",
+  recommendation: "Recommendations",
+  report: "Reports",
+};
+
+const mapStages = (traces: Record<string, unknown>[]): LiveStage[] =>
+  traces
+    .map(t => ({
+      id: String(t.stage_key ?? ""),
+      label: STAGE_LABELS[String(t.stage_key ?? "")] ?? String(t.stage_name ?? t.stage_key ?? "Stage"),
+      number: Number(t.stage_number ?? 0),
+      status:
+        t.status === "completed" ? ("completed" as const)
+        : t.status === "failed" ? ("failed" as const)
+        : ("pending" as const),
+      durationMs: Number(t.duration_ms ?? 0),
+      decision: typeof t.decision === "string" ? t.decision : "",
+      ranAt: typeof t.completed_at === "string" ? t.completed_at : undefined,
+    }))
+    .sort((a, b) => a.number - b.number);
+
+const mapRuns = (runs: Record<string, unknown>[], nameById: Map<string, string>): LiveRun[] =>
+  [...runs]
+    .sort((a, b) => Date.parse(String(b.started_at ?? "")) - Date.parse(String(a.started_at ?? "")))
+    .map(r => ({
+      id: String(r.id ?? ""),
+      datasetId: String(r.dataset_id ?? ""),
+      datasetName: nameById.get(String(r.dataset_id ?? "")) ?? "Dataset",
+      status: String(r.status ?? "unknown"),
+      started: typeof r.started_at === "string" ? r.started_at : "",
+      completed: typeof r.completed_at === "string" ? r.completed_at : null,
+      stagesDone: Array.isArray(r.stages_completed) ? r.stages_completed.length : Number(r.stages_completed ?? 0) || 0,
+      total: Number(r.total_stages ?? 10),
+    }));
+
+const mapSchema = (res: Record<string, unknown> | undefined): LiveSchemaField[] => {
+  const cols = res && Array.isArray(res.columns) ? (res.columns as Record<string, unknown>[]) : [];
+  return cols.map(c => {
+    const samples = Array.isArray(c.sample_values) ? (c.sample_values as unknown[]) : [];
+    const nullCount = Number(c.null_count ?? 0);
+    const stat = (c.statistics ?? {}) as Record<string, unknown>;
+    const rowCount = Number(stat.row_count ?? stat.total_rows ?? 0);
+    const nullPct = rowCount > 0 ? `${((nullCount / rowCount) * 100).toFixed(1)}%` : "0%";
+    const unique = c.unique_count;
+    return {
+      name: String(c.name ?? "—"),
+      dtype: String(c.data_type ?? "—"),
+      nullable: Boolean(c.nullable),
+      nullPct,
+      unique: typeof unique === "number" && isFinite(unique) ? fmtInt(unique) : undefined,
+      sample: samples.length ? String(samples[0]) : "—",
+      role: typeof c.semantic_type === "string" && c.semantic_type ? c.semantic_type.replace(/_/g, " ") : "field",
+    };
+  });
+};
+
+/** Map the recorded transformation stage: the steps it actually ran, with evidence. */
+const mapTransform = (out: StageOutput | null, decision: string): LiveTransform | undefined => {
+  if (!out) return undefined;
+  const raw = Array.isArray(out.steps) ? (out.steps as Record<string, unknown>[]) : [];
+  if (!raw.length) return undefined;
+  const steps: LiveTransformStep[] = [...raw]
+    .sort((a, b) => Number(a.order ?? 0) - Number(b.order ?? 0))
+    .map(s => ({
+      key: String(s.step_key ?? "step"),
+      order: Number(s.order ?? 0),
+      label: String(s.label ?? String(s.step_key ?? "step").replace(/_/g, " ")),
+      purpose: String(s.purpose ?? ""),
+      status: String(s.status ?? ""),
+      rowsChanged: Number(s.rows_changed ?? 0),
+      columns: Array.isArray(s.affected_columns) ? (s.affected_columns as unknown[]).map(String) : [],
+      fields: Array.isArray(s.fields)
+        ? (s.fields as Record<string, unknown>[]).map(f => ({
+            column: String(f.column_name ?? "—"),
+            before: String(f.before_value ?? "—"),
+            after: String(f.after_value ?? "—"),
+            changed: Boolean(f.changed),
+            unitBefore: typeof f.unit_before === "string" ? f.unit_before : "",
+            unitAfter: typeof f.unit_after === "string" ? f.unit_after : "",
+          }))
+        : [],
+      note: typeof s.note === "string" && s.note ? s.note : null,
+      appliedAt: typeof s.applied_at === "string" ? s.applied_at : null,
+    }));
+  return { steps, decision };
+};
+
+/** Map the adaptive baseline record: learned profile, statistics and identity. */
+const mapBaseline = (res: Record<string, unknown> | null | undefined): LiveBaseline | undefined => {
+  if (!res || typeof res !== "object") return undefined;
+  const stats = (res.statistics ?? {}) as Record<string, number>;
+  const how = (res.hour_of_week ?? {}) as Record<string, Record<string, number>>;
+  const hourOfWeek: LiveBaselineCell[] = Object.entries(how)
+    .map(([key, value]) => {
+      const [day, hour] = key.split("-").map(Number);
+      if (!isFinite(day) || !isFinite(hour)) return null;
+      return { day, hour, median: Number(value?.median ?? 0), mean: Number(value?.mean ?? 0), count: Number(value?.count ?? 0) };
+    })
+    .filter((cell): cell is LiveBaselineCell => cell !== null)
+    .sort((a, b) => a.day - b.day || a.hour - b.hour);
+  const range = (res.date_range ?? {}) as Record<string, string>;
+  return {
+    target: String(res.target_column ?? ""),
+    unit: String(res.unit ?? ""),
+    deviceColumn: String(res.device_column ?? ""),
+    rowCount: Number(res.row_count ?? 0),
+    generatedAt: typeof res.generated_at === "string" ? res.generated_at : null,
+    rangeStart: typeof range.start === "string" ? range.start : null,
+    rangeEnd: typeof range.end === "string" ? range.end : null,
+    stats: {
+      mean: Number(stats.mean ?? 0),
+      median: Number(stats.median ?? 0),
+      std: Number(stats.std ?? 0),
+      min: Number(stats.min ?? 0),
+      max: Number(stats.max ?? 0),
+      p25: Number(stats.p25 ?? 0),
+      p75: Number(stats.p75 ?? 0),
+      p95: Number(stats.p95 ?? 0),
+    },
+    hourOfWeek,
+  };
+};
+
+const mapBaselineVersions = (res: { versions?: Record<string, unknown>[] } | undefined): LiveBaselineVersion[] => {
+  const list = res?.versions ?? [];
+  return list.map(v => ({
+    version: Number(v.version ?? 0),
+    rowCount: Number(v.row_count ?? 0),
+    created: (typeof v.created_at === "string" && v.created_at) ||
+      (typeof v.computed_at === "string" && v.computed_at) || null,
+  }));
 };
 
 const SEVERITY_COLORS: Record<string, string> = {
@@ -254,6 +702,10 @@ const mapAnomalies = (raw: Record<string, unknown> | undefined): LiveAnomaly[] =
       feature: (a.device_code as string) ?? "—",
       reason: `${deviation >= 0 ? "+" : ""}${deviation.toFixed(0)}% vs baseline · score ${Number(a.score ?? 0).toFixed(2)}`,
       color: SEVERITY_COLORS[String(a.severity ?? "").toLowerCase()] ?? "yellow",
+      deviationPct: deviation,
+      excessCost: Number(a.excess_cost) || undefined,
+      excessCo2: Number(a.excess_co2_kg) || undefined,
+      score: Number(a.score) || undefined,
     };
   });
 };
@@ -342,9 +794,9 @@ const mapRecs = (out: StageOutput): LiveRec[] => {
     const cost = Number(r.savings_cost_inr ?? 0);
     const co2 = Number(r.savings_co2_kg ?? 0);
     const impact = cost > 0
-      ? `Save ~₹${fmtInt(cost)} / mo`
+      ? `Save ~${displayUnit("INR")}${fmtInt(cost)} / mo`
       : co2 > 0
-        ? `Avoid ${fmtInt(co2)} kgCO₂ / mo`
+        ? `Avoid ${fmtInt(co2)} ${displayUnit("kgCO2")} / mo`
         : "Impact pending";
     return {
       priority: String(i + 1).padStart(2, "0"),
@@ -443,8 +895,35 @@ export async function loadWorkspace(): Promise<{
     if (!dsList.length) return { workspace: ws, pendingRun: null };
 
     const activeId = dsList[0].id;
+    const nameById = new Map(dsList.map(d => [d.id, d.name]));
     const runsRes = await workflow.list().catch(() => ({ runs: [] as unknown as RunPayload[] }));
-    const run = pickRun((runsRes.runs ?? []) as unknown as RunPayload[], activeId);
+    const runList = ((runsRes.runs ?? []) as unknown as Record<string, unknown>[]);
+    if (runList.length) ws.runs = mapRuns(runList, nameById);
+    const run = pickRun(runList as unknown as RunPayload[], activeId);
+
+    const [schemaRes, baseVersions, baseRes] = await Promise.all([
+      domain.schema(activeId).catch(() => null),
+      domain.baselineVersions(activeId).catch(() => null),
+      domain.baseline(activeId).catch(() => null),
+    ]);
+    const mappedBaseline = mapBaseline(baseRes as Record<string, unknown> | null);
+    if (mappedBaseline) {
+      ws.baseline = mappedBaseline;
+      // The stage traces do not always carry a baseline version, but the
+      // baseline endpoint always records how much data it learned from. Use
+      // that instead of claiming a version that was never written.
+      if (!ws.baselineLabel && mappedBaseline.rowCount) {
+        ws.baselineLabel = `Adaptive baseline / ${fmtRows(mappedBaseline.rowCount)} rows`;
+      }
+    }
+    if (schemaRes) {
+      const fields = mapSchema(schemaRes as Record<string, unknown>);
+      if (fields.length) ws.schema = fields;
+    }
+    if (baseVersions) {
+      const versions = mapBaselineVersions(baseVersions as { versions?: Record<string, unknown>[] });
+      if (versions.length) ws.baselineVersions = versions;
+    }
 
     const needsRun =
       !run || run.status !== "completed" || !(run.stages_completed ?? []).includes("recommendation");
@@ -464,14 +943,36 @@ export async function loadWorkspace(): Promise<{
         return (t?.output_snapshot as StageOutput | undefined) ?? null;
       };
 
+      if (traces.length) {
+        ws.stages = mapStages(traces);
+        const last = ws.stages.filter(s => s.status === "completed").pop();
+        if (last) ws.lastStage = last.label;
+      }
+
       const qualityOut = outOf("quality");
-      if (qualityOut) ws.quality = mapQuality(qualityOut);
+      if (qualityOut) {
+        ws.quality = mapQuality(qualityOut);
+        ws.qualityMeta = mapQualityMeta(qualityOut);
+      }
+
+      const transformTrace = traces.find(x => x.stage_key === "transformation" && x.status === "completed");
+      const mappedTransform = mapTransform(
+        (transformTrace?.output_snapshot as StageOutput | undefined) ?? null,
+        typeof transformTrace?.decision === "string" ? transformTrace.decision : ""
+      );
+      if (mappedTransform) ws.transform = mappedTransform;
 
       const modelOut = outOf("model_selection");
       if (modelOut) {
         ws.models = mapModels(modelOut);
+        ws.competition = mapCompetition(modelOut);
         const algo = modelOut.selected_algorithm;
         if (typeof algo === "string" && algo) ws.modelName = algo;
+        const target = modelOut.target_column;
+        if (typeof target === "string" && target) {
+          ws.targetColumn = target;
+          ws.targetUnit = unitForColumn(target);
+        }
       }
 
       const fcOut = outOf("forecast");
@@ -481,6 +982,7 @@ export async function loadWorkspace(): Promise<{
       if (baselineVersion != null) ws.baselineLabel = `Baseline v${baselineVersion}`;
 
       ws.anomalies = mapAnomalies(anList as Record<string, unknown> | undefined);
+      ws.anomalyMeta = mapAnomalyMeta(outOf("anomaly"), anList as Record<string, unknown> | undefined);
       const windows = anomalyWindows(anList as Record<string, unknown> | undefined);
       const chartMap = mapAnomalyChart(anChart as Record<string, unknown> | undefined, windows);
       if (chartMap) {
@@ -489,9 +991,21 @@ export async function loadWorkspace(): Promise<{
       }
       const forecast = mapForecast(fcChart as Record<string, unknown> | undefined);
       if (forecast) ws.forecast = forecast;
+      ws.forecastMeta = mapForecastMeta(fcOut, fcChart as Record<string, unknown> | undefined);
+
+      if (!ws.targetUnit) {
+        const fcTarget = fcOut?.target_column;
+        if (typeof fcTarget === "string" && fcTarget) {
+          ws.targetColumn = fcTarget;
+          ws.targetUnit = unitForColumn(fcTarget);
+        }
+      }
 
       const recOut = outOf("recommendation");
-      if (recOut) ws.recs = mapRecs(recOut);
+      if (recOut) {
+        ws.recs = mapRecs(recOut);
+        ws.recMeta = mapRecMeta(recOut, ws.recs);
+      }
     }
 
     return { workspace: ws, pendingRun: needsRun ? activeId : null };

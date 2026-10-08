@@ -10,100 +10,71 @@ type UseSoundReturn = {
   current: HTMLAudioElement | null;
 };
 
-function buildTone(
-  context: AudioContext,
-  freq: number,
-  duration: number,
-  type: OscillatorType = "sine",
-  volume = 0.18
-): HTMLAudioElement {
-  const source = context.createOscillator();
-  const gain = context.createGain();
-  source.type = type;
-  source.frequency.value = freq;
-  gain.gain.setValueAtTime(volume, context.currentTime);
-  gain.gain.exponentialRampToValueAtTime(0.001, context.currentTime + duration);
-  source.connect(gain);
-  gain.connect(context.destination);
-  source.start(context.currentTime);
-  source.stop(context.currentTime + duration);
-  return source as unknown as HTMLAudioElement;
-}
-
+// Sound policy: no per-interaction sounds. Every call to play() is a silent
+// no-op that still fires onPlay so existing wiring keeps working unchanged.
+// The only audible feedback in the product is the completion chime fired
+// when a meaningful milestone completes (sign-in, pipeline stage, full run).
 export function useSound({ onPlay }: UseSoundOptions = {}): UseSoundReturn {
-  const ctxRef = useRef<AudioContext | null>(null);
   const currentRef = useRef<HTMLAudioElement | null>(null);
 
-  const ctx = () => {
-    if (!ctxRef.current) {
-      try {
-        ctxRef.current = new AudioContext();
-      } catch {
-        return null;
-      }
-    }
-    if (ctxRef.current.state === "suspended") {
-      ctxRef.current.resume().catch(() => {});
-    }
-    return ctxRef.current;
-  };
-
-  const play = (overrides?: Partial<{ volume: number; rate: number }>) => {
-    const context = ctx();
-    if (!context) return;
-    const volume = overrides?.volume ?? 0.18;
-    const rate = overrides?.rate ?? 1;
-    const now = context.currentTime;
-
-    // Click/pop feedback for selection and active actions
-    const osc1 = context.createOscillator();
-    const g1 = context.createGain();
-    osc1.type = "sine";
-    osc1.frequency.setValueAtTime(880 * rate, now);
-    osc1.frequency.exponentialRampToValueAtTime(1320 * rate, now + 0.06);
-    g1.gain.setValueAtTime(volume, now);
-    g1.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
-    osc1.connect(g1);
-    g1.connect(context.destination);
-    osc1.start(now);
-    osc1.stop(now + 0.08);
-
-    // Soft second harmonic for a richer "landing" feel
-    const osc2 = context.createOscillator();
-    const g2 = context.createGain();
-    osc2.type = "sine";
-    osc2.frequency.setValueAtTime(1320 * rate, now);
-    osc2.frequency.exponentialRampToValueAtTime(1540 * rate, now + 0.05);
-    g2.gain.setValueAtTime(volume * 0.5, now);
-    g2.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
-    osc2.connect(g2);
-    g2.connect(context.destination);
-    osc2.start(now);
-    osc2.stop(now + 0.06);
-
-    currentRef.current = osc1 as unknown as HTMLAudioElement;
+  const play = (_overrides?: Partial<{ volume: number; rate: number }>) => {
     onPlay?.();
   };
 
   const stop = () => {
-    try {
-      // The ref holds an oscillator cast to HTMLAudioElement (play() builds
-      // tones, never loads files), so stop() is the AudioScheduledSourceNode
-      // method, not a media method — cast to reach it without `any`.
-      (currentRef.current as unknown as { stop?: () => void } | null)?.stop?.();
-    } catch {
-      // ignore
-    }
     currentRef.current = null;
   };
 
   useEffect(() => {
     return () => {
-      ctxRef.current?.close().catch(() => {});
+      currentRef.current = null;
     };
   }, []);
 
   return { play, stop, current: currentRef.current };
+}
+
+let chimeContext: AudioContext | null = null;
+
+function chimeCtx(): AudioContext | null {
+  if (!chimeContext) {
+    try {
+      chimeContext = new AudioContext();
+    } catch {
+      return null;
+    }
+  }
+  if (chimeContext.state === "suspended") {
+    chimeContext.resume().catch(() => {});
+  }
+  return chimeContext;
+}
+
+// Completion chime: a short, resolving two-note rising arpeggio. Fired ONLY
+// on real milestones. Gentle volume, never per-interaction.
+export function playCompletionChime() {
+  const context = chimeCtx();
+  if (!context) return;
+  const now = context.currentTime;
+  const notes: Array<{ f: number; t: number; dur: number }> = [
+    { f: 523.25, t: 0.0, dur: 0.5 },
+    { f: 659.25, t: 0.09, dur: 0.5 },
+    { f: 783.99, t: 0.18, dur: 0.6 },
+  ];
+  for (const note of notes) {
+    const osc = context.createOscillator();
+    const gain = context.createGain();
+    osc.type = "sine";
+    osc.frequency.value = note.f;
+    const start = now + note.t;
+    gain.gain.setValueAtTime(0.0001, start);
+    gain.gain.exponentialRampToValueAtTime(0.12, start + 0.03);
+    gain.gain.exponentialRampToValueAtTime(0.001, start + note.dur);
+    osc.connect(gain);
+    gain.connect(context.destination);
+    osc.start(start);
+    osc.stop(start + note.dur + 0.05);
+  }
 }
 
 export type { UseSoundReturn };
