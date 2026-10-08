@@ -85,13 +85,15 @@ pnpm build:static            # verification gate 2: vite build → ../dist, exit
 | [`frontend/client/src/components/shell/AppShell.tsx`](../frontend/client/src/components/shell/AppShell.tsx) | The single shell (~3.9 kLOC) containing all sixteen views. Centre of all frontend work. |
 | [`frontend/client/src/components/shell/AppShell.css`](../frontend/client/src/components/shell/AppShell.css) | Design tokens, every view style, keyframes, empty-state and pipeline-control rules. |
 | [`frontend/client/src/lib/workspace.ts`](../frontend/client/src/lib/workspace.ts) | `loadWorkspace()`, `runPipeline()`, `STAGE_KEYS`, every stage → view mapper, `targetColumn` / `targetUnit`. |
-| [`frontend/client/src/lib/api.ts`](../frontend/client/src/lib/api.ts) | Typed API client: `auth`, `datasets` (incl. `upload`), `workflow`, `domain`, `activity`, `getToken` / `setToken`, `ApiError`. |
+| [`frontend/client/src/lib/api.ts`](../frontend/client/src/lib/api.ts) | Typed API client: `auth`, `datasets` (**`upload` → `POST /datasets/upload`, unwrapping `{ dataset }`**), `workflow`, `domain`, `activity`, `getToken` / `setToken`, `ApiError`. |
 | [`frontend/client/src/lib/units.ts`](../frontend/client/src/lib/units.ts) | Unit vocabulary: `unitForColumn()`, `displayUnit()`. **Extend here** when a new quantity type appears. |
 | [`frontend/client/src/lib/schema.ts`](../frontend/client/src/lib/schema.ts) | Schema vocabulary: `roleForColumn()`, `familyForColumn()`, `FAMILY_LABEL`, `ROLE_ORDER`, `FieldRole`, `FieldFamily`. |
 | [`frontend/client/src/lib/useSound.ts`](../frontend/client/src/lib/useSound.ts) | `play()` (silent no-op by default) and `playCompletionChime()`. |
 | [`frontend/vite.config.ts`](../frontend/vite.config.ts) · [`frontend/client/index.html`](../frontend/client/index.html) | Cleansed build config and document head. |
 | [`docs/STATUS.md`](STATUS.md) · [`docs/FRONTEND_SPEC.md`](FRONTEND_SPEC.md) | Pre-existing backend truth doc and master frontend spec; remaining backlog source. |
-| [`scripts/build_datasets.py`](../scripts/build_datasets.py) | Existing data generator — **extend it** for `/sample-datasets`, do not add a new pipeline. |
+| [`scripts/build_field_datasets.py`](../scripts/build_field_datasets.py) | Twenty-field dataset generator (deterministic, `--prune`, `--no-upload`, `--days`). Writes `sample-datasets/` (gitignored) and registers each file via `POST /datasets/upload`. |
+| [`scripts/build_datasets.py`](../scripts/build_datasets.py) · [`build_large_dataset.py`](../scripts/build_large_dataset.py) | Existing generators for the seeded campus datasets. |
+| [`backend/app/domain/dataset_service.py`](../backend/app/domain/dataset_service.py) · [`backend/app/routes/datasets.py`](../backend/app/routes/datasets.py) | Upload registration. Two **defensive** Session-5 fixes only (hierarchy `KeyError`, optional `name`); no business logic touched. |
 
 ### Key symbols inside `AppShell.tsx`
 
@@ -147,12 +149,10 @@ independent and can be interleaved.
 
 1. **Phase 2 — structure & performance** (P2-1…P2-7). Splitting `AppShell.tsx` is the precondition
    for everything else in Phase 2 and for any frontend test surface.
-2. **Phase 7 — `/sample-datasets`** for the eight industries by extending `scripts/build_datasets.py`.
-   Each dataset must carry a realistic hierarchy, equipment list, IDs, timestamps, schedules,
-   departments/rooms/buildings, metadata and units, and must naturally produce quality issues, a
-   baseline, model training, anomalies, a forecast and recommendations. When a dataset introduces a
-   new quantity type, add its unit to `lib/units.ts` and its family to `lib/schema.ts` in the same
-   change.
+2. **Phase 7 — `/sample-datasets`** — **done in Session 5** via `scripts/build_field_datasets.py`
+   (twenty fields, deterministic, each with a planted fault window). When a dataset introduces a new
+   quantity type, add its unit to `lib/units.ts` and its family to `lib/schema.ts` in the same change —
+   Session 5 extended both for generation, transport, telecom and water quantities.
 3. Then Phases 3 → 9 in order.
 
 **After every task, update all five documents in the same change** and re-run the four-part gate:
@@ -172,9 +172,27 @@ Only then check the item off in `PROJECT_ROADMAP.md` and add a `CHANGELOG.md` en
 
 | Item | Status |
 |---|---|
-| `pytest backend` (STATUS.md claims 106 passing) | **Unverified** this session — must be run at the Phase 9 gate |
+| `pytest backend` | **Verified in Session 5: 106 passed, exit 0** (`python -m pytest -q` at the repo root). Matches the 106 that `STATUS.md` claims. |
 | Lighthouse score target ≈ 90+ | Target only; never measured |
 | Reduced-motion behaviour of existing keyframes | Not audited yet — Phase 8 |
 | Contrast of micro-labels at 8–9 px | Suspected below AA — Phase 8 |
 | SSE streaming (`/workflows/{id}/stream-token`) | Endpoint exists; frontend still polls — Phase 5 |
 | Device/hierarchy endpoint | **Does not exist by design** (`STATUS.md` §6.4). Never invent one. |
+
+---
+
+## 8. Session 5 status
+
+Session 5 is **complete and browser-verified** except for the items still listed above.
+
+- Field coverage: 24 datasets in the library (4 seeded/reference + 20 generated across twelve energy
+  fields). Solar PV, District Heating, Telecom Tower, Water Treatment and Railway Station were each run
+  through all ten stages from the UI.
+- Walked in the browser with **zero console errors**: library preview + CSV export, upload path,
+  adaptive time window (and its filter actually shrinking the series), model head-to-head matrix,
+  schema flow, structured report preview with Copy / Download, `Run all → report`, and `Guided tour`
+  (observed advancing page by page to 10/10).
+- Gate re-run after the final edit: `npx tsc --noEmit` → 0 errors, `pnpm build:static` → exit 0,
+  `GET /api/v1/health` → `ok`.
+- Still open from Session 5's brief: nothing requested was left unimplemented; the standing risks are the
+  ones in section 7 plus **pruning the recorded runs** (roadmap Phase 0b, still unchecked).

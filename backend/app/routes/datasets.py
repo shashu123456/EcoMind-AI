@@ -9,7 +9,7 @@ from app.core.security import get_current_user
 from app.db.base import get_db
 from app.db.models import User
 from app.domain import anomaly_service, dataset_service
-from fastapi import APIRouter, Depends, File, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
 from sqlalchemy.orm import Session
 
 router = APIRouter()
@@ -27,10 +27,11 @@ def list_datasets(
 @router.post("/upload")
 def upload_dataset(
     file: UploadFile = File(...),
+    name: str | None = Form(None, description="Optional display name for the dataset"),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    return {"dataset": dataset_service.register_upload(db, user, file)}
+    return {"dataset": dataset_service.register_upload(db, user, file, name=name)}
 
 
 @router.get("/{dataset_id}")

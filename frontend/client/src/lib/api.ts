@@ -125,11 +125,13 @@ export type BackendDataset = {
 export const datasets = {
   list: () => api.get<{ datasets: BackendDataset[] }>("/datasets"),
   get: (id: string) => api.get<BackendDataset>(`/datasets/${id}`),
-  upload: (file: File, name?: string) => {
+  upload: async (file: File, name?: string) => {
     const form = new FormData();
     form.append("file", file);
     if (name) form.append("name", name);
-    return api.upload<BackendDataset>("/datasets", form);
+    // The backend route is POST /datasets/upload and returns { dataset }.
+    const res = await api.upload<BackendDataset | { dataset: BackendDataset }>("/datasets/upload", form);
+    return (res as { dataset?: BackendDataset }).dataset ?? (res as BackendDataset);
   },
   remove: (id: string) => api.del<{ ok: boolean }>(`/datasets/${id}`),
   refresh: (id: string) => api.post<BackendDataset>(`/datasets/${id}/refresh`),

@@ -41,6 +41,9 @@ backend/data/generated/
 backend/data/reference/
 logs/
 
+# Generated sample datasets (rebuild with scripts/build_field_datasets.py)
+sample-datasets/
+
 # OS / editor junk
 Thumbs.db
 Desktop.ini

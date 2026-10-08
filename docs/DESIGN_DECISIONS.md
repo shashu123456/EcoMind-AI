@@ -268,8 +268,14 @@ trap + restore, contrast pass on micro-labels, chart data-table alternatives.
 | D-9 | Terminal becomes docked, not floating | It must never cover data | `GAP` → P3-6 |
 | D-10 | Palette tokenised for charts | One place to change a colour | `GAP` → P3-1 |
 | D-11 | Type scale published | New components must not invent sizes | `GAP` → P3-2 |
-| D-12 | Eight domain identities | The spec promises automatic domain adaptation | `GAP` → P3-5 |
+| D-12 | Eight domain identities | The spec promises automatic domain adaptation | `DONE` — now **twelve** (S5 added plant / transport / telecom / water) |
 | D-13 | One unit vocabulary (`lib/units.ts`); no unit literal in any view | A glyph that is right today is wrong the moment the target changes | `DECIDED` |
 | D-14 | One schema vocabulary (`lib/schema.ts`); roles and families derived from real columns | A hard-coded field catalogue is fabrication by construction | `DECIDED` |
 | D-15 | Unknown column → `signal` role, `signal` family, no unit | An honest blank beats a plausible guess | `DECIDED` |
 | D-16 | No value-based unit inference | Range heuristics cannot distinguish ratio from index; guessing reintroduces the defect class | `DECIDED` |
+| D-17 | One dataset per workspace, and the workspace names it | A run belongs to exactly one dataset; showing another dataset's stages under this heading is a borrowed number | `DECIDED` (S5 fix) |
+| D-18 | The run lookup never falls back to another dataset | A blank page the user can fill is better than a convincing page that is wrong | `DECIDED` (S5 fix) |
+| D-19 | The app opens on the dataset of the most recent completed run | Landing on recorded work is honest *and* presentable; it is a default view, not a fabricated value | `DECIDED` (S5) |
+| D-20 | Import accepts only what the backend accepts (`.csv`, `.xlsx`) | A picker that lists formats the API rejects invents a capability | `DECIDED` (S5) |
+| D-21 | A control that cannot perform its action must start what it needs | Three permanently disabled run buttons on every new upload is a dead end | `DECIDED` (S5 fix) |
+| D-22 | The time-window control appears only when the dataset has a recorded time axis | An hour/day filter on data with no index column would be an invention | `DECIDED` |

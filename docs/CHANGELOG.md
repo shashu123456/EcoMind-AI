@@ -12,6 +12,116 @@ Legend: `FIX` correctness · `FEAT` new capability · `PERF` performance · `A11
 
 ---
 
+## [Unreleased] — Session 5 (every field, not just buildings; run controls that work)
+
+Session 5 was driven by one instruction: **the product is not a buildings-only tool**, and every
+control on screen must do what it says. Two entries below touch backend files; both are defensive
+bug fixes to code paths that crashed or returned the wrong dataset. No stage order, contract or
+business rule was changed, and no number was invented.
+
+### FIX — The Import upload never worked
+
+- The frontend posted the file to `POST /api/v1/datasets`. That path only serves `GET`, so every
+  upload returned **405 Method Not Allowed** and the dropzone surfaced "Upload failed". The route is
+  `POST /api/v1/datasets/upload`; `api.datasets.upload()` now calls it and unwraps the recorded
+  `{ dataset: … }` envelope (it previously read `.id` off the envelope and got `undefined`).
+- The backend ignored the display name the client sent, so every upload appeared in the library as
+  `my-file-45d-hourly.csv`. `POST /datasets/upload` now accepts an optional `name` form field and
+  `register_upload()` uses it when present, falling back to the filename.
+- The dropzone advertised `CSV · JSON · Parquet · Excel`. The backend accepts `.csv` and `.xlsx`
+  only, so the control now offers exactly those two.
+- **Verified:** `python scripts/build_field_datasets.py` registers 20/20 datasets over this route,
+  and the app's own dropzone path was exercised in the browser.
+
+### FIX — Uploading a building-metered file crashed the backend (500)
+
+- `_store_hierarchy()` selected `["building_code", "floor_no", "room_code", "device_code"]`
+  unconditionally whenever the file carried `building_code` and `device_code`. A file metered at
+  building level has no floor or room, so a perfectly valid upload raised `KeyError` → **HTTP 500**.
+  Any campus, mall or estate file shaped like this was un-uploadable.
+- The selection now reads only the columns the file actually carries; missing `floor_no` / `room_code`
+  are stored as `NULL` exactly as before. **Verified:** *University Campus — Academic and Residential*
+  uploads to 5 buildings / 5 devices at meter granularity.
+
+### FEAT — Twenty energy fields, not one
+
+- New generator [`scripts/build_field_datasets.py`](../scripts/build_field_datasets.py): deterministic
+  (fixed seed per field, 45 days hourly, one planted fault window per field so the anomaly stage has
+  something real to find, plus one malformed row for the quality stage to repair).
+  `--prune` deletes its own earlier uploads so re-runs replace rather than duplicate.
+- Fields: commercial building, manufacturing plant, hospital, university campus, shopping mall,
+  warehouse cold chain, office complex, **data centre, solar PV plant, wind farm, EV charging hub,
+  district heating, water treatment, airport terminal, hotel resort, telecom tower site, cold storage,
+  mining site, railway station, cement plant**. Each carries its own hierarchy codes, equipment,
+  extras and target column (`energy_kwh`, `generation_kwh`, `heat_kwh`).
+- **Verified:** solar PV, district heating and telecom tower sites each ran the full ten stages
+  end-to-end and recorded real outputs (baseline target/unit/date range, model competition, anomalies,
+  forecast, recommendations, report).
+
+### FEAT — The frontend now adapts to every field
+
+- `BackendDomain` grew four members — `plant`, `transport`, `telecom`, `water` — with labels, icons
+  and scenes, and the Import domain picker offers them. Specific rules run **before** the generic
+  `/plant/` industry rule so a *Solar PV Plant* is generation, not manufacturing.
+- Fixed two live misclassifications: **Data Centre** fell through to *Commercial building* (the regex
+  required a word boundary after `cent`, which `centre` never has) and **Cold Storage** landed in
+  *Industrial plant*.
+- The unit vocabulary gained `W/m²`, `m/s`, `m³`, `L`, `NTU`, `µg/m³`, `bar`, `t`, `Erl`, `count`,
+  `%` and `ratio`. The library preview and every table now read `clinker_tonnes → t`,
+  `kiln_temp_c → °C`, `cost_inr → ₹`, `power_factor → ratio`.
+- The schema family vocabulary gained inverter/tracker/nacelle/yaw/pitch/irradiance, blower/mixer/
+  aerator, baggage, chamber temperature and `pue`, and the cost rule no longer captures `charger`.
+
+### FIX — One dataset's run was shown under another dataset's name
+
+- `pickRun()` fell back to *any* run when the active dataset had none. Opening a dataset that had
+  never been analysed therefore displayed a different dataset's stages, baseline, model, anomalies and
+  recommendations under the new dataset's heading — exactly the borrowed number the product forbids.
+- The workspace now resolves a single **active dataset** (`workspace.activeDatasetId`) and every field
+  on it belongs to that dataset; the run lookup is strict. The app opens on the dataset of the most
+  recent completed run (so it lands on recorded work), and a dataset with no run shows honest empty
+  states: `awaiting stage 06`, `awaiting stage 07`, `not started`.
+- Selecting a dataset in the library now **reloads its recorded outputs** instead of leaving the
+  previous dataset's stages on screen, and a fresh upload becomes the active dataset.
+- **Verified:** with *Hospital* selected the strip read `BASELINE awaiting stage 06 · MODEL awaiting
+  stage 07 · STAGES not started`, and every network request targeted that dataset's id.
+
+### FIX — The adaptive time-window control was hidden and meaningless
+
+- `deriveWindowOptions()` compared `field.role` to `"index"`, but `field.role` holds the backend's raw
+  semantic type (`"energy timestamp"`), so the check never matched and the control **never appeared on
+  any dataset**. It now derives the canonical role from the column name, exactly as the schema view does.
+- The anomaly series was hard-downsampled to **14 points**, so all three options collapsed to the same
+  slice and the buttons did nothing distinguishable. Recorded resolution is now preserved and the
+  options are de-duplicated; when a series is coarser than the ladder, the two windows it can genuinely
+  express are offered instead of three identical buttons.
+- **Verified:** District Heating offers `7 d → 168 buckets`, `30 d → 720`, `60 d → 1008`, all captioned
+  `dataset spans 45 d`; switching to `7 d` shrank the rendered path from 46,927 to 7,642 characters.
+
+### FEAT — Step / Guided tour / Run all → report now start a run
+
+- All three controls were disabled whenever the workspace had no run, so a newly imported dataset could
+  never be analysed from the Overview — the buttons existed but could not be pressed.
+- `ensureRun()` starts a workflow for the active dataset on demand. **Step** executes the next stage,
+  **Guided tour** walks the remaining stages *visiting each page as its stage completes*, and
+  **Run all → report** runs the remainder without leaving the page and lands on the executive report.
+- **Verified in the browser:** *Water Treatment Plant* went 0/10 → 10/10 and landed on its report; the
+  guided tour on *Railway Station* was observed walking Model competition → Prediction →
+  Recommendations → Reports to 10/10 with **zero console errors**.
+
+### FEAT — Report preview, schema flow, model head-to-head, baseline preview
+
+- The report draft renders as structured sections (PROJECT SUMMARY · MODEL COMPETITION · ANALYTICS ·
+  ANOMALIES · RECOMMENDATIONS) instead of one `<pre>` blob, with working **Copy briefing** and
+  **Download .md**; the preview button is no longer disabled and the close button closes.
+- The schema discovery flow was rebuilt with real per-row tracks and travelling packets instead of a
+  distorted SVG. **Model competition** gained a head-to-head matrix listing every candidate against
+  every metric with the winner marked. **Transformation** shows the baseline dataset preview — target,
+  unit, rows, entity column, version, the min/P25/median/mean/P75/P95/max/std strip and the learned
+  hour-of-week heatmap.
+
+---
+
 ## [Unreleased] — Session 3 (truthfulness fixes, legibility, library preview, guided run)
 
 ### FIX — Hardcoded identity removed

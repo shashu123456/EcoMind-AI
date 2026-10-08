@@ -49,7 +49,8 @@ curl -s http://127.0.0.1:8000/api/v1/health
 
 ## Phase 1 — Integration completeness (COMPLETE)
 
-- [x] Real dataset upload via multipart `POST /datasets`, replacing the mock scan.
+- [x] Real dataset upload via multipart `POST /datasets/upload`, replacing the mock scan. (The first
+      cut pointed at `POST /datasets`, which is `GET`-only and answered **405**; fixed in Session 5.)
 - [x] Bearer-authenticated report PDF export (verified `report.pdf → 200`, blob downloaded).
 - [x] Run history replay per dataset.
 - [x] Step / Auto pipeline execution controls calling `POST /workflows/{id}/stages/{key}/exec`.
@@ -75,7 +76,39 @@ curl -s http://127.0.0.1:8000/api/v1/health
 - [x] Prediction gains a day-by-day table and a business-impact panel.
 - [x] Raised every micro type size and docked the activity terminal (closes GAP-4).
 - [ ] **Prune the 331 recorded runs** — most are orphaned or failed; affects library noise, run
-      history and `/workflows` payload size.
+      history and `/workflows` payload size. (Still the top credibility risk.)
+
+## Phase 0c — Session 5: every field, and controls that work (COMPLETE)
+
+> Two items here edit backend files. Both are **defensive fixes to crashing/wrong paths**, not
+> business logic: stage order, contracts and thresholds are untouched. They are recorded here rather
+> than buried because constraint 1 says the backend is frozen.
+
+- [x] Fix the Import upload: wrong endpoint (`/datasets` → `/datasets/upload`), unwrap the recorded
+      `{ dataset }` envelope, honour the display `name` form field, and restrict the picker to the
+      `.csv` / `.xlsx` the backend actually accepts.
+- [x] **Backend (defensive):** `_store_hierarchy()` raised `KeyError` → **HTTP 500** for any file
+      metered at building level (has `building_code` + `device_code`, no `floor_no` / `room_code`).
+      It now reads only the columns the file carries. *University Campus* now uploads: 5 buildings, 5 devices.
+- [x] **Backend (defensive):** `POST /datasets/upload` accepts an optional `name` so uploads are not
+      named after their filename.
+- [x] `scripts/build_field_datasets.py` — twenty energy fields, deterministic, one planted fault window
+      each, `--prune` for idempotent re-runs. The generated CSVs live in `sample-datasets/` and are
+      gitignored — re-run the script on a fresh clone to recreate them.
+- [x] Frontend adapts to every field: `plant` / `transport` / `telecom` / `water` domains, four new
+      domain rules ordered ahead of the generic `/plant/` rule, and the **Data Centre** and
+      **Cold Storage** misclassifications fixed.
+- [x] Unit vocabulary extended (`W/m²`, `m/s`, `m³`, `L`, `NTU`, `µg/m³`, `bar`, `t`, `Erl`, `count`, `%`,
+      `ratio`); schema family vocabulary extended for generation and process equipment.
+- [x] Fix the cross-dataset run bleed: `pickRun()` was falling back to *any* run, so a dataset with no
+      run displayed another dataset's stages under its own heading. The workspace now names the dataset
+      its outputs belong to (`activeDatasetId`); selecting a dataset or uploading reloads for it.
+- [x] Fix the adaptive time-window control — it was hidden on every dataset (raw semantic type compared
+      to `"index"`) and its options collapsed to one slice (series hard-downsampled to 14 points).
+- [x] Step / Guided tour / Run all → report now start a run when the active dataset has none
+      (`ensureRun()`), instead of being permanently disabled on every newly imported file.
+- [x] Report draft as structured sections with Copy / Download; schema-flow packets; model head-to-head
+      matrix; baseline dataset preview on Transformation.
 
 ## Phase 2 — Structure & performance (NEXT)
 

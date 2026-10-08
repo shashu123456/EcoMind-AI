@@ -145,14 +145,24 @@ and signal family (hvac, chiller, cold chain, it load, …) from the real column
   Run history, Notifications, Workspace settings, plus the sign-in entry and the evidence inspector.
 - **Live state** is a module-level set of `live*` bindings (`liveStages`, `liveCompetition`,
   `liveBaseline`, `liveTransform`, …) filled by `loadWorkspace()` and `applyWorkspace()`.
-- **Pipeline control.** The pipeline never starts by itself. When a run is staged the rail offers
-  **Step** (one stage) and **Auto** (the remaining stages). Auto walks the pages in pipeline order as
-  each stage completes, so a demonstration follows the data.
+- **Pipeline control.** The pipeline never starts by itself, but the rail's three controls are never
+  dead: **Step** runs one stage, **Guided tour** runs the remainder *visiting each page as its stage
+  completes*, and **Run all → report** runs the remainder without leaving the page and lands on the
+  executive report. All three call `ensureRun()`, so they work on a dataset that has never been run.
+- **One dataset per workspace.** `workspace.activeDatasetId` names the dataset every other field was
+  recorded for, and the run lookup is strict — the heading and the panels can never disagree. Selecting
+  a dataset (or uploading one) reloads its recorded outputs.
 - **Context strip honesty.** `BASELINE`, `MODEL` and `STAGES` render an explicit pending label until
   the stage that produces them has actually recorded output.
 - **Identity.** The topbar name, initials and role come from `GET /auth/me` — never hardcoded.
 - **Empty states** exist for library, schema fields, quality rows, model list, anomaly queue,
   recommendation list, forecast factors, activity terminal and the baseline preview.
+- **Twelve domains**, each with its own icon, label, scene and cadence: commercial building, industrial
+  plant, distribution centre, hospital, university campus, shopping mall, office complex, data centre,
+  generation plant, transport hub, telecom site and water utility.
+- **Adaptive time window.** The hour/day scale control is derived from the recorded schema, baseline
+  date range and series length. It appears only when the dataset has a real time axis, and its options
+  are the windows that dataset can genuinely express.
 
 ### Verified in the browser this session
 
@@ -160,9 +170,18 @@ and signal family (hvac, chiller, cold chain, it load, …) from the real column
 |---|---|
 | Sign in with the seeded account | succeeds, topbar shows the real `full_name` and derived initials |
 | Context strip before a run | `awaiting stage 06` / `awaiting stage 07` / `not started` |
-| Context strip after the recorded run | real baseline label, `ridge`, `10 / 10 complete` |
-| Dataset library | 4 datasets, 4 Preview/Open action rows |
-| Dataset preview | 100 real rows, per-column units (kWh, kW, V, A, ratio, °C, %RH, people) |
+| Context strip after the recorded run | real baseline label, `linear`, `10 / 10 complete` |
+| Dataset library | **24 datasets** across twelve fields, each with Preview rows / Open |
+| Dataset preview | 100 real rows, per-column units (`kWh`, `kW`, `t`, `°C`, `kgCO₂`, `ratio`, `₹`) |
+| Domain adaptation | Railway Station → *Transport hub*, Telecom Tower → *Telecom site*, Water Treatment →
+  *Water utility*, District Heating / Wind / Solar → *Generation plant*, Data Centre → *Data centre* |
+| Adaptive time window | District Heating: `7 d → 168 buckets`, `30 d → 720`, `60 d → 1008`; selecting `7 d` shrank the
+  rendered path 46,927 → 7,642 characters |
+| Model head-to-head | six candidates × six metrics in one matrix, winner marked, near-tie footnoted |
+| Schema discovery | 16 recorded fields with derived roles (`index` … `signal`) and the packet flow above them |
+| Report preview | structured sections (summary / competition / analytics / anomalies / recommendations), Copy + Download .md |
+| `Run all → report` on a never-run dataset | *Water Treatment Plant* 0/10 → 10/10, landed on its report |
+| `Guided tour` | *Railway Station* observed walking Model competition → Prediction → Recommendations → Reports to 10/10 |
 | Identity | `Admin User` / `AU` from `/auth/me` (no hardcoded name remains) |
 | JS exceptions | 0 |
 
@@ -218,8 +237,8 @@ pnpm build:static         # writes ../dist, which the API serves
 
 **Verified**
 
-- Typecheck 0 errors, production build exit 0 (app 483.85 kB / 143.76 kB gzip, charts 403.49 kB,
-  CSS 226.09 kB).
+- Typecheck 0 errors, production build exit 0 (app 494.55 kB / 147.46 kB gzip, charts 403.49 kB,
+  CSS 230.60 kB).
 - Backend health `ok`; sign-in, datasets, schema, baseline, workflow, anomaly, forecast, report PDF
   and activity endpoints all return 200 through the UI.
 - Units are derived, never guessed; the model error card reads `kWh` for an `energy_kwh` target.
@@ -229,8 +248,8 @@ pnpm build:static         # writes ../dist, which the API serves
 
 | Item | Where |
 |---|---|
-| **331 workflow runs recorded, most orphaned/failed** — the library and history are noisy and `/workflows` is heavy. Needs a prune/retention tool. | new |
-| Sample datasets for the eight industries in `/sample-datasets` | roadmap P7 |
+| **Recorded runs, most orphaned/failed** — the library and history are noisy and `/workflows` is heavy. Needs a prune/retention tool. | new |
+| Twenty field datasets for `/sample-datasets` | **done** — `scripts/build_field_datasets.py` |
 | Split `AppShell.tsx`, lazy routes, store, memoisation, table virtualisation | roadmap P2 |
 | Tokenised chart palette, published type scale, remaining mobile breakpoints | roadmap P3 |
 | Chart cross-filtering, brush/zoom, data-table alternatives | roadmap P4 |
@@ -238,18 +257,20 @@ pnpm build:static         # writes ../dist, which the API serves
 | Motion bound to backend events | roadmap P6 |
 | `aria-live` terminal, inspector focus trap, contrast pass, Lighthouse | roadmap P8 |
 | CI workflow, Makefile, README refresh, fresh-clone simulation | roadmap P9 |
-| `pytest backend` not re-run in this session — `STATUS.md` claims 106 passing | must be re-verified |
+| ~~`pytest backend` unverified~~ — **re-run in Session 5: 106 passed, exit 0** | closed |
 
 ---
 
 ## 10. How to present this (ten-minute demo script)
 
 1. **Sign in** — the identity is real, the build stamp is real, no invented compliance badges.
-2. **Dataset library** — four datasets, three domains detected. Open **Preview rows** on BDG2 and
-   point at the units column: `energy_kwh → kWh`, `voltage_v → V`, `humidity_pct → %RH`. Export CSV.
+2. **Dataset library** — **24 datasets across twelve fields**, each classified with its own domain.
+   Open **Preview rows** on any card and point at the units column: `energy_kwh → kWh`,
+   `clinker_tonnes → t`, `kiln_temp_c → °C`, `power_factor → ratio`, `cost_inr → ₹`. Export CSV.
 3. **Import** — upload a file, then stop. Nothing runs. The pipeline is staged, not started.
-4. **Auto** — press it. The app walks Library → Import → Schema → Quality → Transformation → Models →
-   Anomalies → Prediction → Recommendations → Reports, one stage at a time, narrating each completion.
+4. **Guided tour** — press it. The app walks Library → Import → Schema → Quality → Transformation →
+   Models → Anomalies → Prediction → Recommendations → Reports, one stage at a time, opening each page
+   as its stage completes. (Or press **Run all → report** to run everything and land on the report.)
 5. **Schema** — the animated map shows the dataset flowing into the signal families it actually
    contains, with role counts underneath.
 6. **Quality** — the overall rule run comes first, then the filter narrows it. State clearly that

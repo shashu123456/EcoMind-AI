@@ -7,7 +7,7 @@ import {
   Gauge, GraduationCap, HardDrive, HeartPulse, History, IndianRupee, Info, Layers3, Leaf, Lightbulb, ListFilter, LockKeyhole, Mail, Moon, MousePointer2, Network,
   PanelLeftClose, PanelLeftOpen, Pause, Play, Plus, RefreshCw, Search, Server, Settings2, ShieldCheck,
   ShoppingBag, SlidersHorizontal, Sparkles, Sun, SunMedium, Table2, TrendingDown, TrendingUp, UploadCloud, UserRound,
-  WandSparkles, Warehouse, X, Zap, Boxes
+  WandSparkles, Warehouse, X, Zap, Boxes, Plane, RadioTower, Droplets
 } from "lucide-react";
 import { EcoMindMark } from "@/components/icons/EcoMindMark";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -24,6 +24,7 @@ import {
   type LiveAnomalyPoint, type LiveAnomaly, type LiveForecastPoint, type LiveRec, type LiveActivity,
   type LiveStage, type LiveCompetition, type LiveQualityMeta, type LiveAnomalyMeta,
   type LiveTransform, type LiveBaseline, type LiveBaselineCell, type BackendDomain,
+  type LiveWindowOption, deriveWindowOptions,
   type LiveForecastMeta, type LiveRecMeta, type LiveRun, type LiveSchemaField, type LiveBaselineVersion,
 } from "@/lib/workspace";
 import { Snowflake, Thermometer, Waves, ArrowUpDown, Cog } from "lucide-react";
@@ -63,6 +64,10 @@ const domainMeta: Record<DatasetDomain, { label: string; sub: string; matchStren
   mall: { label: "Shopping mall", sub: "Retail zones + common areas", matchStrength: "heuristic match", scene: "Anchor stores, food court, common area HVAC", icon: ShoppingBag, accent: "yellow", cadence: "15-minute", anchor: "tenancy" },
   office: { label: "Office complex", sub: "Tenant floor + base building", matchStrength: "heuristic match", scene: "Floor distributions, AHUs, tenant sub-meters", icon: Briefcase, accent: "lime", cadence: "15-minute", anchor: "floor" },
   datacentre: { label: "Data centre", sub: "IT load + facility cooling", matchStrength: "heuristic match", scene: "Rack rows, PDUs, CRAC/CRAH, UPS", icon: Server, accent: "violet", cadence: "1-minute", anchor: "rack row" },
+  plant: { label: "Generation plant", sub: "Generation + conversion assets", matchStrength: "heuristic match", scene: "Inverters, turbines, heat exchangers, substations", icon: Zap, accent: "orange", cadence: "15-minute", anchor: "array / unit" },
+  transport: { label: "Transport hub", sub: "Terminal + mobility load", matchStrength: "heuristic match", scene: "Concourses, platforms, chargers, baggage systems", icon: Plane, accent: "blue", cadence: "5-minute", anchor: "concourse / bay" },
+  telecom: { label: "Telecom site", sub: "Radio + backup power", matchStrength: "heuristic match", scene: "Radio units, battery banks, site HVAC", icon: RadioTower, accent: "violet", cadence: "15-minute", anchor: "site" },
+  water: { label: "Water utility", sub: "Pumping + treatment load", matchStrength: "heuristic match", scene: "Intake pumps, blowers, filtration, distribution", icon: Droplets, accent: "blue", cadence: "15-minute", anchor: "process stage" },
 };
 
 const navSections: { label: string; items: { id: NavId; label: string; icon: LucideIcon; status?: string }[] }[] = [
@@ -795,6 +800,10 @@ export function AppShell() {
   const [stageBusy, setStageBusy] = useState("");
   const [autoRunning, setAutoRunning] = useState(false);
   const [awaitingRun, setAwaitingRun] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  // Set when a fresh upload should become the active dataset on the next load,
+  // so a new file is never shadowed by an older dataset's completed run.
+  const pendingDatasetId = useRef<string | null>(null);
   const isDark = theme === "dark";
   const filteredQuality = qualityIssues.filter(
     issue => qualityFilter === "All issues" || issue.type === qualityFilter
@@ -817,6 +826,82 @@ export function AppShell() {
     .slice(0, 3);
   const attentionCount =
     (liveAnomalyMeta?.severity?.critical ?? 0) + (liveAnomalyMeta?.severity?.high ?? 0);
+  // Time-scale options the active dataset can actually express. Empty when the
+  // recorded schema has no index column, which hides the control entirely.
+  const windowOptions = useMemo(
+    () =>
+      deriveWindowOptions(
+        workspace?.schema ?? null,
+        workspace?.baseline,
+        Math.max(anomalyData.length, forecastData.length, energyData.length)
+      ),
+    [workspace]
+  );
+
+  const refreshPipeline = async () => {
+    setRefreshing(true);
+    try {
+      const ok = await refreshWorkspace();
+      setToast(ok ? "Pipeline state refreshed from the backend." : "Refresh failed — no workspace returned.");
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  /**
+   * Start a run for the active dataset when the backend has none yet. Without
+   * this, Step / Guided tour / Run all stay disabled forever on a dataset that
+   * has never been analysed — which is every newly imported file.
+   */
+  const ensureRun = async (): Promise<string | null> => {
+    if (workspace?.runId) return workspace.runId;
+    try {
+      const started = (await workflow.start(activeDataset.id)) as unknown as {
+        run?: { id?: string };
+        run_id?: string;
+        id?: string;
+      };
+      const id = started?.run?.id ?? started?.run_id ?? started?.id ?? null;
+      if (!id) {
+        setToast("The backend did not return a run for this dataset.");
+        return null;
+      }
+      setToast(`Run started for ${activeDataset.name}.`);
+      return id;
+    } catch (err) {
+      setToast(err instanceof Error ? err.message : "Could not start a run for this dataset.");
+      return null;
+    }
+  };
+
+  /** Run everything that is left without moving pages, then land on the report. */
+  const execAllAndReport = async () => {
+    const runId = await ensureRun();
+    if (!runId) return;
+    const remaining = STAGE_KEYS.filter(key => !liveStages.some(s => s.id === key && s.status === "completed"));
+    if (!remaining.length) {
+      goTo("reports");
+      setToast("All ten stages are already complete — showing the recorded report.");
+      return;
+    }
+    setAutoRunning(true);
+    setToast(`Running ${remaining.length} remaining stage${remaining.length === 1 ? "" : "s"} without leaving this page.`);
+    try {
+      for (const key of remaining) {
+        setStageBusy(key);
+        await workflow.execStage(runId, key);
+        await refreshWorkspace();
+      }
+      playCompletionChime();
+      goTo("reports");
+      setToast("Pipeline complete — every recorded output is available. Executive report ready.");
+    } catch (err) {
+      setToast(err instanceof Error ? err.message : "Pipeline run failed.");
+    } finally {
+      setStageBusy("");
+      setAutoRunning(false);
+    }
+  };
 
   useEffect(() => {
     if (!signedIn && getToken()) setSignedIn(true);
@@ -872,13 +957,19 @@ export function AppShell() {
           else if (item.id === "recommendations") item.status = String(recommendations.length);
         })
       );
-    setActiveDataset(prev => datasets.find(d => d.id === prev.id) ?? datasets[0] ?? EMPTY_DATASET);
+    // The workspace names the dataset its recorded outputs belong to, so the
+    // heading and the panels can never disagree about which dataset is shown.
+    setActiveDataset(
+      (loaded.activeDatasetId && datasets.find(d => d.id === loaded.activeDatasetId)) ||
+        datasets[0] ||
+        EMPTY_DATASET
+    );
     setWorkspace(loaded);
   };
 
   /** Re-read every recorded stage output for the active dataset. */
   const refreshWorkspace = async (): Promise<boolean> => {
-    const res = await loadWorkspace();
+    const res = await loadWorkspace(activeDataset.id || undefined);
     if (!res) {
       if (!getToken()) setSignedIn(false);
       return false;
@@ -891,7 +982,9 @@ export function AppShell() {
     if (!signedIn) return;
     let cancelled = false;
     (async () => {
-      const res = await loadWorkspace();
+      const preferred = pendingDatasetId.current ?? undefined;
+      pendingDatasetId.current = null;
+      const res = await loadWorkspace(preferred);
       if (cancelled) return;
       if (!res) {
         if (!getToken()) setSignedIn(false);
@@ -937,12 +1030,6 @@ export function AppShell() {
     return () => window.clearTimeout(timer);
   }, [toast]);
 
-  useEffect(() => {
-    if (!reportDraft) return;
-    const timer = window.setTimeout(() => setReportDraft(null), 8000);
-    return () => window.clearTimeout(timer);
-  }, [reportDraft]);
-
   if (!signedIn) return <SignInView onEnter={() => setSignedIn(true)} />;
 
   const goTo = (view: NavId) => {
@@ -963,15 +1050,13 @@ export function AppShell() {
   const handleUploaded = (datasetId: string) => {
     setToast(`Upload accepted. Running the ten-stage pipeline for ${datasetId.slice(0, 8)}.`);
     playCompletionChime();
+    pendingDatasetId.current = datasetId;
     setReloadKey(key => key + 1);
   };
 
   const execStage = async (stageKey: string) => {
-    const runId = workspace?.runId;
-    if (!runId) {
-      setToast("No active run. Import or select a dataset first.");
-      return;
-    }
+    const runId = await ensureRun();
+    if (!runId) return;
     setStageBusy(stageKey);
     try {
       await workflow.execStage(runId, stageKey);
@@ -995,11 +1080,8 @@ export function AppShell() {
   };
 
   const execRemainingStages = async () => {
-    const runId = workspace?.runId;
-    if (!runId) {
-      setToast("No active run. Import or select a dataset first.");
-      return;
-    }
+    const runId = await ensureRun();
+    if (!runId) return;
     const remaining = STAGE_KEYS.filter(key => !liveStages.some(s => s.id === key && s.status === "completed"));
     if (!remaining.length) {
       setToast("All ten stages are already complete for this run.");
@@ -1113,6 +1195,11 @@ export function AppShell() {
               setActiveDataset(dataset);
               setToast(`${dataset.name} is now the active dataset.`);
               sound.play({ volume: 0.14, rate: 0.9 });
+              // Reload the recorded outputs for the chosen dataset instead of
+              // leaving the previous dataset's stages on screen.
+              void loadWorkspace(dataset.id).then(res => {
+                if (res) applyWorkspace(res.workspace);
+              });
             }}
             onImport={() => goTo("import")}
             onPreview={dataset => void openPreview(dataset)}
@@ -1175,6 +1262,7 @@ export function AppShell() {
       case "anomalies":
         return (
           <AnomaliesView
+            windowOptions={windowOptions}
             window={anomalyWindow}
             setWindow={setAnomalyWindow}
             onInspect={setSelectedAnomaly}
@@ -1185,6 +1273,7 @@ export function AppShell() {
       case "prediction":
         return (
           <PredictionView
+            windowOptions={windowOptions}
             window={forecastWindow}
             setWindow={setForecastWindow}
             onViewData={() => goTo("transform")}
@@ -1200,6 +1289,7 @@ export function AppShell() {
           <ReportsView
             exported={reportExported}
             draft={reportDraft}
+            onCloseDraft={() => setReportDraft(null)}
             onDraft={() => {
               const totalAnoms = liveAnomalyMeta?.total ?? anomalies.length;
               const pri = (liveAnomalyMeta?.severity?.critical ?? 0) + (liveAnomalyMeta?.severity?.high ?? 0);
@@ -1233,6 +1323,9 @@ export function AppShell() {
             baselineName={baselineName}
             onStep={() => void execNextStage()}
             onAuto={() => void execRemainingStages()}
+            onRunAll={() => void execAllAndReport()}
+            onRefresh={() => void refreshPipeline()}
+            refreshing={refreshing}
             stageBusy={stageBusy}
             autoRunning={autoRunning}
           />
@@ -1437,10 +1530,7 @@ export function AppShell() {
                 <Settings2 size={14} />{" "}
                 Workspace settings
               </button>
-              <button type="button">
-                <UserRound size={14} />{" "}
-                Account preferences
-              </button>
+
             </div>
           ) : null}
         </div>
@@ -1784,6 +1874,9 @@ function OverviewView({
   baselineName,
   onStep,
   onAuto,
+  onRunAll,
+  onRefresh,
+  refreshing,
   stageBusy,
   autoRunning,
 }: {
@@ -1793,6 +1886,9 @@ function OverviewView({
   baselineName: string;
   onStep: () => void;
   onAuto: () => void;
+  onRunAll: () => void;
+  onRefresh: () => void;
+  refreshing: boolean;
   stageBusy: string;
   autoRunning: boolean;
 }) {
@@ -1877,12 +1973,14 @@ function OverviewView({
             <h2>One continuous thread from data to decision.</h2>
           </div>
           <div className="pipeline-controls">
-            <span className="mono-note">RUN ID / {liveRunId ? liveRunId.slice(0, 12) : "no run yet"}</span>
+            <span className="mono-note">
+              RUN ID / {liveRunId ? liveRunId.slice(0, 12) : "no run yet · Step starts one"}
+            </span>
             <button
               type="button"
               className="pipeline-control"
               onClick={onStep}
-              disabled={!!stageBusy || autoRunning || !liveRunId}
+              disabled={!!stageBusy || autoRunning}
             >
               <Play size={13} />
               {stageBusy ? `Running ${stageBusy}` : "Step"}
@@ -1891,10 +1989,21 @@ function OverviewView({
               type="button"
               className="pipeline-control pipeline-control--primary"
               onClick={onAuto}
-              disabled={!!stageBusy || autoRunning || !liveRunId}
+              disabled={!!stageBusy || autoRunning}
+              title="Run the remaining stages and follow them: the app opens each page as its stage completes"
             >
               <Play size={13} />
-              {autoRunning ? "Running..." : "Auto"}
+              {autoRunning ? "Running..." : "Guided tour"}
+            </button>
+            <button
+              type="button"
+              className="pipeline-control"
+              onClick={onRunAll}
+              disabled={!!stageBusy || autoRunning}
+              title="Run every remaining stage, then land on the executive report"
+            >
+              <Play size={13} />
+              Run all → report
             </button>
           </div>
         </div>
@@ -1999,8 +2108,13 @@ function OverviewView({
             eyebrow="PIPELINE HEALTH"
             title="Everything is moving."
             action={
-              <button className="icon-button icon-button--small" type="button" aria-label="Refresh pipeline">
-                <RefreshCw size={14} />
+              <button
+                className="icon-button icon-button--small"
+                type="button"
+                aria-label="Refresh recorded pipeline state"
+                onClick={onRefresh}
+              >
+                <RefreshCw size={14} className={refreshing ? "is-spinning" : ""} />
               </button>
             }
           />
@@ -2417,6 +2531,10 @@ function ImportView({
     { id: "mall", label: "Shopping mall", icon: ShoppingBag, accent: "yellow" },
     { id: "office", label: "Office complex", icon: Briefcase, accent: "lime" },
     { id: "datacentre", label: "Data centre", icon: Server, accent: "violet" },
+    { id: "plant", label: "Generation plant", icon: Zap, accent: "orange" },
+    { id: "transport", label: "Transport hub", icon: Plane, accent: "blue" },
+    { id: "telecom", label: "Telecom site", icon: RadioTower, accent: "violet" },
+    { id: "water", label: "Water utility", icon: Droplets, accent: "blue" },
   ];
   const scanSteps = [
     { title: "Upload accepted", detail: activeFile || "waiting for a file", icon: CloudUpload },
@@ -2471,7 +2589,7 @@ function ImportView({
             className="file-input"
             id="ecomind-file-upload"
             type="file"
-            accept=".csv,.json,.parquet,.xlsx,.xls"
+            accept=".csv,.xlsx"
             onChange={event => void selectFile(event.currentTarget.files?.[0])}
           />
           <label className="dropzone-button" htmlFor="ecomind-file-upload">
@@ -2479,7 +2597,7 @@ function ImportView({
             {uploading ? "Uploading dataset..." : "Choose a dataset"}
           </label>
           <span className="dropzone-note">
-            CSV · JSON · Parquet · Excel <span>or drag and drop</span>
+            CSV · Excel <span>or drag and drop</span>
           </span>
           {uploadError ? <p className="signin-error dropzone-error">{uploadError}</p> : null}
           <div className="dropzone-footer">
@@ -2652,6 +2770,44 @@ function ImportView({
  */
 const SEVERITY_ORDER = ["critical", "high", "medium", "low"] as const;
 
+/**
+ * Renders the scoped briefing draft as structured sections instead of one
+ * unbroken blob: each block becomes a heading plus label/value rows, so the
+ * preview is readable and can be scanned section by section.
+ */
+function ReportDraftBody({ text }: { text: string }) {
+  const blocks = text.split(/\n{2,}/).map(block => block.trim()).filter(Boolean);
+  return (
+    <div className="report-preview__sections">
+      {blocks.map((block, index) => {
+        const lines = block.split("\n").filter(Boolean);
+        const titled = lines.length > 1;
+        const [heading, ...rest] = lines;
+        return (
+          <section className="report-preview__section" key={index}>
+            {titled ? <h4>{heading}</h4> : null}
+            {(titled ? rest : lines).map((line, lineIndex) => {
+              const split = line.indexOf(": ");
+              return (
+                <div className="report-preview__line" key={lineIndex}>
+                  {split > 0 ? (
+                    <>
+                      <span>{line.slice(0, split)}</span>
+                      <strong>{line.slice(split + 2)}</strong>
+                    </>
+                  ) : (
+                    <strong>{line}</strong>
+                  )}
+                </div>
+              );
+            })}
+          </section>
+        );
+      })}
+    </div>
+  );
+}
+
 function AxisNote({ quantity, unit, origin }: { quantity: string; unit?: string | null; origin: string }) {
   const shown = unit ? displayUnit(unit) : "";
   return (
@@ -2687,7 +2843,6 @@ function SchemaFlowMap({
   roleCounts: Record<FieldRole, number>;
 }) {
   const rows = families.length;
-  const centerOf = (index: number) => (rows ? ((index + 0.5) / rows) * 100 : 50);
   return (
     <div className="schema-flow">
       <div className="schema-flow__source">
@@ -2703,43 +2858,32 @@ function SchemaFlowMap({
           schema recorded
         </span>
       </div>
-      <svg className="schema-flow__lines" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-        <line className="flow-line" x1="50" y1={centerOf(0)} x2="50" y2={centerOf(rows - 1)} vectorEffect="non-scaling-stroke" />
-        {families.map((node, index) => (
-          <line key={`branch-${node.family}`} className="flow-line" x1="0" y1={centerOf(index)} x2="100" y2={centerOf(index)} vectorEffect="non-scaling-stroke" />
-        ))}
-        <line className="flow-line flow-line--live flow-line--spine" x1="50" y1={centerOf(0)} x2="50" y2={centerOf(rows - 1)} vectorEffect="non-scaling-stroke" />
-        {families.map((node, index) => (
-          <line
-            key={`light-${node.family}`}
-            className="flow-line flow-line--live"
-            style={{ animationDelay: `${(index * 0.24).toFixed(2)}s` }}
-            x1="0"
-            y1={centerOf(index)}
-            x2="100"
-            y2={centerOf(index)}
-            vectorEffect="non-scaling-stroke"
-          />
-        ))}
-      </svg>
-      <div className="schema-flow__targets">
+      <div className="schema-flow__rows">
         {!rows ? <p className="mono-note table-empty-note">No columns recorded yet.</p> : null}
         {families.map((node, index) => {
           const Icon = fieldIconFor(node.family);
           const units = node.units.filter(Boolean);
           return (
-            <div className="schema-flow-chip" key={node.family} style={{ animationDelay: `${(index * 0.08).toFixed(2)}s` }}>
-              <span className="schema-flow-chip__icon">
-                <Icon size={16} />
+            <div className="schema-flow-row" key={node.family}>
+              <span className="schema-flow-row__track" aria-hidden="true">
+                <span className="flow-packet" style={{ animationDelay: `${(index * 0.32).toFixed(2)}s` }} />
               </span>
-              <div className="schema-flow-chip__copy">
-                <strong>{FAMILY_LABEL[node.family]}</strong>
-                <span className="mono-note">
-                  {node.count} field{node.count === 1 ? "" : "s"}
-                  {units.length ? ` · ${units.join(", ")}` : ""}
+              <div
+                className="schema-flow-chip"
+                style={{ animationDelay: `${(index * 0.08).toFixed(2)}s` }}
+              >
+                <span className="schema-flow-chip__icon">
+                  <Icon size={16} />
                 </span>
+                <div className="schema-flow-chip__copy">
+                  <strong>{FAMILY_LABEL[node.family]}</strong>
+                  <span className="mono-note">
+                    {node.count} field{node.count === 1 ? "" : "s"}
+                    {units.length ? ` · ${units.join(", ")}` : ""}
+                  </span>
+                </div>
+                <span className="schema-flow-chip__pulse" aria-hidden="true" />
               </div>
-              <span className="schema-flow-chip__pulse" aria-hidden="true" />
             </div>
           );
         })}
@@ -2922,9 +3066,9 @@ function SchemaView({ dataset }: { dataset: Dataset }) {
               })}
             </div>
           </div>
-          <button type="button" className="panel-link panel-link--bottom">
-            View all {liveSchema?.length ?? 0} fields <ArrowRight size={13} />
-          </button>
+          <div className="panel-link panel-link--bottom">
+            {liveSchema?.length ?? 0} fields recorded for this dataset
+          </div>
         </section>
         <section className="panel relationship-panel">
           <SectionHeading
@@ -3719,6 +3863,74 @@ function ModelsView({
           </div>
         </section>
       </div>
+      {modelData.length > 1 ? (
+        <section className="panel model-headtohead">
+          <SectionHeading
+            eyebrow="HEAD TO HEAD"
+            title="Every candidate on the same rows"
+            detail="All candidates trained on identical processed rows and scored on the same held-out split. The winner leads each metric it is allowed to lead."
+          />
+          <div className="h2h">
+            <div className="h2h__row h2h__row--head">
+              <span className="h2h__metric">METRIC</span>
+              {modelData.map(model => (
+                <span key={model.name} className={model.selected ? "h2h__winner" : ""}>
+                  {model.short}
+                  {model.selected ? " \u2605" : ""}
+                </span>
+              ))}
+            </div>
+            {(
+              [
+                { label: "R\u00b2", unit: "", better: "high" as const, get: (m: LiveModel) => m.r2, fmt: (v: number) => v.toFixed(3) },
+                { label: "RMSE", unit: liveTargetUnit ? displayUnit(liveTargetUnit) : "", better: "low" as const, get: (m: LiveModel) => m.rmse, fmt: (v: number) => fmtCount(v) },
+                { label: "MAE", unit: liveTargetUnit ? displayUnit(liveTargetUnit) : "", better: "low" as const, get: (m: LiveModel) => m.mae, fmt: (v: number) => fmtCount(v) },
+                { label: "Training", unit: "s", better: "low" as const, get: (m: LiveModel) => m.trainSeconds ?? null, fmt: (v: number) => v.toFixed(3) },
+                { label: "Composite", unit: "", better: "high" as const, get: (m: LiveModel) => m.composite ?? null, fmt: (v: number) => v.toFixed(3) },
+                { label: "MAPE", unit: "%", better: "low" as const, get: (m: LiveModel) => m.mape ?? null, fmt: (v: number) => v.toFixed(1) },
+              ] as {
+                label: string;
+                unit: string;
+                better: "high" | "low";
+                get: (model: LiveModel) => number | null;
+                fmt: (value: number) => string;
+              }[]
+            ).map(row => {
+              const values = modelData.map(row.get).filter((value): value is number => value != null);
+              if (!values.length) return null;
+              const best = row.better === "high" ? Math.max(...values) : Math.min(...values);
+              return (
+                <div className="h2h__row" key={row.label}>
+                  <span className="h2h__metric">
+                    {row.label}
+                    {row.unit ? ` (${row.unit})` : ""}
+                  </span>
+                  {modelData.map(model => {
+                    const value = row.get(model);
+                    const isBest = value != null && Math.abs(value - best) < 1e-9;
+                    return (
+                      <span key={model.name} className={isBest ? "h2h__best" : ""}>
+                        {value == null ? "\u2014" : row.fmt(value)}
+                      </span>
+                    );
+                  })}
+                </div>
+              );
+            })}
+          </div>
+          <div className="h2h__foot">
+            <span>
+              <strong>{comp?.winner ?? "\u2014"}</strong> won on composite score
+              {comp ? ` by ${comp.margin.toFixed(3)}` : ""}
+              {comp?.nearTie ? " \u2014 recorded as a near tie, so the difference sits inside noise." : ""}
+            </span>
+            <span className="mono-note">
+              {comp?.criteria?.length ? `won: ${comp.criteria.join(", ")}` : ""}
+              {comp?.lostCriteria?.length ? ` \u00b7 traded away: ${comp.lostCriteria.join(", ")}` : ""}
+            </span>
+          </div>
+        </section>
+      ) : null}
       <div className="winner-callout">
         <div className="winner-callout__icon">
           <Sparkles size={18} />
@@ -3748,18 +3960,23 @@ function AnomaliesView({
   onInspect,
   dataset,
   baselineName,
+  windowOptions,
 }: {
   window: string;
   setWindow: (value: string) => void;
   onInspect: (anomaly: (typeof anomalies)[number]) => void;
   dataset: Dataset;
   baselineName: string;
+  windowOptions: LiveWindowOption[];
 }) {
   const sound = useSound({ onPlay: () => {} });
   const meta = liveAnomalyMeta;
   const anomalyTotal = meta?.total ?? anomalies.length;
   const criticalHigh = (meta?.severity?.critical ?? 0) + (meta?.severity?.high ?? 0);
-  const baselineMax = anomalyData.length ? Math.max(...anomalyData.map(p => p.baseline)) : 0;
+  const activeWindow =
+    windowOptions.find(option => option.id === window) ?? windowOptions[windowOptions.length - 1] ?? null;
+  const series = activeWindow ? anomalyData.slice(-activeWindow.points) : anomalyData;
+  const baselineMax = series.length ? Math.max(...series.map(p => p.baseline)) : 0;
   const thresholdLine = baselineMax > 0 ? Number((baselineMax * 1.2).toFixed(1)) : 0;
   return (
     <div className="view-content">
@@ -3786,21 +4003,28 @@ function AnomaliesView({
             accent="orange"
           />
         </div>
-        <div className="segmented-control">
-          {["24H", "7D", "30D"].map(item => (
-            <button
-              type="button"
-              className={window === item ? "active" : ""}
-              key={item}
-              onClick={() => {
-                setWindow(item);
-                sound.play({ volume: 0.08, rate: 0.9 });
-              }}
-            >
-              {item}
-            </button>
-          ))}
-        </div>
+        {windowOptions.length ? (
+          <div className="segmented-control">
+            {windowOptions.map(option => (
+              <button
+                type="button"
+                className={activeWindow?.id === option.id ? "active" : ""}
+                key={option.id}
+                title={option.detail}
+                onClick={() => {
+                  setWindow(option.id);
+                  sound.play({ volume: 0.08, rate: 0.9 });
+                }}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <span className="mono-note">
+            No time axis recorded for this dataset — the detection window follows the data as it is.
+          </span>
+        )}
       </div>
       <section className="panel anomaly-chart-panel">
         <div className="anomaly-chart-head">
@@ -3833,7 +4057,7 @@ function AnomaliesView({
         </div>
         <div className="anomaly-chart">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={anomalyData} margin={{ top: 16, right: 24, left: -14, bottom: 0 }}>
+            <LineChart data={series} margin={{ top: 16, right: 24, left: -14, bottom: 0 }}>
               <CartesianGrid stroke="#24342d" strokeDasharray="2 5" vertical={false} />
               <XAxis
                 dataKey="time"
@@ -4025,6 +4249,7 @@ function AnomaliesView({
 function PredictionView({
   window,
   setWindow,
+  windowOptions,
   onViewData,
   dataset,
   baselineName,
@@ -4036,10 +4261,14 @@ function PredictionView({
   dataset: Dataset;
   baselineName: string;
   modelName: string;
+  windowOptions: LiveWindowOption[];
 }) {
   const sound = useSound({ onPlay: () => {} });
   const fm = liveForecastMeta;
-  const forecastTotal = forecastData.reduce((sum, d) => sum + (d.forecast || 0), 0);
+  const activeWindow =
+    windowOptions.find(option => option.id === window) ?? windowOptions[windowOptions.length - 1] ?? null;
+  const forecastPoints = activeWindow ? forecastData.slice(-activeWindow.points) : forecastData;
+  const forecastTotal = forecastPoints.reduce((sum, d) => sum + (d.forecast || 0), 0);
   const savingsInr = liveRecMeta?.savingsInr ?? 0;
   const savingsCo2 = liveRecMeta?.savingsCo2 ?? 0;
   return (
@@ -4069,21 +4298,28 @@ function PredictionView({
           />
         </div>
         <div className="prediction-actions">
-          <div className="segmented-control">
-            {["7 days", "30 days", "90 days"].map(item => (
-              <button
-                type="button"
-                className={window === item ? "active" : ""}
-                key={item}
-                onClick={() => {
-                  setWindow(item);
-                  sound.play({ volume: 0.08, rate: 0.9 });
-                }}
-              >
-                {item}
-              </button>
-            ))}
-          </div>
+          {windowOptions.length ? (
+            <div className="segmented-control">
+              {windowOptions.map(option => (
+                <button
+                  type="button"
+                  className={activeWindow?.id === option.id ? "active" : ""}
+                  key={option.id}
+                  title={option.detail}
+                  onClick={() => {
+                    setWindow(option.id);
+                    sound.play({ volume: 0.08, rate: 0.9 });
+                  }}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <span className="mono-note">
+              No time axis recorded — the horizon is shown exactly as the forecast stage wrote it.
+            </span>
+          )}
           <ActionButton variant="secondary" icon={Table2} onClick={onViewData}>
             View processed data
           </ActionButton>
@@ -4443,6 +4679,7 @@ function ReportsView({
   exported,
   draft,
   onDraft,
+  onCloseDraft,
   onExport,
   dataset,
   domainInfo,
@@ -4452,6 +4689,7 @@ function ReportsView({
   exported: boolean;
   draft: string | null;
   onDraft: () => void;
+  onCloseDraft: () => void;
   onExport: () => void;
   dataset: Dataset;
   domainInfo: (typeof domainMeta)[DatasetDomain];
@@ -4459,6 +4697,26 @@ function ReportsView({
   modelName: string;
 }) {
   const sound = useSound({ onPlay: () => {} });
+  const [copied, setCopied] = useState(false);
+  const copyDraft = async () => {
+    if (!draft) return;
+    try {
+      await navigator.clipboard.writeText(draft);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setCopied(false);
+    }
+  };
+  const downloadDraft = () => {
+    if (!draft) return;
+    const url = URL.createObjectURL(new Blob([draft], { type: "text/markdown;charset=utf-8" }));
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `ecomind-${dataset.id.toLowerCase()}-briefing.md`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
   const sections = [
     {
       label: "Project summary",
@@ -4579,11 +4837,10 @@ function ReportsView({
                   onDraft();
                   sound.play({ volume: 0.14, rate: 1.0 });
                 }}
-                disabled={!!draft}
               >
                 <Sparkles size={14} />
                 {" "}
-                Preview report
+                {draft ? "Regenerate preview" : "Preview report"}
               </button>
               {draft && (
                 <div className="report-preview">
@@ -4593,22 +4850,36 @@ function ReportsView({
                     <button
                       type="button"
                       className="report-preview__close"
+                      aria-label="Close report preview"
                       onClick={() => {
                         sound.play({ volume: 0.08, rate: 0.85 });
+                        onCloseDraft();
                       }}
                     >
                       <X size={13} />
                     </button>
                   </div>
-                  <pre className="report-preview__body">{draft}</pre>
+                  <div className="report-preview__body">
+                    <ReportDraftBody text={draft} />
+                  </div>
                   <div className="report-preview__actions">
                     <button
                       type="button"
                       onClick={() => {
+                        void copyDraft();
                         sound.play({ volume: 0.1, rate: 0.9 });
                       }}
                     >
-                      Edit scope
+                      {copied ? "Copied" : "Copy briefing"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        downloadDraft();
+                        sound.play({ volume: 0.1, rate: 0.9 });
+                      }}
+                    >
+                      Download .md
                     </button>
                     <ActionButton icon={Download} onClick={onExport}>
                       Download report

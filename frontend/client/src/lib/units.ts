@@ -5,17 +5,31 @@
  * trained on energy_kwh has error in kWh, not kW.
  */
 const UNIT_BY_TOKEN: { pattern: RegExp; unit: string }[] = [
+  // Field-specific quantities first. They are unambiguous tokens and would
+  // otherwise fall through to an empty unit on the generation, transport,
+  // telecom and water datasets.
+  { pattern: /humidity|_rh$/, unit: "%RH" },
+  { pattern: /pue|power_factor|_pf$/, unit: "ratio" },
+  { pattern: /irradiance|_wm2$|w_m2/, unit: "W/m\u00b2" },
+  { pattern: /wind_speed/, unit: "m/s" },
+  { pattern: /flow|_m3$|volume/, unit: "m\u00b3" },
+  { pattern: /litres|liters|_litre/, unit: "L" },
+  { pattern: /turbidity/, unit: "NTU" },
+  { pattern: /dust|pm10|pm2_5|pm25/, unit: "\u00b5g/m\u00b3" },
+  { pattern: /pressure|_bar$/, unit: "bar" },
+  { pattern: /tonnes|_ton$|tonnage/, unit: "t" },
+  { pattern: /erlang/, unit: "Erl" },
+  { pattern: /count|openings/, unit: "count" },
+  { pattern: /efficiency|availability|_pct$|percent/, unit: "%" },
   { pattern: /kwh|energy_kwh|_kwh$/, unit: "kWh" },
   { pattern: /demand_kw|power_kw|max_kw|_kw$|^kw$/, unit: "kW" },
   { pattern: /kva|apparent/, unit: "kVA" },
   { pattern: /cost|tariff|inr|spend|price/, unit: "INR" },
   { pattern: /co2|carbon|emission/, unit: "kgCO2" },
   { pattern: /temperature|temp|_c$/, unit: "\u00b0C" },
-  { pattern: /humidity|rh$/, unit: "%RH" },
   { pattern: /voltage|_v$/, unit: "V" },
   { pattern: /current|_a$/, unit: "A" },
-  { pattern: /power_factor|_pf$/, unit: "ratio" },
-  { pattern: /occupancy|people|headcount/, unit: "people" },
+  { pattern: /occupancy|people|headcount|footfall|passenger|patient|session/, unit: "people" },
   { pattern: /timestamp|datetime|_date$|_time$/, unit: "" },
 ];
 

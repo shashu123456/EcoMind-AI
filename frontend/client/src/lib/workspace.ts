@@ -3,15 +3,20 @@
  * AppShell views already render (the original mock arrays). Anything that has
  * not run yet simply stays undefined so the caller keeps its mock fallback.
  */
+import { roleForColumn } from "./schema";
 import {
   Briefcase,
   Building2,
+  Droplets,
   Factory,
   GraduationCap,
   HeartPulse,
+  Plane,
+  RadioTower,
   Server,
   ShoppingBag,
   Warehouse,
+  Zap,
   type LucideIcon,
 } from "lucide-react";
 import { displayUnit, unitForColumn } from "@/lib/units";
@@ -64,6 +69,90 @@ export type LiveModel = {
   score?: number;
   rationale?: string;
   family?: string;
+  /** Recorded training duration for this candidate, in seconds. */
+  trainSeconds?: number;
+  /** Recorded composite selection score (higher is better). */
+  composite?: number;
+  /** Recorded per-metric normalised scores, 0–1. */
+  normalised?: { r2: number; rmse: number; speed: number };
+  /**
+   * Recorded backtest MAPE, or null when the recorded value is not meaningful
+   * (a near-zero denominator produces values in the billions — never shown).
+   */
+  mape?: number | null;
+};
+
+/**
+ * One selectable time scale. Options are derived from what the active dataset
+ * actually recorded, so a dataset with no index column receives no options and
+ * the control disappears instead of offering a scale the data cannot express.
+ */
+export type LiveWindowOption = {
+  id: string;
+  label: string;
+  detail: string;
+  /** How many trailing recorded buckets this option shows. */
+  points: number;
+};
+
+const WINDOW_LADDER: { maxSpanDays: number; options: { id: string; label: string; points: number }[] }[] = [
+  { maxSpanDays: 1, options: [{ id: "6h", label: "6 h", points: 6 }, { id: "12h", label: "12 h", points: 12 }, { id: "24h", label: "24 h", points: 24 }] },
+  { maxSpanDays: 3, options: [{ id: "24h", label: "24 h", points: 24 }, { id: "2d", label: "2 d", points: 48 }, { id: "3d", label: "3 d", points: 72 }] },
+  { maxSpanDays: 14, options: [{ id: "3d", label: "3 d", points: 72 }, { id: "7d", label: "7 d", points: 168 }, { id: "14d", label: "14 d", points: 336 }] },
+  { maxSpanDays: 60, options: [{ id: "7d", label: "7 d", points: 168 }, { id: "30d", label: "30 d", points: 720 }, { id: "60d", label: "60 d", points: 1440 }] },
+  { maxSpanDays: 200, options: [{ id: "30d", label: "30 d", points: 720 }, { id: "90d", label: "90 d", points: 2160 }, { id: "180d", label: "180 d", points: 4320 }] },
+  { maxSpanDays: Infinity, options: [{ id: "90d", label: "90 d", points: 2160 }, { id: "1y", label: "1 y", points: 8760 }, { id: "all", label: "All", points: 100000 }] },
+];
+
+const daysBetween = (start?: string | null, end?: string | null): number => {
+  if (!start || !end) return 0;
+  const a = Date.parse(start);
+  const b = Date.parse(end);
+  if (!isFinite(a) || !isFinite(b) || b <= a) return 0;
+  return (b - a) / 86_400_000;
+};
+
+/**
+ * Derive the time-scale control from recorded facts only: the presence of an
+ * index (time) column, the baseline's recorded date range, and how many buckets
+ * the recorded series actually contains.
+ */
+export const deriveWindowOptions = (
+  schema: LiveSchemaField[] | null,
+  baseline: LiveBaseline | undefined,
+  seriesLength: number
+): LiveWindowOption[] => {
+  if (!seriesLength) return [];
+  // `field.role` carries the backend's raw semantic type (e.g. "energy
+  // timestamp"), so the canonical role has to be derived from the column name
+  // exactly as the schema view does — comparing the raw string to "index"
+  // would never match.
+  const hasTimeAxis = (schema ?? []).some(field => roleForColumn(field.name, field.role) === "index");
+  if (!hasTimeAxis) return [];
+  const span = daysBetween(baseline?.rangeStart, baseline?.rangeEnd);
+  const rung = WINDOW_LADDER.find(entry => span <= entry.maxSpanDays) ?? WINDOW_LADDER[WINDOW_LADDER.length - 1];
+  const seen = new Set<number>();
+  const options: LiveWindowOption[] = [];
+  for (const option of rung.options) {
+    const points = Math.min(option.points, seriesLength);
+    if (seen.has(points)) continue;
+    seen.add(points);
+    options.push({
+      id: option.id,
+      label: option.label,
+      points,
+      detail: `${points} recorded ${points === 1 ? "bucket" : "buckets"}${span ? ` · dataset spans ${Math.round(span)} d` : ""}`,
+    });
+  }
+  if (options.length < 2) {
+    // The recorded series is coarser than the ladder ever offers. Show the two
+    // windows it can genuinely express instead of two identical buttons.
+    const half = Math.max(1, Math.round(seriesLength / 2));
+    options.length = 0;
+    options.push({ id: "half", label: "Half", points: half, detail: `${half} of ${seriesLength} recorded buckets` });
+    options.push({ id: "all", label: "All", points: seriesLength, detail: `all ${seriesLength} recorded buckets` });
+  }
+  return options;
 };
 export type LivePoint = { time: string; energy: number; baseline: number };
 export type LiveAnomalyPoint = { time: string; actual: number; baseline: number; anomaly: number | null };
@@ -233,6 +322,8 @@ export type LiveBaseline = {
 
 export type LiveWorkspace = {
   datasets: LiveDataset[];
+  /** The dataset every other field on this object was recorded for. */
+  activeDatasetId?: string;
   energy?: LivePoint[];
   forecast?: LiveForecastPoint[];
   quality?: LiveIssue[];
@@ -321,7 +412,11 @@ export type BackendDomain =
   | "campus"
   | "mall"
   | "office"
-  | "datacentre";
+  | "datacentre"
+  | "plant"
+  | "transport"
+  | "telecom"
+  | "water";
 
 const DOMAIN_LABELS: Record<BackendDomain, string> = {
   building: "Commercial building",
@@ -332,6 +427,10 @@ const DOMAIN_LABELS: Record<BackendDomain, string> = {
   mall: "Shopping mall",
   office: "Office complex",
   datacentre: "Data centre",
+  plant: "Generation plant",
+  transport: "Transport hub",
+  telecom: "Telecom site",
+  water: "Water utility",
 };
 const DOMAIN_ICONS: Record<BackendDomain, LucideIcon> = {
   building: Building2,
@@ -342,6 +441,10 @@ const DOMAIN_ICONS: Record<BackendDomain, LucideIcon> = {
   mall: ShoppingBag,
   office: Briefcase,
   datacentre: Server,
+  plant: Zap,
+  transport: Plane,
+  telecom: RadioTower,
+  water: Droplets,
 };
 
 /**
@@ -350,12 +453,18 @@ const DOMAIN_ICONS: Record<BackendDomain, LucideIcon> = {
  * display-time label. Most specific match wins; unclaimed text is a building.
  */
 const DOMAIN_RULES: { domain: BackendDomain; pattern: RegExp }[] = [
+  // Specific energy fields first: a "solar plant" or a "water treatment plant"
+  // must not be swallowed by the generic industry /plant/ rule below.
+  { domain: "water", pattern: /water treat|wastewater|waste water|desalinat|sewage|aeration|pumping station|reservoir/ },
+  { domain: "telecom", pattern: /telecom|cell site|base station|radio tower|\btower\b|antenna|\b5g\b|\blte\b|fibre|fiber/ },
+  { domain: "plant", pattern: /solar|photovolt|\bwind\b|wind farm|turbine|inverter|district heating|heat pump|geothermal|\bhydro\b|generation plant|power plant|substation|\bpv\b/ },
+  { domain: "transport", pattern: /airport|railway|\bmetro\b|\btram\b|bus depot|\bev\b|charging hub|car park|parking|harbou?r|seaport|\bport\b|\bterminal\b/ },
   { domain: "hospital", pattern: /hospital|clinic|medical|healthcare|patient|ward|diagnos|pharma|surgic/ },
-  { domain: "datacentre", pattern: /data ?cent\b|datacent|colocat|server farm|compute hall|hyperscale|cabinet|ups \+|crac/ },
+  { domain: "datacentre", pattern: /data ?cent|datacent|colocat|server farm|compute hall|hyperscale|cabinet|ups \+|crac/ },
   { domain: "campus", pattern: /campus|universit|college|school|academy|dormitor|hostel|faculty|lecture/ },
   { domain: "mall", pattern: /\bmall\b|retail|shopping cent|hypermarket|showroom|anchor store|footfall|food court/ },
-  { domain: "logistics", pattern: /warehous|logistic|distribut|cold chain|cold-room|coldroom|transit|freight|depot|pallet/ },
-  { domain: "industry", pattern: /plant|factory|industri|manufact|production line|machin|motor|compressor|kiln|furnace/ },
+  { domain: "logistics", pattern: /warehous|logistic|distribut|cold chain|cold storage|coldstore|cold-room|coldroom|freezer|transit|freight|depot|pallet/ },
+  { domain: "industry", pattern: /plant|factory|industri|manufact|production line|machin|motor|compressor|kiln|furnace|mining|\bmine\b|crusher|smelter|quarry|haulage/ },
   { domain: "office", pattern: /office|headquarter|\bhq\b|cowork|business park|corporate campus|desk/ },
 ];
 
@@ -448,6 +557,8 @@ const mapModels = (out: StageOutput): LiveModel[] => {
         typeof v === "number" && isFinite(v) ? Number(v.toFixed(digits)) : 0;
       const rationale = c.selection_rationale;
       const score = typeof c.composite_score === "number" ? c.composite_score : undefined;
+      const norm = (c.normalised ?? {}) as Record<string, number>;
+      const mapeRaw = Number(metrics.mape);
       return {
         name: (c.display_name as string) ?? (c.algorithm as string) ?? `Model ${i + 1}`,
         short: shortModelName(c.algorithm as string | undefined),
@@ -460,6 +571,16 @@ const mapModels = (out: StageOutput): LiveModel[] => {
         score: score != null ? Number(score.toFixed(3)) : undefined,
         rationale: typeof rationale === "string" && rationale ? rationale : undefined,
         family: typeof c.family === "string" ? c.family : undefined,
+        trainSeconds: typeof metrics.training_seconds === "number" ? Number(metrics.training_seconds.toFixed(3)) : undefined,
+        composite: score != null ? Number(score.toFixed(3)) : undefined,
+        normalised: {
+          r2: Number(norm.r2 ?? 0),
+          rmse: Number(norm.rmse ?? 0),
+          speed: Number(norm.speed ?? 0),
+        },
+        // A near-zero denominator produces MAPE in the billions. That is a real
+        // recorded number and a meaningless one, so it is reported as absent.
+        mape: isFinite(mapeRaw) && mapeRaw > 0 && mapeRaw < 1000 ? Number(mapeRaw.toFixed(2)) : null,
       };
     });
 };
@@ -733,7 +854,10 @@ const mapAnomalyChart = (
 ): { points: LiveAnomalyPoint[]; energy: LivePoint[] } | undefined => {
   const series = chart && Array.isArray(chart.series) ? (chart.series as Record<string, unknown>[]) : [];
   if (!series.length) return undefined;
-  const sample = downsample(series, 14);
+  // Keep the recorded resolution. Capping at a dozen points made every
+  // time-window option collapse to the same slice, so the control could not
+  // express anything the dataset actually contained.
+  const sample = downsample(series, 2000);
   const points: LiveAnomalyPoint[] = sample.map(p => {
     const ts = Date.parse(String(p.timestamp ?? ""));
     const observed = Number(p.observed ?? 0);
@@ -861,11 +985,13 @@ type RunPayload = {
 };
 
 const pickRun = (runs: RunPayload[], datasetId: string): RunPayload | null => {
+  // Strictly this dataset's runs. Falling back to "any run" silently showed a
+  // different dataset's stages, model and anomalies under the active dataset's
+  // name, which is exactly the kind of borrowed number the product forbids.
   const relevant = runs.filter(r => r.dataset_id === datasetId);
-  const pool = relevant.length ? relevant : runs;
-  if (!pool.length) return null;
+  if (!relevant.length) return null;
   return (
-    [...pool].sort((a, b) => {
+    [...relevant].sort((a, b) => {
       const aDone = a.status === "completed" ? 1 : 0;
       const bDone = b.status === "completed" ? 1 : 0;
       if (aDone !== bDone) return bDone - aDone;
@@ -878,7 +1004,7 @@ const pickRun = (runs: RunPayload[], datasetId: string): RunPayload | null => {
  * Fetch everything the shell can show. Returns `pendingRun` when the active
  * dataset has no completed pipeline yet so the caller can kick one off.
  */
-export async function loadWorkspace(): Promise<{
+export async function loadWorkspace(preferredDatasetId?: string): Promise<{
   workspace: LiveWorkspace;
   pendingRun: string | null;
 } | null> {
@@ -894,11 +1020,22 @@ export async function loadWorkspace(): Promise<{
 
     if (!dsList.length) return { workspace: ws, pendingRun: null };
 
-    const activeId = dsList[0].id;
     const nameById = new Map(dsList.map(d => [d.id, d.name]));
     const runsRes = await workflow.list().catch(() => ({ runs: [] as unknown as RunPayload[] }));
     const runList = ((runsRes.runs ?? []) as unknown as Record<string, unknown>[]);
     if (runList.length) ws.runs = mapRuns(runList, nameById);
+
+    // The active dataset must own the run whose outputs this object carries.
+    // Prefer the caller's selection, else the dataset of the most recent
+    // completed run (so the app opens on recorded work rather than a blank
+    // page), else the newest dataset.
+    const completedRuns = (runList as unknown as RunPayload[])
+      .filter(r => r.status === "completed" && r.dataset_id && nameById.has(r.dataset_id))
+      .sort((a, b) => Date.parse(String(b.started_at ?? "")) - Date.parse(String(a.started_at ?? "")));
+    const fallbackId = completedRuns[0]?.dataset_id ?? dsList[0].id;
+    const activeId =
+      preferredDatasetId && nameById.has(preferredDatasetId) ? preferredDatasetId : fallbackId;
+    ws.activeDatasetId = activeId;
     const run = pickRun(runList as unknown as RunPayload[], activeId);
 
     const [schemaRes, baseVersions, baseRes] = await Promise.all([

@@ -169,10 +169,14 @@ def active_dataset(db: Session) -> dict | None:
     return json_safe(_dataset_payload(ds)) if ds else None
 
 
-def register_upload(db: Session, user: User, file: UploadFile) -> dict:
+def register_upload(
+    db: Session, user: User, file: UploadFile, name: str | None = None
+) -> dict:
     fname = (file.filename or "upload.csv").lower()
     if not (fname.endswith(".csv") or fname.endswith(".xlsx")):
         raise HTTPException(422, "Only .csv or .xlsx uploads are supported")
+
+    display_name = (name or "").strip() or (file.filename or "upload.csv")
 
     import io
 
@@ -182,7 +186,7 @@ def register_upload(db: Session, user: User, file: UploadFile) -> dict:
 
     ds = Dataset(
         user_id=user.id if user else None,
-        name=file.filename or "upload.csv",
+        name=display_name,
         description="Uploaded dataset",
         source_type="upload",
         status="loading",
@@ -452,7 +456,13 @@ def _store_hierarchy(db: Session, ds: Dataset, df: pd.DataFrame) -> None:
             )
 
     if "device_code" in present:
-        devices = df[["building_code", "floor_no", "room_code", "device_code"]].drop_duplicates()
+        # Only read the columns this file actually carries. A file metered at
+        # building level has no floor or room, and selecting them unconditionally
+        # raised a KeyError on a perfectly valid upload.
+        device_columns = [
+            c for c in ("building_code", "floor_no", "room_code", "device_code") if c in present
+        ]
+        devices = df[device_columns].drop_duplicates()
         for _, row in devices.iterrows():
             db.add(
                 DatasetDevice(
