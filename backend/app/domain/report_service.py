@@ -776,6 +776,9 @@ def generate(db: Session, dataset_id: str, params: dict | None = None) -> dict:
         completed_count=len(sections),
         total_count=len(sections),
     )
+    from app.domain.dataset_service import audit
+
+    audit(db, None, "execute", "report", dataset_id, {"sections": len(sections)})
     return json_safe(payload)
 
 

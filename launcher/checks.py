@@ -72,13 +72,15 @@ def run_checks() -> list[dict]:
                  "suggestion": "" if node_modules.exists() else "Run inside frontend/: npm install"})
 
     # ---- Folders & data ----
-    needed = ["backend/app", "backend/app/routes", "backend/app/domain", "frontend/src",
-              "launcher"]
+    needed = ["backend/app", "backend/app/routes", "backend/app/domain",
+              "frontend/client/src", "frontend/dist", "launcher"]
     for rel in needed:
         p = root / rel
         rows.append({"section": "Project structure", "label": rel,
                      "ok": p.exists(), "detail": "present" if p.exists() else "missing",
-                     "suggestion": "" if p.exists() else f"Restore the '{rel}' folder (project seems incomplete)."})
+                     "suggestion": "" if p.exists() else (
+                         "Run inside frontend/: pnpm build:static" if rel == "frontend/dist"
+                         else f"Restore the '{rel}' folder (project seems incomplete).")})
 
     catalog = root / "backend/data/generated/ecomind_healthy_campus.csv"
     rows.append({"section": "Project structure", "label": "Dataset catalogue",

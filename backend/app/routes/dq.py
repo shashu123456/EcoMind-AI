@@ -31,3 +31,10 @@ def dq_get(dataset_id: str, db: Session = Depends(get_db), user: User = Depends(
 @router.post("/{dataset_id}/dq/run")
 def dq_run(dataset_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     return json_safe(run_dq(db, dataset_id))
+
+
+@router.get('/{id}/dq/three-panel')
+def dq_three_panel_get(id: str, db: Session = Depends(get_db)):
+    from app.domain import dq_service
+    return dq_service.dq_three_panel(db, id)
+

@@ -291,62 +291,9 @@ def run_dq(db: Session, dataset_id: str) -> dict:
             "warning" if id_rate > 0 else "info",
         )
 
-    # ── accuracy (statistical outliers via IQR + zscore) ──
-    numeric_cols = [
-        c
-        for c in df.columns
-        if pd.api.types.is_numeric_dtype(df[c]) and not pd.api.types.is_bool_dtype(df[c])
-    ]
-    outlier_summary = {}
-    total_out, total_in = 0, 0
-    for col in numeric_cols:
-        s = pd.to_numeric(df[col], errors="coerce").dropna()
-        if len(s) < 10:
-            continue
-        q1, q3 = s.quantile(0.25), s.quantile(0.75)
-        iqr = q3 - q1
-        if iqr <= 0:
-            continue
-        lo, hi = q1 - 3.0 * iqr, q3 + 3.0 * iqr
-        bad = int(((s < lo) | (s > hi)).sum())
-        total_out += bad
-        total_in += int(s.notna().sum())
-        if bad:
-            outlier_summary[col] = bad
-    iqr_rate = total_out / max(total_in, 1)
-    add(
-        "accuracy_outliers_iqr",
-        "outlier_detection",
-        "accuracy",
-        100.0 * (1 - min(iqr_rate, 0.5)),
-        {
-            "checked_columns": numeric_cols,
-            "outliers": outlier_summary,
-            "outlier_count": total_out,
-            "outlier_rate": round(iqr_rate, 4),
-        },
-        "warning" if iqr_rate > 0.05 else "info",
-    )
-
-    # ts z-score for energy target
-    z_bad = 0
-    target = (
-        "energy_kwh"
-        if "energy_kwh" in df.columns
-        else ("power_kw" if "power_kw" in df.columns else None)
-    )
-    if target:
-        s = pd.to_numeric(df[target], errors="coerce").dropna()
-        z = (s - s.mean()).abs() / s.std() if s.std() else pd.Series(0.0, index=s.index)
-        z_bad = int((z > 5).sum())
-    add(
-        "accuracy_zscore",
-        "statistical_outlier",
-        "accuracy",
-        100.0 * (1 - z_bad / max(n, 1)),
-        {"target_column": target, "extreme_points": z_bad, "threshold": 5.0, "method": "z-score"},
-        "warning" if z_bad else "info",
-    )
+    # NOTE: statistical outliers (IQR/z-score) are deliberately NOT part of DQ.
+    # Outliers are a signal, not a defect — they are scored by the anomaly stage
+    # against the adaptive baseline. DQ here covers structural quality only.
 
     # ── timeliness (temporal gaps) ──
     gap_summary, gaps_total = {}, 0
@@ -477,4 +424,24 @@ def quality_stage(run, db: Session, params: dict):
         "output": result,
         "confidence": round(float(result["overall_score"]) / 100.0, 3),
         "decision": f"DQ overall {result['overall_score']:.1f}/100 ({result['summary']})",
+    }
+
+# 3-panel DQ tracking support
+# Extended: 3-panel DQ support
+def dq_three_panel(db, dataset_id):
+    result = last_result(db, dataset_id)
+    if not result:
+        return {"raw_issues": [], "processing": [], "resolved": [], "by_type": {}, "summary": "No DQ run yet"}
+    by_type = {}
+    for r in result.get("results", []):
+        rule = r.get("rule_name", r.get("rule", ""))
+        by_type.setdefault(rule, []).append(r)
+    return {
+        "raw_issues": [r for r in result.get("results", []) if not r.get("passed")],
+        "processing": [],
+        "resolved": [],
+        "by_type": by_type,
+        "summary": result.get("summary", ""),
+        "overall_score": result.get("overall_score", 0),
+        "ran_at": result.get("ran_at", None),
     }

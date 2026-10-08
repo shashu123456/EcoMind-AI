@@ -1,0 +1,442 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "./styles/tokens.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --font-sans: var(--em-font-sans);
+  --font-mono: var(--em-font-mono);
+}
+
+:root {
+  font-family: var(--em-font-sans);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  min-width: 320px;
+  min-height: 100%;
+  background: var(--em-bg-canvas);
+  scroll-behavior: smooth;
+}
+
+html.dark {
+  color-scheme: dark;
+}
+
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+  background: var(--em-bg-canvas);
+  color: var(--em-text-primary);
+  font-family: var(--em-font-sans);
+  font-size: var(--em-type-body);
+  line-height: var(--em-line-body);
+}
+
+button,
+input,
+select,
+textarea {
+  color: inherit;
+  font: inherit;
+}
+
+button:not(:disabled),
+[role="button"]:not([aria-disabled="true"]),
+[type="button"]:not(:disabled),
+[type="submit"]:not(:disabled),
+[type="reset"]:not(:disabled),
+a[href],
+select:not(:disabled),
+input[type="checkbox"]:not(:disabled),
+input[type="radio"]:not(:disabled) {
+  cursor: pointer;
+}
+
+:focus-visible {
+  outline: 2px solid var(--em-focus);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: var(--em-selection);
+  color: var(--em-text-primary);
+}
+
+:disabled,
+[aria-disabled="true"] {
+  cursor: not-allowed;
+}
+
+img,
+svg {
+  vertical-align: middle;
+}
+
+h1,
+h2,
+h3,
+h4,
+p {
+  margin-block-start: 0;
+}
+
+.type-display {
+  margin: 0;
+  color: var(--em-text-primary);
+  font-size: var(--em-type-display);
+  font-weight: 620;
+  letter-spacing: -0.035em;
+  line-height: var(--em-line-tight);
+}
+
+.type-heading {
+  margin: 0;
+  color: var(--em-text-primary);
+  font-size: var(--em-type-h1);
+  font-weight: 620;
+  letter-spacing: -0.025em;
+  line-height: var(--em-line-heading);
+}
+
+.type-subheading {
+  margin: 0;
+  color: var(--em-text-primary);
+  font-size: var(--em-type-h2);
+  font-weight: 600;
+  letter-spacing: -0.018em;
+  line-height: var(--em-line-heading);
+}
+
+.type-section-title {
+  margin: 0;
+  color: var(--em-text-primary);
+  font-size: var(--em-type-section);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: var(--em-line-heading);
+}
+
+.type-card-title {
+  margin: 0;
+  color: var(--em-text-primary);
+  font-size: var(--em-type-card);
+  font-weight: 600;
+  line-height: var(--em-line-heading);
+}
+
+.type-kpi {
+  font-size: var(--em-type-kpi);
+  font-weight: 620;
+  font-variant-numeric: tabular-nums lining-nums;
+  letter-spacing: -0.035em;
+  line-height: var(--em-line-tight);
+}
+
+.type-label {
+  color: var(--em-text-secondary);
+  font-size: var(--em-type-label);
+  font-weight: 600;
+  letter-spacing: var(--em-letter-label);
+  line-height: 1.4;
+}
+
+.type-body {
+  color: var(--em-text-primary);
+  font-size: var(--em-type-body);
+  line-height: var(--em-line-body);
+}
+
+.type-caption {
+  color: var(--em-text-muted);
+  font-size: var(--em-type-caption);
+  line-height: 1.45;
+}
+
+.type-table {
+  font-size: var(--em-type-table);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.45;
+}
+
+.type-log {
+  font-family: var(--em-font-mono);
+  font-size: var(--em-type-caption);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.55;
+}
+
+.type-tabular {
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.skip-link {
+  position: fixed;
+  z-index: var(--em-z-tooltip);
+  top: var(--em-space-3);
+  left: var(--em-space-3);
+  padding: var(--em-space-2) var(--em-space-4);
+  transform: translateY(calc(-100% - var(--em-space-4)));
+  border: 1px solid var(--em-border-strong);
+  border-radius: var(--em-radius-sm);
+  background: var(--em-surface-raised);
+  box-shadow: var(--em-elevation-2);
+  color: var(--em-text-primary);
+  font-weight: 600;
+  text-decoration: none;
+  transition: transform var(--em-motion-fast) var(--em-ease-standard);
+}
+
+.skip-link:focus {
+  transform: translateY(0);
+}
+
+.app-icon {
+  display: block;
+  flex: 0 0 auto;
+}
+
+.ecomind-mark {
+  display: block;
+  flex: 0 0 auto;
+}
+
+.ecomind-mark__tile {
+  fill: var(--em-brand);
+}
+
+.ecomind-mark__leaf,
+.ecomind-mark__vein {
+  stroke: var(--em-brand-foreground);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.ecomind-mark__leaf {
+  stroke-width: 1.8;
+}
+
+.ecomind-mark__vein {
+  stroke-width: 1.5;
+}
+
+.processing-indicator {
+  display: grid;
+  gap: var(--em-space-2);
+  width: min(100%, 28rem);
+  color: var(--em-text-secondary);
+  font-size: var(--em-type-label);
+}
+
+.processing-indicator__label {
+  line-height: 1.4;
+}
+
+.processing-indicator__track {
+  position: relative;
+  height: 0.25rem;
+  overflow: hidden;
+  border-radius: var(--em-radius-pill);
+  background: var(--em-surface-subtle);
+}
+
+.processing-indicator__fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--em-status-processing);
+  transition: width var(--em-motion-normal) var(--em-ease-standard);
+}
+
+.processing-indicator__fill.is-indeterminate {
+  width: 38%;
+  animation: ecomind-progress var(--em-progress-duration) var(--em-ease-emphasized) infinite;
+}
+
+.processing-indicator[data-stage="upload"] .processing-indicator__fill {
+  background: var(--em-status-information);
+}
+
+.processing-indicator[data-stage="storage"] .processing-indicator__fill,
+.processing-indicator[data-stage="processing"] .processing-indicator__fill,
+.processing-indicator[data-stage="schema-generation"] .processing-indicator__fill,
+.processing-indicator[data-stage="ai-analysis"] .processing-indicator__fill,
+.processing-indicator[data-stage="progress"] .processing-indicator__fill {
+  background: var(--em-status-processing);
+}
+
+.processing-indicator[data-stage="streaming"] .processing-indicator__fill,
+.processing-indicator[data-stage="loading"] .processing-indicator__fill {
+  background: var(--em-status-information);
+}
+
+.processing-indicator__complete {
+  display: flex;
+  align-items: center;
+  gap: var(--em-space-2);
+  color: var(--em-status-success);
+  font-size: var(--em-type-label);
+  font-weight: 600;
+}
+
+.processing-indicator__check {
+  flex: 0 0 auto;
+}
+
+@keyframes ecomind-progress {
+  from {
+    transform: translateX(-115%);
+  }
+  to {
+    transform: translateX(285%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Stage-specific active motion. These classes are rendered only while the caller's real operation is active. */
+.processing-indicator[data-stage="upload"] .processing-indicator__fill.is-indeterminate {
+  width: 30%;
+  animation-name: ecomind-upload;
+  animation-duration: var(--em-progress-duration);
+}
+
+.processing-indicator[data-stage="storage"] .processing-indicator__fill.is-indeterminate {
+  width: 28%;
+  animation-name: ecomind-storage;
+  animation-duration: var(--em-progress-duration);
+}
+
+.processing-indicator[data-stage="schema-generation"] .processing-indicator__fill.is-indeterminate {
+  width: 36%;
+  animation-name: ecomind-schema;
+  animation-duration: var(--em-progress-duration);
+}
+
+.processing-indicator[data-stage="ai-analysis"] .processing-indicator__fill.is-indeterminate {
+  width: 34%;
+  animation-name: ecomind-analysis;
+  animation-duration: var(--em-progress-duration);
+}
+
+.processing-indicator[data-stage="streaming"] .processing-indicator__fill.is-indeterminate {
+  width: 24%;
+  animation-name: ecomind-stream;
+  animation-duration: calc(var(--em-progress-duration) * 0.8);
+  animation-timing-function: linear;
+}
+
+.processing-indicator[data-stage="loading"] .processing-indicator__fill.is-indeterminate {
+  width: 100%;
+  animation-name: ecomind-loading;
+  animation-duration: var(--em-progress-duration);
+  transform-origin: left center;
+}
+
+.processing-indicator[data-stage="upload"] .processing-indicator__fill:not(.is-indeterminate),
+.processing-indicator[data-stage="storage"] .processing-indicator__fill:not(.is-indeterminate),
+.processing-indicator[data-stage="progress"] .processing-indicator__fill:not(.is-indeterminate) {
+  transition-duration: var(--em-motion-slow);
+}
+
+@keyframes ecomind-upload {
+  0% { transform: translateX(-125%); width: 28%; }
+  52% { width: 42%; }
+  100% { transform: translateX(285%); width: 28%; }
+}
+
+@keyframes ecomind-storage {
+  0%, 100% { transform: translateX(-120%); opacity: 0.58; }
+  50% { opacity: 1; }
+  100% { transform: translateX(285%); }
+}
+
+@keyframes ecomind-schema {
+  0% { transform: translateX(-125%) scaleX(0.82); }
+  48% { transform: translateX(60%) scaleX(1.06); }
+  100% { transform: translateX(285%) scaleX(0.82); }
+}
+
+@keyframes ecomind-analysis {
+  0%, 100% { transform: translateX(-125%); opacity: 0.62; }
+  50% { transform: translateX(70%); opacity: 1; }
+}
+
+@keyframes ecomind-stream {
+  from { transform: translateX(-130%); }
+  to { transform: translateX(420%); }
+}
+
+@keyframes ecomind-loading {
+  0%, 100% { transform: scaleX(0.34); opacity: 0.62; }
+  50% { transform: scaleX(1); opacity: 1; }
+}

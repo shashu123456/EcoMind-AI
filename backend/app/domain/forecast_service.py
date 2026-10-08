@@ -1199,3 +1199,46 @@ def forecast_stage(run, db: Session, params: dict):
             "horizons": [h["horizon"] for h in result["horizons"]],
         },
     }
+# Prediction chart data: forecast series compared against the stored baseline.
+def get_prediction_chart_data(db, dataset_id, filters=None):
+    """Return prediction data with baseline comparison and proper units."""
+    from app.domain import snapshots
+    filters = filters or {}
+    units = {"energy": "kWh", "cost": "INR", "carbon": "kgCO2"}
+    try:
+        fs = snapshots.latest_snapshot(db, "forecast", dataset_id)
+        bl = snapshots.latest_snapshot(db, "baseline", dataset_id)
+        if not fs:
+            return {"forecasts": [], "hourly": [], "baseline": [], "units": units}
+
+        # Baseline series: the hour-of-week medians flattened in time order,
+        # or the flat overall median when the pattern table is missing.
+        baseline_series = []
+        if bl:
+            stats = bl.get("statistics") or {}
+            how = bl.get("hour_of_week") or {}
+            hourly = fs.get("hourly") or []
+            for h in hourly:
+                ts = h.get("timestamp") or h.get("ts")
+                expected = None
+                if ts and how:
+                    try:
+                        import pandas as pd
+                        t = pd.to_datetime(ts)
+                        expected = (how.get(f"{int(t.dayofweek)}-{int(t.hour)}") or {}).get("median")
+                    except Exception:
+                        expected = None
+                baseline_series.append({
+                    "timestamp": ts,
+                    "expected_energy_kwh": expected if expected is not None else stats.get("median"),
+                    "source": "hour_of_week" if expected is not None else "median",
+                })
+        return {
+            "forecasts": fs.get("horizons", []),
+            "hourly": (fs.get("hourly") or [])[-168:],
+            "baseline": baseline_series[-168:],
+            "baseline_version": bl.get("version") if bl else None,
+            "units": units,
+        }
+    except Exception:
+        return {"forecasts": [], "hourly": [], "baseline": [], "units": units}

@@ -2,7 +2,7 @@
   "$comment": "Central configuration for the EcoMind AI desktop launcher. Edit ONLY this file to change ports, commands, titles, URLs or timeouts.",
   "app": {
     "name": "EcoMind AI",
-    "home_url": "http://127.0.0.1:5173",
+    "home_url": "http://127.0.0.1:8000",
     "open_browser": true
   },
   "paths": {
@@ -41,14 +41,15 @@
     },
     {
       "id": "frontend",
-      "enabled": true,
-      "title": "EcoMind Frontend",
+      "enabled": false,
+      "title": "EcoMind Frontend (vite dev)",
       "port": 5173,
       "health_url": "http://127.0.0.1:5173",
-      "command": ["npm", "run", "dev"],
+      "command": ["npm", "run", "dev:static"],
       "cwd": "frontend",
-      "env": {},
-      "log": "frontend.log"
+      "env": { "PORT": "5173" },
+      "log": "frontend.log",
+      "$comment": "Disabled: the backend serves the built SPA at http://127.0.0.1:8000. Enable this only for vite HMR development."
     }
   ]
 }

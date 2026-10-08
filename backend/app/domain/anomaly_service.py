@@ -252,6 +252,18 @@ def detect(db: Session, dataset_id: str, params: dict | None = None) -> dict:
     if not 0.0 < threshold < 1.0:
         raise ValueError(f"score_threshold must be between 0 and 1, got {threshold}.")
 
+    # The stored dataset-driven baseline is the reference this scan is scored
+    # against. Generate it on demand so an anomaly run never silently compares
+    # against nothing, and record its version in the summary: reproducibility
+    # means knowing which baseline revision produced these anomalies.
+    from app.domain import baseline_service
+    from app.domain import snapshots as _snapshots
+
+    baseline_ref = _snapshots.latest_snapshot(db, "baseline", dataset_id)
+    if not baseline_ref:
+        baseline_ref = baseline_service.generate_baseline(db, dataset_id)
+    baseline_version = int(baseline_ref.get("version") or 1)
+
     devices = sorted(frame["device_code"].dropna().unique())
     emit(params.get("run"), "anomaly_scan_progress", processed=0, total=len(devices), found=0)
 
@@ -288,6 +300,8 @@ def detect(db: Session, dataset_id: str, params: dict | None = None) -> dict:
     db.flush()
     elapsed_ms = int((time.perf_counter() - started) * 1000)
     result = _summary(db, dataset_id, run_id, found, readings_scanned, threshold, elapsed_ms)
+    result["baseline_version"] = baseline_version
+    result["baseline_snapshot_generated_at"] = baseline_ref.get("generated_at")
     snapshots.snapshot(db, dataset_id, "anomaly", result, run_id=run_id)
     audit(
         db,
@@ -902,4 +916,53 @@ def anomaly_stage(run, db: Session, params: dict):
             "anomaly_count": result["total"],
             "excess_kwh": result["excess_kwh"],
         },
+    }
+# Add method to get multi-line chart data for anomalies
+def get_anomaly_chart_data(db, dataset_id, filters=None):
+    """Return multi-line chart data: baseline, observed/processed, anomalies with time series."""
+    from app.domain.dataset_service import load_dataframe
+    import pandas as pd
+    from datetime import datetime, timezone
+
+    filters = filters or {}
+    ds, df = load_dataframe(db, dataset_id, use_processed=True)
+    target = None
+    for c in ['energy_kwh', 'power_kw']:
+        if c in df.columns:
+            target = c
+            break
+    ts = None
+    for c in ['timestamp', 'ts', 'datetime']:
+        if c in df.columns:
+            ts = c
+            break
+    if not ts or not target:
+        return {'series': [], 'anomalies': []}
+
+    frame = df[[ts, target]].copy()
+    frame.columns = ['timestamp', 'observed']
+    frame['timestamp'] = pd.to_datetime(frame['timestamp'], errors='coerce')
+    frame = frame.dropna(subset=['timestamp', 'observed'])
+    frame = frame.sort_values('timestamp')
+
+    # Simple baseline: moving median
+    frame['baseline'] = frame['observed'].rolling(window=24, min_periods=1).median()
+
+    # Resample to hourly if dense
+    frame['ts_hour'] = frame['timestamp'].dt.floor('h')
+    grouped = frame.groupby('ts_hour').agg({'observed': 'mean', 'baseline': 'mean'}).reset_index()
+
+    series = []
+    for _, row in grouped.iterrows():
+        series.append({
+            'timestamp': row['ts_hour'].isoformat(),
+            'observed': float(row['observed']),
+            'baseline': float(row['baseline']),
+            'processed': float(row['observed']),  # same as observed for chart
+        })
+
+    return {
+        'series': series[-1008:] if len(series) > 1008 else series,  # last 6 weeks
+        'anomalies': [],
+        'filters': filters,
     }

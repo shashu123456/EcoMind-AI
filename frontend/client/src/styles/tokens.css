@@ -1,0 +1,259 @@
+:root {
+  color-scheme: light;
+
+  /* Semantic color system — light */
+  --em-brand: #245b49;
+  --em-brand-foreground: #ffffff;
+  --em-bg-canvas: #f3f6f4;
+  --em-surface: #ffffff;
+  --em-surface-raised: #ffffff;
+  --em-surface-subtle: #edf2ef;
+  --em-surface-sidebar: #fbfcfb;
+  --em-surface-header: #ffffff;
+  --em-surface-inspector: #f8faf8;
+  --em-surface-terminal: #f8faf8;
+  --em-text-primary: #1b2923;
+  --em-text-secondary: #405249;
+  --em-text-muted: #53635a;
+  --em-text-disabled: #59675f;
+  --em-border: #d7e0da;
+  --em-border-strong: #b9c8bf;
+  --em-action-primary: #245b49;
+  --em-action-primary-foreground: #ffffff;
+  --em-action-secondary: #e9f0ec;
+  --em-action-secondary-foreground: #263a30;
+  --em-action-primary-hover: #1c4a3b;
+  --em-action-secondary-hover: #dfe9e3;
+  --em-focus: #116b4c;
+  --em-selection: #d7ebe0;
+  --em-overlay: rgb(20 39 29 / 38%);
+  --em-disabled-surface: #edf1ee;
+  --em-disabled-border: #d4ddd7;
+
+  --em-status-success: #216342;
+  --em-status-success-surface: #eaf5ee;
+  --em-status-warning: #805000;
+  --em-status-warning-surface: #fff4d9;
+  --em-status-error: #a02a35;
+  --em-status-error-surface: #fff0f0;
+  --em-status-information: #235c80;
+  --em-status-information-surface: #e9f3fb;
+  --em-status-processing: #245b49;
+  --em-status-processing-surface: #eaf3ef;
+  --em-status-confidence: #654597;
+  --em-status-confidence-surface: #f0ebfa;
+
+  /* Dataset-neutral categorical series, ready for future analytical views. */
+  --em-chart-1: #2d6a4f;
+  --em-chart-2: #327b91;
+  --em-chart-3: #8a6c26;
+  --em-chart-4: #6d5aa7;
+  --em-chart-5: #a25447;
+  --em-chart-6: #4e6b9b;
+  --em-chart-7: #4a7f74;
+  --em-chart-8: #91649d;
+
+  /* Type system */
+  --em-font-sans: Inter, "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  --em-font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  --em-type-display: clamp(2rem, 1.35rem + 1.5vw, 2.875rem);
+  --em-type-h1: 2rem;
+  --em-type-h2: 1.5rem;
+  --em-type-h3: 1.25rem;
+  --em-type-section: 1rem;
+  --em-type-card: 0.9375rem;
+  --em-type-kpi: clamp(1.75rem, 1.25rem + 1vw, 2.375rem);
+  --em-type-body: 0.875rem;
+  --em-type-label: 0.75rem;
+  --em-type-caption: 0.6875rem;
+  --em-type-table: 0.8125rem;
+  --em-line-tight: 1.2;
+  --em-line-heading: 1.35;
+  --em-line-body: 1.55;
+  --em-letter-label: 0.035em;
+
+  /* 4px-derived spacing scale */
+  --em-space-0: 0;
+  --em-space-1: 0.25rem;
+  --em-space-2: 0.5rem;
+  --em-space-3: 0.75rem;
+  --em-space-4: 1rem;
+  --em-space-5: 1.25rem;
+  --em-space-6: 1.5rem;
+  --em-space-8: 2rem;
+  --em-space-10: 2.5rem;
+  --em-space-12: 3rem;
+  --em-space-16: 4rem;
+  --em-space-20: 5rem;
+  --em-space-24: 6rem;
+
+  /* Shape, elevation, and shadow */
+  --em-radius-xs: 0.25rem;
+  --em-radius-sm: 0.375rem;
+  --em-radius-md: 0.5rem;
+  --em-radius-lg: 0.75rem;
+  --em-radius-xl: 1rem;
+  --em-radius-pill: 999px;
+  --em-shadow-1: 0 1px 2px rgb(27 41 35 / 5%);
+  --em-shadow-2: 0 4px 12px rgb(27 41 35 / 8%);
+  --em-shadow-3: 0 12px 28px rgb(27 41 35 / 12%);
+  --em-elevation-0: none;
+  --em-elevation-1: var(--em-shadow-1);
+  --em-elevation-2: var(--em-shadow-2);
+  --em-elevation-3: var(--em-shadow-3);
+
+  /* Motion: transitions describe state changes, never simulate work. */
+  --em-motion-instant: 80ms;
+  --em-motion-fast: 140ms;
+  --em-motion-normal: 200ms;
+  --em-motion-slow: 280ms;
+  --em-ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --em-ease-emphasized: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --em-progress-duration: 1.35s;
+
+  /* Persistent application shell and responsive workspace grid */
+  --em-layout-sidebar-expanded: 15rem;
+  --em-layout-sidebar-collapsed: 4.25rem;
+  --em-layout-topbar: 3.5rem;
+  --em-layout-inspector: 19rem;
+  --em-layout-activity: 2.75rem;
+  --em-layout-activity-expanded: 12rem;
+  --em-breakpoint-tablet: 48rem;
+  --em-breakpoint-laptop: 64rem;
+  --em-breakpoint-wide: 80rem;
+  --em-workspace-min-width: 18rem;
+
+  /* Layer contract */
+  --em-z-base: 0;
+  --em-z-sticky: 10;
+  --em-z-chrome: 20;
+  --em-z-drawer: 30;
+  --em-z-overlay: 40;
+  --em-z-tooltip: 50;
+
+  /* Compatibility aliases for existing Tailwind/shadcn components. */
+  --background: var(--em-bg-canvas);
+  --foreground: var(--em-text-primary);
+  --card: var(--em-surface);
+  --card-foreground: var(--em-text-primary);
+  --popover: var(--em-surface-raised);
+  --popover-foreground: var(--em-text-primary);
+  --primary: var(--em-action-primary);
+  --primary-foreground: var(--em-action-primary-foreground);
+  --secondary: var(--em-action-secondary);
+  --secondary-foreground: var(--em-action-secondary-foreground);
+  --muted: var(--em-surface-subtle);
+  --muted-foreground: var(--em-text-muted);
+  --accent: var(--em-surface-subtle);
+  --accent-foreground: var(--em-text-primary);
+  --destructive: var(--em-status-error);
+  --destructive-foreground: #ffffff;
+  --border: var(--em-border);
+  --input: var(--em-border);
+  --ring: var(--em-focus);
+  --chart-1: var(--em-chart-1);
+  --chart-2: var(--em-chart-2);
+  --chart-3: var(--em-chart-3);
+  --chart-4: var(--em-chart-4);
+  --chart-5: var(--em-chart-5);
+  --sidebar: var(--em-surface-sidebar);
+  --sidebar-foreground: var(--em-text-primary);
+  --sidebar-primary: var(--em-action-primary);
+  --sidebar-primary-foreground: var(--em-action-primary-foreground);
+  --sidebar-accent: var(--em-surface-subtle);
+  --sidebar-accent-foreground: var(--em-text-primary);
+  --sidebar-border: var(--em-border);
+  --sidebar-ring: var(--em-focus);
+  --radius: var(--em-radius-md);
+}
+
+.dark {
+  color-scheme: dark;
+
+  --em-brand: #9fd4b7;
+  --em-brand-foreground: #10241a;
+  --em-bg-canvas: #101a16;
+  --em-surface: #15211b;
+  --em-surface-raised: #1b2a22;
+  --em-surface-subtle: #202f27;
+  --em-surface-sidebar: #121d18;
+  --em-surface-header: #15211b;
+  --em-surface-inspector: #18251e;
+  --em-surface-terminal: #141f1a;
+  --em-text-primary: #e8f0eb;
+  --em-text-secondary: #cbd7cf;
+  --em-text-muted: #a9b9af;
+  --em-text-disabled: #94a69b;
+  --em-border: #32433a;
+  --em-border-strong: #53685b;
+  --em-action-primary: #9fd4b7;
+  --em-action-primary-foreground: #10241a;
+  --em-action-secondary: #26372e;
+  --em-action-secondary-foreground: #e2ece5;
+  --em-action-primary-hover: #b3e0c7;
+  --em-action-secondary-hover: #31453a;
+  --em-focus: #a6e0c2;
+  --em-selection: #294b39;
+  --em-overlay: rgb(0 0 0 / 60%);
+  --em-disabled-surface: #202a24;
+  --em-disabled-border: #405047;
+
+  --em-status-success: #9bd7aa;
+  --em-status-success-surface: #1e3b2b;
+  --em-status-warning: #f1c779;
+  --em-status-warning-surface: #3b3020;
+  --em-status-error: #f3a5a5;
+  --em-status-error-surface: #3a2224;
+  --em-status-information: #9acbec;
+  --em-status-information-surface: #1e3340;
+  --em-status-processing: #a4d9c1;
+  --em-status-processing-surface: #1d392e;
+  --em-status-confidence: #ceb7f5;
+  --em-status-confidence-surface: #322744;
+
+  --em-chart-1: #86c5a0;
+  --em-chart-2: #78c4d7;
+  --em-chart-3: #e2c276;
+  --em-chart-4: #b5a4e7;
+  --em-chart-5: #e59a8c;
+  --em-chart-6: #91afe2;
+  --em-chart-7: #83c8b6;
+  --em-chart-8: #d0a3d9;
+
+  --em-shadow-1: 0 1px 2px rgb(0 0 0 / 18%);
+  --em-shadow-2: 0 4px 12px rgb(0 0 0 / 24%);
+  --em-shadow-3: 0 12px 28px rgb(0 0 0 / 32%);
+
+  --background: var(--em-bg-canvas);
+  --foreground: var(--em-text-primary);
+  --card: var(--em-surface);
+  --card-foreground: var(--em-text-primary);
+  --popover: var(--em-surface-raised);
+  --popover-foreground: var(--em-text-primary);
+  --primary: var(--em-action-primary);
+  --primary-foreground: var(--em-action-primary-foreground);
+  --secondary: var(--em-action-secondary);
+  --secondary-foreground: var(--em-action-secondary-foreground);
+  --muted: var(--em-surface-subtle);
+  --muted-foreground: var(--em-text-muted);
+  --accent: var(--em-surface-subtle);
+  --accent-foreground: var(--em-text-primary);
+  --destructive: var(--em-status-error);
+  --destructive-foreground: #18100f;
+  --border: var(--em-border);
+  --input: var(--em-border);
+  --ring: var(--em-focus);
+  --chart-1: var(--em-chart-1);
+  --chart-2: var(--em-chart-2);
+  --chart-3: var(--em-chart-3);
+  --chart-4: var(--em-chart-4);
+  --chart-5: var(--em-chart-5);
+  --sidebar: var(--em-surface-sidebar);
+  --sidebar-foreground: var(--em-text-primary);
+  --sidebar-primary: var(--em-action-primary);
+  --sidebar-primary-foreground: var(--em-action-primary-foreground);
+  --sidebar-accent: var(--em-surface-subtle);
+  --sidebar-accent-foreground: var(--em-text-primary);
+  --sidebar-border: var(--em-border);
+  --sidebar-ring: var(--em-focus);
+}

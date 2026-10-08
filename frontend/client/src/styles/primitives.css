@@ -1,0 +1,291 @@
+/* Reusable semantic UI primitives. These styles define no page or domain workflow. */
+.em-surface {
+  background: var(--em-surface);
+  color: var(--em-text-primary);
+}
+
+.em-surface--raised {
+  background: var(--em-surface-raised);
+  color: var(--em-text-primary);
+  box-shadow: var(--em-elevation-1);
+}
+
+.em-surface--subtle {
+  background: var(--em-surface-subtle);
+  color: var(--em-text-primary);
+}
+
+.em-card {
+  min-width: 0;
+  padding: var(--em-space-4);
+  border: 1px solid var(--em-border);
+  border-radius: var(--em-radius-lg);
+  background: var(--em-surface);
+  color: var(--em-text-primary);
+  box-shadow: var(--em-elevation-0);
+}
+
+.em-card--raised {
+  background: var(--em-surface-raised);
+  box-shadow: var(--em-elevation-1);
+}
+
+.em-divider {
+  border: 0;
+  border-block-start: 1px solid var(--em-border);
+}
+
+.em-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--em-border);
+  border-radius: var(--em-radius-md);
+  background: var(--em-surface);
+  color: var(--em-text-primary);
+}
+
+.em-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: var(--em-type-table);
+  font-variant-numeric: tabular-nums;
+  text-align: start;
+}
+
+.em-table th,
+.em-table td {
+  padding: var(--em-space-3) var(--em-space-4);
+  border-block-end: 1px solid var(--em-border);
+  vertical-align: middle;
+}
+
+.em-table th {
+  background: var(--em-surface-subtle);
+  color: var(--em-text-secondary);
+  font-size: var(--em-type-label);
+  font-weight: 600;
+  text-align: start;
+  white-space: nowrap;
+}
+
+.em-table tbody tr:hover {
+  background: var(--em-surface-subtle);
+}
+
+.em-table tbody tr:last-child td {
+  border-block-end: 0;
+}
+
+.em-input,
+.em-select,
+.em-textarea {
+  display: block;
+  width: 100%;
+  min-height: 2.75rem;
+  padding: var(--em-space-2) var(--em-space-3);
+  border: 1px solid var(--em-border-strong);
+  border-radius: var(--em-radius-sm);
+  background: var(--em-surface);
+  color: var(--em-text-primary);
+  accent-color: var(--em-action-primary);
+  transition:
+    border-color var(--em-motion-fast) var(--em-ease-standard),
+    background-color var(--em-motion-fast) var(--em-ease-standard);
+}
+
+.em-input::placeholder,
+.em-textarea::placeholder {
+  color: var(--em-text-muted);
+  opacity: 1;
+}
+
+.em-input:hover:not(:disabled),
+.em-select:hover:not(:disabled),
+.em-textarea:hover:not(:disabled) {
+  border-color: var(--em-text-muted);
+}
+
+.em-input:disabled,
+.em-select:disabled,
+.em-textarea:disabled {
+  border-color: var(--em-disabled-border);
+  background: var(--em-disabled-surface);
+  color: var(--em-text-disabled);
+  cursor: not-allowed;
+}
+
+.em-textarea {
+  min-height: 7rem;
+  resize: vertical;
+}
+
+.em-button {
+  display: inline-flex;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  align-items: center;
+  justify-content: center;
+  gap: var(--em-space-2);
+  padding: var(--em-space-2) var(--em-space-4);
+  border: 1px solid transparent;
+  border-radius: var(--em-radius-sm);
+  background: var(--em-action-primary);
+  color: var(--em-action-primary-foreground);
+  font-size: var(--em-type-body);
+  font-weight: 600;
+  line-height: 1.25;
+  text-decoration: none;
+  transition:
+    border-color var(--em-motion-fast) var(--em-ease-standard),
+    background-color var(--em-motion-fast) var(--em-ease-standard),
+    color var(--em-motion-fast) var(--em-ease-standard);
+}
+
+.em-button:hover:not(:disabled) {
+  background: var(--em-action-primary-hover);
+}
+
+.em-button--secondary {
+  border-color: var(--em-border);
+  background: var(--em-action-secondary);
+  color: var(--em-action-secondary-foreground);
+}
+
+.em-button--secondary:hover:not(:disabled) {
+  background: var(--em-action-secondary-hover);
+}
+
+.em-button--quiet {
+  border-color: transparent;
+  background: transparent;
+  color: var(--em-text-secondary);
+}
+
+.em-button--quiet:hover:not(:disabled) {
+  border-color: var(--em-border);
+  background: var(--em-surface-subtle);
+  color: var(--em-text-primary);
+}
+
+.em-button--destructive {
+  border-color: var(--em-status-error-surface);
+  background: var(--em-status-error-surface);
+  color: var(--em-status-error);
+}
+
+.em-button--destructive:hover:not(:disabled) {
+  border-color: var(--em-status-error);
+}
+
+.em-button:disabled {
+  border-color: var(--em-disabled-border);
+  background: var(--em-disabled-surface);
+  color: var(--em-text-disabled);
+}
+
+/* Status uses both a semantic color and text/icon content; never color alone. */
+.em-status {
+  display: inline-flex;
+  min-height: 1.5rem;
+  align-items: center;
+  gap: var(--em-space-1);
+  padding: 0 var(--em-space-2);
+  border: 1px solid transparent;
+  border-radius: var(--em-radius-pill);
+  font-size: var(--em-type-label);
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.em-status--success {
+  background: var(--em-status-success-surface);
+  color: var(--em-status-success);
+}
+
+.em-status--warning {
+  background: var(--em-status-warning-surface);
+  color: var(--em-status-warning);
+}
+
+.em-status--error {
+  background: var(--em-status-error-surface);
+  color: var(--em-status-error);
+}
+
+.em-status--information {
+  background: var(--em-status-information-surface);
+  color: var(--em-status-information);
+}
+
+.em-status--processing {
+  background: var(--em-status-processing-surface);
+  color: var(--em-status-processing);
+}
+
+.em-status--confidence {
+  background: var(--em-status-confidence-surface);
+  color: var(--em-status-confidence);
+}
+
+.em-dialog {
+  width: min(38rem, calc(100vw - 2rem));
+  max-width: calc(100vw - 2rem);
+  max-height: min(44rem, calc(100dvh - 2rem));
+  overflow: auto;
+  padding: var(--em-space-6);
+  border: 1px solid var(--em-border-strong);
+  border-radius: var(--em-radius-lg);
+  background: var(--em-surface-raised);
+  color: var(--em-text-primary);
+  box-shadow: var(--em-elevation-3);
+}
+
+.em-dialog::backdrop {
+  background: var(--em-overlay);
+}
+
+.em-drawer {
+  position: fixed;
+  z-index: var(--em-z-drawer);
+  inset-block: 0;
+  inset-inline-end: 0;
+  width: min(90vw, var(--em-layout-inspector));
+  overflow: auto;
+  border-inline-start: 1px solid var(--em-border);
+  background: var(--em-surface-inspector);
+  color: var(--em-text-primary);
+  box-shadow: var(--em-elevation-3);
+}
+
+/* Chart-ready framing only; this phase intentionally renders no chart content. */
+.em-chart-frame {
+  min-width: 0;
+  min-height: 12rem;
+  padding: var(--em-space-4);
+  border: 1px solid var(--em-border);
+  border-radius: var(--em-radius-md);
+  background: var(--em-surface);
+  color: var(--em-text-primary);
+}
+
+:where(*) {
+  scrollbar-color: var(--em-border-strong) transparent;
+  scrollbar-width: thin;
+}
+
+:where(*)::-webkit-scrollbar {
+  width: 0.625rem;
+  height: 0.625rem;
+}
+
+:where(*)::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+:where(*)::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: var(--em-radius-pill);
+  background: var(--em-border-strong);
+  background-clip: content-box;
+}

@@ -74,12 +74,13 @@ def _write_stamp(name: str, signature: str) -> None:
         pass
 
 
-def _stream(cmd: list[str], cwd: Path | None = None) -> int:
+def _stream(cmd: list[str], cwd: Path | None = None, env: dict | None = None) -> int:
     _say("    $ " + " ".join(str(c) for c in cmd))
     try:
         proc = subprocess.Popen(
             [str(c) for c in cmd],
             cwd=str(cwd) if cwd else None,
+            env=env,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
@@ -323,19 +324,31 @@ def ensure_node_deps(force: bool = False) -> bool:
 
     frontend = project_root() / "frontend"
     lock = frontend / "package-lock.json"
+    pnpm_lock = frontend / "pnpm-lock.yaml"
     pkg = frontend / "package.json"
-    manifest = lock if lock.exists() else pkg
+    manifest = pnpm_lock if pnpm_lock.exists() else (lock if lock.exists() else pkg)
     if not manifest.exists():
         return True
     sig = _sha(manifest)
     modules = frontend / "node_modules"
     if modules.exists() and not force and _up_to_date("node", sig):
         return True
-    _say("[..] Installing frontend dependencies (npm install) ...")
-    rc = _stream([npm_executable(), "install", "--no-audit", "--no-fund"], cwd=frontend)
-    if rc != 0:
-        _say("[!] npm install failed - see output above.")
-        return False
+    # This repo is pnpm-managed (pnpm-lock.yaml + pnpm-workspace.yaml);
+    # npm install fails on it ("Cannot read properties of null (reading 'matches')").
+    pnpm = shutil.which("pnpm")
+    if pnpm_lock.exists() and pnpm:
+        _say("[..] Installing frontend dependencies (pnpm install) ...")
+        env = dict(os.environ, CI="true")
+        rc = _stream([pnpm, "install", "--ignore-scripts"], cwd=frontend, env=env)
+        if rc != 0:
+            _say("[!] pnpm install failed - see output above.")
+            return False
+    else:
+        _say("[..] Installing frontend dependencies (npm install) ...")
+        rc = _stream([npm_executable(), "install", "--no-audit", "--no-fund"], cwd=frontend)
+        if rc != 0:
+            _say("[!] npm install failed - see output above.")
+            return False
     _write_stamp("node", sig)
     _say("[OK] Frontend dependencies ready.")
     return True

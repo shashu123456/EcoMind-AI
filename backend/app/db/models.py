@@ -685,3 +685,34 @@ Index(
     AnalyticsSnapshot.kind,
     AnalyticsSnapshot.scope,
 )
+
+
+class ArtifactVersion(TimestampMixin, Base):
+    """Append-only version ledger for every artifact the pipeline produces.
+
+    `analytics_snapshots` replaces on re-run: it is the current answer. This
+    table is the opposite — every write is appended, never replaced, so an old
+    analysis can be reopened against the exact baseline / model choice / DQ
+    report it was computed with. Reproducibility means knowing which version
+    produced a number, not just what the newest version says.
+    """
+
+    __tablename__ = "artifact_versions"
+    id = Column(String, primary_key=True, default=_uuid)
+    dataset_id = Column(String, ForeignKey("datasets.id"), nullable=False, index=True)
+    kind = Column(String(40), nullable=False, index=True)
+    scope = Column(String(120), default="__all__")
+    version = Column(Integer, nullable=False)
+    run_id = Column(String, ForeignKey("workflow_runs.id"), nullable=True, index=True)
+    payload = Column(JSON, nullable=False)
+    row_count = Column(Integer)
+    computed_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+Index(
+    "ix_artifact_versions_unique",
+    ArtifactVersion.dataset_id,
+    ArtifactVersion.kind,
+    ArtifactVersion.scope,
+    ArtifactVersion.version,
+)

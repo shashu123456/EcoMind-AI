@@ -153,3 +153,15 @@ def refresh_dataset(
     user: User = Depends(get_current_user),
 ):
     return dataset_service.refresh_dataset(db, user, dataset_id)
+
+
+@router.get('/{id}/anomalies/chart')
+def anomalies_chart(id: str, db: Session = Depends(get_db), filters: dict = None):
+    from app.domain import anomaly_service
+    return anomaly_service.get_anomaly_chart_data(db, id, filters or {})
+
+
+@router.get('/{id}/forecast/chart')
+def forecast_chart(id: str, db: Session = Depends(get_db), filters: dict = None):
+    from app.domain import forecast_service
+    return forecast_service.get_prediction_chart_data(db, id, filters or {})

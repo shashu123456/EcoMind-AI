@@ -329,6 +329,18 @@ def train_candidates(db: Session, dataset_id: str, params: dict | None = None) -
         c["selection_rank"] = i
     winner = ranked[0]
     runner_up = ranked[1] if len(ranked) > 1 else None
+    for c in ranked[1:]:
+        won = _criteria_where_won(c, winner)
+        lost = _criteria_where_won(winner, c)
+        c["selection_rationale"] = (
+            f"#{c['selection_rank']} of {len(ranked)} with composite {c['composite_score']}. "
+            + (f"Beat the winner on {', '.join(won)}. " if won else "")
+            + (f"Lost to the winner on {', '.join(lost)}." if lost else "")
+        ).strip()
+    winner["selection_rationale"] = (
+        f"#1 of {len(ranked)} with composite {winner['composite_score']}: highest weighted "
+        "blend of accuracy, error, and speed under the configured criteria weights."
+    )
     margin = (
         round(winner["composite_score"] - runner_up["composite_score"], 4) if runner_up else None
     )
@@ -379,6 +391,9 @@ def train_candidates(db: Session, dataset_id: str, params: dict | None = None) -
         row.selection_rank = next(
             (c["selection_rank"] for c in candidates if c["id"] == row.id), None
         )
+        row.selection_rationale = next(
+            (c.get("selection_rationale") for c in candidates if c["id"] == row.id), None
+        )
 
     snapshots.snapshot(
         db,
@@ -402,22 +417,21 @@ def train_candidates(db: Session, dataset_id: str, params: dict | None = None) -
 
 def _public(candidate: dict) -> dict:
     """The contract shape. Internal bookkeeping keys stay out of the payload."""
-    return {
-        k: candidate[k]
-        for k in (
-            "id",
-            "algorithm",
-            "display_name",
-            "family",
-            "metrics",
-            "composite_score",
-            "normalised",
-            "selection_rank",
-            "is_selected",
-            "trained_at",
-            "error",
-        )
-    }
+    keys = (
+        "id",
+        "algorithm",
+        "display_name",
+        "family",
+        "metrics",
+        "composite_score",
+        "normalised",
+        "selection_rank",
+        "selection_rationale",
+        "is_selected",
+        "trained_at",
+        "error",
+    )
+    return {k: candidate[k] for k in keys if k in candidate}
 
 
 def _criteria_where_won(winner: dict, runner_up: dict | None) -> list[str]:

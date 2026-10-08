@@ -51,6 +51,8 @@ from .routes import (  # noqa: E402
     dq,
     health,
     workflow,
+    baseline,
+    activity,
 )
 from .routes import (  # noqa: E402
     schema as schema_route,
@@ -61,6 +63,8 @@ app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
 app.include_router(datasets.router, prefix="/api/v1/datasets", tags=["datasets"])
 app.include_router(schema_route.router, prefix="/api/v1/datasets", tags=["schema"])
 app.include_router(dq.router, prefix="/api/v1/datasets", tags=["dq"])
+app.include_router(baseline.router, prefix="/api/v1/datasets", tags=["baseline"])
+app.include_router(activity.router, prefix="/api/v1/activity", tags=["activity"])
 app.include_router(workflow.router, prefix="/api/v1/workflows", tags=["workflows"])
 
 # Serve built frontend in production (SPA with fallback to index.html)
@@ -82,11 +86,28 @@ if frontend_dist.exists():
 
     @app.get("/{full_path:path}", include_in_schema=False)
     async def spa_fallback(full_path: str = ""):
-        if full_path.startswith("api/"):
-            raise HTTPException(status_code=404, detail="Not Found")
         candidate = frontend_dist / full_path if full_path else None
         if candidate and candidate.is_file():
             return FileResponse(str(candidate))
+        if full_path.startswith("api/"):
+            raise HTTPException(status_code=404, detail="Not Found")
         res = FileResponse(str(frontend_dist / "index.html"))
         res.headers["Cache-Control"] = "no-store"
         return res
+
+# routes already mounted; model_competition can be added if needed
+
+# Mount model competition routes
+
+from app.routes import model_competition; app.include_router(model_competition.router, prefix='/api/v1')
+
+
+
+
+
+
+
+
+
+
+

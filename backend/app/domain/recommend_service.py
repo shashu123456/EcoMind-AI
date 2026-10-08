@@ -554,6 +554,10 @@ def recommend(db: Session, dataset_id: str, params: dict | None = None) -> dict:
         found=len(rows),
         elapsed_ms=result["elapsed_ms"],
     )
+    from app.domain.dataset_service import audit
+
+    audit(db, None, "execute", "recommendation", dataset_id,
+          {"recommendations": len(rows), "total_savings_inr": result.get("total_savings_inr")})
     return json_safe(result)
 
 
