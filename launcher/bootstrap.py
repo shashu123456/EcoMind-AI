@@ -200,11 +200,62 @@ def _install_python(minv: str) -> bool:
     return False
 
 
+def _py_version(cmd: list[str]) -> tuple[int, int] | None:
+    """Run `cmd -c ...` and return its (major, minor), or None if it cannot."""
+    try:
+        out = subprocess.run(
+            [*cmd, "-c", "import sys; print('%d.%d' % sys.version_info[:2])"],
+            capture_output=True,
+            text=True,
+            timeout=20,
+        )
+        if out.returncode == 0 and "." in out.stdout:
+            major, minor = out.stdout.strip().split(".")[:2]
+            return int(major), int(minor)
+    except Exception:
+        pass
+    return None
+
+
+def find_python_cmd(minv: tuple[int, int]) -> list[str] | None:
+    """Best interpreter on this machine that reports >= minv.
+
+    PATH order is not trustworthy: a Python 3.7 install can sit ahead of 3.11,
+    and the Windows `py -3` alias can resolve to the same old build. Every
+    candidate is executed and asked for its version before it is accepted.
+    """
+    candidates = [["python"], ["python3"]]
+    if _os() == "windows":
+        candidates += [["py", f"-3.{m}"] for m in (13, 12, 11, 10)]
+        candidates.append(["py", "-3"])
+    for cmd in candidates:
+        if not shutil.which(cmd[0]):
+            continue
+        ver = _py_version(cmd)
+        if ver and ver >= minv:
+            return cmd
+    return None
+
+
+def _min_python() -> tuple[int, int]:
+    return tuple(
+        int(x) for x in str(load_config().get("python", {}).get("min_version", "3.10")).split(".")[:2]
+    )
+
+
 def ensure_python_runtime(install: bool = True) -> bool:
-    minv = tuple(int(x) for x in str(load_config().get("python", {}).get("min_version", "3.10")).split(".")[:2])
+    minv = _min_python()
     ok = sys.version_info[:2] >= minv
     if ok:
         _say(f"[OK] Python {sys.version.split()[0]} (running the launcher).")
+        return True
+    found = find_python_cmd(minv)
+    if found:
+        ver = _py_version(found)
+        _say(
+            f"[OK] Python {ver[0]}.{ver[1]} found via '{' '.join(found)}' "
+            f"(this process runs {sys.version.split()[0]}; the venv will use the newer one)."
+        )
         return True
     want = ".".join(map(str, minv))
     if not install:
@@ -287,8 +338,16 @@ def ensure_node_runtime(install: bool = True) -> bool:
 def ensure_venv(force: bool = False) -> bool:
     if venv_python() and not force:
         return True
+    minv = _min_python()
+    if sys.version_info[:2] >= minv:
+        base = [sys.executable]
+    else:
+        base = find_python_cmd(minv) or []
+    if not base:
+        _say(f"[!] No Python {'.'.join(map(str, minv))}+ interpreter found to create the venv with.")
+        return False
     _say("[..] Creating virtual environment (.venv) ...")
-    rc = _stream([sys.executable, "-m", "venv", str(venv_dir())])
+    rc = _stream([*base, "-m", "venv", str(venv_dir())])
     if rc != 0 or not venv_python():
         _say("[!] venv creation failed. Ensure the 'venv' module is available (python3-venv).")
         return False
@@ -301,7 +360,11 @@ def ensure_python_deps(force: bool = False) -> bool:
     if not req.exists():
         _say("[!] backend/requirements.txt not found.")
         return False
-    sig = f"{_sha(req)}|py{sys.version_info.major}.{sys.version_info.minor}"
+    # The venv's own version, not the launcher's: the launcher can run under
+    # an older system Python while the venv was built from a newer one.
+    venv_ver = _py_version([str(venv_python())]) if venv_python() else None
+    venv_tag = f"py{venv_ver[0]}.{venv_ver[1]}" if venv_ver else "py?"
+    sig = f"{_sha(req)}|{venv_tag}"
     if venv_python() and not force and _up_to_date("python", sig):
         return True
     if not venv_python():
@@ -351,6 +414,58 @@ def ensure_node_deps(force: bool = False) -> bool:
             return False
     _write_stamp("node", sig)
     _say("[OK] Frontend dependencies ready.")
+    return True
+
+
+def _frontend_src_signature(frontend) -> str:
+    """Hash of build inputs + newest source mtime, so edits invalidate the stamp."""
+    parts = []
+    for name in ("package.json", "vite.config.ts", "tsconfig.json"):
+        f = frontend / name
+        if f.exists():
+            parts.append(_sha(f))
+    newest = 0.0
+    for base in (frontend / "client" / "src", frontend / "shared"):
+        if not base.exists():
+            continue
+        for p in base.rglob("*"):
+            if p.is_file():
+                try:
+                    newest = max(newest, p.stat().st_mtime)
+                except OSError:
+                    pass
+    parts.append(str(int(newest)))
+    return hashlib.sha256("|".join(parts).encode("utf-8")).hexdigest()
+
+
+def ensure_frontend_build(force: bool = False) -> bool:
+    """Build frontend/dist so FastAPI can serve the SPA.
+
+    `frontend/dist/` is gitignored, so a fresh clone has no UI at all until
+    this runs (the backend only mounts the SPA when the directory exists).
+    """
+    frontend = project_root() / "frontend"
+    index = frontend / "dist" / "index.html"
+    pkg = frontend / "package.json"
+    if not pkg.exists():
+        return True
+    sig = _frontend_src_signature(frontend)
+    if index.exists() and not force and _up_to_date("dist", sig):
+        return True
+    _say("[..] Building frontend (pnpm build:static) ...")
+    from launcher.config import npm_executable
+
+    pnpm = shutil.which("pnpm")
+    env = dict(os.environ, CI="true")
+    if pnpm:
+        rc = _stream([pnpm, "run", "build:static"], cwd=frontend, env=env)
+    else:
+        rc = _stream([npm_executable(), "run", "build:static"], cwd=frontend, env=env)
+    if rc != 0 or not index.exists():
+        _say("[!] Frontend build failed - the UI will not be served.")
+        return False
+    _write_stamp("dist", sig)
+    _say("[OK] Frontend built (frontend/dist).")
     return True
 
 
@@ -511,6 +626,7 @@ def ensure_all(install: bool = True, force: bool = False) -> bool:
 
     _say("\n== Frontend environment ==")
     ok &= ensure_node_deps(force=force)
+    ok &= ensure_frontend_build(force=force)
 
     _say("\n== Configuration & data ==")
     # The return value used to be dropped here, so a .env that could not be

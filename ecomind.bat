@@ -51,10 +51,14 @@ if exist "%~dp0.venv\Scripts\python.exe" (
 )
 
 rem 2. Otherwise a system interpreter, in order of preference.
+rem    Each candidate must REPORT 3.10+, not merely run: `py -3` on this
+rem    machine silently resolves to a 3.7 install, which then builds a venv
+rem    that cannot install fastapi. Candidates without a version suffix are
+rem    still gated by the same check.
 if not defined PY (
-  for %%C in ("py -3" "python" "python3") do (
+  for %%C in ("python" "python3" "py -3.13" "py -3.12" "py -3.11" "py -3.10" "py -3") do (
     if not defined PY (
-      %%~C -c "import sys" >nul 2>&1
+      %%~C -c "import sys; raise SystemExit(0 if sys.version_info >= (3, 10) else 1)" >nul 2>&1
       if !ERRORLEVEL! equ 0 set "PY=%%~C"
     )
   )
@@ -93,9 +97,9 @@ if not defined PY (
 
     set "PY="
     if exist "%LOCALAPPDATA%\Programs\Python\Python312\python.exe" set "PY=%LOCALAPPDATA%\Programs\Python\Python312\python.exe"
-    if not defined PY for %%C in ("py -3" "python") do (
+    if not defined PY for %%C in ("python" "py -3.12" "py -3.11" "py -3.10" "py -3") do (
       if not defined PY (
-        %%~C -c "import sys" >nul 2>&1
+        %%~C -c "import sys; raise SystemExit(0 if sys.version_info >= (3, 10) else 1)" >nul 2>&1
         if !ERRORLEVEL! equ 0 set "PY=%%~C"
       )
     )
