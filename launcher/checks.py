@@ -13,7 +13,7 @@ from launcher.config import python_executable, project_root, load_config, npm_ex
 REQUIRED_MODULES = [
     "fastapi", "uvicorn", "sqlalchemy", "pydantic",
     "pandas", "numpy", "sklearn", "xgboost",
-    "reportlab", "jinja2", "openpyxl", "jose", "passlib",
+    "reportlab", "jinja2", "openpyxl", "jose", "bcrypt",
 ]
 
 
