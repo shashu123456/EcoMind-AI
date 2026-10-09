@@ -1253,8 +1253,7 @@ export function AppShell() {
   };
 
   const renderView = () => {
-    switch (activeView) {
-      case "library":
+    switch (activeView) {          case "library":
         return (
           <LibraryView
             activeDataset={activeDataset}
@@ -1267,8 +1266,8 @@ export function AppShell() {
               void loadWorkspace(dataset.id).then(res => {
                 if (res) applyWorkspace(res.workspace);
               });
-              goTo("schema");
-              setToast(`${dataset.name} is now the active dataset — showing what was discovered.`);
+              goTo("import");
+              setToast(`${dataset.name} selected — showing ingestion with the detected domain.`);
             }}
             onImport={() => goTo("import")}
             onPreview={dataset => void openPreview(dataset)}
@@ -1324,6 +1323,18 @@ export function AppShell() {
             baseline={workspace?.baseline}
             dataset={activeDataset}
             baselineName={baselineName}
+            onOpenBaselinePreview={() => {
+              setPreview({ dataset: activeDataset, rows: [], loading: true, error: "" });
+              domain
+                .preview(activeDataset.id)
+                .then(res => {
+                  const rows = Array.isArray(res.rows) ? (res.rows as Record<string, unknown>[]) : [];
+                  setPreview({ dataset: activeDataset, rows, loading: false, error: rows.length ? "" : "This dataset recorded no preview rows." });
+                })
+                .catch(err =>
+                  setPreview({ dataset: activeDataset, rows: [], loading: false, error: err instanceof Error ? err.message : "Preview failed." })
+                );
+            }}
           />
         );
       case "models":
@@ -2191,7 +2202,7 @@ function OverviewView({
           <div className="mini-chart-wrap">
             <div className="mini-chart-label">
               <span>
-                OBSERVED VS BASELINE / {energyData.length} RECORDED POINT
+                SIGNALS / {energyData.length} RECORDED POINT
                 {energyData.length === 1 ? "" : "S"}
               </span>
               <strong>{energyData.length ? withUnit(fmtCount(energyTotal)) : "—"} <em>{energyDelta}</em></strong>
@@ -2201,7 +2212,7 @@ function OverviewView({
                 <AreaChart data={energyData}>
                   <defs>
                     <linearGradient id="miniFill" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#b6f36b" stopOpacity={0.32} />
+                      <stop offset="0%" stopColor="#b6f36b" stopOpacity={0.30} />
                       <stop offset="100%" stopColor="#b6f36b" stopOpacity={0} />
                     </linearGradient>
                   </defs>
@@ -2209,16 +2220,16 @@ function OverviewView({
                     type="monotone"
                     dataKey="energy"
                     stroke="#b6f36b"
-                    strokeWidth={2}
+                    strokeWidth={2.2}
                     fill="url(#miniFill)"
                     dot={false}
                   />
                   <Line
                     type="monotone"
                     dataKey="baseline"
-                    stroke="#5d7765"
-                    strokeDasharray="3 4"
-                    strokeWidth={1}
+                    stroke="#718b7b"
+                    strokeDasharray="4 4"
+                    strokeWidth={1.2}
                     dot={false}
                   />
                 </AreaChart>
@@ -2226,7 +2237,7 @@ function OverviewView({
             </div>
             <span className="axis-note mini-chart-note">
               {energyData.length
-                ? `Solid: the measured ${liveTargetColumn || "target"} recorded for this dataset. Dashed: the adaptive baseline the pipeline learned from the same rows.`
+                ? `Yellow: measured ${liveTargetColumn || "target"} for ${activeDataset.name}. Dashed green: the adaptive baseline the pipeline learned from the same rows — the reference every later stage compares against.`
                 : "No recorded series for this dataset yet — run the pipeline to plot it."}
             </span>
           </div>
@@ -2979,6 +2990,60 @@ function ReportDraftBody({ text }: { text: string }) {
   );
 }
 
+function ReportPreviewModal({
+  draft,
+  onClose,
+  onCopy,
+  onDownload,
+  onExport,
+  copied,
+}: {
+  draft: string;
+  onClose: () => void;
+  onCopy: () => void;
+  onDownload: () => void;
+  onExport: () => void;
+  copied: boolean;
+}) {
+  return (
+    <div className="modal-scrim" role="dialog" aria-modal="true" aria-label="Report preview">
+      <div className="modal">
+        <div className="modal__head">
+          <div>
+            <span className="section-eyebrow">REPORT PREVIEW / SCOPED BRIEFING</span>
+            <h2>Scoped briefing draft</h2>
+            <span className="mono-note">
+              Project-scoped summary — nothing outside this project is included.
+            </span>
+          </div>
+          <div className="modal__actions">
+            <button type="button" className="icon-button" aria-label="Close report preview" onClick={onClose}>
+              <X size={16} />
+            </button>
+          </div>
+        </div>
+        <div className="modal__body">
+          <ReportDraftBody text={draft} />
+        </div>
+        <div className="modal__foot">
+          <div className="modal__foot-copy">
+            <button type="button" onClick={onCopy}>
+              {copied ? "Copied" : "Copy briefing"}
+            </button>
+            <button type="button" onClick={onDownload}>
+              Download .md
+            </button>
+            <ActionButton icon={Download} onClick={onExport}>
+              Download report
+            </ActionButton>
+          </div>
+          <span className="mono-note">Scoped briefing — project truth only.</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function AxisNote({ quantity, unit, origin }: { quantity: string; unit?: string | null; origin: string }) {
   const shown = unit ? displayUnit(unit) : "";
   return (
@@ -3013,52 +3078,50 @@ function SchemaFlowMap({
   families: { family: FieldFamily; units: string[]; count: number }[];
   roleCounts: Record<FieldRole, number>;
 }) {
-  const rows = families.length;
   return (
     <div className="schema-flow">
       <div className="schema-flow__source">
         <span className="schema-flow__source-icon">
           <Database size={19} />
         </span>
-        <strong>{dataset.name}</strong>
-        <span className="mono-note">
-          {dataset.rows} rows · {dataset.columnCount ?? "—"} columns
-        </span>
+        <div>
+          <strong>{dataset.name}</strong>
+          <span className="mono-note">
+            {dataset.rows} rows · {dataset.columnCount ?? "—"} columns · {dataset.type}
+          </span>
+        </div>
         <span className="schema-flow__source-status">
           <span className="status-dot status-dot--lime" />
-          schema recorded
+          {liveSchema ? `${liveSchema.length} fields mapped` : "no schema yet"}
         </span>
       </div>
-      <div className="schema-flow__rows">
-        {!rows ? <p className="mono-note table-empty-note">No columns recorded yet.</p> : null}
-        {families.map((node, index) => {
-          const Icon = fieldIconFor(node.family);
-          const units = node.units.filter(Boolean);
-          return (
-            <div className="schema-flow-row" key={node.family}>
-              <span className="schema-flow-row__track" aria-hidden="true">
-                <span className="flow-packet" style={{ animationDelay: `${(index * 0.32).toFixed(2)}s` }} />
-              </span>
-              <div
-                className="schema-flow-chip"
-                style={{ animationDelay: `${(index * 0.08).toFixed(2)}s` }}
-              >
-                <span className="schema-flow-chip__icon">
-                  <Icon size={16} />
-                </span>
-                <div className="schema-flow-chip__copy">
-                  <strong>{FAMILY_LABEL[node.family]}</strong>
-                  <span className="mono-note">
-                    {node.count} field{node.count === 1 ? "" : "s"}
-                    {units.length ? ` · ${units.join(", ")}` : ""}
+      {families.length ? (
+        <div className="schema-flow__branches">
+          {families.map((node, index) => {
+            const Icon = fieldIconFor(node.family);
+            const units = node.units.filter(Boolean);
+            return (
+              <div className="schema-flow-branch" key={node.family} style={{ animationDelay: `${index * 60}ms` }}>
+                <div className="schema-flow-branch__line" />
+                <div className="schema-flow-branch__node">
+                  <span className="schema-flow-branch__icon">
+                    <Icon size={15} />
                   </span>
+                  <div>
+                    <strong>{FAMILY_LABEL[node.family]}</strong>
+                    <span className="mono-note">
+                      {node.count} field{node.count === 1 ? "" : "s"}
+                      {units.length ? ` · ${units.join(", ")}` : ""}
+                    </span>
+                  </div>
                 </div>
-                <span className="schema-flow-chip__pulse" aria-hidden="true" />
               </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      ) : (
+        <p className="mono-note table-empty-note">No signal families until a schema is recorded.</p>
+      )}
       <div className="schema-flow__roles">
         {ROLE_ORDER.filter(role => roleCounts[role] > 0).map(role => (
           <span className={`schema-role schema-role--${role}`} key={role}>
@@ -3146,6 +3209,40 @@ function SchemaView({ dataset }: { dataset: Dataset }) {
   ];
   return (
     <div className="view-content">
+      <div className="schema-active-strip">
+        <div className="schema-active-strip__identity">
+          <span className="section-eyebrow">SCHEMA DISCOVERY / ACTIVE DATASET</span>
+          <div>
+            <strong>{dataset.name}</strong>
+            <span className="mono-note">
+              {dataset.id} · {domainInfo.label} · {dataset.type}
+            </span>
+          </div>
+        </div>
+        <div className="schema-active-strip__facts">
+          <span>
+            <small>ROWS</small>
+            <strong>{dataset.rows}</strong>
+          </span>
+          <span>
+            <small>COLUMNS</small>
+            <strong>{dataset.columnCount ?? "—"}</strong>
+          </span>
+          <span>
+            <small>RECORDED FIELDS</small>
+            <strong>{liveSchema ? String(liveSchema.length) : "—"}</strong>
+          </span>
+          <span>
+            <small>TARGET</small>
+            <strong>{summaryField ? summaryField.name : "—"}</strong>
+          </span>
+          <span className="schema-active-strip__note">
+            {liveSchema
+              ? `${new Set(liveSchema.map(f => f.role)).size} roles · ${families.length} signal family{families.length === 1 ? "" : "ies"} detected from this dataset’s recorded columns`
+              : "No schema recorded yet for this dataset — the schema updates when the active dataset changes."}
+          </span>
+        </div>
+      </div>
       <div className="schema-summary-row">
         <div className="schema-summary-card">
           <span className="section-eyebrow">AI UNDERSTANDING</span>
@@ -3156,15 +3253,16 @@ function SchemaView({ dataset }: { dataset: Dataset }) {
           <span className="section-eyebrow">TEMPORAL GRAIN</span>
           <strong>{dataset.rowCount ? `${fmtCount(dataset.rowCount)} rows` : "—"}</strong>
           <span>{dataset.columnCount ? `${dataset.columnCount} columns detected` : "no dataset loaded"}</span>
-        </div>          <div className="schema-summary-card">
-            <span className="section-eyebrow">PRIMARY TARGET</span>
-            <strong>{summaryField ? summaryField.name : "—"}</strong>
-            <span>
-              {summaryField
-                ? `${displayUnit(summaryField.unit) || summaryField.type} · ${summaryField.role}`
-                : "no target recorded yet"}
-            </span>
-          </div>
+        </div>
+        <div className="schema-summary-card">
+          <span className="section-eyebrow">PRIMARY TARGET</span>
+          <strong>{summaryField ? summaryField.name : "—"}</strong>
+          <span>
+            {summaryField
+              ? `${displayUnit(summaryField.unit) || summaryField.type} · ${summaryField.role}`
+              : "no target recorded yet"}
+          </span>
+        </div>
         <div className="schema-summary-card">
           <span className="section-eyebrow">DOMAIN FIT</span>
           <strong>{domainInfo.label}</strong>
@@ -3174,9 +3272,9 @@ function SchemaView({ dataset }: { dataset: Dataset }) {
       <div className="schema-layout">
         <section className="panel schema-fields-panel">
           <SectionHeading
-            eyebrow="GENERATED SCHEMA"
+            eyebrow="GENERATED SCHEMA / ACTIVE DATASET"
             title="Fields mapped by role"
-            detail="AI inferred type, role, and quality risk from surrounding context."
+            detail="Every field below is from the active dataset’s recorded schema — it changes when the dataset meter changes."
             action={
               <button
                 className="icon-button icon-button--small"
@@ -3203,7 +3301,8 @@ function SchemaView({ dataset }: { dataset: Dataset }) {
                     <strong>{field.name}</strong>
                     <span>
                       {field.type}
-                      {field.unit ? ` · ${displayUnit(field.unit)}` : ""} · {field.role}
+                      {field.unit ? ` · ${displayUnit(field.unit)}` : ""}
+                      · {field.role}
                     </span>
                   </div>
                   <span className={`field-role field-role--${field.role}`}>{field.role}</span>
@@ -3243,9 +3342,9 @@ function SchemaView({ dataset }: { dataset: Dataset }) {
         </section>
         <section className="panel relationship-panel">
           <SectionHeading
-            eyebrow="SCHEMA UNDERSTANDING"
+            eyebrow="SCHEMA UNDERSTANDING / ACTIVE DATASET"
             title="How EcoMind reads this dataset"
-            detail="Every family below is a group of columns the backend actually recorded. Light travels from the dataset into each one it understands."
+            detail="This map is built from the active dataset’s recorded columns — switch the dataset meter and this map changes with it."
           />
           <SchemaFlowMap
             dataset={dataset}
@@ -3326,6 +3425,16 @@ function QualityView({
     ? qualityIssues.reduce((sum, issue) => sum + (parseFloat(issue.confidence) || 0), 0) / qualityIssues.length
     : 0;
   const qScore = liveQualityMeta?.score ?? null;
+  const passedCount = liveQualityMeta?.passed ?? 0;
+  const failedCount = liveQualityMeta?.failed ?? 0;
+  // Repairs by type for the summary
+  const repairsByType = filteredQuality.reduce<Record<string, { total: number; repaired: number }>>((acc, issue) => {
+    const t = issue.type;
+    if (!acc[t]) acc[t] = { total: 0, repaired: 0 };
+    acc[t].total++;
+    if (repaired) acc[t].repaired++;
+    return acc;
+  }, {});
   return (
     <div className="view-content">
       <div className="quality-topline">
@@ -3337,10 +3446,10 @@ function QualityView({
             accent="coral"
           />
           <Metric
-            label="REPAIRS"
-            value={repaired ? String(totalIssues) : "0"}
-            delta={repaired ? "ready to save" : "pending"}
-            direction="up"
+            label="RULES PASSED"
+            value={String(passedCount)}
+            delta={`${failedCount} failed`}
+            direction="down"
             accent="lime"
           />
           <Metric
@@ -3397,13 +3506,73 @@ function QualityView({
               <span className="quality-meter__fill" style={{ width: `${qScore ?? 0}%` }} />
             </span>
             <span className="mono-note">
-              {totalIssues} flagged rows · {Object.keys(typeCounts).length} rule types ·{" "}
-              {avgConfidence ? `average confidence ${avgConfidence.toFixed(1)}%` : "no confidences recorded"}
+              {totalIssues} flagged row{totalIssues === 1 ? "" : "s"} · {Object.keys(typeCounts).length} rule type{Object.keys(typeCounts).length === 1 ? "" : "s"}
+              {avgConfidence ? ` · confidence ${avgConfidence.toFixed(1)}%` : ""}
             </span>
             <span className="mono-note">
-              {repaired ? "Repairs applied and versioned" : "Source preserved — no repair written yet"}
+              {repaired ? "Repairs applied and versioned" : "Source preserved — review before saving"}
             </span>
           </div>
+        </div>
+      </section>
+      {/* Quality summary: the heart of the project - what the DQ engine actually concluded. */}
+      <section className="panel quality-summary">
+        <SectionHeading
+          eyebrow="DATA QUALITY ENGINE / STAGE 04"
+          title="What the quality engine concluded"
+          detail="Structural quality first. Each rule is scored, each issue is explained, and every repair preserves the source — the anomaly stage still owns outliers."
+        />
+        <div className="quality-summary__grid">
+          {qScore != null ? (
+            <div className="quality-summary__item">
+              <span className="quality-summary__dot" style={{ background: qScore >= 80 ? "var(--eco-mint)" : qScore >= 60 ? "var(--eco-yellow)" : "var(--eco-coral)" }} />
+              <div>
+                <strong>Overall score {qScore} / 100</strong>
+                <span className="mono-note">
+                  {passedCount > 0 ? `${passedCount} rules passed · ${failedCount} failed` : "no rule results recorded"}
+                  {totalIssues > 0 ? ` · ${totalIssues} flagged rows` : "no flagged rows"}
+                </span>
+              </div>
+              <span className="quality-summary__impact">
+                {qScore >= 80 ? "Dataset is structurally clean enough to model." :
+                 qScore >= 60 ? "Review the failed rules before trusting downstream stages." :
+                 "Quality is holding back prediction — repairs are recommended."}
+              </span>
+            </div>
+          ) : (
+            <div className="quality-summary__item">
+              <span className="quality-summary__dot" style={{ background: "var(--eco-text-muted)" }} />
+              <div>
+                <strong>No quality score yet</strong>
+                <span className="mono-note">Run the pipeline to score the eight structural rules.</span>
+              </div>
+              <span className="quality-summary__impact">
+                Quality scoring is what makes the rest of the project readable.
+              </span>
+            </div>
+          )}
+          {Object.entries(repairsByType).length === 0 ? (
+            <p className="mono-note table-empty-note">No issues to summarise.</p>
+          ) : (
+            Object.entries(repairsByType).map(([type, stats]) => (
+              <div className="quality-summary__item" key={type}>
+                <span className="quality-summary__dot" style={{ background: type === "Null value" ? "var(--eco-coral)" : type === "Missing timestamp" ? "var(--eco-orange)" : type === "Duplicate" ? "var(--eco-yellow)" : type === "Datatype mismatch" ? "var(--eco-blue)" : "var(--eco-violet)" }} />
+                <div>
+                  <strong>{type}</strong>
+                  <span className="mono-note">
+                    {stats.repaired > 0 ? `${stats.repaired} of ${stats.total} repaired` : `${stats.total} need repair`}
+                  </span>
+                </div>
+                <span className="quality-summary__impact">
+                  {type === "Null value" ? "Missing readings break aggregations" :
+                   type === "Missing timestamp" ? "Gaps break time-series alignment" :
+                   type === "Duplicate" ? "Double-counts distort baselines" :
+                   type === "Datatype mismatch" ? "Wrong types break model features" :
+                   "Invalid values corrupt every stage"}
+                </span>
+              </div>
+            ))
+          )}
         </div>
       </section>
       <div className="quality-filters">
@@ -3600,11 +3769,13 @@ function TransformView({
   baseline,
   dataset,
   baselineName,
+  onOpenBaselinePreview,
 }: {
   transform?: LiveTransform;
   baseline?: LiveBaseline;
   dataset: Dataset;
   baselineName: string;
+  onOpenBaselinePreview?: () => void;
 }) {
   const [openStep, setOpenStep] = useState<string | null>(null);
   const domainInfo = domainMeta[dataset.domain] ?? domainMeta.building;
@@ -3669,7 +3840,7 @@ function TransformView({
           <div className="transform-steps">
             {!steps.length ? (
               <p className="mono-note table-empty-note">
-                No transformation has been recorded for this run yet.
+                No transformation has been recorded for this run yet — the stage will normalise, encode, scale, aggregate and derive columns from this dataset when it runs.
               </p>
             ) : null}
             {steps.map((step, index) => {
@@ -3732,10 +3903,10 @@ function TransformView({
           <div className="transform-step-footer">
             <span>
               <DatabaseZap size={13} />{" "}
-              every step writes a new immutable version — the uploaded file is never modified
+              what the stage did is recorded here — every step writes a new immutable version, the uploaded file is never modified
             </span>
             <span className="mono-note">
-              {steps.length} step{steps.length === 1 ? "" : "s"} recorded
+              {steps.length} step{steps.length === 1 ? "" : "s"} recorded · {steps.reduce((n, s) => n + (s.rowsChanged || 0), 0)} rows touched
             </span>
           </div>
         </section>
@@ -3745,11 +3916,49 @@ function TransformView({
             eyebrow="BASELINE DATASET PREVIEW"
             title="The normal EcoMind learned"
             detail="Computed from this dataset alone — the reference every later stage compares against."
+            action={
+              baseline ? (
+                <button
+                  type="button"
+                  className="action-button action-button--secondary"
+                  onClick={() => onOpenBaselinePreview?.()}
+                  title="Open the recorded baseline preview for this dataset"
+                >
+                  Open baseline preview
+                </button>
+              ) : null
+            }
           />
           {!baseline ? (
-            <p className="mono-note table-empty-note">
-              Run the adaptive baseline stage to generate this dataset’s own normal behaviour.
-            </p>
+            <div className="baseline-identity baseline-identity--empty">
+              <span className="baseline-identity__cell">
+                <small>TARGET</small>
+                <strong>—</strong>
+              </span>
+              <span className="baseline-identity__cell">
+                <small>UNIT</small>
+                <strong>{liveTargetUnit ? displayUnit(liveTargetUnit) : "—"}</strong>
+              </span>
+              <span className="baseline-identity__cell">
+                <small>LEARNED FROM</small>
+                <strong>—</strong>
+              </span>
+              <span className="baseline-identity__cell">
+                <small>ENTITY COLUMN</small>
+                <strong>—</strong>
+              </span>
+              <span className="baseline-identity__cell">
+                <small>GENERATED</small>
+                <strong>—</strong>
+              </span>
+              <span className="baseline-identity__cell">
+                <small>VERSION</small>
+                <strong>—</strong>
+              </span>
+              <p className="mono-note" style={{ gridColumn: "1 / -1", marginTop: 10 }}>
+                Run the adaptive baseline stage to generate this dataset’s own normal behaviour.
+              </p>
+            </div>
           ) : (
             <>
               <div className="baseline-identity">
@@ -4149,6 +4358,13 @@ function AnomaliesView({
   const series = activeWindow ? anomalyData.slice(-activeWindow.points) : anomalyData;
   const baselineMax = series.length ? Math.max(...series.map(p => p.baseline)) : 0;
   const thresholdLine = baselineMax > 0 ? Number((baselineMax * 1.2).toFixed(1)) : 0;
+  const severitySeries = series.map(p => ({
+    time: p.time,
+    critical: p.severity === "critical" ? (p.anomaly ?? p.actual) : null,
+    high: p.severity === "high" ? (p.anomaly ?? p.actual) : null,
+    medium: p.severity === "medium" ? (p.anomaly ?? p.actual) : null,
+    low: p.severity === "low" ? (p.anomaly ?? p.actual) : null,
+  }))
   return (
     <div className="view-content">
       <div className="anomaly-topline">
@@ -4215,14 +4431,29 @@ function AnomaliesView({
               baseline
             </span>
             <span>
-              <i className="legend-dot legend-dot--coral" />
+              <i style={{ background: "#f07f6e" }} />
               {" "}
-              anomaly
+              critical
+            </span>
+            <span>
+              <i style={{ background: "#f5a56d" }} />
+              {" "}
+              high
+            </span>
+            <span>
+              <i style={{ background: "#e6ca78" }} />
+              {" "}
+              medium
+            </span>
+            <span>
+              <i style={{ background: "#79d6c4" }} />
+              {" "}
+              low
             </span>
             <AxisNote
               quantity="Observed load"
               unit={liveTargetUnit}
-              origin="Recorded by the anomaly stage: the measured target column compared against the adaptive baseline for this dataset. Readings outside the learned threshold are marked as anomalies."
+              origin="Recorded by the anomaly stage: the measured target column compared against the adaptive baseline for this dataset. Readings outside the learned threshold are marked as anomalies and coloured by severity."
             />
           </div>
         </div>
@@ -4269,10 +4500,38 @@ function AnomaliesView({
               />
               <Line
                 type="monotone"
-                dataKey="anomaly"
+                dataKey="critical"
+                data={severitySeries}
                 stroke="#f07f6e"
                 strokeWidth={0}
-                dot={{ fill: "#f07f6e", r: 6, stroke: "#251b18", strokeWidth: 2 }}
+                dot={{ fill: "#f07f6e", r: 7, stroke: "#24342d", strokeWidth: 2 }}
+                connectNulls={false}
+              />
+              <Line
+                type="monotone"
+                dataKey="high"
+                data={severitySeries}
+                stroke="#f5a56d"
+                strokeWidth={0}
+                dot={{ fill: "#f5a56d", r: 6, stroke: "#24342d", strokeWidth: 2 }}
+                connectNulls={false}
+              />
+              <Line
+                type="monotone"
+                dataKey="medium"
+                data={severitySeries}
+                stroke="#e6ca78"
+                strokeWidth={0}
+                dot={{ fill: "#e6ca78", r: 5, stroke: "#24342d", strokeWidth: 2 }}
+                connectNulls={false}
+              />
+              <Line
+                type="monotone"
+                dataKey="low"
+                data={severitySeries}
+                stroke="#79d6c4"
+                strokeWidth={0}
+                dot={{ fill: "#79d6c4", r: 4, stroke: "#24342d", strokeWidth: 2 }}
                 connectNulls={false}
               />
             </LineChart>
@@ -4383,19 +4642,21 @@ function AnomaliesView({
               <span>
                 <TinyTag
                   tone={
-                    item.color === "coral"
+                    item.severity === "critical"
                       ? "coral"
-                      : item.color === "orange"
-                      ? "orange"
-                      : item.color === "yellow"
-                      ? "neutral"
-                      : "blue"
+                      : item.severity === "high"
+                        ? "orange"
+                        : item.severity === "medium"
+                          ? "yellow"
+                          : item.severity === "low"
+                            ? "blue"
+                            : "neutral"
                   }
                 >
                   {item.severity}
                 </TinyTag>
               </span>
-              <strong>{item.type}</strong>
+              <strong style={{ color: item.severity === "critical" ? "var(--eco-coral)" : item.severity === "high" ? "var(--eco-orange)" : item.severity === "medium" ? "var(--eco-yellow)" : "var(--eco-text)" }}>{item.type}</strong>
               <span className="mono-note">{item.timestamp}</span>
               <code>{item.feature}</code>
               <span>{item.reason}</span>
@@ -4514,6 +4775,32 @@ function PredictionView({
           </ActionButton>
         </div>
       </div>
+      {forecastData.length ? (
+        <section className="panel prediction-summary">
+          <div className="prediction-summary__grid">
+            <div className="prediction-summary__item">
+              <span className="section-eyebrow">WHAT THIS IS</span>
+              <strong>Energy forecast vs learned baseline</strong>
+              <span>{modelName} projecting the next window of {liveTargetUnit ? `${displayUnit(liveTargetUnit)}` : "load"} from the recorded origin forward.</span>
+            </div>
+            <div className="prediction-summary__item">
+              <span className="section-eyebrow">BASELINE</span>
+              <strong>{baselineName || "—"}</strong>
+              <span>Adaptive baseline generated from this dataset, versioned with every run.</span>
+            </div>
+            <div className="prediction-summary__item">
+              <span className="section-eyebrow">BACKTEST</span>
+              <strong>{fm ? `${fm.mape.toFixed(1)}% MAPE` : "—"}</strong>
+              <span>How the selected model performed on held-out data before it was trusted with this forecast.</span>
+            </div>
+            <div className="prediction-summary__item">
+              <span className="section-eyebrow">UNITS</span>
+              <strong>{liveTargetUnit ? displayUnit(liveTargetUnit) : "—"}</strong>
+              <span>Unit comes from the column the backend modelled, not from a local guess.</span>
+            </div>
+          </div>
+        </section>
+      ) : null}
       <div className="prediction-layout">
         <section className="panel prediction-chart-panel">
           <div className="prediction-chart-head">
@@ -4530,17 +4817,13 @@ function PredictionView({
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={forecastPoints} margin={{ top: 20, right: 22, left: -6, bottom: 4 }}>
                 <defs>
-                  <linearGradient id="confidenceFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#8d86ff" stopOpacity={0.22} />
-                    <stop offset="100%" stopColor="#8d86ff" stopOpacity={0.02} />
+                  <linearGradient id="forecastBand" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#8d86ff" stopOpacity={0.30} />
+                    <stop offset="100%" stopColor="#8d86ff" stopOpacity={0.04} />
                   </linearGradient>
-                  <linearGradient id="observedFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#b6f36b" stopOpacity={0.28} />
-                    <stop offset="100%" stopColor="#b6f36b" stopOpacity={0.01} />
-                  </linearGradient>
-                  <linearGradient id="forecastFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#8d86ff" stopOpacity={0.34} />
-                    <stop offset="100%" stopColor="#8d86ff" stopOpacity={0.03} />
+                  <linearGradient id="observedBand" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#b6f36b" stopOpacity={0.22} />
+                    <stop offset="100%" stopColor="#b6f36b" stopOpacity={0.02} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid stroke="#24342d" strokeDasharray="2 5" vertical={false} />
@@ -4574,24 +4857,37 @@ function PredictionView({
                     label={{ value: "now", position: "insideTopRight", fill: "#8fa79a", fontSize: 10 }}
                   />
                 ) : null}
-                <Area type="monotone" dataKey="high" stroke="none" fill="url(#confidenceFill)" />
-                <Area type="monotone" dataKey="low" stroke="none" fill="#132119" />
+                {/* Confidence band: the model's uncertainty range for the forecast. */}
+                <Area
+                  type="monotone"
+                  dataKey="high"
+                  stroke="none"
+                  fill="url(#forecastBand)"
+                />
+                <Area
+                  type="monotone"
+                  dataKey="low"
+                  stroke="none"
+                  fill="#132119"
+                />
+                {/* Observed history: what actually happened before the forecast origin. */}
                 <Area
                   type="monotone"
                   dataKey="actual"
                   stroke="#b6f36b"
                   strokeWidth={2.6}
-                  fill="url(#observedFill)"
-                  dot={{ fill: "#b6f36b", r: 2.4, strokeWidth: 0 }}
+                  fill="url(#observedBand)"
+                  dot={{ fill: "#b6f36b", r: 3, strokeWidth: 0 }}
                   connectNulls={false}
                 />
+                {/* Forecast: the model's projection from the origin forward. */}
                 <Area
                   type="monotone"
                   dataKey="forecast"
                   stroke="#8d86ff"
-                  strokeWidth={2.4}
-                  fill="url(#forecastFill)"
-                  dot={{ fill: "#8d86ff", r: 2.4, strokeWidth: 0 }}
+                  strokeWidth={2.6}
+                  fill="none"
+                  dot={{ fill: "#8d86ff", r: 3, strokeWidth: 0 }}
                 />
               </AreaChart>
             </ResponsiveContainer>
@@ -4808,6 +5104,14 @@ function RecommendationsView({
         </div>
       </div>
       <div className="recommendation-layout">
+        <div className="recommendation-list__head">
+          <span className="section-eyebrow">ACTION PLAN</span>
+          <h3>Staged operating actions</h3>
+          <p>
+            Each recommendation can be added to your action plan so your team can track what to do next.
+            The plan is a staging area — add the actions you intend to take, then execute them in your own workflow.
+          </p>
+        </div>
         <section className="recommendation-list">
           {!recommendations.length ? (
             <p className="mono-note table-empty-note">No recommendations recorded for this dataset.</p>
@@ -4848,6 +5152,9 @@ function RecommendationsView({
                   >
                     Add to action plan <ArrowRight size={13} />
                   </button>
+                  <span className="recommendation-card__action-note">
+                    Save this to your staged operating actions.
+                  </span>
                 </div>
               </div>
               <button
@@ -4866,9 +5173,9 @@ function RecommendationsView({
         <aside className="recommendation-aside">
           <section className="panel evidence-panel">
             <SectionHeading
-              eyebrow="EVIDENCE GRAPH"
-              title="Why these actions"
-              detail="Recommendation confidence is grounded in the active run."
+              eyebrow="WHY THESE ACTIONS"
+              title="Where the confidence comes from"
+              detail="Every recommendation is tied to the active run — anomalies, forecast, and tariff context."
             />
             <div className="evidence-ring">
               <div className="evidence-ring__circle">
@@ -4884,7 +5191,7 @@ function RecommendationsView({
                 <span>
                   <i style={{ background: "#8d86ff" }} />
                   {" "}
-                  7-day forecast
+                  {forecastData.length ? `${forecastData.length}-period forecast` : "no forecast"}
                 </span>
                 <span>
                   <i style={{ background: "#f5a56d" }} />
@@ -5085,49 +5392,14 @@ function ReportsView({
                 {draft ? "Regenerate preview" : "Preview report"}
               </button>
               {draft && (
-                <div className="report-preview">
-                  <div className="report-preview__head">
-                    <span className="section-eyebrow">REPORT PREVIEW</span>
-                    <h3>Scoped briefing draft</h3>
-                    <button
-                      type="button"
-                      className="report-preview__close"
-                      aria-label="Close report preview"
-                      onClick={() => {
-                        sound.play({ volume: 0.08, rate: 0.85 });
-                        onCloseDraft();
-                      }}
-                    >
-                      <X size={13} />
-                    </button>
-                  </div>
-                  <div className="report-preview__body">
-                    <ReportDraftBody text={draft} />
-                  </div>
-                  <div className="report-preview__actions">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        void copyDraft();
-                        sound.play({ volume: 0.1, rate: 0.9 });
-                      }}
-                    >
-                      {copied ? "Copied" : "Copy briefing"}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        downloadDraft();
-                        sound.play({ volume: 0.1, rate: 0.9 });
-                      }}
-                    >
-                      Download .md
-                    </button>
-                    <ActionButton icon={Download} onClick={onExport}>
-                      Download report
-                    </ActionButton>
-                  </div>
-                </div>
+                <ReportPreviewModal
+                  draft={draft}
+                  copied={copied}
+                  onClose={onCloseDraft}
+                  onCopy={copyDraft}
+                  onDownload={downloadDraft}
+                  onExport={onExport}
+                />
               )}
               <ActionButton icon={exported ? Check : Download} onClick={onExport}>
                 {exported ? "Report exported" : "Export project report"}
