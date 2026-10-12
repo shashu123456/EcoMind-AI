@@ -16,6 +16,154 @@ Legend: `FIX` correctness · `FEAT` new capability · `PERF` performance · `A11
 
 ---
 
+## [Unreleased] — Session 6 (the pages that looked finished but did not work)
+
+A review of the running product against what each page claims to do. Every entry below is a defect
+observed on screen, not a preference. No stage order, API contract or business rule changed.
+
+### FIX — The prediction filter did nothing, because a full reload ran on every render
+
+- `PredictionView` refreshed the workspace from an effect keyed on the `onRefresh` **callback**, which
+the shell passed as a fresh arrow function each render. The effect therefore re-ran after the refresh
+it had just triggered, which wrote state, which produced a new callback — a reload loop. Observed in
+the network panel as the whole workspace fetch repeating, and on screen as a filter control whose
+clicks were immediately overwritten by the next reload.
+- The effect is now keyed on `dataset.id`, so it fires when the dataset in view actually changes.
+- **Verified in the browser:** the window control now holds its selection — choosing `2 d` leaves
+  `FORECAST / 2 D` active with `FORECAST DAYS = 2`, and the day-by-day table follows the same window.
+
+### FIX — Forecast days claimed to be observed measurements
+
+- The backend reports `observed_energy_kwh: 0` for a projected day. The mapper passed that `0`
+  through, so a day that was never metered was presented as a measurement reading `0 kWh`. Every
+  figure derived from "observed" days was wrong as a result — the observed average, the horizon delta
+  and the `OBSERVED DAYS` readout all counted projected days as observed ones.
+- A projected day (`is_future: true`) now maps its observed value to `null`, and the readouts, the
+day-by-day table and the chart omit it.
+- **Verified in the browser:** the table now reads `2026-02-20 | — | 488 kWh | …`, and the
+  `OBSERVED DAYS` cell is absent because the window contains no measured days.
+
+### FIX — The activity terminal covered the page it was reporting on
+
+- The terminal is a fixed bottom-right surface. It rendered the first four **audit** rows, whose
+  `result` field is a short noun, so its height stayed small. Once it reported real stage decisions —
+  full sentences — each row grew, the panel expanded over the viewport and sat on top of the
+  prediction filter and the report export actions. A control can be visible and still unclickable.
+- Rows now hold a fixed height with ellipsis and the full text on `title`; the body scrolls inside a
+  capped height. The terminal also **starts collapsed**, so it never blocks a page the user has not
+  chosen to look at.
+- **Verified in the browser:** the terminal is `285 px` wide collapsed; the button underneath it is
+  the topmost element at its own centre again, and clicking it works.
+
+### FEAT — The activity terminal reports what actually happened
+
+- It cycled four audit rows behind a `STREAMING` badge with a pulsing dot, which read as perpetual
+  activity regardless of whether anything was running. It now renders the **stage traces** — one row
+  per executed stage with its real label, real duration and its recorded decision — and the badge
+  states the count (`6 RECORDED`) or `IDLE`.
+- **Verified in the browser:** stage 10 Reports `770 ms`, stage 09 Recommendations `76 ms`, stage 08
+  Prediction `1337 ms`, each with the decision text the stage actually recorded.
+
+### FIX — Notifications only ever meant "anomaly"
+
+- The popover listed the three worst anomalies. A run that had completed, a stage that failed, a
+  quality check needing attention and a dataset with no run at all were all invisible.
+- The queue now carries those system events alongside the anomalies, and the badge counts both.
+- **Verified in the browser:** the badge reads `123 need attention` with `Pipeline complete · All 10
+  stages recorded for Office Complex — Base Building and Tenants` and `1 data quality check needs
+  attention` above the anomaly rows.
+
+### FIX — The report preview was a markdown modal, not the generated PDF
+
+- The only preview was a text draft, so the document that actually gets exported could not be seen
+  before downloading it. The reports page now fetches `GET /workflows/{run_id}/report.pdf` through the
+  same bearer-authenticated route the export uses and **renders it in an inline frame**.
+- **Verified in the browser:** the frame is present with a `blob:` source at `780 px`, over a
+  `200 application/pdf` response of `14,688` bytes.
+
+### FIX — The recommendation page had a broken grid and no evidence
+
+- `.recommendation-layout` is a two-column grid with three children (heading block, list, aside). The
+  browser therefore placed the heading in column one, the **list** in the narrow right column, and the
+  evidence panel wrapped to a second row — which is why the left side read as empty. The heading and
+  list are now wrapped as one column.
+- Each action also carried only a title, a sentence and an impact line. The recommendation stage
+  records far more than that, so the mapper now carries it and the card shows it: priority band,
+  category, device label and code, recoverable energy, cost, CO₂, payback with the backend's own
+  verdict, and how many recorded anomalies the action cites, plus the recorder's reason text.
+- **Verified in the browser:** `.recommendation-main` spans `298 → 1129` with the aside at `1147`; the
+  first card reads `PRIORITY=P1 · CATEGORY=consumption optimisation · DEVICE=Ahu · L1-AHU ·
+  RECOVERABLE=1,585 kWh · COST=₹317 · CO₂=793 kgCO₂ · PAYBACK=21.3 mo · marginal ·
+  EVIDENCE=50 recorded anomalies`.
+
+### FIX — The anomaly chart did not say what it was, or what the axes were
+
+- The X and Y axes carried no labels, so the reader had to infer both the quantity and the unit. The
+  block above the chart was a run-on string (`BASELINE / Baseline v1 · Office Complex …`) and the
+  `SOURCE DATASET` / `BASELINE` block was **never styled at all** — no rule for `.anomaly-chart-sub`
+  existed in the stylesheet, so it rendered as an unstyled left-aligned run of text.
+- The axes are now labelled (`RECORDED TIMESTAMP`, and the target unit, e.g. `KWH PER READING`), and the
+  metadata is a nine-cell aligned grid: what the chart shows, the X and Y axes, the source dataset and
+  its id, the domain, the target column, the baseline with its window, and the threshold.
+- **Verified in the browser:** both axis labels present; nine basis cells reading
+  `WHAT THE CHART SHOWS / X AXIS / Y AXIS / SOURCE DATASET / DATASET ID / DOMAIN / TARGET COLUMN /
+  BASELINE / THRESHOLD`.
+
+### FEAT — The anomaly chart's right half is always about a real reading
+
+- The focus panel rendered only after a point had been clicked, so the right column of a two-column
+  chart was empty until the user happened to click a data point — the chart read as left-aligned with a
+  large blank area. The panel now falls back to the **most severe reading in the visible window**, and
+  follows the cursor on `mousemove` as well as committing the selection on click. It states which of
+  the two it is doing and stamps the reading's own timestamp.
+- **Verified in the browser:** the panel is present on load, shows `HIGH` with the hint "Showing the
+  most severe reading in this window — hover the chart to move it" and the reading's timestamp.
+
+### FEAT — Run · Step · Previous · Next on every page
+
+- The context strip carried Run, Step, Stop and New run. It now also carries **Previous** and **Next**,
+  which move between the ten stages without executing anything. From a system page (Mission control,
+  Notifications, Settings, History) Next enters the journey at stage 01 instead of doing nothing, and
+  Previous names the boundary instead of failing silently.
+- **Verified in the browser:** the strip reads `Previous · Next · Run · Step · Stop · New run`, and Next
+  from Mission control lands on `Workspace / Dataset library` with its own status toast.
+
+### FIX — The pipeline could be started with no dataset selected
+
+- Auto and Run-all called `ensureRun()` unconditionally, which starts a run against whatever the active
+  dataset happened to be — including the empty placeholder. Both now require a real selection and say so.
+
+### FIX — Duplicate and unevidenced content on the prediction page
+
+- The forecast breakdown panel was rendered **twice**, in two different sections of the same page.
+- Its closing note claimed "Forecast is stable across all validation slices" — a claim no stage
+  records. It now states what the panel actually contains: the winning model's recorded feature
+  weights from the model competition stage.
+
+### DOC
+
+- `docs/DESIGN_DECISIONS.md` §7 already states that an unlabelled or wrong axis is a correctness bug.
+  The anomaly chart was the one chart violating it; it no longer is.
+
+### Verification (Session 6)
+
+| Check | Result |
+|---|---|
+| `npx tsc --noEmit` | 0 errors |
+| `pnpm build:static` | exit 0 · CSS 243.13 kB · app 541.55 kB · charts 403.49 kB |
+| Prediction window filter | `2 d` holds; `FORECAST / 2 D`, `FORECAST DAYS = 2`, table follows |
+| Forecast observed values | projected days read `—`, not `0 kWh` |
+| Anomaly axes | `RECORDED TIMESTAMP` · `KWH PER READING` |
+| Anomaly basis grid | 9 aligned cells rendered |
+| Anomaly focus panel | present on load, follows the cursor |
+| Recommendation layout | main `298→1129`, aside `1147`; 8-field evidence per card |
+| Report PDF | inline frame, `blob:` src, `200 application/pdf`, 14,688 bytes |
+| Activity terminal | `6 RECORDED` with real stage durations; collapsed by default |
+| Notifications | `123 need attention`, including `Pipeline complete` and a quality notice |
+| Stage navigation | Previous/Next move between the ten stages from any page |
+
+---
+
 ## [Unreleased] — Session 5b (make it demonstrable: sound, controls, charts, launcher)
 
 Reviewing the product as a user rather than as a diff turned up a second wave of things that looked

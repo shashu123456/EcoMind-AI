@@ -792,9 +792,17 @@ export function AppShell() {
   const [forecastWindow, setForecastWindow] = useState("all");
   const [reportDraft, setReportDraft] = useState<string | null>(null);
   const [reportExported, setReportExported] = useState(false);
+  // The generated PDF, held as a blob URL so it can be read in place. Fetching it
+  // goes through the same bearer-authenticated route the download uses, and the
+  // URL is revoked whenever a newer one replaces it.
+  const [reportPdf, setReportPdf] = useState("");
+  const [reportPdfBusy, setReportPdfBusy] = useState(false);
   const [selectedAnomaly, setSelectedAnomaly] = useState<(typeof anomalies)[number] | null>(null);
   const [selectedPoint, setSelectedPoint] = useState<LiveAnomalyPoint | null>(null);
-  const [terminalOpen, setTerminalOpen] = useState(true);
+  // Docked and closed by default. An always-open fixed panel sits on top of the
+  // page's own controls (the report and prediction actions live bottom-right),
+  // which is how a control ends up visible but unclickable.
+  const [terminalOpen, setTerminalOpen] = useState(false);
   const [terminalPaused, setTerminalPaused] = useState(false);
   const [workspace, setWorkspace] = useState<LiveWorkspace | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
@@ -821,12 +829,70 @@ export function AppShell() {
     if (!parts.length) return "·";
     return (parts.length > 1 ? `${parts[0][0]}${parts[1][0]}` : parts[0].slice(0, 2)).toUpperCase();
   })();
+  // Whether a real dataset is selected. The pipeline must never be started on the
+  // empty placeholder — that would produce numbers nobody asked for.
+  const hasRealDataset = Boolean(activeDataset.id) && activeDataset.id !== "—";
+  // Notifications are not only anomalies. A completed run, a failed stage, a
+  // quality check that needs attention and a dataset with no run at all belong in
+  // the same queue, so the badge can never hide the thing that actually went wrong.
+  const systemNotices = (() => {
+    const list: {
+      id: string;
+      tone: "coral" | "orange" | "lime" | "blue";
+      title: string;
+      detail: string;
+    }[] = [];
+    for (const stage of liveStages.filter(s => s.status === "failed")) {
+      list.push({
+        id: `fail-${stage.id}`,
+        tone: "coral",
+        title: `${stage.label} failed`,
+        detail: stage.decision || "The stage recorded a failure; its output is unavailable.",
+      });
+    }
+    const completedStages = liveStages.filter(s => s.status === "completed").length;
+    if (liveRunId && completedStages === STAGE_KEYS.length) {
+      list.push({
+        id: "run-complete",
+        tone: "lime",
+        title: "Pipeline complete",
+        detail: `All 10 stages recorded for ${activeDataset.name}. The executive report is ready.`,
+      });
+    } else if (liveRunId && completedStages > 0) {
+      list.push({
+        id: "run-progress",
+        tone: "blue",
+        title: `Run in progress — ${completedStages} of 10 stages`,
+        detail: `Next stage: ${liveStages.find(s => s.status === "pending")?.label ?? "remaining stages"}.`,
+      });
+    }
+    if (!liveRunId && hasRealDataset) {
+      list.push({
+        id: "no-run",
+        tone: "blue",
+        title: "No run recorded for this dataset",
+        detail: "Start the pipeline to produce this dataset's own baseline, anomalies and forecast.",
+      });
+    }
+    const failedChecks = liveQualityMeta?.failed ?? 0;
+    if (failedChecks > 0) {
+      list.push({
+        id: "dq-attention",
+        tone: "orange",
+        title: `${failedChecks} data quality check${failedChecks === 1 ? "" : "s"} need attention`,
+        detail: "Review the quality stage before trusting the numbers downstream of it.",
+      });
+    }
+    return list;
+  })();
   const severityRank: Record<string, number> = { critical: 4, high: 3, medium: 2, low: 1 };
   const attentionQueue = [...anomalies]
     .sort((a, b) => (severityRank[b.severity] ?? 0) - (severityRank[a.severity] ?? 0))
     .slice(0, 3);
   const attentionCount =
     (liveAnomalyMeta?.severity?.critical ?? 0) + (liveAnomalyMeta?.severity?.high ?? 0);
+  const noticeCount = systemNotices.length + attentionCount;
+  const hasAlerts = noticeCount > 0;
   // Time-scale options the active dataset can actually express. Empty when the
   // recorded schema has no index column, which hides the control entirely.
   const windowOptions = useMemo(
@@ -927,6 +993,11 @@ export function AppShell() {
 
   /** Run everything that is left without moving pages, then land on the report. */
   const execAllAndReport = async () => {
+    if (!hasRealDataset) {
+      setToast("Select or upload a dataset first — the pipeline runs on a real dataset, never on a placeholder.");
+      goTo("library");
+      return;
+    }
     const runId = await ensureRun();
     if (!runId) return;
     void playStartTone();
@@ -1153,6 +1224,11 @@ export function AppShell() {
   };
 
   const execRemainingStages = async () => {
+    if (!hasRealDataset) {
+      setToast("Select or upload a dataset first — the pipeline runs on a real dataset, never on a placeholder.");
+      goTo("library");
+      return;
+    }
     const runId = await ensureRun();
     if (!runId) return;
     void playStartTone();
@@ -1257,6 +1333,67 @@ export function AppShell() {
     } catch (err) {
       setToast(err instanceof Error ? err.message : "Report export failed.");
     }
+  };
+
+  /** Load the run's generated PDF and show it inline instead of only downloading it. */
+  const loadReportPdf = async () => {
+    const runId = workspace?.runId;
+    if (!runId) {
+      setToast("No pipeline run recorded — the report PDF does not exist yet.");
+      return;
+    }
+    setReportPdfBusy(true);
+    try {
+      const res = await fetch(domain.reportPdfUrl(runId), {
+        headers: getToken() ? { Authorization: `Bearer ${getToken()}` } : {},
+      });
+      if (!res.ok) throw new Error(`Report PDF unavailable (${res.status})`);
+      const blob = await res.blob();
+      setReportPdf(prev => {
+        if (prev) URL.revokeObjectURL(prev);
+        return URL.createObjectURL(blob);
+      });
+      setToast("Report PDF loaded — the preview is the same file the export saves.");
+    } catch (err) {
+      setToast(err instanceof Error ? err.message : "Could not load the report PDF.");
+    } finally {
+      setReportPdfBusy(false);
+    }
+  };
+
+  /** Move one stage back in the pipeline without executing anything. */
+  const goPreviousStage = () => {
+    const idx = pipelineStages.findIndex(stage => stage.id === activeView);
+    if (idx > 0) {
+      const stage = pipelineStages[idx - 1];
+      goTo(stage.id);
+      setToast(`Stage ${stage.short} · ${stage.label}.`);
+      return;
+    }
+    setToast(
+      idx === 0
+        ? "Stage 01 Library is the first stage of the pipeline."
+        : "You are on a system page — the pipeline rail lists all ten stages."
+    );
+  };
+
+  /** Move one stage forward in the pipeline without executing anything. */
+  const goNextStage = () => {
+    const idx = pipelineStages.findIndex(stage => stage.id === activeView);
+    if (idx >= 0 && idx < pipelineStages.length - 1) {
+      const stage = pipelineStages[idx + 1];
+      goTo(stage.id);
+      setToast(`Stage ${stage.short} · ${stage.label}.`);
+      return;
+    }
+    if (idx === pipelineStages.length - 1) {
+      setToast("Stage 10 Reports is the last stage of the pipeline.");
+      return;
+    }
+    // From a system page, Next starts the journey at stage 01 rather than doing nothing.
+    const first = pipelineStages[0];
+    goTo(first.id);
+    setToast(`Stage ${first.short} · ${first.label}.`);
   };
 
   const renderView = () => {
@@ -1392,6 +1529,9 @@ export function AppShell() {
               sound.play({ volume: 0.16, rate: 1.0 });
             }}
             onExport={() => void exportReportPdf()}
+            pdfUrl={reportPdf}
+            pdfBusy={reportPdfBusy}
+            onLoadPdf={() => void loadReportPdf()}
             dataset={activeDataset}
             domainInfo={domainInfo}
             baselineName={baselineName}
@@ -1566,10 +1706,23 @@ export function AppShell() {
             <div className="popover popover--notifications">
               <div className="popover__head">
                 <strong>Attention queue</strong>
-                <TinyTag tone={attentionCount ? "coral" : "neutral"}>
-                  {attentionCount ? `${attentionCount} critical / high` : "no alerts"}
+                <TinyTag tone={hasAlerts ? "coral" : "lime"}>
+                  {hasAlerts ? `${noticeCount} need attention` : "nothing needs attention"}
                 </TinyTag>
               </div>
+              {systemNotices.length ? (
+                <div className="popover-notes">
+                  {systemNotices.map(note => (
+                    <div className="popover-row" key={note.id}>
+                      <span className={`status-dot status-dot--${note.tone}`} />
+                      <div>
+                        <strong>{note.title}</strong>
+                        <span>{note.detail}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
               {attentionQueue.length ? (
                 attentionQueue.map(item => (
                   <div className="popover-row" key={item.id}>
@@ -1663,6 +1816,22 @@ export function AppShell() {
           {/* Present on every page: a demonstration should never have to hunt
               for the run controls, and they must never be dead. */}
           <div className="pipeline-quick">
+            <button
+              type="button"
+              className="pipeline-quick__button"
+              onClick={goPreviousStage}
+              title="Move to the previous pipeline stage without running anything"
+            >
+              Previous
+            </button>
+            <button
+              type="button"
+              className="pipeline-quick__button"
+              onClick={goNextStage}
+              title="Move to the next pipeline stage without running anything"
+            >
+              Next
+            </button>
             <button
               type="button"
               className="pipeline-quick__button pipeline-quick__button--primary"
@@ -1790,8 +1959,24 @@ function ActivityTerminal({
     const timer = window.setInterval(() => setCursor(value => value + 1), 3800);
     return () => window.clearInterval(timer);
   }, [paused]);
-  const rowCount = Math.min(activityEvents.length, 4);
-  const activeRow = rowCount ? cursor % rowCount : -1;
+  // The terminal reports what the pipeline actually did. Stage traces are the
+  // authoritative record — one row per executed stage with its real duration and
+  // recorded decision — and the audit feed is appended for anything outside the
+  // stage runner. Nothing here ticks on a timer that pretends to be work.
+  const stageRows: LiveActivity[] = [...liveStages]
+    .sort((a, b) => b.number - a.number)
+    .map(stage => ({
+      time: stage.ranAt ? fmtRunClock(stage.ranAt) : "—",
+      status: stage.status === "completed" ? "DONE" : stage.status === "failed" ? "FAILED" : "PENDING",
+      service: `stage ${String(stage.number).padStart(2, "0")}`,
+      operation: stage.label,
+      duration: stage.durationMs ? `${Math.round(stage.durationMs)} ms` : "—",
+      result: stage.decision || (stage.status === "completed" ? "recorded output stored" : "not run yet"),
+      severity: stage.status === "failed" ? "warning" : stage.status === "completed" ? "success" : "info",
+    }));
+  const feed = [...stageRows, ...activityEvents].slice(0, 6);
+  const rowCount = Math.min(feed.length, 4);
+  const activeRow = rowCount && !paused ? cursor % rowCount : -1;
   const sound = useSound({ onPlay: () => {} });
   return (
     <section
@@ -1802,8 +1987,8 @@ function ActivityTerminal({
         <div className="activity-terminal__title">
           <span className="terminal-pulse" />
           <span>ACTIVITY TERMINAL</span>
-          <TinyTag tone={paused ? "neutral" : "lime"}>
-            {paused ? "PAUSED" : "STREAMING"}
+          <TinyTag tone={paused ? "neutral" : feed.length ? "lime" : "blue"}>
+            {paused ? "PAUSED" : feed.length ? `${feed.length} RECORDED` : "IDLE"}
           </TinyTag>
         </div>
         <div className="activity-terminal__controls">
@@ -1841,8 +2026,8 @@ function ActivityTerminal({
             <span>RESULT</span>
             <span>SEVERITY</span>
           </div>
-          {activityEvents.length ? (
-            activityEvents.slice(0, 4).map((event, index) => (
+          {feed.length ? (
+            feed.map((event, index) => (
               <div
                 className={`activity-terminal__row ${index === activeRow && !paused ? "activity-terminal__row--live" : ""}`}
                 key={`${event.time}-${event.operation}-${index}`}
@@ -1855,7 +2040,7 @@ function ActivityTerminal({
                 <span>{event.service}</span>
                 <strong>{event.operation}</strong>
                 <span>{event.duration}</span>
-                <span>{event.result}</span>
+                <span title={event.result}>{event.result}</span>
                 <TinyTag
                   tone={event.severity === "warning" ? "orange" : event.severity === "success" ? "lime" : "blue"}
                 >
@@ -4914,7 +5099,7 @@ function AnomaliesView({
   setWindow,
   onInspect,
   onInspectPoint,
-  selectedPoint,
+  selectedPoint: hoveredPoint,
   dataset,
   baselineName,
   windowOptions,
@@ -4929,6 +5114,9 @@ function AnomaliesView({
   windowOptions: LiveWindowOption[];
 }) {
   const sound = useSound({ onPlay: () => {} });
+  // Hovering the chart moves the cursor; the parent's selection is what a click
+  // commits. Both feed the same panel, so the panel is never stale.
+  const [hoverPoint, setHoverPoint] = useState<LiveAnomalyPoint | null>(null);
   const meta = liveAnomalyMeta;
   const anomalyTotal = meta?.total ?? anomalies.length;
   const criticalHigh = (meta?.severity?.critical ?? 0) + (meta?.severity?.high ?? 0);
@@ -4984,6 +5172,22 @@ function AnomaliesView({
     medium: p.medium,
     low: p.low,
   }));
+  // The focus panel must never be an empty frame. When nothing has been hovered
+  // yet it falls back to the most severe reading inside the visible window, so
+  // the panel beside the chart always describes a real recorded event.
+  const SEVERITY_RANK: Record<string, number> = { critical: 4, high: 3, medium: 2, low: 1 };
+  const fallbackPoint =
+    [...chartSeries]
+      .filter(p => Number.isFinite(p.observed_energy_kwh))
+      .sort(
+        (a, b) =>
+          (SEVERITY_RANK[b.severity] ?? 0) - (SEVERITY_RANK[a.severity] ?? 0) ||
+          Math.abs(b.deviation_percent ?? 0) - Math.abs(a.deviation_percent ?? 0)
+      )[0] ?? null;
+  const selectedPoint = hoveredPoint ?? fallbackPoint;
+  const pointIndex = selectedPoint
+    ? chartSeries.findIndex(p => p.timestamp === selectedPoint.timestamp)
+    : -1;
   return (
     <div className="view-content">
       <div className="anomaly-topline">
@@ -5035,7 +5239,9 @@ function AnomaliesView({
       <section className="panel anomaly-chart-panel">
         <div className="anomaly-chart-head">
           <div>
-            <div className="section-eyebrow">DEVIATION FROM BASELINE / {window}</div>
+            <div className="section-eyebrow">
+              DEVIATION FROM BASELINE / {(activeWindow?.label ?? window).toUpperCase()}
+            </div>
             <h2>
               {anomalyTotal
                 ? `${anomalyTotal} event${anomalyTotal === 1 ? "" : "s"} broke the pattern.`
@@ -5082,11 +5288,19 @@ function AnomaliesView({
         </div>
         <div className="anomaly-chart anomaly-chart--split">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={chartSeries} margin={{ top: 16, right: 24, left: -14, bottom: 0 }}
+            <LineChart
+              data={chartSeries}
+              margin={{ top: 16, right: 34, left: 6, bottom: 20 }}
+              onMouseMove={((data: readonly unknown[], index: number | undefined) => {
+                if (index == null || index < 0 || index >= chartSeries.length) return;
+                const p = chartSeries[index];
+                if (p && Number.isFinite(p.observed_energy_kwh)) setHoverPoint(p);
+              }) as any}
               onClick={((data: readonly unknown[], index: number | undefined, _evt: React.MouseEvent) => {
                 if (index == null || index < 0 || index >= chartSeries.length) return;
                 const p = chartSeries[index];
                 if (p && Number.isFinite(p.observed_energy_kwh) && onInspectPoint) {
+                  setHoverPoint(p);
                   onInspectPoint(p);
                   sound.play({ volume: 0.12, rate: 1.05 });
                 }
@@ -5098,12 +5312,29 @@ function AnomaliesView({
                 tickLine={false}
                 axisLine={false}
                 tick={{ fill: "#768e7f", fontSize: 10 }}
+                label={{
+                  value: "RECORDED TIMESTAMP",
+                  position: "insideBottom",
+                  offset: -14,
+                  fill: "#6f8578",
+                  fontSize: 9,
+                }}
               />
               <YAxis
                 stroke="#61776a"
                 tickLine={false}
                 axisLine={false}
                 tick={{ fill: "#768e7f", fontSize: 10 }}
+                label={{
+                  value: liveTargetUnit
+                    ? `${displayUnit(liveTargetUnit).toUpperCase()} PER READING`
+                    : "RECORDED VALUE",
+                  angle: -90,
+                  position: "insideLeft",
+                  offset: 16,
+                  fill: "#6f8578",
+                  fontSize: 9,
+                }}
               />
               <ReferenceLine
                 y={thresholdLine}
@@ -5181,8 +5412,18 @@ function AnomaliesView({
           {chartSeries.length > 1 && selectedPoint ? (
             <div className="anomaly-focus-panel">
               <div className="anomaly-focus-panel__head">
-                <span className="section-eyebrow">FOCUSED READING</span>
+                <span className="section-eyebrow">
+                  FOCUSED READING{pointIndex >= 0 ? ` · ${pointIndex + 1} OF ${chartSeries.length}` : ""}
+                </span>
                 <h3>{selectedPoint.severity ? selectedPoint.severity.toUpperCase() : "READING"}</h3>
+                <span className="anomaly-focus-panel__hint">
+                  {hoveredPoint
+                    ? "Following the point under your cursor."
+                    : "Showing the most severe reading in this window — hover the chart to move it."}
+                </span>
+                <span className="anomaly-focus-panel__stamp mono">
+                  {selectedPoint.timestamp || "timestamp not recorded"}
+                </span>
               </div>
               <div className="anomaly-focus-panel__identity">
                 <div className="anomaly-focus-row">
@@ -5322,20 +5563,55 @@ function AnomaliesView({
             </div>
           ) : null}
         </div>
-        <div className="anomaly-chart-footer">
-          <span className="mono-note">BASELINE / {baselineName} · {dataset.name}</span>
-          <span>{liveTargetUnit ? `${displayUnit(liveTargetUnit)} over baseline · ` : ""}threshold {meta ? `+${meta.threshold}%` : "—"}</span>
-        </div>
-        <div className="anomaly-chart-sub">
-          <div className="anomaly-chart-sub__item">
-            <span className="section-eyebrow">SOURCE DATASET</span>
-            <strong>{dataset.name}</strong>
-            <span>{dataset.id} · {domainMeta[dataset.domain].label} · target {liveTargetColumn ? `<${liveTargetColumn}>` : "—"}</span>
+        <div className="anomaly-chart-basis">
+          <div className="anomaly-chart-basis__cell">
+            <span className="anomaly-chart-basis__label">WHAT THE CHART SHOWS</span>
+            <span className="anomaly-chart-basis__value">
+              Each reading's measured value against that same reading's learned baseline, with the
+              detector's threshold drawn as a dashed line.
+            </span>
           </div>
-          <div className="anomaly-chart-sub__item">
-            <span className="section-eyebrow">BASELINE</span>
-            <strong>{baselineName}</strong>
-            <span>{activeWindow ? activeWindow.label.toLowerCase() : "operating-day aware"} window</span>
+          <div className="anomaly-chart-basis__cell">
+            <span className="anomaly-chart-basis__label">X AXIS</span>
+            <span className="anomaly-chart-basis__value">
+              Recorded timestamp · {activeWindow ? activeWindow.label : "full series"} window
+            </span>
+          </div>
+          <div className="anomaly-chart-basis__cell">
+            <span className="anomaly-chart-basis__label">Y AXIS</span>
+            <span className="anomaly-chart-basis__value">
+              {liveTargetUnit ? `${displayUnit(liveTargetUnit)} per reading` : "Recorded value (no unit was recorded)"}
+            </span>
+          </div>
+          <div className="anomaly-chart-basis__cell">
+            <span className="anomaly-chart-basis__label">SOURCE DATASET</span>
+            <span className="anomaly-chart-basis__value">{dataset.name}</span>
+          </div>
+          <div className="anomaly-chart-basis__cell">
+            <span className="anomaly-chart-basis__label">DATASET ID</span>
+            <span className="anomaly-chart-basis__value mono">{dataset.id}</span>
+          </div>
+          <div className="anomaly-chart-basis__cell">
+            <span className="anomaly-chart-basis__label">DOMAIN</span>
+            <span className="anomaly-chart-basis__value">{domainMeta[dataset.domain].label}</span>
+          </div>
+          <div className="anomaly-chart-basis__cell">
+            <span className="anomaly-chart-basis__label">TARGET COLUMN</span>
+            <span className="anomaly-chart-basis__value mono">
+              {liveTargetColumn ? `<${liveTargetColumn}>` : "—"}
+            </span>
+          </div>
+          <div className="anomaly-chart-basis__cell">
+            <span className="anomaly-chart-basis__label">BASELINE</span>
+            <span className="anomaly-chart-basis__value">
+              {baselineName || "—"} · {activeWindow ? activeWindow.label : "—"} window
+            </span>
+          </div>
+          <div className="anomaly-chart-basis__cell">
+            <span className="anomaly-chart-basis__label">THRESHOLD</span>
+            <span className="anomaly-chart-basis__value">
+              {meta ? `+${meta.threshold}% over baseline` : "—"}
+            </span>
           </div>
         </div>
       </section>
@@ -5483,11 +5759,14 @@ function PredictionView({
   windowOptions: LiveWindowOption[];
 }) {
   const sound = useSound({ onPlay: () => {} });
+  // Re-read the recorded forecast only when the dataset in view changes. Depending
+  // on the callback itself would re-run this on every render — and because the
+  // refresh writes state, that is an endless reload loop, not a refresh.
   useEffect(() => {
     if (onRefresh) {
       void onRefresh();
     }
-  }, [onRefresh]);
+  }, [dataset.id]);
   const fm = liveForecastMeta;
   const activeWindow =
     windowOptions.find(option => option.id === window) ?? windowOptions[windowOptions.length - 1] ?? null;
@@ -5605,7 +5884,9 @@ function PredictionView({
         <section className="panel prediction-chart-panel">
           <div className="prediction-chart-head">
             <div>
-              <div className="section-eyebrow">FORECAST / {window.toUpperCase()}</div>
+              <div className="section-eyebrow">
+                FORECAST / {(activeWindow?.label ?? window).toUpperCase()}
+              </div>
               <h2>Energy consumption forecast</h2>
               <p>
                 {dataset.name} · {modelName} · {baselineName} · green = observed, violet = future projection, band = confidence range
@@ -5760,7 +6041,11 @@ function PredictionView({
           )}
           <div className="forecast-breakdown__note">
             <Sparkles size={14} />
-            <span>Forecast is stable across all validation slices.</span>
+            <span>
+              {liveCompetition?.weights?.length
+                ? `The winning model's recorded feature weights, read from the model competition stage for this run.`
+                : "No factor weights were recorded, so none are shown."}
+            </span>
           </div>
         </section>
       </div>
@@ -5769,7 +6054,7 @@ function PredictionView({
           <SectionHeading
             eyebrow="DAY BY DAY"
             title="The horizon, one line at a time"
-            detail="Every recorded forecast value with its backtest interval, in the unit of the modelled target column."
+            detail={`Every recorded forecast value in the ${activeWindow?.label ?? "full"} window, with its backtest interval, in the unit of the modelled target column.`}
           />
           {!forecastData.length ? (
             <p className="mono-note table-empty-note">No forecast recorded for this dataset yet.</p>
@@ -5783,7 +6068,7 @@ function PredictionView({
                 <span>COST</span>
                 <span>CO₂</span>
               </div>
-              {forecastData.map(point => {
+              {forecastPoints.map(point => {
                 const delta =
                   point.observed_energy_kwh != null && point.observed_energy_kwh !== 0
                     ? ((point.forecast_energy_kwh ?? 0) - point.observed_energy_kwh) / point.observed_energy_kwh * 100
@@ -5806,29 +6091,6 @@ function PredictionView({
               })}
             </div>
           )}
-        </section>
-        <section className="panel forecast-breakdown">
-          <SectionHeading eyebrow="FORECAST BREAKDOWN" title="What moves the number" />
-          {liveCompetition?.weights?.length ? (
-            liveCompetition.weights.slice(0, 4).map(weight => (
-              <div className="forecast-factor" key={weight.label}>
-                <span className="forecast-factor__icon forecast-factor__icon--lime">
-                  <TrendingUp size={15} />
-                </span>
-                <div>
-                  <strong>{weight.label}</strong>
-                  <span>recorded model weight</span>
-                </div>
-                <strong>{weight.weight.toFixed(2)}</strong>
-              </div>
-            ))
-          ) : (
-            <p className="mono-note forecast-breakdown__empty">No model weights recorded for this run.</p>
-          )}
-          <div className="forecast-breakdown__note">
-            <Sparkles size={14} />
-            <span>Forecast is stable across all validation slices.</span>
-          </div>
         </section>
       </div>
       <div className="prediction-detail">
@@ -5923,6 +6185,7 @@ function RecommendationsView({
         </div>
       </div>
       <div className="recommendation-layout">
+        <div className="recommendation-main">
         <div className="recommendation-list__head">
           <span className="section-eyebrow">ACTION PLAN</span>
           <h3>Staged operating actions</h3>
@@ -5958,6 +6221,60 @@ function RecommendationsView({
                 </div>
                 <h3>{item.title}</h3>
                 <p>{item.body}</p>
+                <div className="recommendation-card__evidence">
+                  <span>
+                    <small>PRIORITY</small>
+                    <strong>{item.band}</strong>
+                  </span>
+                  <span>
+                    <small>CATEGORY</small>
+                    <strong>{item.category}</strong>
+                  </span>
+                  <span>
+                    <small>DEVICE</small>
+                    <strong>
+                      {item.deviceLabel}
+                      {item.deviceCode !== "—" ? ` · ${item.deviceCode}` : ""}
+                    </strong>
+                  </span>
+                  <span>
+                    <small>RECOVERABLE</small>
+                    <strong>
+                      {item.savingsKwh
+                        ? `${fmtCount(item.savingsKwh)}${liveTargetUnit ? ` ${displayUnit(liveTargetUnit)}` : ""}`
+                        : "—"}
+                    </strong>
+                  </span>
+                  <span>
+                    <small>COST</small>
+                    <strong>
+                      {item.savingsCostInr ? `${displayUnit("INR")}${fmtCount(item.savingsCostInr)}` : "—"}
+                    </strong>
+                  </span>
+                  <span>
+                    <small>CO₂</small>
+                    <strong>
+                      {item.savingsCo2Kg ? `${fmtCount(item.savingsCo2Kg)} ${displayUnit("kgCO2")}` : "—"}
+                    </strong>
+                  </span>
+                  <span>
+                    <small>PAYBACK</small>
+                    <strong>
+                      {item.paybackMonths != null
+                        ? `${item.paybackMonths.toFixed(1)} mo · ${item.paybackVerdict}`
+                        : item.paybackVerdict}
+                    </strong>
+                  </span>
+                  <span>
+                    <small>EVIDENCE</small>
+                    <strong>
+                      {item.evidenceCount
+                        ? `${item.evidenceCount} recorded anomal${item.evidenceCount === 1 ? "y" : "ies"}`
+                        : "—"}
+                    </strong>
+                  </span>
+                </div>
+                {item.reason ? <p className="recommendation-card__reason">{item.reason}</p> : null}
                 <div className="recommendation-card__impact">
                   <span>
                     <TrendingDown size={13} />{" "}
@@ -5988,7 +6305,8 @@ function RecommendationsView({
               </button>
             </article>
           ))}
-        </section>
+          </section>
+        </div>
         <aside className="recommendation-aside">
           <section className="panel evidence-panel">
             <SectionHeading
@@ -6049,6 +6367,9 @@ function ReportsView({
   onDraft,
   onCloseDraft,
   onExport,
+  pdfUrl,
+  pdfBusy,
+  onLoadPdf,
   dataset,
   domainInfo,
   baselineName,
@@ -6059,6 +6380,9 @@ function ReportsView({
   onDraft: () => void;
   onCloseDraft: () => void;
   onExport: () => void;
+  pdfUrl: string;
+  pdfBusy: boolean;
+  onLoadPdf: () => void;
   dataset: Dataset;
   domainInfo: (typeof domainMeta)[DatasetDomain];
   baselineName: string;
@@ -6227,6 +6551,37 @@ function ReportsView({
           </div>
         </section>
       </div>
+      <section className="panel report-pdf-panel">
+        <div className="report-pdf-panel__head">
+          <div>
+            <div className="section-eyebrow">REPORT PREVIEW</div>
+            <h2>The generated PDF</h2>
+            <p>
+              This is the file the backend produced for this run — the same document the export button
+              saves. Nothing is downloaded until you press export.
+            </p>
+          </div>
+          <ActionButton icon={FileText} onClick={onLoadPdf}>
+            {pdfBusy ? "Loading…" : pdfUrl ? "Reload PDF" : "Load PDF preview"}
+          </ActionButton>
+        </div>
+        {pdfUrl ? (
+          <iframe
+            className="report-pdf-frame"
+            title="EcoMind executive report PDF"
+            src={pdfUrl}
+          />
+        ) : (
+          <div className="report-pdf-empty">
+            <FileText size={18} />
+            <span>
+              {liveRunId
+                ? "Load the PDF to read the report in place."
+                : "No run recorded yet — run the pipeline to generate the report PDF."}
+            </span>
+          </div>
+        )}
+      </section>
       <div className="report-history-strip">
         <div>
           <FileCheck2 size={15} />

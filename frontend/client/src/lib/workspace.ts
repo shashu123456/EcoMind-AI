@@ -164,10 +164,15 @@ export const deriveForecastWindowOptions = (
   forecastLength: number,
 ): LiveWindowOption[] => {
   if (!forecastLength) return [];
+  // Rungs a forecast horizon can genuinely be sliced into. Each rung is a real
+  // number of projected days, so choosing "2 d" shows the next two projected
+  // days and nothing else — the control drives the chart rather than decorating it.
   const FORECAST_LADDER: { id: string; label: string; points: number }[] = [
+    { id: "2d", label: "2 d", points: 2 },
     { id: "7d", label: "7 d", points: 7 },
     { id: "14d", label: "14 d", points: 14 },
     { id: "30d", label: "30 d", points: 30 },
+    { id: "90d", label: "90 d", points: 90 },
     { id: "all", label: "All", points: forecastLength },
   ];
   const seen = new Set<number>();
@@ -270,6 +275,27 @@ export type LiveRec = {
   impact: string;
   confidence: string;
   color: string;
+  /** Recorded priority band from the recommendation stage (P1 / P2 / P3). */
+  band: string;
+  /** Recorded category, e.g. schedule_optimisation. */
+  category: string;
+  /** The backend's own reason text — why this action exists. */
+  reason: string;
+  /** The action to take, in the backend's own words. */
+  action: string;
+  /** Meter identity the action applies to. */
+  deviceLabel: string;
+  deviceCode: string;
+  buildingCode: string;
+  /** Recoverable energy, cost and carbon for this single action. */
+  savingsKwh: number;
+  savingsCostInr: number;
+  savingsCo2Kg: number;
+  /** Simple payback in months and the backend's own verdict. */
+  paybackMonths: number | null;
+  paybackVerdict: string;
+  /** How many recorded anomalies this action cites as evidence. */
+  evidenceCount: number;
 };
 export type LiveActivity = {
   time: string;
@@ -1024,15 +1050,21 @@ const mapForecast = (chart: Record<string, unknown> | undefined): LiveForecastPo
         const fcast = asNum(fcastRaw);
         const lower = asNum(lowerRaw);
         const upper = asNum(upperRaw);
+        // The backend reports 0 for a projected day's observed value, but a projected
+        // day was never metered. Presenting that 0 as a measurement would claim the day
+        // was observed when it was only modelled, and would inflate every "observed"
+        // figure derived from this series.
+        const isFuture = ifRaw == null ? null : Boolean(ifRaw);
+        const observedForDay = isFuture === true ? null : obs;
         return {
           day: String(dayRaw ?? ""),
-          observed_energy_kwh: obs != null ? Number(obs.toFixed(1)) : null,
+          observed_energy_kwh: observedForDay != null ? Number(observedForDay.toFixed(1)) : null,
           forecast_energy_kwh: fcast != null ? Number(fcast.toFixed(1)) : null,
           lower_kwh: lower != null ? Number(lower.toFixed(1)) : null,
           upper_kwh: upper != null ? Number(upper.toFixed(1)) : null,
           expected_cost_inr: (() => { const v = asNum(costRaw); return v != null ? Number(v.toFixed(2)) : null; })(),
           expected_co2_kg: (() => { const v = asNum(co2Raw); return v != null ? Number(v.toFixed(3)) : null; })(),
-          is_future: ifRaw == null ? null : Boolean(ifRaw),
+          is_future: isFuture,
         };
       })
   );
@@ -1046,11 +1078,15 @@ const mapRecs = (out: StageOutput): LiveRec[] => {
     const confidence = conf <= 1 ? Math.round(conf * 100) : Math.round(conf);
     const cost = Number(r.savings_cost_inr ?? 0);
     const co2 = Number(r.savings_co2_kg ?? 0);
+    const kwh = Number(r.savings_kwh ?? 0);
     const impact = cost > 0
       ? `Save ~${displayUnit("INR")}${fmtInt(cost)} / mo`
       : co2 > 0
         ? `Avoid ${fmtInt(co2)} ${displayUnit("kgCO2")} / mo`
         : "Impact pending";
+    const rawPayback = r.payback_months;
+    const paybackMonths = rawPayback == null ? null : Number(rawPayback);
+    const anomalyIds = Array.isArray(r.anomaly_ids) ? r.anomaly_ids : [];
     return {
       priority: String(i + 1).padStart(2, "0"),
       title: String(r.title ?? `Action ${i + 1}`),
@@ -1058,6 +1094,19 @@ const mapRecs = (out: StageOutput): LiveRec[] => {
       impact,
       confidence: `${confidence}%`,
       color: colors[i % colors.length],
+      band: String(r.priority ?? "").toUpperCase() || "—",
+      category: String(r.category ?? "").replace(/_/g, " ") || "—",
+      reason: String(r.reason ?? ""),
+      action: String(r.action ?? ""),
+      deviceLabel: String(r.device_label ?? "") || "—",
+      deviceCode: String(r.device_code ?? "") || "—",
+      buildingCode: String(r.building_code ?? "") || "—",
+      savingsKwh: kwh,
+      savingsCostInr: cost,
+      savingsCo2Kg: co2,
+      paybackMonths: paybackMonths != null && Number.isFinite(paybackMonths) ? paybackMonths : null,
+      paybackVerdict: String(r.payback_verdict ?? "").replace(/_/g, " ") || "—",
+      evidenceCount: anomalyIds.length,
     };
   });
 };
