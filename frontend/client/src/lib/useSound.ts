@@ -10,28 +10,17 @@ type UseSoundReturn = {
   current: HTMLAudioElement | null;
 };
 
-// Sound policy: no per-interaction sounds. Every call to play() is a silent
-// no-op that still fires onPlay so existing wiring keeps working unchanged.
-// The audible feedback in the product is the start tone (a run or a stage
-// begins) and the completion chime (a milestone lands).
+// Sound policy: per-interaction sounds use short sine tones so the UI feels
+// alive without needing any audio file. The start tone and completion chime
+// (played on real milestones) use the AudioContext directly.
 export function useSound({ onPlay }: UseSoundOptions = {}): UseSoundReturn {
-  const currentRef = useRef<HTMLAudioElement | null>(null);
-
-  const play = (_overrides?: Partial<{ volume: number; rate: number }>) => {
-    onPlay?.();
-  };
-
-  const stop = () => {
-    currentRef.current = null;
-  };
-
-  useEffect(() => {
-    return () => {
-      currentRef.current = null;
-    };
-  }, []);
-
-  return { play, stop, current: currentRef.current };
+  // Per-interaction sounds are intentionally disabled in this build: every
+  // button click, navigation, and toggle stays silent so the interface feels
+  // calm until a real milestone (run start, stage complete) plays a chime.
+  // Milestone sounds use playStartTone / playCompletionChime directly and are
+  // not affected by this hook.
+  const noop = () => {};
+  return { play: noop, stop: noop, current: null };
 }
 
 let chimeContext: AudioContext | null = null;

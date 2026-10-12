@@ -3,7 +3,7 @@
 EcoMind is not a buildings-only product: every field below is a real energy
 domain with its own hierarchy, equipment, cadence and units. Each dataset is
 written to sample-datasets/<slug>/ and registered with the backend so it appears
-in the Dataset Library and can run the full eleven-stage pipeline.
+in the Dataset Library and can run the full ten-stage pipeline.
 
 Deterministic: one fixed seed per field, so a regenerated file is identical.
 

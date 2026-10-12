@@ -67,7 +67,7 @@ Target scale: `.eco-hero` / `.eco-title` / `.eco-subtitle` / `.eco-body` / `.eco
 | Decision | Value | Rationale |
 |---|---|---|
 | Shell grid | `grid-template-columns: var(--eco-sidebar) 1fr`, rows `64px 1fr`, aareas `sidebar topbar / sidebar main` | Persistent nav + persistent context, one scroll container |
-| Sidebar | 256 px expanded, 76 px collapsed, sections Workspace / Understand / Analyze / System | Mirrors the frozen eleven-stage journey; the rail is the mental model |
+| Sidebar | 256 px expanded, 76 px collapsed, sections Workspace / Understand / Analyze / System | Mirrors the frozen ten-stage journey; the rail is the mental model |
 | Nav status badge | Live count per section; sizing reserved so counts do not reflow the rail | Nav must not jump when data arrives |
 | Context strip | 40 px, single row, horizontally scrollable | Always answers "which dataset / domain / baseline / model / run / freshness" |
 | Max content width | 1540 px, centred | Ultra-wide legibility |
@@ -94,7 +94,7 @@ ever hidden. **Scheduled as P3-6.**
 | Views are frozen | 14 views + landing (spec §1). Never add or move one | The navigation *is* the product's story |
 | Router | None — `activeView` state in the shell | One screen, one workflow; a router would add history states the pipeline does not have |
 | Stage gating in nav | Locked items are visibly disabled until the prerequisite completes | Mirrors the backend's positional gate; the UI must never imply a reachable stage |
-| Stage → view mapping | `STAGE_KEY_BY_VIEW` bridges the eleven pipeline keys to the 14 view ids | One place for the mapping; prevents drift between rail and backend |
+| Stage → view mapping | `STAGE_KEY_BY_VIEW` bridges the ten pipeline keys to the 14 view ids | One place for the mapping; prevents drift between rail and backend |
 | Pipeline rail | Clickable stage nodes showing number, label, status and real duration | The rail is the primary progress instrument; durations come from stage traces |
 | Top bar | Breadcrumb, search, notifications, theme toggle, profile | Standard enterprise affordances; must never carry pipeline state |
 

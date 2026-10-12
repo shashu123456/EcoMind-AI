@@ -154,8 +154,81 @@ export const deriveWindowOptions = (
   }
   return options;
 };
+
+/**
+ * Forecast charts are daily buckets, not hourly. Give them their own ladder so a
+ * "7 d" button means seven forecast days on screen instead of 168 hourly points
+ * that the shared anomaly ladder would hand it.
+ */
+export const deriveForecastWindowOptions = (
+  forecastLength: number,
+): LiveWindowOption[] => {
+  if (!forecastLength) return [];
+  const FORECAST_LADDER: { id: string; label: string; points: number }[] = [
+    { id: "7d", label: "7 d", points: 7 },
+    { id: "14d", label: "14 d", points: 14 },
+    { id: "30d", label: "30 d", points: 30 },
+    { id: "all", label: "All", points: forecastLength },
+  ];
+  const seen = new Set<number>();
+  const options: LiveWindowOption[] = [];
+  for (const option of FORECAST_LADDER) {
+    const points = option.points > forecastLength ? forecastLength : option.points;
+    if (seen.has(points)) continue;
+    seen.add(points);
+    options.push({
+      id: option.id,
+      label: option.label,
+      points,
+      detail: `${points} of ${forecastLength} recorded forecast days`,
+    });
+  }
+  if (options.length < 2) {
+    const half = Math.max(1, Math.round(forecastLength / 2));
+    options.length = 0;
+    options.push({ id: "half", label: "Half", points: half, detail: `${half} of ${forecastLength} forecast days` });
+    options.push({ id: "all", label: "All", points: forecastLength, detail: `all ${forecastLength} forecast days` });
+  }
+  return options;
+};
 export type LivePoint = { time: string; energy: number; baseline: number };
-export type LiveAnomalyPoint = { time: string; actual: number; baseline: number; anomaly: number | null };
+
+export type LiveAnomalyPoint = {
+  /** ISO timestamp the point was drawn from. */
+  timestamp: string;
+  /** Observed target reading for the bucket. */
+  observed_energy_kwh: number;
+  /** Baseline reading for the bucket. */
+  baseline_energy_kwh: number;
+  /** Forecast reading if the backend supplied one; otherwise null. */
+  predicted_energy_kwh: number | null;
+  /** Deviation of observed vs baseline, percent. */
+  deviation_percent: number;
+  /** Severity from the anomaly stage, empty string when none was recorded. */
+  severity: string;
+  /** Confidence from the anomaly stage, if one was recorded. */
+  confidence: number | null;
+  /** Anomaly type/class from the anomaly stage, if one was recorded. */
+  anomaly_type: string;
+  /** Estate identity the chart can annotate without extra requests. */
+  building_code: string;
+  building_name: string;
+  floor_no: string;
+  room_code: string;
+  zone: string;
+  device_code: string;
+  device_name: string;
+  device_type: string;
+  dataset_id: string;
+  dataset_name: string;
+  domain: string;
+  workflow_run_id: string;
+  baseline_version: number | null;
+  model_name: string;
+  model_version: string;
+  origin: string;
+};
+
 export type LiveAnomaly = {
   id: string;
   severity: string;
@@ -169,7 +242,27 @@ export type LiveAnomaly = {
   excessCo2?: number;
   score?: number;
 };
-export type LiveForecastPoint = { day: string; actual: number | null; forecast: number; low: number; high: number };
+export type LiveForecastPoint = {
+  /** Day key, e.g. "2026-02-14". */
+  day: string;
+  /** Observed daily total when the day is in the dataset's past. */
+  observed_energy_kwh: number | null;
+  /** Forecast daily total when the day is in the forecast future. */
+  forecast_energy_kwh: number | null;
+  /** Lower bound of the measured confidence band. */
+  lower_kwh: number | null;
+  /** Upper bound of the measured confidence band. */
+  upper_kwh: number | null;
+  /** Expected operating cost for the day. */
+  expected_cost_inr: number | null;
+  /** Expected CO2 for the day. */
+  expected_co2_kg: number | null;
+  /** Whether the point is in the future relative to origin. */
+  is_future: boolean | null;
+};
+
+
+
 export type LiveRec = {
   priority: string;
   title: string;
@@ -232,6 +325,8 @@ export type LiveForecastMeta = {
   origin: string;
   mapeLabel: string;
   baselineVersion?: number;
+  modelId?: string | null;
+  originTimestamp?: string | null;
 };
 
 export type LiveRecMeta = {
@@ -349,6 +444,8 @@ export type LiveWorkspace = {
   transform?: LiveTransform;
   baseline?: LiveBaseline;
   lastStage?: string;
+  anomalyChartMeta?: Record<string, unknown> | null;
+  forecastChartMeta?: Record<string, unknown> | null;
 };
 
 /* ── Formatters ─────────────────────────────────────────────────────── */
@@ -640,13 +737,17 @@ const mapAnomalyMeta = (
 
 const mapForecastMeta = (out: StageOutput | null, chart: Record<string, unknown> | undefined): LiveForecastMeta | undefined => {
   if (!out) return undefined;
-  const origin = typeof out.origin_timestamp === "string" ? out.origin_timestamp : "";
+  const meta = (chart && typeof chart.metadata === "object" && chart.metadata && chart.metadata != null) ? chart.metadata as Record<string, unknown> : {};
+  const chartOrigin = typeof chart?.origin_timestamp === "string" ? chart.origin_timestamp : undefined;
+  const origin = typeof out.origin_timestamp === "string" ? out.origin_timestamp : chartOrigin ?? "";
   return {
     algorithm: typeof out.selected_algorithm === "string" ? out.selected_algorithm : "—",
-    mape: Number(out.mape_backtest ?? 0),
+    modelId: typeof meta.modelId === "string" ? meta.modelId : typeof meta.model_id === "string" ? meta.model_id : null,
+    mape: Number(out.mape_backtest ?? chart?.mape_backtest ?? 0),
     origin: origin ? fmtTimestamp(origin) : "—",
-    mapeLabel: Number(out.mape_backtest ?? 0) ? `${Number(out.mape_backtest).toFixed(1)}% MAPE backtest` : "backtest pending",
-    ...(chart && chart.baseline_version != null ? { baselineVersion: Number(chart.baseline_version) } : {}),
+    mapeLabel: Number(out.mape_backtest ?? chart?.mape_backtest ?? 0) ? `${Number(out.mape_backtest ?? chart?.mape_backtest ?? 0).toFixed(1)}% MAPE backtest` : "backtest pending",
+    baselineVersion: Number.isFinite(Number(chart?.baseline_version ?? out?.baseline_version ?? NaN)) ? Number(chart?.baseline_version ?? out?.baseline_version) : undefined,
+    originTimestamp: chartOrigin ?? (typeof out.origin_timestamp === "string" ? out.origin_timestamp : undefined),
   };
 };
 
@@ -851,62 +952,90 @@ const anomalyWindows = (raw: Record<string, unknown> | undefined): { start: numb
 const mapAnomalyChart = (
   chart: Record<string, unknown> | undefined,
   windows: { start: number; end: number }[],
-): { points: LiveAnomalyPoint[]; energy: LivePoint[] } | undefined => {
+): { points: LiveAnomalyPoint[]; energy: LivePoint[]; metadata: Record<string, unknown> | null } | undefined => {
   const series = chart && Array.isArray(chart.series) ? (chart.series as Record<string, unknown>[]) : [];
   if (!series.length) return undefined;
-  // Keep the recorded resolution. Capping at a dozen points made every
-  // time-window option collapse to the same slice, so the control could not
-  // express anything the dataset actually contained.
   const sample = downsample(series, 2000);
   const points: LiveAnomalyPoint[] = sample.map(p => {
     const ts = Date.parse(String(p.timestamp ?? ""));
-    const observed = Number(p.observed ?? 0);
-    const baseline = Number(p.baseline ?? 0);
+    const observed = Number(p.observed_energy_kwh ?? 0);
+    const baseline = Number(p.baseline_energy_kwh ?? 0);
+    const predictedRaw = p.predicted_energy_kwh;
+    const predicted = typeof predictedRaw === "number" && isFinite(predictedRaw) ? predictedRaw : null;
     const inWindow = windows.some(w => ts >= w.start && ts <= w.end);
     const deviates = baseline > 0 && Math.abs(observed - baseline) / baseline > 0.4;
+    const rawSeverity = String(p.severity ?? p.anomaly_type ?? "").toLowerCase();
+    const severity: string =
+      rawSeverity === "critical" ? "critical"
+      : rawSeverity === "high" ? "high"
+      : rawSeverity === "moderate" ? "medium"
+      : rawSeverity === "medium" ? "medium"
+      : rawSeverity === "low" ? "low"
+      : "";
     return {
-      time: fmtClock(String(p.timestamp ?? ""), false),
-      actual: Number(observed.toFixed(1)),
-      baseline: Number(baseline.toFixed(1)),
-      anomaly: inWindow || deviates ? Number(observed.toFixed(1)) : null,
+      timestamp: String(p.timestamp ?? ""),
+      observed_energy_kwh: Number(observed.toFixed(1)),
+      baseline_energy_kwh: Number(baseline.toFixed(1)),
+      predicted_energy_kwh: predicted,
+      deviation_percent: Number(p.deviation_percent ?? 0),
+      severity: severity || "",
+      confidence: typeof p.confidence === "number" && isFinite(p.confidence) ? Number(p.confidence.toFixed(2)) : null,
+      anomaly_type: String(p.anomaly_type ?? ""),
+      building_code: String(p.building_code ?? ""),
+      building_name: String(p.building_name ?? p.building_code ?? ""),
+      floor_no: String(p.floor_no ?? ""),
+      room_code: String(p.room_code ?? ""),
+      zone: String(p.zone ?? ""),
+      device_code: String(p.device_code ?? ""),
+      device_name: String(p.device_name ?? p.device_code ?? ""),
+      device_type: String(p.device_type ?? ""),
+      dataset_id: String(p.dataset_id ?? ""),
+      dataset_name: String(p.dataset_name ?? ""),
+      domain: String(p.domain ?? ""),
+      workflow_run_id: String(p.workflow_run_id ?? ""),
+      baseline_version: Number.isFinite(Number(p.baseline_version ?? NaN)) ? Number(p.baseline_version) : null,
+      model_name: String(p.model_name ?? ""),
+      model_version: String(p.model_version ?? ""),
+      origin: String(p.origin ?? ""),
     };
   });
-  const energy: LivePoint[] = points.map(p => ({ time: p.time, energy: p.actual, baseline: p.baseline }));
-  return { points, energy };
+  const energy: LivePoint[] = points.map(p => ({ time: p.timestamp, energy: p.observed_energy_kwh, baseline: p.baseline_energy_kwh }));
+  const metadata = (chart && typeof chart.metadata === "object" && chart.metadata) ? (chart.metadata as Record<string, unknown>) : null;
+  return { points, energy, metadata };
 };
 
 const mapForecast = (chart: Record<string, unknown> | undefined): LiveForecastPoint[] | undefined => {
-  const hourly = chart && Array.isArray(chart.hourly) ? (chart.hourly as Record<string, unknown>[]) : [];
-  if (!hourly.length) return undefined;
-  const originRaw = chart!.origin_timestamp;
-  const origin = typeof originRaw === "string" ? Date.parse(originRaw) : NaN;
-  const byDay = new Map<string, { past: number; future: number; low: number; high: number }>();
-  for (const h of hourly) {
-    const ts = Date.parse(String(h.timestamp ?? ""));
-    if (isNaN(ts)) continue;
-    const d = new Date(ts);
-    const key = `${pad(d.getDate())} ${MONTHS[d.getMonth()]}`;
-    const bucket = byDay.get(key) ?? { past: 0, future: 0, low: 0, high: 0 };
-    const energy = Number(h.energy_kwh ?? 0);
-    const lower = Number(h.lower_kwh ?? energy);
-    const upper = Number(h.upper_kwh ?? energy);
-    const isPast = !isNaN(origin) && ts < origin;
-    if (isPast) bucket.past += energy;
-    else bucket.future += energy;
-    bucket.low += lower;
-    bucket.high += upper;
-    byDay.set(key, bucket);
-  }
-  return [...byDay.entries()].slice(0, 7).map(([day, b]) => {
-    const forecast = b.future > 0 ? b.future : b.past;
-    return {
-      day,
-      actual: b.past > 0 ? Number(b.past.toFixed(1)) : null,
-      forecast: Number(forecast.toFixed(1)),
-      low: Number((b.low || forecast * 0.93).toFixed(1)),
-      high: Number((b.high || forecast * 1.07).toFixed(1)),
-    };
-  });
+  const days = chart && Array.isArray(chart.days) ? (chart.days as Record<string, unknown>[]) : [];
+  if (!days.length) return undefined;
+  return (
+    days
+      .map(d => {
+        const dayRaw = d.day;
+        const obsRaw = d.observed_energy_kwh;
+        const fcastRaw = d.forecast_energy_kwh;
+        const lowerRaw = d.lower_kwh;
+        const upperRaw = d.upper_kwh;
+        const costRaw = d.expected_cost_inr;
+        const co2Raw = d.expected_co2_kg;
+        const ifRaw = d.is_future;
+        const asNum = (v: unknown): number | null =>
+          typeof v === "number" && isFinite(v) ? v : null;
+        const obs = asNum(obsRaw);
+        const fcast = asNum(fcastRaw);
+        const lower = asNum(lowerRaw);
+        const upper = asNum(upperRaw);
+        return {
+          day: String(dayRaw ?? ""),
+          observed_energy_kwh: obs != null ? Number(obs.toFixed(1)) : null,
+          forecast_energy_kwh: fcast != null ? Number(fcast.toFixed(1)) : null,
+          lower_kwh: lower != null ? Number(lower.toFixed(1)) : null,
+          upper_kwh: upper != null ? Number(upper.toFixed(1)) : null,
+          expected_cost_inr: (() => { const v = asNum(costRaw); return v != null ? Number(v.toFixed(2)) : null; })(),
+          expected_co2_kg: (() => { const v = asNum(co2Raw); return v != null ? Number(v.toFixed(3)) : null; })(),
+          is_future: ifRaw == null ? null : Boolean(ifRaw),
+        };
+      })
+  );
 };
 
 const mapRecs = (out: StageOutput): LiveRec[] => {
@@ -1125,10 +1254,14 @@ export async function loadWorkspace(preferredDatasetId?: string): Promise<{
       if (chartMap) {
         ws.anomalyPoints = chartMap.points;
         ws.energy = chartMap.energy;
+        ws.anomalyChartMeta = chartMap.metadata ?? null;
       }
       const forecast = mapForecast(fcChart as Record<string, unknown> | undefined);
       if (forecast) ws.forecast = forecast;
       ws.forecastMeta = mapForecastMeta(fcOut, fcChart as Record<string, unknown> | undefined);
+      if (fcChart && typeof fcChart.metadata === "object" && fcChart.metadata) {
+        ws.forecastChartMeta = fcChart.metadata as Record<string, unknown>;
+      }
 
       if (!ws.targetUnit) {
         const fcTarget = fcOut?.target_column;

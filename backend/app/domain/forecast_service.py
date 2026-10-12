@@ -1201,7 +1201,12 @@ def forecast_stage(run, db: Session, params: dict):
     }
 # Prediction chart data: forecast series compared against the stored baseline.
 def get_prediction_chart_data(db, dataset_id, filters=None):
-    """Return prediction data with baseline comparison and proper units."""
+    """Return a single self-contained forecast chart payload.
+
+    The frontend must never fabricate model, baseline, tariff or provenance context.
+    Every plotted series therefore carries enough metadata to drive a future-first
+    chart plus a rich hover tooltip without any second API call.
+    """
     from app.domain import snapshots
     filters = filters or {}
     units = {"energy": "kWh", "cost": "INR", "carbon": "kgCO2"}
@@ -1209,36 +1214,147 @@ def get_prediction_chart_data(db, dataset_id, filters=None):
         fs = snapshots.latest_snapshot(db, "forecast", dataset_id)
         bl = snapshots.latest_snapshot(db, "baseline", dataset_id)
         if not fs:
-            return {"forecasts": [], "hourly": [], "baseline": [], "units": units}
+            return _empty_forecast_chart(db, dataset_id)
 
-        # Baseline series: the hour-of-week medians flattened in time order,
-        # or the flat overall median when the pattern table is missing.
-        baseline_series = []
-        if bl:
-            stats = bl.get("statistics") or {}
-            how = bl.get("hour_of_week") or {}
-            hourly = fs.get("hourly") or []
-            for h in hourly:
-                ts = h.get("timestamp") or h.get("ts")
-                expected = None
-                if ts and how:
-                    try:
-                        import pandas as pd
-                        t = pd.to_datetime(ts)
-                        expected = (how.get(f"{int(t.dayofweek)}-{int(t.hour)}") or {}).get("median")
-                    except Exception:
-                        expected = None
-                baseline_series.append({
-                    "timestamp": ts,
-                    "expected_energy_kwh": expected if expected is not None else stats.get("median"),
-                    "source": "hour_of_week" if expected is not None else "median",
-                })
+        ds = _dataset_for(db, dataset_id)
+        # The hourly hourly_points are the raw forecast resolution. Group them into
+        # per-day buckets the chart can plot against a NOW divider, so the chart is
+        # always "history -> now -> future" and never a single confusing line.
+        hourly = fs.get("hourly") or []
+        origin = fs.get("origin_timestamp") or None
+        origin_ts = _parse_ts(origin) if origin else None
+
+        days: list[dict] = []
+        for h in hourly:
+            ts = _parse_ts(h.get("timestamp") or h.get("ts"))
+            if ts is None:
+                continue
+            day_key = ts.strftime("%Y-%m-%d")
+            existing = next((d for d in days if d["day"] == day_key), None)
+            if existing is None:
+                existing = {
+                    "day": day_key,
+                    "observed_energy_kwh": 0.0,
+                    "forecast_energy_kwh": 0.0,
+                    "lower_kwh": 0.0,
+                    "upper_kwh": 0.0,
+                    "expected_cost_inr": 0.0,
+                    "expected_co2_kg": 0.0,
+                    "is_future": None,
+                }
+                days.append(existing)
+            energy = float(h.get("energy_kwh") or 0.0)
+            lower = float(h.get("lower_kwh") or energy)
+            upper = float(h.get("upper_kwh") or energy)
+            if origin_ts and ts < origin_ts:
+                existing["is_future"] = False
+                existing["observed_energy_kwh"] += energy
+            else:
+                existing["is_future"] = True
+                existing["forecast_energy_kwh"] += energy
+            existing["lower_kwh"] += lower
+            existing["upper_kwh"] += upper
+            existing["expected_cost_inr"] += float(h.get("cost_inr") or 0.0)
+
+        # CO2 is a daily aggregate, not a sum of hourly values the chart already
+        # totals, so compute it from the daily total once.
+        for d in days:
+            total = d["observed_energy_kwh"] + d["forecast_energy_kwh"]
+            d["expected_co2_kg"] = round(_co2_kg(total), 4)
+            fcast = round(d["forecast_energy_kwh"], 4)
+            d["forecast_energy_kwh"] = fcast
+            low = round(d["lower_kwh"], 4)
+            high = round(d["upper_kwh"], 4)
+            # Guarantee the confidence band encloses the point it is describing,
+            # even where floating-point accumulation made lower drift a hair above
+            # the forecast or upper drift a hair below it.
+            if low > fcast:
+                low = fcast
+            if high < fcast:
+                high = fcast
+            d["lower_kwh"] = low
+            d["upper_kwh"] = high
+            d["expected_cost_inr"] = round(d["expected_cost_inr"], 2)
+
         return {
             "forecasts": fs.get("horizons", []),
-            "hourly": (fs.get("hourly") or [])[-168:],
-            "baseline": baseline_series[-168:],
-            "baseline_version": bl.get("version") if bl else None,
+            "days": days[-168:],
+            "hourly": hourly[-168:],
+            "baseline": _baseline_series(fs, bl),
+            "metadata": {
+                "dataset_id": ds.id if ds else dataset_id,
+                "dataset_name": ds.name if ds else dataset_id,
+                "domain": getattr(ds, "domain", "") or "" if ds else "",
+                "target_column": fs.get("target_column") or "",
+                "model_id": fs.get("model_id") or "",
+                "model_name": fs.get("selected_algorithm") or "",
+                "model_version": "",
+                "baseline_version": bl.get("version") if bl else None,
+                "origin_timestamp": origin,
+                "baseline_method": "adaptive_baseline",
+                "units": units,
+            },
             "units": units,
         }
     except Exception:
-        return {"forecasts": [], "hourly": [], "baseline": [], "units": units}
+        return _empty_forecast_chart(db, dataset_id)
+
+def _empty_forecast_chart(db, dataset_id) -> dict:
+    return {
+        "forecasts": [],
+        "days": [],
+        "hourly": [],
+        "baseline": [],
+        "metadata": {
+            "dataset_id": dataset_id,
+            "dataset_name": dataset_id,
+            "domain": "",
+            "target_column": "",
+            "model_id": "",
+            "model_name": "",
+            "model_version": "",
+            "baseline_version": None,
+            "origin_timestamp": None,
+            "baseline_method": "adaptive_baseline",
+            "units": {"energy": "kWh", "cost": "INR", "carbon": "kgCO2"},
+        },
+        "units": {"energy": "kWh", "cost": "INR", "carbon": "kgCO2"},
+    }
+
+def _parse_ts(value) -> pd.Timestamp | None:
+    if not value:
+        return None
+    s = str(value)
+    try:
+        return pd.to_datetime(s)
+    except Exception:
+        return None
+
+def _dataset_for(db, dataset_id: str):
+    from app.db.models import Dataset
+    return db.query(Dataset).filter(Dataset.id == dataset_id).first()
+
+def _baseline_series(fs: dict, bl: dict | None) -> list[dict]:
+    if not bl:
+        return []
+    stats = bl.get("statistics") or {}
+    how = bl.get("hour_of_week") or {}
+    hourly = fs.get("hourly") or []
+    out: list[dict] = []
+    for h in hourly:
+        ts = _parse_ts(h.get("timestamp") or h.get("ts"))
+        if ts is None:
+            continue
+        expected = None
+        if ts is not None and how:
+            expected = (how.get(f"{int(ts.dayofweek)}-{int(ts.hour)}") or {}).get("median")
+        out.append({
+            "timestamp": ts.isoformat(),
+            "expected_energy_kwh": expected if expected is not None else stats.get("median"),
+            "source": "hour_of_week" if expected is not None else "median",
+        })
+    return out
+
+def _co2_kg(kwh: float) -> float:
+    from app.domain.tariff import co2_per_kwh
+    return kwh * (co2_per_kwh or 0.0)

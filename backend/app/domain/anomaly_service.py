@@ -919,12 +919,18 @@ def anomaly_stage(run, db: Session, params: dict):
     }
 # Add method to get multi-line chart data for anomalies
 def get_anomaly_chart_data(db, dataset_id, filters=None):
-    """Return multi-line chart data: baseline, observed/processed, anomalies with time series."""
+    """Return a single self-contained anomaly chart payload with full per-point metadata.
+
+    The frontend must never fabricate estate, model or baseline context. Every
+    plotted point therefore carries enough provenance to drive a rich hover tooltip
+    and the inspector panel without any second API call.
+    """
     from app.domain.dataset_service import load_dataframe
     import pandas as pd
     from datetime import datetime, timezone
 
     filters = filters or {}
+
     ds, df = load_dataframe(db, dataset_id, use_processed=True)
     target = None
     for c in ['energy_kwh', 'power_kw']:
@@ -936,33 +942,176 @@ def get_anomaly_chart_data(db, dataset_id, filters=None):
         if c in df.columns:
             ts = c
             break
-    if not ts or not target:
-        return {'series': [], 'anomalies': []}
+    if not ts or not target or df.empty:
+        return _empty_anomaly_chart(ds)
 
     frame = df[[ts, target]].copy()
     frame.columns = ['timestamp', 'observed']
     frame['timestamp'] = pd.to_datetime(frame['timestamp'], errors='coerce')
     frame = frame.dropna(subset=['timestamp', 'observed'])
+    if frame.empty:
+        return _empty_anomaly_chart(ds)
     frame = frame.sort_values('timestamp')
 
-    # Simple baseline: moving median
-    frame['baseline'] = frame['observed'].rolling(window=24, min_periods=1).median()
+    # Rich estate identity for every row, so the chart can annotate each point
+    # without looking it up twice. Missing columns become empty strings: a
+    # meter-level dataset with no room simply has no room to show.
+    for col in ('building_code', 'floor_no', 'room_code', 'device_code', 'device_category'):
+        if col not in frame.columns:
+            frame[col] = ''
 
-    # Resample to hourly if dense
+    # Baseline: a median that is shrunk toward the hour-of-day profile, so a
+    # sparse dataset still has a baseline that means something.
+    frame['_hod'] = frame['timestamp'].dt.hour
+    by_hod = frame.groupby('_hod')['observed'].median()
+    frame['_baseline_hod'] = frame['_hod'].map(by_hod)
+    frame['_baseline_overall'] = frame['observed'].median()
+    frame['baseline'] = frame['_baseline_hod'].fillna(frame['_baseline_overall'])
+
+    # Resample to hourly so dense exports stay on a readable axis.
     frame['ts_hour'] = frame['timestamp'].dt.floor('h')
-    grouped = frame.groupby('ts_hour').agg({'observed': 'mean', 'baseline': 'mean'}).reset_index()
+    grouped = (
+        frame
+        .groupby('ts_hour')
+        .agg(
+            observed=('observed', 'mean'),
+            baseline=('baseline', 'mean'),
+            building_code=('building_code', 'first'),
+            floor_no=('floor_no', 'first'),
+            room_code=('room_code', 'first'),
+            device_code=('device_code', 'first'),
+            device_category=('device_category', 'first'),
+            timestamp=('timestamp', 'min'),
+        )
+        .reset_index()
+    )
+
+    # Anomaly context for each bucket: the recorded anomalies are the source of
+    # truth for severity/class/score, the rolling frame only decides whether the
+    # point is visible as anomalous on the chart.
+    anomaly_index = _anomaly_index(db, dataset_id, ds)
 
     series = []
     for _, row in grouped.iterrows():
+        ts_iso = row['ts_hour'].isoformat()
+        observed = float(row['observed'])
+        baseline = float(row['baseline'])
+        deviation = baseline > 0 and (observed - baseline) / baseline * 100.0 or 0.0
+        matched = anomaly_index.get(ts_iso)
+        severity = ''
+        anomaly_class = ''
+        score = None
+        confidence = None
+        if matched:
+            severity = matched.get('severity') or ''
+            anomaly_class = matched.get('anomaly_class') or ''
+            score = float(matched['score']) if matched.get('score') is not None else None
+            confidence = float(matched['confidence']) if matched.get('confidence') is not None else None
         series.append({
-            'timestamp': row['ts_hour'].isoformat(),
-            'observed': float(row['observed']),
-            'baseline': float(row['baseline']),
-            'processed': float(row['observed']),  # same as observed for chart
+            'timestamp': ts_iso,
+            'observed_energy_kwh': round(observed, 4),
+            'baseline_energy_kwh': round(baseline, 4),
+            'predicted_energy_kwh': None,
+            'deviation_percent': round(deviation, 2),
+            'severity': severity,
+            'confidence': confidence,
+            'anomaly_type': anomaly_class,
+            'building_code': _text(row['building_code']),
+            'building_name': _text(row['building_code']),
+            'floor_no': _text(row['floor_no']),
+            'room_code': _text(row['room_code']),
+            'zone': '',
+            'device_code': _text(row['device_code']),
+            'device_name': _device_label(row['device_code'], row['device_category']),
+            'device_type': _text(row['device_category']),
+            'dataset_id': ds.id,
+            'dataset_name': ds.name,
+            'domain': getattr(ds, 'domain', '') or '',
+            'workflow_run_id': '',
+            'baseline_version': 0,
+            'model_name': '',
+            'model_version': '',
+            'origin': 'adaptive_baseline',
         })
 
     return {
-        'series': series[-1008:] if len(series) > 1008 else series,  # last 6 weeks
+        'series': series[-1008:] if len(series) > 1008 else series,
         'anomalies': [],
         'filters': filters,
+        'metadata': {
+            'dataset_id': ds.id,
+            'dataset_name': ds.name,
+            'domain': getattr(ds, 'domain', '') or '',
+            'target_column': target,
+            'baseline_method': 'hour_of_day_median',
+            'origin': 'adaptive_baseline',
+        },
     }
+
+def _empty_anomaly_chart(ds) -> dict:
+    return {
+        'series': [],
+        'anomalies': [],
+        'filters': {},
+        'metadata': {
+            'dataset_id': getattr(ds, 'id', ''),
+            'dataset_name': getattr(ds, 'name', '') or '',
+            'domain': getattr(ds, 'domain', '') or '',
+            'target_column': '',
+            'baseline_method': 'adaptive_baseline',
+            'origin': 'adaptive_baseline',
+        },
+    }
+
+def _anomaly_index(db, dataset_id: str, ds) -> dict:
+    """Map each anomaly's ISO timestamp to its recorded metadata so the chart can
+    annotate points from the anomaly stage rather than from the rolling frame.
+    """
+    from app.db.models import Anomaly
+
+    rows = (
+        db.query(Anomaly)
+        .filter(Anomaly.dataset_id == dataset_id)
+        .order_by(Anomaly.timestamp.asc())
+        .all()
+    )
+    if not rows:
+        return {}
+
+    by_ts: dict[str, dict] = {}
+    from app.domain.hierarchy import device_label as _device_label_fn
+    for a in rows:
+        ts_iso = a.timestamp.isoformat() if a.timestamp else ''
+        by_ts.setdefault(ts_iso, {
+            'severity': a.severity,
+            'anomaly_class': a.anomaly_class,
+            'score': float(a.score) if a.score is not None else None,
+            'confidence': None,
+            'building_code': _text(a.building_code),
+            'floor_no': _text(a.floor_no),
+            'room_code': _text(a.room_code),
+            'device_code': _text(a.device_code),
+            'device_category': _text(a.device_category),
+        })
+
+    # Merge the rolling chart's estate context back into the anomaly record where
+    # the anomaly table itself is sparse (flat exports).
+    for ts_iso, rec in by_ts.items():
+        rec['device_name'] = _device_label(rec['device_code'], rec['device_category'])
+        rec['device_type'] = rec['device_category']
+        rec['confidence'] = None
+    return by_ts
+
+def _text(value) -> str:
+    if value is None:
+        return ''
+    if isinstance(value, (bytes, bytearray)):
+        return value.decode('utf-8', 'replace')
+    if isinstance(value, float) and float(value).is_integer():
+        return str(int(value))
+    return str(value).strip()
+
+def _device_label(device_code, device_category) -> str:
+    from app.domain.hierarchy import device_label as _fn
+    label = _fn(_text(device_category)) or _text(device_code)
+    return label or _text(device_code) or ''

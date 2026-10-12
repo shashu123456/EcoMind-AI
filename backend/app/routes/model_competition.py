@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from app.db.base import get_db
 from app.domain import model_competition
 
-router = APIRouter(prefix="/competitions", tags=["competition"])
+router = APIRouter(prefix="", tags=["competition"])
 
 
 @router.post("/models/{dataset_id}")

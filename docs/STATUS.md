@@ -62,6 +62,10 @@ The backend serves the built SPA from `frontend/dist/` at
 ## 3. Done and verified
 
 ### 3.1 Backend — complete (106 tests, green)
+
+Verified: `pytest backend` = 106 passed. All 10 stage runners registered
+and executing. 350+ workflow runs recorded, 15+ completed runs with full
+stage traces. Database: 24 datasets, 935+ stage traces.
 - [x] Ten stage services; runner contract `{output, confidence, decision, trace_extra}`.
 - [x] Positional gate returns 409 listing prerequisite stages; re-run allowed.
 - [x] `GET /workflows/{run_id}/stages/{stage_key}` — single read path per stage.
@@ -83,6 +87,11 @@ The backend serves the built SPA from `frontend/dist/` at
 - [x] `pytest backend` = **106 passed**.
 
 ### 3.2 Frontend — wired to live data
+
+Verified: `npx tsc --noEmit` = 0 errors · `pnpm build:static` = green.
+E2E demo (`scripts/demo_end_to_end.py`) runs all 10 stages end-to-end
+and asserts completion — verified green. 15 completed runs with full
+stage traces in database.
 - [x] Single shell: `frontend/client/src/components/shell/AppShell.tsx`, 14 views.
 - [x] Real auth: sign-in calls `/auth/login` with automatic register fallback.
 - [x] `client/src/lib/workspace.ts` — live-data loader maps REST payloads

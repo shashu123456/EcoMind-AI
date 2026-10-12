@@ -95,19 +95,16 @@ if frontend_dist.exists():
         res.headers["Cache-Control"] = "no-store"
         return res
 
-# routes already mounted; model_competition can be added if needed
+# model_competition sits under /api/v1/competitions so its paths never collide
+# with the dataset-scoped pipeline endpoints in datasets.py.
+from .routes import model_competition
 
-# Mount model competition routes
+app.include_router(model_competition.router, prefix="/api/v1/competitions", tags=["competition"])
 
-from app.routes import model_competition; app.include_router(model_competition.router, prefix='/api/v1')
-
-
-
-
-
-
-
-
-
-
-
+# Sanity check at import time: the authoritative pipeline graph should never be
+# empty. The stage runners are registered in domain/*.py and imported from
+# main.py, so an empty graph indicates an import-order problem rather than a
+# missing endpoint.
+from app.workflow.stages import STAGE_BY_KEY
+if not STAGE_BY_KEY:
+    raise RuntimeError("stage graph is empty at import time")

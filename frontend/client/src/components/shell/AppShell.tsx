@@ -12,7 +12,7 @@ import {
 import { EcoMindMark } from "@/components/icons/EcoMindMark";
 import { useTheme } from "@/contexts/ThemeContext";
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Line, LineChart, ReferenceLine,
-  ResponsiveContainer, Tooltip as RechartsTooltip, XAxis, YAxis } from "recharts";
+  ResponsiveContainer, Tooltip as RechartsTooltip, TooltipProps, XAxis, YAxis } from "recharts";
 import "./AppShell.css";
 import { useSound, playCompletionChime, playStartTone, unlockAudio } from "@/lib/useSound";
 import { auth, datasets as datasetsApi, domain, getToken, workflow, type AuthUser } from "@/lib/api";
@@ -24,7 +24,7 @@ import {
   type LiveAnomalyPoint, type LiveAnomaly, type LiveForecastPoint, type LiveRec, type LiveActivity,
   type LiveStage, type LiveCompetition, type LiveQualityMeta, type LiveAnomalyMeta,
   type LiveTransform, type LiveBaseline, type LiveBaselineCell, type BackendDomain,
-  type LiveWindowOption, deriveWindowOptions,
+  type LiveWindowOption, deriveWindowOptions, deriveForecastWindowOptions,
   type LiveForecastMeta, type LiveRecMeta, type LiveRun, type LiveSchemaField, type LiveBaselineVersion,
 } from "@/lib/workspace";
 import { Snowflake, Thermometer, Waves, ArrowUpDown, Cog } from "lucide-react";
@@ -621,20 +621,20 @@ function SignInView({ onEnter }: { onEnter: () => void }) {
           </span>
           <span>EcoMind Energy OS / workspace preview</span>
           <span>Build {__BUILD_STAMP__}</span>
-        </div>
-        <div className="signin-chips">
-          <span className="signin-chip">
-            <Network size={13} />
-            10-stage pipeline
-          </span>
-          <span className="signin-chip">
-            <DatabaseZap size={13} />
-            Raw data immutable
-          </span>
-          <span className="signin-chip">
-            <BarChart3 size={13} />
-            Score-ranked models
-          </span>
+          <div className="signin-chips">
+            <span className="signin-chip">
+              <Network size={12} />
+              10-stage pipeline
+            </span>
+            <span className="signin-chip">
+              <DatabaseZap size={12} />
+              Raw data immutable
+            </span>
+            <span className="signin-chip">
+              <BarChart3 size={12} />
+              Score-ranked models
+            </span>
+          </div>
         </div>
         <div className="signin-radar">
           <div className="signin-radar__ring signin-radar__ring--one" />
@@ -788,11 +788,12 @@ export function AppShell() {
     loading: boolean;
     error: string;
   } | null>(null);
-  const [anomalyWindow, setAnomalyWindow] = useState("24H");
-  const [forecastWindow, setForecastWindow] = useState("7 days");
+  const [anomalyWindow, setAnomalyWindow] = useState("24h");
+  const [forecastWindow, setForecastWindow] = useState("all");
   const [reportDraft, setReportDraft] = useState<string | null>(null);
   const [reportExported, setReportExported] = useState(false);
   const [selectedAnomaly, setSelectedAnomaly] = useState<(typeof anomalies)[number] | null>(null);
+  const [selectedPoint, setSelectedPoint] = useState<LiveAnomalyPoint | null>(null);
   const [terminalOpen, setTerminalOpen] = useState(true);
   const [terminalPaused, setTerminalPaused] = useState(false);
   const [workspace, setWorkspace] = useState<LiveWorkspace | null>(null);
@@ -836,6 +837,12 @@ export function AppShell() {
         Math.max(anomalyData.length, forecastData.length, energyData.length)
       ),
     [workspace]
+  );
+  // The prediction chart is daily buckets, so it gets its own ladder: each rung
+  // is a real number of forecast days on screen rather than hourly point counts.
+  const forecastWindowOptions = useMemo(
+    () => deriveForecastWindowOptions(forecastData.length),
+    [forecastData.length]
   );
 
   const refreshPipeline = async () => {
@@ -1346,6 +1353,8 @@ export function AppShell() {
             window={anomalyWindow}
             setWindow={setAnomalyWindow}
             onInspect={setSelectedAnomaly}
+            onInspectPoint={(point) => { setSelectedAnomaly(null); setSelectedPoint(point); }}
+            selectedPoint={selectedPoint}
             dataset={activeDataset}
             baselineName={baselineName}
           />
@@ -1353,10 +1362,11 @@ export function AppShell() {
       case "prediction":
         return (
           <PredictionView
-            windowOptions={windowOptions}
+            windowOptions={forecastWindowOptions}
             window={forecastWindow}
             setWindow={setForecastWindow}
             onViewData={() => goTo("transform")}
+            onRefresh={() => void refreshWorkspace()}
             dataset={activeDataset}
             baselineName={baselineName}
             modelName={modelName}
@@ -1373,7 +1383,7 @@ export function AppShell() {
             onDraft={() => {
               const totalAnoms = liveAnomalyMeta?.total ?? anomalies.length;
               const pri = (liveAnomalyMeta?.severity?.critical ?? 0) + (liveAnomalyMeta?.severity?.high ?? 0);
-              const fcTotal = forecastData.reduce((sum, d) => sum + d.forecast, 0);
+              const fcTotal = forecastData.reduce((sum, d) => sum + (d.forecast_energy_kwh ?? 0), 0);
               const recCount = liveRecMeta?.total ?? recommendations.length;
               const savings = liveRecMeta?.savingsInr ?? 0;
               setReportDraft(
@@ -1721,8 +1731,9 @@ export function AppShell() {
       />
       <InspectorDrawer
         anomaly={selectedAnomaly}
+        point={selectedPoint}
         baselineName={baselineName}
-        onClose={() => setSelectedAnomaly(null)}
+        onClose={() => { setSelectedAnomaly(null); setSelectedPoint(null); }}
         onOpenChart={focusAnomalyOnChart}
       />
       {preview ? (
@@ -1871,22 +1882,29 @@ function ActivityTerminal({
 
 function InspectorDrawer({
   anomaly,
+  point,
   baselineName,
   onClose,
   onOpenChart,
 }: {
   anomaly: (typeof anomalies)[number] | null;
+  point: LiveAnomalyPoint | null;
   baselineName: string;
   onClose: () => void;
   onOpenChart: (anomaly: (typeof anomalies)[number]) => void;
 }) {
   const sound = useSound({ onPlay: () => {} });
+  const open = anomaly != null || point != null;
   return (
-    <aside className={`inspector-drawer ${anomaly ? "inspector-drawer--open" : ""}`} aria-label="Inspector panel">
+    <aside className={`inspector-drawer ${open ? "inspector-drawer--open" : ""}`} aria-label="Inspector panel">
       <div className="inspector-drawer__head">
         <div>
           <span className="section-eyebrow">EVIDENCE INSPECTOR</span>
-          <h2>{anomaly ? anomaly.id : "Select an evidence item"}</h2>
+          <h2>
+            {point ? `Point · ${point.timestamp}`
+            : anomaly ? anomaly.id
+            : "Select an evidence item"}
+          </h2>
         </div>
         <button
           type="button"
@@ -1900,7 +1918,9 @@ function InspectorDrawer({
           <X size={14} />
         </button>
       </div>
-      {anomaly ? (
+      {point ? (
+        <PointInspector point={point} baselineName={baselineName} onClose={onClose} />
+      ) : anomaly ? (
         <div className="inspector-drawer__content">
           <div className="inspector-alert">
             <span className="inspector-alert__icon">
@@ -1997,6 +2017,193 @@ function InspectorDrawer({
     </aside>
   );
 }
+
+/** Rich inspection of a single anomaly-chart point, driven entirely by the
+ * backend metadata attached to that point. No fabricated fields.
+ */
+const PointInspector = ({
+  point,
+  baselineName,
+  onClose,
+}: {
+  point: LiveAnomalyPoint;
+  baselineName: string;
+  onClose: () => void;
+}) => {
+  const severityColor: Record<string, string> = {
+    critical: "coral",
+    high: "orange",
+    medium: "yellow",
+    low: "blue",
+  };
+  const tone = severityColor[point.severity] ?? "neutral";
+  const locationLabel =
+    [point.building_name, point.floor_no, point.room_code, point.device_name]
+      .filter(Boolean)
+      .join(" / ") ||
+    [point.building_code, point.floor_no, point.room_code, point.device_code]
+      .filter(Boolean)
+      .join(" / ") ||
+    "estate not recorded";
+  return (
+    <div className="inspector-drawer__content">
+      <div className="inspector-alert">
+        <span className="inspector-alert__icon">
+          <AlertTriangle size={18} />
+        </span>
+        <div>
+          <TinyTag tone={tone}>{point.severity || "no anomaly"}</TinyTag>
+          <h3>{point.anomaly_type || "Reading"}</h3>
+          <span>{point.timestamp}</span>
+        </div>
+      </div>
+
+      <div className="inspector-section">
+        <span className="section-eyebrow">LOCATION</span>
+        <div className="inspector-grid">
+          <div>
+            <strong>Building</strong>
+            <span className="mono-note">{point.building_code || point.building_name || "—"}</span>
+          </div>
+          <div>
+            <strong>Floor</strong>
+            <span className="mono-note">{point.floor_no || "—"}</span>
+          </div>
+          <div>
+            <strong>Room</strong>
+            <span className="mono-note">{point.room_code || "—"}</span>
+          </div>
+          <div>
+            <strong>Device</strong>
+            <span className="mono-note">{point.device_code || "—"}</span>
+          </div>
+          <div>
+            <strong>Device name</strong>
+            <span>{point.device_name || "—"}</span>
+          </div>
+          <div>
+            <strong>Device type</strong>
+            <span>{point.device_type || "—"}</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="inspector-section">
+        <span className="section-eyebrow">ENERGY</span>
+        <div className="inspector-metrics">
+          <div>
+            <span>Observed</span>
+            <strong>
+              {point.observed_energy_kwh != null
+                ? `${point.observed_energy_kwh.toFixed(1)} kWh`
+                : "—"}
+            </strong>
+            <small>recorded reading</small>
+          </div>
+          <div>
+            <span>Baseline</span>
+            <strong>
+              {point.baseline_energy_kwh != null
+                ? `${point.baseline_energy_kwh.toFixed(1)} kWh`
+                : "—"}
+            </strong>
+            <small>learned normal</small>
+          </div>
+          <div>
+            <span>Deviation</span>
+            <strong>
+              {point.deviation_percent != null
+                ? `${point.deviation_percent >= 0 ? "+" : ""}${point.deviation_percent.toFixed(1)}%`
+                : "—"}
+            </strong>
+            <small>vs baseline</small>
+          </div>
+          <div>
+            <span>Predicted</span>
+            <strong>
+              {point.predicted_energy_kwh != null
+                ? `${point.predicted_energy_kwh.toFixed(1)} kWh`
+                : "not provided"}
+            </strong>
+            <small>forecast at this point</small>
+          </div>
+        </div>
+      </div>
+
+      <div className="inspector-section">
+        <span className="section-eyebrow">AI</span>
+        <div className="inspector-metrics">
+          <div>
+            <span>Severity</span>
+            <strong>{point.severity || "—"}</strong>
+          </div>
+          <div>
+            <span>Confidence</span>
+            <strong>
+              {point.confidence != null ? point.confidence.toFixed(2) : "—"}
+            </strong>
+            <small>detection confidence</small>
+          </div>
+          <div>
+            <span>Anomaly type</span>
+            <span>{point.anomaly_type || "—"}</span>
+          </div>
+          <div>
+            <span>Winning model</span>
+            <span>
+              {point.model_name || "—"}
+              {point.model_version ? ` · v${point.model_version}` : ""}
+            </span>
+          </div>
+          <div>
+            <span>Baseline version</span>
+            <strong>
+              {point.baseline_version != null ? `v${point.baseline_version}` : "—"}
+            </strong>
+          </div>
+          <div>
+            <span>Origin</span>
+            <span>{point.origin || "—"}</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="inspector-section">
+        <span className="section-eyebrow">PROVENANCE</span>
+        <div className="inspector-grid">
+          <div>
+            <strong>Dataset</strong>
+            <span className="mono-note">{point.dataset_id}</span>
+          </div>
+          <div>
+            <strong>Dataset name</strong>
+            <span>{point.dataset_name || "—"}</span>
+          </div>
+          <div>
+            <strong>Domain</strong>
+            <span>{point.domain || "—"}</span>
+          </div>
+          <div>
+            <strong>Workflow run</strong>
+            <span className="mono-note">{point.workflow_run_id || "—"}</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="inspector-actions">
+        <button
+          type="button"
+          className="panel-link"
+          onClick={() => {
+            onClose();
+          }}
+        >
+          Dismiss <X size={13} />
+        </button>
+      </div>
+    </div>
+  );
+};
 
 function OverviewView({
   onNavigate,
@@ -4011,6 +4218,107 @@ function TransformView({
         </section>
       </div>
 
+      {/* Full timeline: raw → processed → baseline, shown openly. */}
+      {baseline && energyData.length ? (
+        <section className="panel transform-timeline-panel">
+          <SectionHeading
+            eyebrow="FULL TIMELINE / RAW → PROCESSED → BASELINE"
+            title="The complete recorded story"
+            detail="Everything the pipeline touched, in order: the uploaded signal, the processed target the models trained on, and the baseline EcoMind learned from this dataset. No stage is hidden behind a shaded region."
+          />
+          <div className="timeline-flow">
+            <div className="timeline-step">
+              <div className="timeline-step__dot timeline-step__dot--raw" />
+              <div>
+                <strong>Raw data</strong>
+                <span>uploaded signal, before any transformation</span>
+              </div>
+            </div>
+            <ArrowRight size={14} className="timeline-arrow" />
+            <div className="timeline-step">
+              <div className="timeline-step__dot timeline-step__dot--processed" />
+              <div>
+                <strong>Processed data</strong>
+                <span>target column after transformation — what the models and baseline actually see</span>
+              </div>
+            </div>
+            <ArrowRight size={14} className="timeline-arrow" />
+            <div className="timeline-step">
+              <div className="timeline-step__dot timeline-step__dot--baseline" />
+              <div>
+                <strong>Generated baseline</strong>
+                <span> Adaptive baseline learned from this dataset — the normal every later stage compares against</span>
+              </div>
+            </div>
+          </div>
+          <div className="timeline-chart">
+            <ResponsiveContainer width="100%" height={160}>
+              <LineChart data={energyData} margin={{ top: 8, right: 12, left: -6, bottom: 0 }}>
+                <CartesianGrid stroke="#24342d" strokeDasharray="2 5" vertical={false} />
+                <XAxis
+                  dataKey="time"
+                  stroke="#61776a"
+                  tickLine={false}
+                  axisLine={false}
+                  interval="preserveStartEnd"
+                  minTickGap={24}
+                  tick={{ fill: "#768e7f", fontSize: 9 }}
+                />
+                <YAxis
+                  stroke="#61776a"
+                  tickLine={false}
+                  axisLine={false}
+                  width={44}
+                  tick={{ fill: "#768e7f", fontSize: 9 }}
+                  tickFormatter={v => fmtCount(Number(v))}
+                />
+                <RechartsTooltip
+                  contentStyle={{ background: "#15231b", border: "1px solid #30473a", borderRadius: 8, color: "#eff8f1", fontSize: 11 }}
+                  labelStyle={{ color: "#eff8f1", fontWeight: 600, marginBottom: 4 }}
+                  formatter={(value, name) => {
+                    const n = Number(value);
+                    if (name === "energy") return [fmtCount(n), displayUnit(liveTargetUnit)];
+                    if (name === "baseline") return [fmtCount(n), "baseline"];
+                    return [fmtCount(n), String(name)];
+                  }}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="baseline"
+                  stroke="#718b7b"
+                  strokeDasharray="4 4"
+                  strokeWidth={1.5}
+                  dot={false}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="energy"
+                  stroke="#b6f36b"
+                  strokeWidth={2}
+                  dot={{ fill: "#b6f36b", r: 2, strokeWidth: 0 }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="timeline-legend">
+            <span>
+              <i style={{ background: "#b6f36b" }} />
+              {" "}
+              processed target — the observed energy EcoMind measures against the baseline
+            </span>
+            <br />
+            <span>
+              <i style={{ background: "#718b7b" }} />
+              {" "}
+              adaptive baseline — the normal learned from {fmtCount(baseline.rowCount)} readings of {baseline.target || "the target column"}
+            </span>
+          </div>
+          <div className="mono-note" style={{ marginTop: 6 }}>
+            GENERATED / {baseline.generatedAt ? fmtRunClock(baseline.generatedAt) : "—"} · {baselineName || "baseline"}
+          </div>
+        </section>
+      ) : null}
+
       {heat ? (
         <section className="panel baseline-heat-panel">
           <SectionHeading
@@ -4334,10 +4642,279 @@ function ModelsView({
   );
 }
 
+/**
+ * Rich hover tooltip for the anomaly deviation chart.
+ *
+ * Renders the estate, energy and AI provenance the backend attached to each
+ * plotted point, so the chart never needs a second API call to explain itself.
+ * Content is driven entirely by `LiveAnomalyPoint` — nothing here is fabricated.
+ */
+const AnomalyTooltipContent = (props: TooltipProps<number, string>) => {
+  // TooltipProps carries the active point in `payload` (an array of the
+  // stacked series entries at the hovered x). We read the observed series
+  // entry and cast it to LiveAnomalyPoint.
+  const raw = props.payload;
+  const record = Array.isArray(raw) ? raw[0] : undefined;
+  const p = (record && typeof record === "object" && "observed_energy_kwh" in record)
+    ? (record as unknown as LiveAnomalyPoint)
+    : undefined;
+  if (!p || !Number.isFinite(p.observed_energy_kwh)) return null;
+  const severityColor: Record<string, string> = {
+    critical: "#f07f6e",
+    high: "#f5a56d",
+    medium: "#e6ca78",
+    low: "#79d6c4",
+  };
+  const sevColor = severityColor[p.severity] ?? "#e6ca78";
+  const observed = p.observed_energy_kwh;
+  const baseline = p.baseline_energy_kwh;
+  const deviation = p.deviation_percent;
+  const locationLabel =
+    [p.building_name, p.floor_no, p.room_code, p.device_name]
+      .filter(Boolean)
+      .join(" / ") ||
+    [p.building_code, p.floor_no, p.room_code, p.device_code]
+      .filter(Boolean)
+      .join(" / ") ||
+    "estate not recorded";
+  return (
+    <div
+      className="anomaly-tooltip"
+      style={{
+        background: "#15231b",
+        border: "1px solid #30473a",
+        borderRadius: 8,
+        color: "#eff8f1",
+        fontSize: 11,
+        padding: "8px 10px",
+        minWidth: 200,
+        boxShadow: "0 4px 16px rgba(0,0,0,0.35)",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+          marginBottom: 6,
+          paddingBottom: 6,
+          borderBottom: "1px solid #30473a",
+        }}
+      >
+        <span
+          style={{
+            width: 8,
+            height: 8,
+            borderRadius: "50%",
+            background: sevColor,
+            display: "inline-block",
+          }}
+        />
+        <span style={{ fontWeight: 600, color: "#eff8f1" }}>
+          {p.severity ? p.severity.toUpperCase() : "NO ANOMALY"}
+        </span>
+        {p.anomaly_type ? (
+          <span style={{ color: "#a9c7a0", marginLeft: 6 }}>{p.anomaly_type}</span>
+        ) : null}
+      </div>
+      <div style={{ marginBottom: 6 }}>
+        <div style={{ fontSize: 9, color: "#8fa79a", marginBottom: 2 }}>LOCATION</div>
+        <div style={{ color: "#eff8f1" }}>{locationLabel}</div>
+        {p.device_type ? (
+          <div style={{ fontSize: 10, color: "#a9c7a0", marginTop: 1 }}>
+            device type: {p.device_type}
+          </div>
+        ) : null}
+      </div>
+      <div style={{ marginBottom: 6 }}>
+        <div style={{ fontSize: 9, color: "#8fa79a", marginBottom: 2 }}>ENERGY</div>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+          <span style={{ color: "#b6f36b" }}>observed</span>
+          <span style={{ fontVariantNumeric: "tabular-nums" }}>
+            {observed != null ? `${observed.toFixed(1)} kWh` : "—"}
+          </span>
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+          <span style={{ color: "#718b7b" }}>baseline</span>
+          <span style={{ fontVariantNumeric: "tabular-nums" }}>
+            {baseline != null ? `${baseline.toFixed(1)} kWh` : "—"}
+          </span>
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+          <span style={{ color: "#f5a56d" }}>deviation</span>
+          <span style={{ fontVariantNumeric: "tabular-nums" }}>
+            {deviation != null ? `${deviation >= 0 ? "+" : ""}${deviation.toFixed(1)}%` : "—"}
+          </span>
+        </div>
+      </div>
+      {p.confidence != null ? (
+        <div style={{ marginBottom: 6 }}>
+          <div style={{ fontSize: 9, color: "#8fa79a", marginBottom: 2 }}>AI / DETECTION</div>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+            <span>confidence</span>
+            <span style={{ fontVariantNumeric: "tabular-nums" }}>
+              {p.confidence.toFixed(2)}
+            </span>
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+            <span>winning model</span>
+            <span>
+              {p.model_name || "—"}
+              {p.model_version ? ` · v${p.model_version}` : ""}
+            </span>
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+            <span>baseline version</span>
+            <span>{p.baseline_version != null ? `v${p.baseline_version}` : "—"}</span>
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+            <span>origin</span>
+            <span>{p.origin || "—"}</span>
+          </div>
+        </div>
+      ) : null}
+      <div style={{ fontSize: 9, color: "#5d7765", marginTop: 6, paddingTop: 4, borderTop: "1px solid #30473a" }}>
+        dataset {p.dataset_id} · {p.domain || "—"}
+      </div>
+    </div>
+  );
+};
+
+function ForecastTooltipContent(props: TooltipProps<number, string>) {
+  // TooltipProps carries the active point in `activeData` (the single
+  // series entry at the hovered x). We read it as a LiveForecastPoint.
+  const raw = props.payload;
+  const p = (raw && Array.isArray(raw) && raw[0] && typeof raw[0] === "object" && "day" in raw[0])
+    ? (raw[0] as unknown as LiveForecastPoint)
+    : undefined;
+  if (!p || !p.day) return null;
+
+  const units = liveTargetUnit ? displayUnit(liveTargetUnit) : "kWh";
+  const observed = p.observed_energy_kwh;
+  const forecast = p.forecast_energy_kwh;
+  const lower = p.lower_kwh;
+  const upper = p.upper_kwh;
+  const cost = p.expected_cost_inr;
+  const co2 = p.expected_co2_kg;
+  const future = p.is_future;
+  const inPast = future === false;
+  const inFuture = future === true;
+
+  return (
+    <div
+      className="anomaly-tooltip"
+      style={{
+        background: "#15231b",
+        border: "1px solid #30473a",
+        borderRadius: 8,
+        color: "#eff8f1",
+        fontSize: 11,
+        padding: "8px 10px",
+        minWidth: 230,
+        boxShadow: "0 4px 16px rgba(0,0,0,0.35)",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "baseline",
+          justifyContent: "space-between",
+          gap: 8,
+          marginBottom: 6,
+          paddingBottom: 6,
+          borderBottom: "1px solid #30473a",
+        }}
+      >
+        <span style={{ fontWeight: 600, color: "#eff8f1", fontSize: 12 }}>
+          {p.day}
+        </span>
+        {inFuture ? (
+          <span style={{ fontSize: 9, color: "#8d86ff", fontWeight: 600, letterSpacing: "0.04em" }}>
+            FUTURE
+          </span>
+        ) : inPast ? (
+          <span style={{ fontSize: 9, color: "#b6f36b", fontWeight: 600, letterSpacing: "0.04em" }}>
+            OBSERVED
+          </span>
+        ) : (
+          <span style={{ fontSize: 9, color: "#718b7b", fontWeight: 600, letterSpacing: "0.04em" }}>
+            PROJECTED
+          </span>
+        )}
+      </div>
+
+      <div style={{ marginBottom: 6 }}>
+        <div style={{ fontSize: 9, color: "#8fa79a", marginBottom: 2 }}>DATASET</div>
+        <div style={{ color: "#eff8f1" }}>
+          {p.day && (() => {
+            // Keep this read-only; dataset context is recorded at chart load time
+            // (dataset.name + domain) and does not need a second fetch.
+            return null;
+          })() || "—"}
+        </div>
+      </div>
+
+      <div style={{ marginBottom: 6 }}>
+        <div style={{ fontSize: 9, color: "#8fa79a", marginBottom: 2 }}>ENERGY</div>
+        {observed != null && (
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+            <span style={{ color: "#b6f36b" }}>observed</span>
+            <span style={{ fontVariantNumeric: "tabular-nums" }}>
+              {fmtCount(observed)}{units}
+            </span>
+          </div>
+        )}
+        {forecast != null && (
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+            <span style={{ color: "#8d86ff" }}>forecast</span>
+            <span style={{ fontVariantNumeric: "tabular-nums" }}>
+              {fmtCount(forecast)}{units}
+            </span>
+          </div>
+        )}
+        {(lower != null && upper != null) ? (
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+            <span style={{ color: "#718b7b" }}>confidence interval</span>
+            <span style={{ fontVariantNumeric: "tabular-nums", color: "#8fa79a" }}>
+              {fmtCount(Number(((upper - lower) / 2).toFixed(1)))} ± {units}
+            </span>
+          </div>
+        ) : null}
+      </div>
+
+      <div style={{ marginBottom: 6 }}>
+        <div style={{ fontSize: 9, color: "#8fa79a", marginBottom: 2 }}>EXPECTED</div>
+        {cost != null ? (
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+            <span>cost</span>
+            <span style={{ fontVariantNumeric: "tabular-nums" }}>
+              {displayUnit("INR")}{fmtCount(cost)}
+            </span>
+          </div>
+        ) : null}
+        {co2 != null ? (
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+            <span>CO₂</span>
+            <span style={{ fontVariantNumeric: "tabular-nums" }}>
+              {fmtCount(co2)} kgCO₂
+            </span>
+          </div>
+        ) : null}
+      </div>
+
+      <div style={{ fontSize: 9, color: "#5d7765", marginTop: 6, paddingTop: 4, borderTop: "1px solid #30473a" }}>
+        forecast · {p.day}
+      </div>
+    </div>
+  );
+}
+
 function AnomaliesView({
   window,
   setWindow,
   onInspect,
+  onInspectPoint,
+  selectedPoint,
   dataset,
   baselineName,
   windowOptions,
@@ -4345,6 +4922,8 @@ function AnomaliesView({
   window: string;
   setWindow: (value: string) => void;
   onInspect: (anomaly: (typeof anomalies)[number]) => void;
+  onInspectPoint: (point: LiveAnomalyPoint) => void;
+  selectedPoint: LiveAnomalyPoint | null;
   dataset: Dataset;
   baselineName: string;
   windowOptions: LiveWindowOption[];
@@ -4356,15 +4935,55 @@ function AnomaliesView({
   const activeWindow =
     windowOptions.find(option => option.id === window) ?? windowOptions[windowOptions.length - 1] ?? null;
   const series = activeWindow ? anomalyData.slice(-activeWindow.points) : anomalyData;
-  const baselineMax = series.length ? Math.max(...series.map(p => p.baseline)) : 0;
+  const baselineMax = series.length ? Math.max(...series.map(p => p.baseline_energy_kwh ?? 0)) : 0;
   const thresholdLine = baselineMax > 0 ? Number((baselineMax * 1.2).toFixed(1)) : 0;
-  const severitySeries = series.map(p => ({
-    time: p.time,
-    critical: p.severity === "critical" ? (p.anomaly ?? p.actual) : null,
-    high: p.severity === "high" ? (p.anomaly ?? p.actual) : null,
-    medium: p.severity === "medium" ? (p.anomaly ?? p.actual) : null,
-    low: p.severity === "low" ? (p.anomaly ?? p.actual) : null,
-  }))
+
+  // When the backend never returned anomaly points, use the blank markers so the
+  // deviation chart still renders the frame, grid, axis and legend instead of
+  // collapsing to a blank rectangle.
+  const chartSeries = series.length
+    ? series.map(p => ({
+        timestamp: p.timestamp,
+        observed_energy_kwh: p.observed_energy_kwh,
+        baseline_energy_kwh: p.baseline_energy_kwh,
+        predicted_energy_kwh: p.predicted_energy_kwh,
+        deviation_percent: p.deviation_percent,
+        severity: p.severity,
+        confidence: p.confidence,
+        anomaly_type: p.anomaly_type,
+        building_code: p.building_code,
+        building_name: p.building_name,
+        floor_no: p.floor_no,
+        room_code: p.room_code,
+        zone: p.zone,
+        device_code: p.device_code,
+        device_name: p.device_name,
+        device_type: p.device_type,
+        dataset_id: p.dataset_id,
+        dataset_name: p.dataset_name,
+        domain: p.domain,
+        model_name: p.model_name,
+        model_version: p.model_version,
+        baseline_version: p.baseline_version,
+        origin: p.origin,
+        workflow_run_id: p.workflow_run_id,
+        // severity dots live on their own lane.
+        critical: p.severity === "critical" ? (p.observed_energy_kwh ?? p.baseline_energy_kwh) : null,
+        high: p.severity === "high" ? (p.observed_energy_kwh ?? p.baseline_energy_kwh) : null,
+        medium: p.severity === "medium" ? (p.observed_energy_kwh ?? p.baseline_energy_kwh) : null,
+        low: p.severity === "low" ? (p.observed_energy_kwh ?? p.baseline_energy_kwh) : null,
+      }))
+    : [{ timestamp: activeWindow?.label ?? window, observed_energy_kwh: NaN, baseline_energy_kwh: NaN, predicted_energy_kwh: null, deviation_percent: 0, severity: "", confidence: null, anomaly_type: "", building_code: "", building_name: "", floor_no: "",        room_code: "",
+        zone: "",
+        device_code: "", device_name: "", device_type: "", dataset_id: "", dataset_name: "", domain: "", model_name: "", model_version: "", baseline_version: null, origin: "", workflow_run_id: "", critical: null, high: null, medium: null, low: null }];
+
+  const severitySeries = chartSeries.map(p => ({
+    timestamp: p.timestamp,
+    critical: p.critical,
+    high: p.high,
+    medium: p.medium,
+    low: p.low,
+  }));
   return (
     <div className="view-content">
       <div className="anomaly-topline">
@@ -4417,7 +5036,11 @@ function AnomaliesView({
         <div className="anomaly-chart-head">
           <div>
             <div className="section-eyebrow">DEVIATION FROM BASELINE / {window}</div>
-            <h2>{anomalyTotal ? `${anomalyTotal} event${anomalyTotal === 1 ? "" : "s"} broke the pattern.` : "No anomalies recorded."}</h2>
+            <h2>
+              {anomalyTotal
+                ? `${anomalyTotal} event${anomalyTotal === 1 ? "" : "s"} broke the pattern.`
+                : "No anomalies recorded."}
+            </h2>
           </div>
           <div className="chart-legend">
             <span>
@@ -4457,12 +5080,20 @@ function AnomaliesView({
             />
           </div>
         </div>
-        <div className="anomaly-chart">
+        <div className="anomaly-chart anomaly-chart--split">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={series} margin={{ top: 16, right: 24, left: -14, bottom: 0 }}>
+            <LineChart data={chartSeries} margin={{ top: 16, right: 24, left: -14, bottom: 0 }}
+              onClick={((data: readonly unknown[], index: number | undefined, _evt: React.MouseEvent) => {
+                if (index == null || index < 0 || index >= chartSeries.length) return;
+                const p = chartSeries[index];
+                if (p && Number.isFinite(p.observed_energy_kwh) && onInspectPoint) {
+                  onInspectPoint(p);
+                  sound.play({ volume: 0.12, rate: 1.05 });
+                }
+              }) as any}>
               <CartesianGrid stroke="#24342d" strokeDasharray="2 5" vertical={false} />
               <XAxis
-                dataKey="time"
+                dataKey="timestamp"
                 stroke="#61776a"
                 tickLine={false}
                 axisLine={false}
@@ -4479,24 +5110,35 @@ function AnomaliesView({
                 stroke="#f5a56d"
                 strokeDasharray="3 5"
                 strokeOpacity={0.5}
+                label={{
+                  value: thresholdLine > 0 ? `threshold +${(thresholdLine / (baselineMax || 1) * 100).toFixed(0)}%` : "threshold",
+                  position: "right",
+                  fill: "#f5a56d",
+                  fontSize: 9,
+                  fontWeight: 600,
+                }}
               />
               <RechartsTooltip
-                contentStyle={{ background: "#15231b", border: "1px solid #30473a", borderRadius: 8, color: "#eff8f1", fontSize: 11 }}
+                content={AnomalyTooltipContent}
+                cursor={{ fill: "#1e3127" }}
+                labelStyle={{ color: "#eff8f1", fontWeight: 600, marginBottom: 4 }}
               />
               <Line
                 type="monotone"
-                dataKey="baseline"
+                dataKey="baseline_energy_kwh"
                 stroke="#718b7b"
                 strokeDasharray="4 4"
                 strokeWidth={1.5}
                 dot={false}
+                activeDot={chartSeries.length > 1 ? { r: 3, strokeWidth: 0 } : false}
               />
               <Line
                 type="monotone"
-                dataKey="actual"
+                dataKey="observed_energy_kwh"
                 stroke="#b6f36b"
                 strokeWidth={2.5}
                 dot={{ fill: "#b6f36b", r: 3, strokeWidth: 0 }}
+                activeDot={chartSeries.length > 1 ? { fill: "#b6f36b", r: 4, stroke: "#24342d", strokeWidth: 1.5 } : false}
               />
               <Line
                 type="monotone"
@@ -4536,21 +5178,164 @@ function AnomaliesView({
               />
             </LineChart>
           </ResponsiveContainer>
+          {chartSeries.length > 1 && selectedPoint ? (
+            <div className="anomaly-focus-panel">
+              <div className="anomaly-focus-panel__head">
+                <span className="section-eyebrow">FOCUSED READING</span>
+                <h3>{selectedPoint.severity ? selectedPoint.severity.toUpperCase() : "READING"}</h3>
+              </div>
+              <div className="anomaly-focus-panel__identity">
+                <div className="anomaly-focus-row">
+                  <span className="anomaly-focus-label">Building</span>
+                  <span className="anomaly-focus-value">{selectedPoint.building_name || selectedPoint.building_code || "—"}</span>
+                </div>
+                <div className="anomaly-focus-row">
+                  <span className="anomaly-focus-label">Floor</span>
+                  <span className="anomaly-focus-value mono">{selectedPoint.floor_no || "—"}</span>
+                </div>
+                <div className="anomaly-focus-row">
+                  <span className="anomaly-focus-label">Room</span>
+                  <span className="anomaly-focus-value mono">{selectedPoint.room_code || "—"}</span>
+                </div>
+                <div className="anomaly-focus-row">
+                  <span className="anomaly-focus-label">Device</span>
+                  <span className="anomaly-focus-value">{selectedPoint.device_name || selectedPoint.device_code || "—"}</span>
+                </div>
+                <div className="anomaly-focus-row">
+                  <span className="anomaly-focus-label">Device type</span>
+                  <span className="anomaly-focus-value mono">{selectedPoint.device_type || "—"}</span>
+                </div>
+                {selectedPoint.zone ? (
+                  <div className="anomaly-focus-row">
+                    <span className="anomaly-focus-label">Zone</span>
+                    <span className="anomaly-focus-value mono">{selectedPoint.zone}</span>
+                  </div>
+                ) : null}
+              </div>
+              <div className="anomaly-focus-panel__energy">
+                <div className="anomaly-focus-section">
+                  <span className="section-eyebrow">ENERGY</span>
+                  <div className="anomaly-focus-metrics">
+                    <div>
+                      <strong>Observed</strong>
+                      <span className="mono">
+                        {selectedPoint.observed_energy_kwh != null
+                          ? `${selectedPoint.observed_energy_kwh.toFixed(1)} ${liveTargetUnit ? displayUnit(liveTargetUnit) : ""}`.trim()
+                          : "—"}
+                      </span>
+                      <small>recorded reading</small>
+                    </div>
+                    <div>
+                      <strong>Baseline</strong>
+                      <span className="mono">
+                        {selectedPoint.baseline_energy_kwh != null
+                          ? `${selectedPoint.baseline_energy_kwh.toFixed(1)} ${liveTargetUnit ? displayUnit(liveTargetUnit) : ""}`.trim()
+                          : "—"}
+                      </span>
+                      <small>learned normal</small>
+                    </div>
+                    <div>
+                      <strong>Deviation</strong>
+                      <span className="mono" style={{ color: selectedPoint.deviation_percent != null && selectedPoint.deviation_percent > 0 ? "var(--eco-orange)" : "" }}>
+                        {selectedPoint.deviation_percent != null
+                          ? `${selectedPoint.deviation_percent >= 0 ? "+" : ""}${selectedPoint.deviation_percent.toFixed(1)}%`
+                          : "—"}
+                      </span>
+                      <small>vs baseline</small>
+                    </div>
+                    {selectedPoint.predicted_energy_kwh != null ? (
+                      <div>
+                        <strong>Forecast</strong>
+                        <span className="mono">
+                          {`${selectedPoint.predicted_energy_kwh.toFixed(1)} ${liveTargetUnit ? displayUnit(liveTargetUnit) : ""}`.trim()}
+                        </span>
+                        <small>forecast at this point</small>
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+              <div className="anomaly-focus-panel__ai">
+                <div className="anomaly-focus-section">
+                  <span className="section-eyebrow">AI</span>
+                  <div className="anomaly-focus-metrics">
+                    <div>
+                      <strong>Severity</strong>
+                      <span>{selectedPoint.severity || "—"}</span>
+                    </div>
+                    <div>
+                      <strong>Anomaly type</strong>
+                      <span>{selectedPoint.anomaly_type || "—"}</span>
+                    </div>
+                    <div>
+                      <strong>Confidence</strong>
+                      <span className="mono">
+                        {selectedPoint.confidence != null
+                          ? selectedPoint.confidence.toFixed(2)
+                          : "—"}
+                      </span>
+                      <small>detection confidence</small>
+                    </div>
+                    <div>
+                      <strong>Winning model</strong>
+                      <span>
+                        {selectedPoint.model_name || "—"}
+                        {selectedPoint.model_version ? ` · v${selectedPoint.model_version}` : ""}
+                      </span>
+                    </div>
+                    <div>
+                      <strong>Baseline version</strong>
+                      <span className="mono">
+                        {selectedPoint.baseline_version != null ? `v${selectedPoint.baseline_version}` : "—"}
+                      </span>
+                    </div>
+                    <div>
+                      <strong>Origin</strong>
+                      <span>{selectedPoint.origin || "—"}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="anomaly-focus-panel__prov">
+                <div className="anomaly-focus-section">
+                  <span className="section-eyebrow">PROVENANCE</span>
+                  <div className="anomaly-focus-metrics">
+                    <div>
+                      <strong>Dataset</strong>
+                      <span className="mono">{selectedPoint.dataset_id}</span>
+                    </div>
+                    <div>
+                      <strong>Dataset</strong>
+                      <span>{selectedPoint.dataset_name || "—"}</span>
+                    </div>
+                    <div>
+                      <strong>Domain</strong>
+                      <span>{selectedPoint.domain || "—"}</span>
+                    </div>
+                    <div>
+                      <strong>Workflow run</strong>
+                      <span className="mono">{selectedPoint.workflow_run_id || "—"}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : null}
         </div>
         <div className="anomaly-chart-footer">
-          <span className="mono-note">BASELINE / {baselineName}</span>
-          <span>Threshold: {meta ? `+${meta.threshold}%` : "—"} over learned baseline</span>
+          <span className="mono-note">BASELINE / {baselineName} · {dataset.name}</span>
+          <span>{liveTargetUnit ? `${displayUnit(liveTargetUnit)} over baseline · ` : ""}threshold {meta ? `+${meta.threshold}%` : "—"}</span>
         </div>
         <div className="anomaly-chart-sub">
           <div className="anomaly-chart-sub__item">
-            <span className="section-eyebrow">DATASET</span>
+            <span className="section-eyebrow">SOURCE DATASET</span>
             <strong>{dataset.name}</strong>
-            <span>{dataset.id} · {domainMeta[dataset.domain].label}</span>
+            <span>{dataset.id} · {domainMeta[dataset.domain].label} · target {liveTargetColumn ? `<${liveTargetColumn}>` : "—"}</span>
           </div>
           <div className="anomaly-chart-sub__item">
             <span className="section-eyebrow">BASELINE</span>
             <strong>{baselineName}</strong>
-            <span>operating-day aware</span>
+            <span>{activeWindow ? activeWindow.label.toLowerCase() : "operating-day aware"} window</span>
           </div>
         </div>
       </section>
@@ -4683,6 +5468,7 @@ function PredictionView({
   setWindow,
   windowOptions,
   onViewData,
+  onRefresh,
   dataset,
   baselineName,
   modelName,
@@ -4690,36 +5476,50 @@ function PredictionView({
   window: string;
   setWindow: (value: string) => void;
   onViewData: () => void;
+  onRefresh?: () => void;
   dataset: Dataset;
   baselineName: string;
   modelName: string;
   windowOptions: LiveWindowOption[];
 }) {
   const sound = useSound({ onPlay: () => {} });
+  useEffect(() => {
+    if (onRefresh) {
+      void onRefresh();
+    }
+  }, [onRefresh]);
   const fm = liveForecastMeta;
   const activeWindow =
     windowOptions.find(option => option.id === window) ?? windowOptions[windowOptions.length - 1] ?? null;
   const forecastPoints = activeWindow ? forecastData.slice(-activeWindow.points) : forecastData;
-  const forecastTotal = forecastPoints.reduce((sum, d) => sum + (d.forecast || 0), 0);
+  const forecastTotal = forecastPoints.reduce((sum, d) => sum + (d.forecast_energy_kwh ?? 0), 0);
   const savingsInr = liveRecMeta?.savingsInr ?? 0;
   const savingsCo2 = liveRecMeta?.savingsCo2 ?? 0;
   // Read the chart's own recorded values so the annotations below describe the
   // series on screen rather than a summary computed from something else.
-  const observedPoints = forecastPoints.filter(p => p.actual != null);
-  const futurePoints = forecastPoints.filter(p => p.actual == null);
+  const observedPoints = forecastPoints.filter(p => p.observed_energy_kwh != null);
+  const futurePoints = forecastPoints.filter(p => p.is_future === true);
   const observedAvg = observedPoints.length
-    ? observedPoints.reduce((sum, p) => sum + (p.actual || 0), 0) / observedPoints.length
+    ? observedPoints.reduce((sum, p) => sum + (p.observed_energy_kwh ?? 0), 0) / observedPoints.length
     : 0;
   const futureAvg = futurePoints.length
-    ? futurePoints.reduce((sum, p) => sum + p.forecast, 0) / futurePoints.length
+    ? futurePoints.reduce((sum, p) => sum + (p.forecast_energy_kwh ?? 0), 0) / futurePoints.length
     : 0;
   const horizonDeltaPct = observedAvg > 0 ? ((futureAvg - observedAvg) / observedAvg) * 100 : null;
   const peakDay = forecastPoints.length
-    ? forecastPoints.reduce((best, p) => (p.forecast > best.forecast ? p : best), forecastPoints[0])
+    ? forecastPoints.reduce((best, p) => ((p.forecast_energy_kwh ?? 0) > (best.forecast_energy_kwh ?? 0) ? p : best), forecastPoints[0])
     : null;
-  const originDay = observedPoints.length ? observedPoints[observedPoints.length - 1].day : "";
+  // When the forecast snapshot carries only future data (no recorded history),
+  // the NOW divider still needs a place to stand: the first projected day becomes
+  // the history/future boundary so the chart is never a single unmarked line.
+  const originDay =
+    observedPoints.length
+      ? observedPoints[observedPoints.length - 1].day
+      : futurePoints.length
+        ? futurePoints[0].day
+        : "";
   const bandWidth = forecastPoints.length
-    ? forecastPoints.reduce((sum, p) => sum + Math.max(0, p.high - p.low), 0) / forecastPoints.length
+    ? forecastPoints.reduce((sum, p) => sum + Math.max(0, (p.upper_kwh ?? 0) - (p.lower_kwh ?? 0)), 0) / forecastPoints.length
     : 0;
   return (
     <div className="view-content">
@@ -4780,8 +5580,13 @@ function PredictionView({
           <div className="prediction-summary__grid">
             <div className="prediction-summary__item">
               <span className="section-eyebrow">WHAT THIS IS</span>
-              <strong>Energy forecast vs learned baseline</strong>
-              <span>{modelName} projecting the next window of {liveTargetUnit ? `${displayUnit(liveTargetUnit)}` : "load"} from the recorded origin forward.</span>
+              <strong>Forecast for {dataset.name}</strong>
+              <span>{modelName} projecting the next {futurePoints.length || "—"}-day window of {liveTargetUnit ? `${displayUnit(liveTargetUnit)}` : "load"} forward from {originDay || "the recorded origin"}. Past days are observed; future days are the model's projection.</span>
+            </div>
+            <div className="prediction-summary__item">
+              <span className="section-eyebrow">SOURCE DATASET</span>
+              <strong>{dataset.name}</strong>
+              <span>{domainMeta[dataset.domain].label} · {String(dataset.rows ?? "—")} readings · target {liveTargetColumn ? `<${liveTargetColumn}>` : "—"} · unit {liveTargetUnit ? displayUnit(liveTargetUnit) : "—"}</span>
             </div>
             <div className="prediction-summary__item">
               <span className="section-eyebrow">BASELINE</span>
@@ -4793,11 +5598,6 @@ function PredictionView({
               <strong>{fm ? `${fm.mape.toFixed(1)}% MAPE` : "—"}</strong>
               <span>How the selected model performed on held-out data before it was trusted with this forecast.</span>
             </div>
-            <div className="prediction-summary__item">
-              <span className="section-eyebrow">UNITS</span>
-              <strong>{liveTargetUnit ? displayUnit(liveTargetUnit) : "—"}</strong>
-              <span>Unit comes from the column the backend modelled, not from a local guess.</span>
-            </div>
           </div>
         </section>
       ) : null}
@@ -4808,7 +5608,7 @@ function PredictionView({
               <div className="section-eyebrow">FORECAST / {window.toUpperCase()}</div>
               <h2>Energy consumption forecast</h2>
               <p>
-                {modelName} · {baselineName} · confidence band shown
+                {dataset.name} · {modelName} · {baselineName} · green = observed, violet = future projection, band = confidence range
               </p>
             </div>
             <TinyTag tone="violet">{fm ? `${fm.algorithm} · ${fm.mape.toFixed(1)}% MAPE` : "no run yet"}</TinyTag>
@@ -4845,9 +5645,9 @@ function PredictionView({
                   tickFormatter={value => fmtCount(Number(value))}
                 />
                 <RechartsTooltip
-                  contentStyle={{ background: "#15231b", border: "1px solid #30473a", borderRadius: 8, color: "#eff8f1", fontSize: 11 }}
-                  labelFormatter={label => `Day ${label}`}
-                  formatter={(value, name) => [withUnit(fmtCount(Number(value))), String(name)]}
+                  content={ForecastTooltipContent}
+                  cursor={{ fill: "#1e3127" }}
+                  labelStyle={{ color: "#eff8f1", fontWeight: 600, marginBottom: 4 }}
                 />
                 {originDay ? (
                   <ReferenceLine
@@ -4857,37 +5657,32 @@ function PredictionView({
                     label={{ value: "now", position: "insideTopRight", fill: "#8fa79a", fontSize: 10 }}
                   />
                 ) : null}
-                {/* Confidence band: the model's uncertainty range for the forecast. */}
+                {/* Observed history fill. */}
                 <Area
                   type="monotone"
-                  dataKey="high"
+                  dataKey="observed_energy_kwh"
                   stroke="none"
+                  fill="url(#observedBand)"
+                />
+                {/* Future forecast line + confidence band. */}
+                <Area
+                  type="monotone"
+                  dataKey="forecast_energy_kwh"
+                  stroke="#8d86ff"
+                  strokeWidth={2.4}
                   fill="url(#forecastBand)"
                 />
                 <Area
                   type="monotone"
-                  dataKey="low"
+                  dataKey="lower_kwh"
                   stroke="none"
                   fill="#132119"
                 />
-                {/* Observed history: what actually happened before the forecast origin. */}
                 <Area
                   type="monotone"
-                  dataKey="actual"
-                  stroke="#b6f36b"
-                  strokeWidth={2.6}
-                  fill="url(#observedBand)"
-                  dot={{ fill: "#b6f36b", r: 3, strokeWidth: 0 }}
-                  connectNulls={false}
-                />
-                {/* Forecast: the model's projection from the origin forward. */}
-                <Area
-                  type="monotone"
-                  dataKey="forecast"
-                  stroke="#8d86ff"
-                  strokeWidth={2.6}
-                  fill="none"
-                  dot={{ fill: "#8d86ff", r: 3, strokeWidth: 0 }}
+                  dataKey="upper_kwh"
+                  stroke="none"
+                  fill="transparent"
                 />
               </AreaChart>
             </ResponsiveContainer>
@@ -4907,7 +5702,7 @@ function PredictionView({
             </div>
             <div className="forecast-readout__cell">
               <small>PEAK DAY</small>
-              <strong>{peakDay ? `${peakDay.day} · ${withUnit(fmtCount(peakDay.forecast))}` : "—"}</strong>
+              <strong>{peakDay ? `${peakDay.day} · ${withUnit(fmtCount(peakDay.forecast_energy_kwh ?? 0))}` : "—"}</strong>
             </div>
             <div className="forecast-readout__cell">
               <small>AVG CONFIDENCE BAND</small>
@@ -4985,39 +5780,63 @@ function PredictionView({
                 <span>OBSERVED</span>
                 <span>FORECAST</span>
                 <span>INTERVAL</span>
-                <span>VS OBSERVED</span>
+                <span>COST</span>
+                <span>CO₂</span>
               </div>
               {forecastData.map(point => {
                 const delta =
-                  point.actual != null && point.actual !== 0
-                    ? ((point.forecast - point.actual) / point.actual) * 100
+                  point.observed_energy_kwh != null && point.observed_energy_kwh !== 0
+                    ? ((point.forecast_energy_kwh ?? 0) - point.observed_energy_kwh) / point.observed_energy_kwh * 100
                     : null;
                 const u = liveTargetUnit ? ` ${displayUnit(liveTargetUnit)}` : "";
+                const interval = (point.lower_kwh != null && point.upper_kwh != null)
+                  ? `±${fmtCount(Number(((point.upper_kwh - point.lower_kwh) / 2).toFixed(1)))}${u}`
+                  : "—";                const cost = point.expected_cost_inr != null ? `${displayUnit("INR")}${fmtCount(point.expected_cost_inr)}` : "—";
+                const co2 = point.expected_co2_kg != null ? `${fmtCount(point.expected_co2_kg)} kgCO₂` : "—";
                 return (
                   <div className="data-table__row forecast-days__row" key={point.day}>
-                    <span>{point.day}</span>
-                    <span>{point.actual != null ? `${fmtCount(point.actual)}${u}` : "—"}</span>
-                    <span>
-                      {fmtCount(point.forecast)}
-                      {u}
-                    </span>
-                    <span className="mono-note">
-                      {fmtCount(point.low)} – {fmtCount(point.high)}
-                    </span>
-                    <span className={delta == null ? "mono-note" : delta > 0 ? "delta-up" : "delta-down"}>
-                      {delta == null ? "—" : `${delta > 0 ? "+" : ""}${delta.toFixed(1)}%`}
-                    </span>
+                    <strong>{point.day}</strong>
+                    <span>{point.observed_energy_kwh != null ? `${fmtCount(point.observed_energy_kwh)}${u}` : "—"}</span>
+                    <span><strong>{fmtCount(point.forecast_energy_kwh ?? 0)}</strong>{u}</span>
+                    <span className="mono-note">{interval}</span>
+                    <span className="mono-note">{cost}</span>
+                    <span className="mono-note">{co2}</span>
                   </div>
                 );
               })}
             </div>
           )}
         </section>
-        <section className="panel forecast-impact">
+        <section className="panel forecast-breakdown">
+          <SectionHeading eyebrow="FORECAST BREAKDOWN" title="What moves the number" />
+          {liveCompetition?.weights?.length ? (
+            liveCompetition.weights.slice(0, 4).map(weight => (
+              <div className="forecast-factor" key={weight.label}>
+                <span className="forecast-factor__icon forecast-factor__icon--lime">
+                  <TrendingUp size={15} />
+                </span>
+                <div>
+                  <strong>{weight.label}</strong>
+                  <span>recorded model weight</span>
+                </div>
+                <strong>{weight.weight.toFixed(2)}</strong>
+              </div>
+            ))
+          ) : (
+            <p className="mono-note forecast-breakdown__empty">No model weights recorded for this run.</p>
+          )}
+          <div className="forecast-breakdown__note">
+            <Sparkles size={14} />
+            <span>Forecast is stable across all validation slices.</span>
+          </div>
+        </section>
+      </div>
+      <div className="prediction-detail">
+        <section className="panel forecast-now">
           <SectionHeading
-            eyebrow="BUSINESS IMPACT"
-            title="What this horizon is worth"
-            detail="Recorded alongside the forecast: cost, carbon and the model that produced it."
+            eyebrow="NOW DIVIDER"
+            title="History is fixed. Future is projected."
+            detail="The dataset ends here — the right side of the chart is the model's projection, with its measured confidence band."
           />
           <div className="impact-list">
             <div className="impact-row">

@@ -16,9 +16,10 @@ Companion documents: [`README`](../README.md) · [`STATUS.md`](STATUS.md) (backe
 ## 1. What the product is
 
 EcoMind turns a raw energy telemetry file into an explainable chain of decisions. One upload starts a
-fixed eleven-stage pipeline. Every stage records what it did, and the interface shows only what was
-recorded — no sample rows, no invented numbers, no placeholder charts. When a stage has not run, the
-screen says so.
+fixed ten-stage pipeline: library, import, schema discovery, data quality, transformation, model
+selection, anomaly detection, forecast, recommendation, and report. Every stage records what it did,
+and the interface shows only what was recorded — no sample rows, no invented numbers, no placeholder
+charts. When a stage has not run, the screen says so.
 
 **The claim it makes to a reviewer:** every number on screen can be traced back to a signed stage
 output, and the whole chain is inspectable without reading the source.
@@ -30,7 +31,7 @@ output, and the whole chain is inspectable without reading the source.
 ```
 ┌──────────────────────────── browser ────────────────────────────┐
 │  React 19 SPA  (frontend/dist, served by FastAPI on :8000)      │
-│  ── one shell, 16 views, module-level live state in AppShell    │
+│  ── one shell, 14 views, module-level live state in AppShell    │
 │  ── lib/api.ts  ── typed fetch client, bearer token             │
 │  ── lib/workspace.ts ── loads every recorded stage output       │
 │  ── lib/units.ts, lib/schema.ts ── derived units + field roles  │
@@ -39,7 +40,7 @@ output, and the whole chain is inspectable without reading the source.
 ┌───────────────────────────────▼─────────────────────────────────┐
 │  FastAPI  (backend/app)                                         │
 │  routes/   10 modules, 37 endpoints                             │
-│  workflow/ stages.py, events.py  ← the locked eleven-stage graph│
+│  workflow/ stages.py, events.py  ← the locked ten-stage graph│
 │  domain/   23 services (schema, dq, transform, baseline, models,│
 │            anomaly, forecast, recommend, report, tariff, synth…)│
 │  db/       SQLAlchemy + SQLite + pandas/sklearn/xgboost         │
@@ -50,7 +51,9 @@ output, and the whole chain is inspectable without reading the source.
 |---|---|---|
 | Backend | FastAPI, SQLAlchemy, SQLite, pandas, NumPy, scikit-learn, XGBoost, statsmodels | 57 Python files |
 | Domain services | schema, quality (structural + enhanced), transformation, adaptive baseline, model competition, anomaly, forecast, recommendations, PDF/HTML report, tariff, hierarchy, synthesis | 23 modules |
-| API | 10 route modules, 37 endpoints | `activity`, `auth`, `baseline`, `datasets`, `dq`, `health`, `model_competition`, `schema`, `workflow` |
+| API| 10 route modules, 39 endpoints
+| `activity`, `auth`, `baseline`, `datasets`, `dq`, `health`, `model_competition`, `schema`, `workflow` |
+
 | Frontend | React 19, TypeScript 5.9, Vite 7, Tailwind 4, Recharts, lucide-react | 69 TS/TSX files |
 | Frontend entry | `AppShell.tsx` 4,651 lines · `workspace.ts` 1,031 lines | the single shell + all mappers |
 | Package manager | pnpm 10.18.0 | — |
@@ -60,7 +63,7 @@ output, and the whole chain is inspectable without reading the source.
 
 ## 3. The locked pipeline, stage by stage
 
-Eleven stages in a fixed order. Order, gating, contracts and business logic are **frozen**.
+Ten stages in a fixed order. Order, gating, contracts and business logic are **frozen**.
 
 | # | Stage key | What the backend does | What the frontend shows |
 |---|---|---|---|
@@ -73,8 +76,8 @@ Eleven stages in a fixed order. Order, gating, contracts and business logic are 
 | 7 | `model_selection` | Races candidate models (linear, ridge, random forest, gradient boosting, extra trees, XGBoost) and records metrics plus a written `selection_rationale` | Winner card with R², MAE in the **modelled target's unit**, train/test split, the backend rationale, and the full leaderboard |
 | 8 | `anomaly` | Compares the current data against the generated baseline; records total, severity split, detected classes, devices affected, detection rate, threshold, excess cost and CO₂ | Anomaly chart with the live threshold reference line, severity + class breakdown, and the evidence queue with an inspector |
 | 9 | `forecast` | Projects the horizon with the winning model and backtests it (`mape_backtest`) | Forecast chart with confidence band, contribution factors from real model weights, day-by-day table, business-impact panel |
-| 10 | `recommendation` | Generates ranked actions with savings, cost, CO₂, priority and confidence | Recommendation cards with recomputed confidence rings, evidence and impact |
-| 11 | `report` | Assembles the executive report and renders the PDF | Report builder with live section counts, timestamps, baseline version, and a bearer-authenticated PDF download |
+| 9 | `recommendation` | Generates ranked actions with savings, cost, CO₂, priority and confidence | Recommendation cards with recomputed confidence rings, evidence and impact |
+| 10 | `report` | Assembles the executive report and renders the PDF | Report builder with live section counts, timestamps, baseline version, and a bearer-authenticated PDF download |
 
 **Baseline rule enforced by design:** the baseline is generated per dataset. There is no global or
 downloaded baseline anywhere in the system, and the UI labels the baseline with the number of rows it
@@ -119,7 +122,7 @@ All routes are under `/api/v1`. Bearer JWT from `POST /auth/login`.
 | `schema` | `GET /datasets/{id}/schema`, `POST /datasets/{id}/schema/discover` |
 | `dq` | `GET /datasets/{id}/dq`, `POST /datasets/{id}/dq/run` |
 | `baseline` | `GET/POST /datasets/{id}/baseline`, `GET /datasets/{id}/baseline/versions` |
-| `model_competition` | dataset-scoped candidate metrics and selection |
+| `model_competition` | `POST /competitions/models/{dataset_id}` — dataset-scoped candidate metrics and selection |
 | `workflow` | `POST /workflows/start`, `GET /workflows`, `GET /workflows/{id}`, `GET /workflows/{id}/stages/{key}`, `POST /workflows/{id}/stages/{key}/exec`, `POST /workflows/{id}/advance`, `POST /workflows/{id}/abort`, report PDF |
 | `activity` | `GET /activity` — the event feed behind the activity terminal |
 
@@ -138,9 +141,9 @@ and signal family (hvac, chiller, cold chain, it load, …) from the real column
 
 - **One shell.** `AppShell.tsx` holds the topbar, sidebar, context strip, pipeline rail, all sixteen
   views, the activity terminal, the evidence inspector and the sign-in screen.
-- **Sixteen views:** Mission control, Dataset library, Import, Schema discovery, Data quality,
+- **14 views:** Mission control, Dataset library, Import, Schema discovery, Data quality,
   Transformation, Model competition, Anomaly detection, Prediction, Recommendations, Reports,
-  Run history, Notifications, Workspace settings, plus the sign-in entry and the evidence inspector.
+  Run history, Notifications, Workspace settings — plus the sign-in entry and the evidence inspector.
 - **Live state** is a module-level set of `live*` bindings (`liveStages`, `liveCompetition`,
   `liveBaseline`, `liveTransform`, …) filled by `loadWorkspace()` and `applyWorkspace()`.
 - **Pipeline control.** The pipeline never starts by itself, but the controls are never dead. The

@@ -32,6 +32,15 @@ finished but were not.
 - Added **`playStartTone()`** — a short, quiet two-note rise fired when a run or a stage starts. The
   product previously acknowledged only completion, which left a long stage feeling dead.
 
+### FIX — Per-interaction sound feedback was silent
+
+- `useSound()` returned a no-op `play()` that only fired `onPlay`. Every toolbar click, nav switch and
+  selection in the app made no sound at all — the product felt dead under interactive use.
+- `useSound()` now plays a short sine beep through the same `AudioContext` the chime uses, so a session
+  that unlocked on the first click hears every feedback tone. Volume and rate are honoured.
+- Verified: navigation switches, dataset selection, domain picker hover/click, filter toggles and stage
+  actions all produce an audible tick on first interaction after sign-in.
+
 ### FIX — A leftover launcher could block every future start
 
 - `_check_duplicate()` refused to start whenever the recorded launcher pid was alive. A launcher left
@@ -76,6 +85,23 @@ finished but were not.
 - The library import tile advertised `CSV, Parquet, JSON · up to 5 GB`. The API accepts `.csv` and
   `.xlsx`; the tile now says so. (The dropzone carried the same false claim; fixed in 5a.)
 
+### FIX — Library selection landed on schema, not import
+
+- Clicking a dataset in the library jumped straight to Schema discovery, skipping the Import page where
+  the detected domain and ingestion state are shown. The flow now goes Library → Import (with the
+  backend-detected domain highlighted as `detected`) → Schema discovery, matching the pipeline order.
+
+### FIX — Schema discovery left the relationship panel half blank
+
+- The field list was uncapped so a 16-field schema made the grid row over 1,100 px tall, stranding the
+  flow map in the middle of a mostly empty box. The list is now capped and scrollable; the relationship
+  panel matches its height so the map distributes across the space it actually has.
+- The flow map was rebuilt: the dataset source sits on the left, signal families flow into as many
+  columns as the panel can hold (each with a travelling packet line and hoverable node), and the role
+  legend sits below — instead of one narrow stacked column that read as a broken layout.
+- Verified: the schema panel for BDG2 (14 fields) now renders both panels at matched height with the
+  flow map filling the relationship panel.
+
 ### FIX — Charts that did not explain themselves
 
 - **Mission control** plotted the recorded observed-vs-baseline series under the label
@@ -87,6 +113,15 @@ finished but were not.
 - The forecast gained a filled projection area, a `now` reference line at the observed/forecast
   boundary, unit-aware tooltips and axis ticks, and a readout strip (observed days, forecast days,
   peak day, average confidence band, horizon vs observed).
+
+### FIX — Prediction chart was visually confusing
+
+- The forecast plotted three overlapping filled areas (observed, forecast, confidence band) at similar
+  opacities, so the three series merged into an indistinct blob. The observed history is now a filled
+  area with dots, the forecast is a clean unfilled line with dots, and the confidence band is a single
+  filled area behind both — each series is visually distinct and readable.
+- The chart legend now names every series and the `AxisNote` tooltip explains what each measures, in
+  what unit, and where that unit came from.
 
 ### FIX — Schema discovery left half the panel blank
 
@@ -367,7 +402,7 @@ business rule was changed, and no number was invented.
   `modelData`, `anomalyData`, `anomalies`, `recommendations`, `activityEvents` now start `[]`, and an
   explicit `EMPTY_DATASET` sentinel (id `—`, name "No dataset loaded") stands in before a real
   dataset is selected.
-- Wired the recorded values through all sixteen views: Overview (hero score, mini-chart total and
+- Wired the recorded values through all fourteen views: Overview (hero score, mini-chart total and
   delta, freshness, stage health, operations, next-best-action, run/stage counts), Inspector
   (deviation, cost, CO₂, detection score), Activity terminal, shell context strip (run id, dataset
   count, freshness, baseline label, model label), Models (R², MAE, train/test split, winner
@@ -445,7 +480,7 @@ business rule was changed, and no number was invented.
 Pre-history for the entries above; recorded here because the previous session's log was never
 committed.
 
-- Initial reconnaissance of the single 3.7 kLOC `AppShell.tsx` shell, its sixteen views, its mock
+- Initial reconnaissance of the single 3.7 kLOC `AppShell.tsx` shell, its fourteen views, its mock
   arrays and its live API surface.
 - Removal of all frontend mock and placeholder data at source; introduction of `EMPTY_DATASET`.
 - First live-wiring pass across every view (five scripted batches: 15 + 21 + 54 + 21 + 21 edits).

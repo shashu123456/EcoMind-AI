@@ -21,6 +21,9 @@ from datetime import datetime
 # kg CO2 per kWh. 0.5 is the Indian grid baseline factor.
 CO2_KG_PER_KWH = float(os.getenv("ECOMIND_CO2_KG_PER_KWH", "0.5"))
 
+# Alias kept for forecast_service._co2_kg, which imports this name directly.
+co2_per_kwh = CO2_KG_PER_KWH
+
 CURRENCY = "INR"
 CURRENCY_SYMBOL = "₹"
 
