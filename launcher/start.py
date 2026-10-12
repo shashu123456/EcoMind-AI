@@ -205,9 +205,79 @@ def _monitor(cfg, started, interval: float):
         print("     Run `ecomind stop` to shut them down cleanly.")
 
 
+#: Check sections whose failures the launcher can resolve by installing or
+#: generating something, plus the generated artefacts that carry their own label.
+#: A port held by a foreign program is deliberately excluded: no install frees it,
+#: so asking for permission to install in order to "fix" it would misdescribe what
+#: actually happens next.
+_SETUP_SECTIONS = frozenset({"Runtime", "Dependencies"})
+_SETUP_LABELS = frozenset(
+    {
+        "Frontend dependencies (node_modules)",
+        "frontend/dist",
+        "SQLite database",
+        "backend/.env",
+        "Secret key",
+        "Dataset catalogue",
+    }
+)
+
+
+def _setup_plan(rows: list[dict]) -> list[dict]:
+    """The failing checks the launcher itself can resolve, in report order."""
+    return [
+        row
+        for row in rows
+        if not row["ok"]
+        and (row["section"] in _SETUP_SECTIONS or row["label"] in _SETUP_LABELS)
+    ]
+
+
+def _confirm_install(plan: list[dict], assume_yes: bool) -> bool:
+    """Name what is missing and what installing it would do, then ask.
+
+    Installation is never implicit. With no interactive terminal and no explicit
+    approval this refuses instead of downloading anything, because silence is not
+    consent -- and a launcher that installs by itself is the reason this project's
+    bootstrap was rejected being automatic in the first place.
+    """
+    if not plan:
+        return True
+    print("\n[..] Setup is required before EcoMind AI can run.")
+    print("     Missing on this machine:\n")
+    for row in plan:
+        print(f"       - {row['label']}  ({row.get('detail') or 'missing'})")
+    print("\n     Approving this will:")
+    print("       - create .venv and install backend/requirements.txt with pip")
+    print("       - install frontend/node_modules (pnpm when available, otherwise npm)")
+    print("       - build frontend/dist from frontend/client/src")
+    print("       - generate backend/.env with a random secret, then seed the database")
+    print("     Packages are downloaded from PyPI and the npm registry. Nothing else on")
+    print("     this machine is changed.")
+    if assume_yes:
+        print("\n[OK] Consent given on the command line - proceeding without a prompt.")
+        return True
+    if not sys.stdin.isatty():
+        print("\n[!] There is no interactive terminal to ask for permission and --yes")
+        print("    was not given, so nothing was installed.")
+        print("    Re-run `ecomind` from a terminal, or pass --yes to approve this plan.")
+        return False
+    try:
+        answer = input("\n     Proceed with installation? [y/N] ").strip().lower()
+    except (EOFError, KeyboardInterrupt):
+        print("")
+        return False
+    return answer in {"y", "yes"}
+
+
 def main():
     parser = argparse.ArgumentParser(prog="launcher.start")
     parser.add_argument("--no-install", action="store_true", help="do not auto-install; only verify")
+    parser.add_argument(
+        "--yes",
+        action="store_true",
+        help="approve the install plan without prompting (for unattended installs)",
+    )
     parser.add_argument("--force-install", action="store_true", help="rebuild .venv and reinstall everything")
     parser.add_argument("--check", action="store_true", help="run checks only, do not start services")
     parser.add_argument(
@@ -222,13 +292,8 @@ def main():
     if _check_duplicate():
         sys.exit(1)
 
-    if not args.check:
-        print("\n[..] Preparing environment (this only happens the first time) ...")
-        if not ensure_all(install=not args.no_install, force=args.force_install):
-            print("\n[FAIL] Setup could not complete - see the output above and logs/launcher.log.")
-            clear_launcher_pid()
-            sys.exit(1)
-
+    # Check the machine first, so the report names what exists and what is missing
+    # before anything is downloaded.
     print("\n[..] Running environment checks ...")
     rows = run_checks()
     text, all_ok = render_checks(rows)
@@ -236,6 +301,37 @@ def main():
     if args.check:
         clear_launcher_pid()
         sys.exit(0 if all_ok else 1)
+
+    if args.no_install:
+        # Report-only: the steps that need no download still run (venv reuse, .env
+        # repair, stamp checks), but nothing is ever installed.
+        if not ensure_all(install=False, force=False):
+            print("\n[FAIL] Setup cannot complete with --no-install. See the report above.")
+            clear_launcher_pid()
+            sys.exit(1)
+    else:
+        plan = _setup_plan(rows)
+        # `verify` exists to install and then prove it worked, so prompting it for
+        # permission would defeat the command. Every other path asks.
+        consent = bool(args.yes or args.verify)
+        if plan and not consent and not _confirm_install(plan, assume_yes=False):
+            print("\n[!] Nothing was installed. The items listed above are required first.")
+            print("    Re-run `ecomind` and approve the plan, or `ecomind check` to inspect only.")
+            clear_launcher_pid()
+            sys.exit(1)
+        if plan and consent:
+            _confirm_install(plan, assume_yes=True)
+        print("\n[..] Preparing environment (only the steps that are missing actually run) ...")
+        if not ensure_all(install=True, force=args.force_install):
+            print("\n[FAIL] Setup could not complete - see the output above and logs/launcher.log.")
+            clear_launcher_pid()
+            sys.exit(1)
+        if plan:
+            # Re-check so the verdict below describes the machine as it is now
+            # rather than as it was before setup.
+            rows = run_checks()
+            text, all_ok = render_checks(rows)
+            print(text)
 
     # `verify` is `start` without the long-running part. It exists so CI can
     # prove that a bare checkout really does install itself and seed a usable
