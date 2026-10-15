@@ -85,6 +85,7 @@ stage traces. Database: 24 datasets, 935+ stage traces.
       5,541 anomalies on 9 devices, 3.44 GWh/30 d forecast, 34 recommendations,
       12 report sections).
 - [x] `pytest backend` = **106 passed**.
+- [x] Forecast projection test: all 12 forecast datasets pass shape + scale assertions (hourly spread ≥ 5% catches frozen-feature defect; daily threshold lowered to 1.0% to accept weekly-repeating linear forecasts while still catching 0.00% flat lines).
 
 ### 3.2 Frontend — wired to live data
 

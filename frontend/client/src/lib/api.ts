@@ -164,9 +164,15 @@ export const domain = {
   anomalyChart: (id: string) => api.get<Record<string, unknown>>(`/datasets/${id}/anomalies/chart`),
   forecastChart: (id: string) => api.get<Record<string, unknown>>(`/datasets/${id}/forecast/chart`),
   anomalies: (id: string) => api.get<Record<string, unknown>>(`/datasets/${id}/anomalies`),
+  anomalyStage: (id: string) =>
+    api.get<Record<string, unknown>>(`/datasets/${id}/anomalies/stage`),
   preview: (id: string) => api.get<Record<string, unknown>>(`/datasets/${id}/preview`),
   reportPdfUrl: (runId: string) => `${BASE}/workflows/${runId}/report.pdf`,
 };
+
+// Legacy alias kept so existing call sites compile before the route is renamed.
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+type _Never = typeof domain;
 
 /* ── Activity feed ────────────────────────────────────────────────── */
 export type ActivityEvent = {

@@ -100,7 +100,7 @@ baselines, artifact versions and audit events are persisted and browsable.
 
 - **`backend/`** — FastAPI REST + SSE API, JWT auth, SQLAlchemy, one service
   per stage; also serves the built SPA from `frontend/dist/` on **:8000**
-- **`frontend/`** — Vite + React SPA (`client/src`), pnpm, builds to `frontend/dist/`
+- **`frontend/`** — Vite + React SPA (`client/src/`), pnpm, builds to `frontend/dist/`
 - **`launcher/`** — the one start path (bootstrap, checks, spawn, stop, monitor)
 - **`docs/`** — [`STATUS.md`](docs/STATUS.md) (what is built, broken, next) + IEEE paper & research
 
@@ -109,12 +109,12 @@ baselines, artifact versions and audit events are persisted and browsable.
 ## 🧪 Tests & checks
 
 ```bash
-# Backend — 106 tests
-.\.venv\Scripts\python.exe -m pytest backend
+# Backend — pytest
+.\/.venv/Scripts/python.exe -m pytest -q
 
 # Frontend — typecheck + production build
 cd frontend
-npx tsc --noEmit
+pnpm check
 pnpm build:static
 ```
 
@@ -123,10 +123,11 @@ pnpm build:static
 ```bash
 # Backend — the virtualenv lives at the repository root (.venv)
 python -m venv .venv
-.venv\Scripts\activate                       # Windows (source .venv/bin/activate on macOS/Linux)
+.venv/Scripts/activate                       # Windows (source .venv/bin/activate on macOS/Linux)
 pip install -r backend/requirements.txt
 python backend/seed.py                       # generate the catalogue + admin user
-cd backend; uvicorn app.main:app --port 8000 # → http://127.0.0.1:8000 (serves the SPA)
+.venv/Scripts/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+# → http://127.0.0.1:8000 (serves the built SPA from frontend/dist/)
 
 # Frontend (optional — only for vite HMR; proxies /api to :8000)
 cd frontend
@@ -200,7 +201,7 @@ EcoMind-AI/
 │   ├── client/src/        # the SPA: shell, views, lib (api, workspace loader)
 │   ├── shared/            # shared constants
 │   ├── vite.config.ts     # builds to frontend/dist (served by FastAPI)
-│   └── package.json       # pnpm
+│   └── package.json       # pnpm (packageManager: pnpm@10.18.0)
 ├── launcher/              # bootstrap, checks, spawn, stop — one start path
 ├── ecomind.bat / .sh      # the single entry point per platform
 ├── docs/                  # report, changelog, decisions, status, IEEE paper

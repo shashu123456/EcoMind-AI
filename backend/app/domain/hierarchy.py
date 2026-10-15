@@ -68,6 +68,63 @@ DEVICE_CATEGORIES = (
 CRITICAL_DEVICE_CATEGORIES = ("generator", "chiller", "hvac", "ups", "pump", "server")
 
 
+#: Canonical identity columns, in drill order. Every analytics screen reads its
+#: estate context through these names.
+CANONICAL_IDENTITY = (
+    "building_code",
+    "floor_no",
+    "room_code",
+    "device_code",
+    "device_category",
+    "device_name",
+)
+
+# Which column names each export actually uses for a canonical concept, most
+# preferred first. Resolution is a rename of a column that already exists in the
+# uploaded file: it is never a value this platform invents to fill a panel, so a
+# dataset that genuinely records no floor still reports no floor.
+IDENTITY_ALIASES: dict[str, tuple[str, ...]] = {
+    "building_code": ("building_code", "building_id", "building", "site_id", "site_code", "site"),
+    "floor_no": ("floor_no", "floor_code", "floor_id", "floor", "level", "storey"),
+    "room_code": ("room_code", "room_id", "room_name", "room", "zone_code", "zone"),
+    "device_code": ("device_code", "device_id", "meter_code", "meter_id", "asset_id"),
+    "device_category": (
+        "device_category",
+        "device_type",
+        "category",
+        "equipment_type",
+        "asset_type",
+    ),
+    # Deliberately excludes a bare `equipment` column: exported files use it for
+    # both a display name and a numeric group code, and reading a group code as a
+    # name prints "0" as an appliance. A name is only taken from a column that
+    # says it holds one.
+    "device_name": (
+        "device_name",
+        "device_label",
+        "appliance",
+        "equipment_name",
+        "asset_name",
+    ),
+}
+
+
+def resolve_identity_columns(columns) -> dict[str, str]:
+    """Map each canonical identity name to the column this export uses for it.
+
+    Returns only the concepts the file actually carries, so a caller can tell
+    "this dataset has no room column" apart from "the room column was empty".
+    """
+    present = {str(c) for c in columns}
+    out: dict[str, str] = {}
+    for canonical in CANONICAL_IDENTITY:
+        for alias in IDENTITY_ALIASES.get(canonical, ()):
+            if alias in present:
+                out[canonical] = alias
+                break
+    return out
+
+
 def levels_for(granularity: str) -> tuple[str, ...]:
     """Resolvable hierarchy levels for a dataset granularity."""
     return LEVELS_BY_GRANULARITY.get(granularity, HIERARCHY_LEVELS_ASSET)

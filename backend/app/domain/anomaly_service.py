@@ -39,13 +39,13 @@ from datetime import datetime, timezone
 import numpy as np
 import pandas as pd
 from app.core.config import settings
-from app.db.models import Anomaly, DatasetDevice
+from app.db.models import Anomaly, DatasetDevice, WorkflowRun
 from app.domain import snapshots
 from app.domain.data import json_safe
 from app.domain.dataset_service import audit, load_dataframe
 from app.domain.feature_service import target_column
 from app.domain.feature_utils import find_ts_column
-from app.domain.hierarchy import device_label
+from app.domain.hierarchy import CANONICAL_IDENTITY, device_label
 from app.domain.tariff import co2_of, cost_of
 from app.workflow.events import emit
 from app.workflow.stages import register_stage_runner
@@ -230,6 +230,10 @@ def detect(db: Session, dataset_id: str, params: dict | None = None) -> dict:
     run_id = params.get("run_id")
 
     ds, df = load_dataframe(db, dataset_id, use_processed=True)
+    # Resolve the estate columns before anything reads them, so a dataset that
+    # names its building `site_id` is detected against the same per-building
+    # baseline as one that names it `building_code`.
+    df = _with_identity(df)
     target = target_column(df)
     if not target:
         raise ValueError(
@@ -932,6 +936,10 @@ def get_anomaly_chart_data(db, dataset_id, filters=None):
     filters = filters or {}
 
     ds, df = load_dataframe(db, dataset_id, use_processed=True)
+    # Resolve `site_id`/`floor_code`/`equipment` to the canonical names before the
+    # identity columns are selected below, or every point is annotated with the
+    # estate context of a column the file does not have.
+    df = _with_identity(df)
     target = None
     for c in ['energy_kwh', 'power_kw']:
         if c in df.columns:
@@ -945,18 +953,22 @@ def get_anomaly_chart_data(db, dataset_id, filters=None):
     if not ts or not target or df.empty:
         return _empty_anomaly_chart(ds)
 
-    frame = df[[ts, target]].copy()
-    frame.columns = ['timestamp', 'observed']
+    # Keep the estate columns alongside the signal. Selecting only the timestamp
+    # and the target is why every point used to render as "Unclassified": the
+    # columns were dropped here and then re-created empty two lines later.
+    identity_cols = [c for c in CANONICAL_IDENTITY if c in df.columns]
+    frame = df[[ts, target, *identity_cols]].copy()
+    frame = frame.rename(columns={ts: 'timestamp', target: 'observed'})
     frame['timestamp'] = pd.to_datetime(frame['timestamp'], errors='coerce')
     frame = frame.dropna(subset=['timestamp', 'observed'])
     if frame.empty:
         return _empty_anomaly_chart(ds)
     frame = frame.sort_values('timestamp')
 
-    # Rich estate identity for every row, so the chart can annotate each point
-    # without looking it up twice. Missing columns become empty strings: a
-    # meter-level dataset with no room simply has no room to show.
-    for col in ('building_code', 'floor_no', 'room_code', 'device_code', 'device_category'):
+    # A concept the dataset genuinely does not carry still needs a column so the
+    # aggregate and the series below can address it uniformly. It stays empty:
+    # an absent room is reported as absent, never inferred from a device code.
+    for col in CANONICAL_IDENTITY:
         if col not in frame.columns:
             frame[col] = ''
 
@@ -976,11 +988,19 @@ def get_anomaly_chart_data(db, dataset_id, filters=None):
         .agg(
             observed=('observed', 'mean'),
             baseline=('baseline', 'mean'),
-            building_code=('building_code', 'first'),
-            floor_no=('floor_no', 'first'),
-            room_code=('room_code', 'first'),
-            device_code=('device_code', 'first'),
-            device_category=('device_category', 'first'),
+            building_code=('building_code', _first_text),
+            floor_no=('floor_no', _first_text),
+            room_code=('room_code', _first_text),
+            device_code=('device_code', _first_text),
+            device_category=('device_category', _first_text),
+            device_name=('device_name', _first_text),
+            # How many distinct appliances / floors fed this bucket. A single
+            # number cannot describe several appliances at once, so the consumer
+            # needs the counts to know whether the identity beside it belongs to
+            # the bucket or merely to whichever row sorted first.
+            device_count=('device_code', _distinct),
+            floor_count=('floor_no', _distinct),
+            building_count=('building_code', _distinct),
             timestamp=('timestamp', 'min'),
         )
         .reset_index()
@@ -990,6 +1010,21 @@ def get_anomaly_chart_data(db, dataset_id, filters=None):
     # truth for severity/class/score, the rolling frame only decides whether the
     # point is visible as anomalous on the chart.
     anomaly_index = _anomaly_index(db, dataset_id, ds)
+
+    # Both of these were hardcoded on every point -- version 0 and an empty run
+    # id -- so the hover panel contradicted the basis block printed directly below
+    # the same chart. They are recorded facts; read them where they are stored.
+    baseline_ref = snapshots.latest_snapshot(db, 'baseline', dataset_id) or {}
+    baseline_version = int(baseline_ref.get('version') or 0)
+    selection = snapshots.latest_snapshot(db, 'model_selection', dataset_id) or {}
+    model_name = str(selection.get('selected_algorithm') or '')
+    latest_run = (
+        db.query(WorkflowRun)
+        .filter(WorkflowRun.dataset_id == dataset_id)
+        .order_by(WorkflowRun.created_at.desc())
+        .first()
+    )
+    run_id = getattr(latest_run, 'id', '') or ''
 
     series = []
     for _, row in grouped.iterrows():
@@ -1007,6 +1042,46 @@ def get_anomaly_chart_data(db, dataset_id, filters=None):
             anomaly_class = matched.get('anomaly_class') or ''
             score = float(matched['score']) if matched.get('score') is not None else None
             confidence = float(matched['confidence']) if matched.get('confidence') is not None else None
+        # Start from the aggregate's own columns, which are only trustworthy when
+        # the bucket came from one appliance on one floor.
+        building_code = _text(row['building_code'])
+        floor_no = _text(row['floor_no'])
+        room_code = _text(row['room_code'])
+        device_code = _text(row['device_code'])
+        device_category = _text(row['device_category'])
+        device_name = _text(row['device_name']) or _device_label(device_code, device_category)
+        device_count = int(row.get('device_count') or 0)
+        floor_count = int(row.get('floor_count') or 0)
+        building_count = int(row.get('building_count') or 0)
+        identity_source = 'aggregate'
+
+        if matched and matched.get('device_code'):
+            # The detector recorded which appliance produced this reading, so the
+            # point is that appliance -- not an average of the estate. This is the
+            # only branch that can answer "which appliance", and it is why the
+            # identity is read from the anomaly before the bucket.
+            device_code = matched['device_code'] or device_code
+            device_category = matched['device_category'] or device_category
+            floor_no = matched['floor_no'] or floor_no
+            room_code = matched['room_code'] or room_code
+            building_code = matched['building_code'] or building_code
+            device_name = _device_label(device_code, device_category)
+            device_count = 1
+            floor_count = 1
+            identity_source = 'detector'
+
+        if device_count > 1:
+            # An hourly mean across several appliances has no appliance, and
+            # reporting the first row's code would attribute the whole estate's
+            # load to whichever meter happened to sort first.
+            device_code = ''
+            device_category = ''
+            device_name = f'{device_count} appliances combined'
+            floor_no = '' if floor_count > 1 else floor_no
+            room_code = ''
+            identity_source = 'campus_mean'
+        if building_count > 1:
+            building_code = ''
         series.append({
             'timestamp': ts_iso,
             'observed_energy_kwh': round(observed, 4),
@@ -1016,20 +1091,25 @@ def get_anomaly_chart_data(db, dataset_id, filters=None):
             'severity': severity,
             'confidence': confidence,
             'anomaly_type': anomaly_class,
-            'building_code': _text(row['building_code']),
-            'building_name': _text(row['building_code']),
-            'floor_no': _text(row['floor_no']),
-            'room_code': _text(row['room_code']),
+            'building_code': building_code,
+            'building_name': building_code,
+            'floor_no': floor_no,
+            'room_code': room_code,
             'zone': '',
-            'device_code': _text(row['device_code']),
-            'device_name': _device_label(row['device_code'], row['device_category']),
-            'device_type': _text(row['device_category']),
+            'device_code': device_code,
+            'device_name': device_name,
+            'device_type': device_category,
+            'device_count': device_count,
+            # Which of the branches above produced the identity beside it: the
+            # detector's own record, a single-appliance bucket, or a campus mean
+            # that has no appliance to name.
+            'identity_source': identity_source,
             'dataset_id': ds.id,
             'dataset_name': ds.name,
             'domain': getattr(ds, 'domain', '') or '',
-            'workflow_run_id': '',
-            'baseline_version': 0,
-            'model_name': '',
+            'workflow_run_id': run_id,
+            'baseline_version': baseline_version,
+            'model_name': model_name,
             'model_version': '',
             'origin': 'adaptive_baseline',
         })
@@ -1047,6 +1127,21 @@ def get_anomaly_chart_data(db, dataset_id, filters=None):
             'origin': 'adaptive_baseline',
         },
     }
+
+def _distinct(value) -> int:
+    """Number of distinct non-empty values in a grouped column."""
+    text = value.astype('string').str.strip()
+    return int(value[value.notna() & (text != '')].nunique(dropna=True))
+
+
+def _first_text(value) -> str:
+    """First non-empty value in a group, as text. Empty when the group has none."""
+    for item in value:
+        text = _text(item)
+        if text:
+            return text
+    return ''
+
 
 def _empty_anomaly_chart(ds) -> dict:
     return {
@@ -1101,6 +1196,26 @@ def _anomaly_index(db, dataset_id: str, ds) -> dict:
         rec['device_type'] = rec['device_category']
         rec['confidence'] = None
     return by_ts
+
+def _with_identity(df: pd.DataFrame) -> pd.DataFrame:
+    """Rename this export's entity columns to the canonical hierarchy names.
+
+    Every downstream reader asks for `building_code` / `floor_no` / `room_code`,
+    but an uploaded file is free to call those `site_id` and `floor_code`. That
+    mismatch used to leave the whole estate identity block blank on the anomaly
+    page: the columns were looked up by a name the file never had, so the page
+    showed dashes while the values sat in the dataframe the entire time.
+    """
+    from app.domain.hierarchy import resolve_identity_columns
+
+    found = resolve_identity_columns(df.columns)
+    rename = {
+        actual: canonical
+        for canonical, actual in found.items()
+        if actual != canonical and canonical not in df.columns
+    }
+    return df.rename(columns=rename) if rename else df
+
 
 def _text(value) -> str:
     if value is None:

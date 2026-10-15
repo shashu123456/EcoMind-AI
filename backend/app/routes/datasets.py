@@ -176,3 +176,34 @@ def forecast_chart(
 ):
     from app.domain import forecast_service
     return forecast_service.get_prediction_chart_data(db, id, filters or {})
+
+
+@router.get("/{dataset_id}/anomalies/stage")
+def anomaly_stage_output(
+    dataset_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """The anomaly stage output snapshot for this dataset — the source of truth
+    for the header cards (total, detection rate, excess cost / CO2, severity split).
+
+    The chart endpoint returns the visual series; this returns the recorded
+    aggregate the cards must render from, so the two can never disagree.
+    """
+    from app.domain import snapshots
+
+    snap = snapshots.latest_snapshot(db, "anomaly", dataset_id)
+    if snap:
+        return snap
+
+    # Fall back to the page-level aggregates when no stage run has been recorded
+    # yet (a dataset that has been classified but not scanned).
+    from app.domain import anomaly_service
+    page = anomaly_service.page(db, dataset_id, page=1, page_size=1)
+    return {
+        "dataset_id": dataset_id,
+        "total": page.get("total"),
+        "by_severity": page.get("severity_counts"),
+        "by_class": page.get("class_counts"),
+        "anomalies": page.get("anomalies", []),
+    }

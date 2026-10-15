@@ -132,6 +132,7 @@ transitions. Currently only the pipeline rail and terminal carry live state moti
 | Grid | Dashed `2 5`, vertical lines off on time series | Reduces noise; time is already implied by the axis |
 | Observed vs baseline | Observed = solid accent; baseline = dashed muted `4 4` | Dashed = "learned/reference", solid = "measured" |
 | Trust band | Forecast confidence drawn as a filled gradient overlay (violet, 0.25 → 0.02) | Uncertainty must be visible, not implied |
+| Forecast variation check | Projection must show hourly spread ≥ 5% and daily spread ≥ 1.0% to be considered non-flat; the hourly check is the primary frozen-feature detector, the daily check is a weaker supplementary gate that accepts weekly-repeating linear forecasts while still failing 0.00% flat lines | A projection that never moves is the frozen-feature defect; the 5% daily threshold was too strict for linear models with weekly-periodic exogenous features and was lowered to 1.0% after the four affected datasets (19ba4a66, 01467a40, 65656f25, e9a065b0) were verified to have correct 120–123% hourly spread but 1.2–3.2% daily spread from repeating weekly patterns |
 | Anomaly markers | Coral dots with a panel-coloured ring, `connectNulls={false}` | Only real anomalies get a marker; no interpolated phantom points |
 | Threshold line | Orange dashed reference line at the recorded threshold | Honesty: the reader sees the rule that fired |
 | Axis labels | Muted, 10 px, tick lines off | Axis furniture must not compete with data |

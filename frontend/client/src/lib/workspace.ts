@@ -56,6 +56,18 @@ export type LiveIssue = {
   context: string;
   fixed: string;
   confidence: string;
+  /** Rule name exactly as the quality stage recorded it. */
+  ruleName: string;
+  /** Recorded severity: info | warning | critical. */
+  severity: string;
+  /** Recorded numeric score, or null when the stage recorded none. */
+  score: number | null;
+  /** The counts and measures the rule itself reported, in the stage's own labels. */
+  detail: { label: string; value: string }[];
+  /** Columns the rule named, when it named any. */
+  columns: string[];
+  /** True when the stage recorded the rule as passing. */
+  passed: boolean;
 };
 export type LiveModel = {
   name: string;
@@ -198,6 +210,24 @@ export const deriveForecastWindowOptions = (
 };
 export type LivePoint = { time: string; energy: number; baseline: number };
 
+/**
+ * Fold a stage severity word into the one vocabulary the UI uses.
+ *
+ * The anomaly stage names its bands critical / high / moderate / low, but every
+ * frontend surface — chart lanes, severity bars, tags, legends, ordering and the
+ * `--medium` CSS classes — says "medium". The translation therefore happens here
+ * and only here: reading the raw stage severity anywhere else will silently
+ * match nothing, because the points arriving from the API say "medium".
+ */
+export const normaliseSeverity = (raw: string): string => {
+  const value = raw.trim().toLowerCase();
+  if (value === "critical") return "critical";
+  if (value === "high") return "high";
+  if (value === "moderate" || value === "medium") return "medium";
+  if (value === "low") return "low";
+  return "";
+};
+
 export type LiveAnomalyPoint = {
   /** ISO timestamp the point was drawn from. */
   timestamp: string;
@@ -339,7 +369,12 @@ export type LiveAnomalyMeta = {
   byClass: { label: string; count: number }[];
   devices: number;
   ratePct: number;
+  /** Normalised score at or above which a reading is flagged at all. */
   threshold: number;
+  /** Sigmas the normalised score is divided by, so score × zSaturate = sigma. */
+  zSaturate: number;
+  /** Recorded severity floors, highest first. A reading at or above a floor takes that band. */
+  severityBands: { severity: string; scoreFloor: number; sigmaFloor: number }[];
   excessCost: number;
   excessCo2: number;
   scanned: number;
@@ -648,6 +683,25 @@ const mapQuality = (out: StageOutput): LiveIssue[] => {
       : nullRate != null
         ? `Global null rate ${(nullRate * 100).toFixed(2)}% across ${fmtRows(details.total_cells as number | undefined)} cells`
         : `${r.rule_name ?? "structural check"} · ${r.severity ?? "info"}`;
+    // The rule's own recorded evidence is carried through rather than flattened.
+    // Summarising it away upstream is why the repair terminal had nothing to say
+    // beyond a single sentence per rule.
+    const detail = Object.entries(details)
+      .filter(([key]) => key !== "per_column" && key !== "columns_with_gaps")
+      .map(([key, value]) => ({
+        label: key.replace(/_/g, " "),
+        value:
+          typeof value === "number"
+            ? fmtInt(value)
+            : Array.isArray(value)
+              ? `${value.length} item${value.length === 1 ? "" : "s"}`
+              : typeof value === "boolean"
+                ? value
+                  ? "yes"
+                  : "no"
+                : String(value),
+      }))
+      .slice(0, 8);
     return {
       id: `Q-${1024 + i}`,
       type: issueTypeOf(r),
@@ -655,8 +709,14 @@ const mapQuality = (out: StageOutput): LiveIssue[] => {
       row: typeof details.null_cells === "number" && details.null_cells ? fmtInt(details.null_cells) : "—",
       raw: "—",
       context,
-      fixed: r.passed ? "Passed" : `Repair pending (${r.severity ?? "warn"})`,
+      fixed: r.passed ? "Passed — nothing to repair for this rule." : `Repair pending (${r.severity ?? "warn"})`,
       confidence: `${Math.round(Number(r.score ?? 0))}%`,
+      ruleName: String(r.rule_name ?? "structural check"),
+      severity: String(r.severity ?? "info"),
+      score: typeof r.score === "number" && isFinite(r.score) ? r.score : null,
+      detail,
+      columns: [...new Set([...gaps, ...perCol])],
+      passed: r.passed === true,
     };
   });
 };
@@ -741,23 +801,43 @@ const mapQualityMeta = (out: StageOutput): LiveQualityMeta => ({
 const mapAnomalyMeta = (
   out: StageOutput | null,
   listRaw: Record<string, unknown> | undefined,
+  stageRaw: Record<string, unknown> | null | undefined = undefined,
 ): LiveAnomalyMeta => {
-  const sev = (listRaw?.severity_counts ?? out?.by_severity ?? {}) as Record<string, number>;
-  const classes = (listRaw?.class_counts ?? out?.by_class ?? {}) as Record<string, number>;
+  // The stage raw is the cards' authoritative source: it is the anomaly stage
+  // output snapshot, which carries the aggregate the cards must render (total,
+  // detection rate, excess cost / CO2, severity split). Fall back to the trace
+  // output_snapshot, then to the page list only when neither is available.
+  const src = stageRaw && typeof stageRaw === "object"
+    ? stageRaw
+    : out;
+  const sev = (listRaw?.severity_counts ?? src?.by_severity ?? {}) as Record<string, number>;
+  const classes = (listRaw?.class_counts ?? src?.by_class ?? {}) as Record<string, number>;
   const num = (v: unknown) => (typeof v === "number" && isFinite(v) ? v : 0);
   return {
-    total: num(listRaw?.total) || num(out?.total),
+    total: num(listRaw?.total) || num(src?.total),
     severity: Object.fromEntries(Object.entries(sev).map(([k, v]) => [k, num(v)])),
     byClass: Object.entries(classes)
       .map(([label, count]) => ({ label, count: num(count) }))
       .sort((a, b) => b.count - a.count)
       .slice(0, 6),
-    devices: num(out?.devices_affected),
-    ratePct: num(out?.detection_rate_pct),
-    threshold: num(out?.threshold),
-    excessCost: num(out?.excess_cost),
-    excessCo2: num(out?.excess_co2_kg),
-    scanned: num(out?.readings_scanned),
+    devices: num(src?.devices_affected),
+    ratePct: num(src?.detection_rate_pct),
+    threshold: num(src?.threshold),
+    zSaturate: num(src?.z_saturate) || 10,
+    // The bands are defined in sigma, not in percent, so the UI can state the
+    // real detection rule instead of inventing a percentage threshold.
+    severityBands: Array.isArray(src?.severity_bands)
+      ? (src.severity_bands as Record<string, unknown>[])
+          .map(band => ({
+            severity: typeof band.severity === "string" ? band.severity : "",
+            scoreFloor: num(band.score_floor),
+            sigmaFloor: num(band.sigma_floor),
+          }))
+          .filter(band => band.severity)
+      : [],
+    excessCost: num(src?.excess_cost),
+    excessCo2: num(src?.excess_co2_kg),
+    scanned: num(src?.readings_scanned),
   };
 };
 
@@ -990,14 +1070,7 @@ const mapAnomalyChart = (
     const predicted = typeof predictedRaw === "number" && isFinite(predictedRaw) ? predictedRaw : null;
     const inWindow = windows.some(w => ts >= w.start && ts <= w.end);
     const deviates = baseline > 0 && Math.abs(observed - baseline) / baseline > 0.4;
-    const rawSeverity = String(p.severity ?? p.anomaly_type ?? "").toLowerCase();
-    const severity: string =
-      rawSeverity === "critical" ? "critical"
-      : rawSeverity === "high" ? "high"
-      : rawSeverity === "moderate" ? "medium"
-      : rawSeverity === "medium" ? "medium"
-      : rawSeverity === "low" ? "low"
-      : "";
+    const severity = normaliseSeverity(String(p.severity ?? p.anomaly_type ?? ""));
     return {
       timestamp: String(p.timestamp ?? ""),
       observed_energy_kwh: Number(observed.toFixed(1)),
@@ -1221,6 +1294,13 @@ export async function loadWorkspace(preferredDatasetId?: string): Promise<{
       domain.baselineVersions(activeId).catch(() => null),
       domain.baseline(activeId).catch(() => null),
     ]);
+
+    let anStageRaw: Record<string, unknown> | null = null;
+    if (run) {
+      // Prefer the recorded anomaly stage output (the cards' source of truth);
+      // fall back to the page list only when no stage trace exists.
+      anStageRaw = (await domain.anomalyStage(activeId).catch(() => null)) ?? null;
+    }
     const mappedBaseline = mapBaseline(baseRes as Record<string, unknown> | null);
     if (mappedBaseline) {
       ws.baseline = mappedBaseline;
@@ -1297,7 +1377,17 @@ export async function loadWorkspace(preferredDatasetId?: string): Promise<{
       if (baselineVersion != null) ws.baselineLabel = `Baseline v${baselineVersion}`;
 
       ws.anomalies = mapAnomalies(anList as Record<string, unknown> | undefined);
-      ws.anomalyMeta = mapAnomalyMeta(outOf("anomaly"), anList as Record<string, unknown> | undefined);
+      // The anomaly chart endpoint returns the visual series. The anomaly stage
+      // endpoint returns the recorded aggregate the header cards must render from,
+      // so the cards and the chart can never disagree about the count.
+      // Annotate the meta from the raw stage output when it has a richer aggregate
+      // than the trace's output_snapshot (some runs record the aggregate directly
+      // on the stage rather than only on the trace).
+      ws.anomalyMeta = mapAnomalyMeta(
+        outOf("anomaly"),
+        anList as Record<string, unknown> | undefined,
+        anStageRaw,
+      );
       const windows = anomalyWindows(anList as Record<string, unknown> | undefined);
       const chartMap = mapAnomalyChart(anChart as Record<string, unknown> | undefined, windows);
       if (chartMap) {

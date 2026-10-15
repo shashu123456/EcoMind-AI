@@ -1,0 +1,149 @@
+{
+  "count": 12,
+  "datasets": {
+    "01467a40": {
+      "hourly_spread_pct": 58.31,
+      "daily_spread_pct": 3.16,
+      "projected_daily_kwh": 100157.3,
+      "recorded_daily_kwh": 107747.0,
+      "scale_ratio": 0.93,
+      "n_hours": 720,
+      "model": "linear",
+      "target": "power_kw",
+      "mape_backtest": 4.43,
+      "calibration_factor": 1.25
+    },
+    "19ba4a66": {
+      "hourly_spread_pct": 120.46,
+      "daily_spread_pct": 1.32,
+      "projected_daily_kwh": 25840.6,
+      "recorded_daily_kwh": 25920.5,
+      "scale_ratio": 0.997,
+      "n_hours": 720,
+      "model": "linear",
+      "target": "energy_kwh",
+      "mape_backtest": 2.22,
+      "calibration_factor": 1.25
+    },
+    "1d7a93fe": {
+      "hourly_spread_pct": 343.51,
+      "daily_spread_pct": 117.38,
+      "projected_daily_kwh": 17701.2,
+      "recorded_daily_kwh": 18379.2,
+      "scale_ratio": 0.963,
+      "n_hours": 720,
+      "model": "linear",
+      "target": "energy_kwh",
+      "mape_backtest": 2.14,
+      "calibration_factor": 1.25
+    },
+    "24f9e395": {
+      "hourly_spread_pct": 325.57,
+      "daily_spread_pct": 2.07,
+      "projected_daily_kwh": 63927.8,
+      "recorded_daily_kwh": 61016.7,
+      "scale_ratio": 1.048,
+      "n_hours": 720,
+      "model": "linear",
+      "target": "power_kw",
+      "mape_backtest": 2.88,
+      "calibration_factor": 1.25
+    },
+    "317babde": {
+      "hourly_spread_pct": 8.97,
+      "daily_spread_pct": 8.15,
+      "projected_daily_kwh": 114870.6,
+      "recorded_daily_kwh": 103654.1,
+      "scale_ratio": 1.108,
+      "n_hours": 720,
+      "model": "linear",
+      "target": "energy_kwh",
+      "mape_backtest": 49.23,
+      "calibration_factor": 1.1549
+    },
+    "65656f25": {
+      "hourly_spread_pct": 21.02,
+      "daily_spread_pct": 1.21,
+      "projected_daily_kwh": 88086.7,
+      "recorded_daily_kwh": 88092.8,
+      "scale_ratio": 1.0,
+      "n_hours": 720,
+      "model": "linear",
+      "target": "energy_kwh",
+      "mape_backtest": 2.24,
+      "calibration_factor": 1.25
+    },
+    "72c2a807": {
+      "hourly_spread_pct": 21.22,
+      "daily_spread_pct": 1.38,
+      "projected_daily_kwh": 10945.7,
+      "recorded_daily_kwh": 10958.4,
+      "scale_ratio": 0.999,
+      "n_hours": 720,
+      "model": "linear",
+      "target": "energy_kwh",
+      "mape_backtest": 2.44,
+      "calibration_factor": 1.25
+    },
+    "8a09558a": {
+      "hourly_spread_pct": 143.55,
+      "daily_spread_pct": 75.89,
+      "projected_daily_kwh": 65934.5,
+      "recorded_daily_kwh": 0,
+      "scale_ratio": 0,
+      "n_hours": 720,
+      "model": "xgboost",
+      "target": "energy_kwh",
+      "mape_backtest": 5.22,
+      "calibration_factor": 1.201
+    },
+    "91e352c4": {
+      "hourly_spread_pct": 54.01,
+      "daily_spread_pct": 19.32,
+      "projected_daily_kwh": 273716.4,
+      "recorded_daily_kwh": 275947.8,
+      "scale_ratio": 0.992,
+      "n_hours": 720,
+      "model": "linear",
+      "target": "energy_kwh",
+      "mape_backtest": 2.37,
+      "calibration_factor": 1.25
+    },
+    "9b4714a5": {
+      "hourly_spread_pct": 57.72,
+      "daily_spread_pct": 26.01,
+      "projected_daily_kwh": 2942.8,
+      "recorded_daily_kwh": 3632.1,
+      "scale_ratio": 0.81,
+      "n_hours": 720,
+      "model": "xgboost",
+      "target": "energy_kwh",
+      "mape_backtest": 32.73,
+      "calibration_factor": 0.8
+    },
+    "b13c23f0": {
+      "hourly_spread_pct": 134.0,
+      "daily_spread_pct": 85.58,
+      "projected_daily_kwh": 106757.4,
+      "recorded_daily_kwh": 0,
+      "scale_ratio": 0,
+      "n_hours": 720,
+      "model": "extra_trees",
+      "target": "energy_kwh",
+      "mape_backtest": 26.34,
+      "calibration_factor": 1.25
+    },
+    "e9a065b0": {
+      "hourly_spread_pct": 123.46,
+      "daily_spread_pct": 3.18,
+      "projected_daily_kwh": 23086.7,
+      "recorded_daily_kwh": 23077.2,
+      "scale_ratio": 1.0,
+      "n_hours": 720,
+      "model": "linear",
+      "target": "energy_kwh",
+      "mape_backtest": 2.64,
+      "calibration_factor": 1.25
+    }
+  }
+}

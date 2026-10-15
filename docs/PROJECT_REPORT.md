@@ -1,337 +1,385 @@
-# EcoMind AI — Complete Project Report
+# EcoMind AI — Project Report
 
-**Adaptive Explainable Energy Intelligence Platform**
-Written for a reviewer, a professor, or an engineer who needs to understand the whole system in one
-pass: what the backend is, what the frontend is, how a dataset becomes a decision, and what is
-verified versus still open.
-
-**Date:** 2026-10-08 · **Branch:** `main` · **Frontend:** verified `tsc` 0 errors, `pnpm build:static`
-exit 0 · **Backend:** running on `127.0.0.1:8000`, health `ok`.
-
-Companion documents: [`README`](../README.md) · [`STATUS.md`](STATUS.md) (backend truth) ·
-[`DESIGN_DECISIONS.md`](DESIGN_DECISIONS.md) · [`CHANGELOG.md`](CHANGELOG.md).
+One document for the whole platform: what it is, how it is built, how a run works,
+what has been verified, and what is deliberately left for later. This is the
+authoritative operational brief; the README is the quick-start companion.
 
 ---
 
-## 1. What the product is
+## 1. Purpose
 
-EcoMind turns a raw energy telemetry file into an explainable chain of decisions. One upload starts a
-fixed ten-stage pipeline: library, import, schema discovery, data quality, transformation, model
-selection, anomaly detection, forecast, recommendation, and report. Every stage records what it did,
-and the interface shows only what was recorded — no sample rows, no invented numbers, no placeholder
-charts. When a stage has not run, the screen says so.
+EcoMind AI turns raw energy datasets into **trusted, explainable, actionable**
+decisions through a transparent, end-to-end workflow. The product is not "the AI
+says so"; it is "here is exactly what was recorded, by which stage, and how much
+to trust it."
 
-**The claim it makes to a reviewer:** every number on screen can be traced back to a signed stage
-output, and the whole chain is inspectable without reading the source.
+That means the platform is built around three honest constraints:
 
----
+- Every prediction, recommendation and benchmark is **traceable** through a
+  ten-stage pipeline.
+- Users see not only *what* the system predicts, but *why*, and *how much to
+  trust it*.
+- No page can disagree with what actually ran, because every screen reads that
+  stage's own recorded output.
 
-## 2. System shape
-
-```
-┌──────────────────────────── browser ────────────────────────────┐
-│  React 19 SPA  (frontend/dist, served by FastAPI on :8000)      │
-│  ── one shell, 14 views, module-level live state in AppShell    │
-│  ── lib/api.ts  ── typed fetch client, bearer token             │
-│  ── lib/workspace.ts ── loads every recorded stage output       │
-│  ── lib/units.ts, lib/schema.ts ── derived units + field roles  │
-└───────────────────────────────┬─────────────────────────────────┘
-                                │ REST /api/v1  (JSON + multipart + PDF)
-┌───────────────────────────────▼─────────────────────────────────┐
-│  FastAPI  (backend/app)                                         │
-│  routes/   10 modules, 37 endpoints                             │
-│  workflow/ stages.py, events.py  ← the locked ten-stage graph│
-│  domain/   23 services (schema, dq, transform, baseline, models,│
-│            anomaly, forecast, recommend, report, tariff, synth…)│
-│  db/       SQLAlchemy + SQLite + pandas/sklearn/xgboost         │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-| Layer | Technology | Size |
-|---|---|---|
-| Backend | FastAPI, SQLAlchemy, SQLite, pandas, NumPy, scikit-learn, XGBoost, statsmodels | 57 Python files |
-| Domain services | schema, quality (structural + enhanced), transformation, adaptive baseline, model competition, anomaly, forecast, recommendations, PDF/HTML report, tariff, hierarchy, synthesis | 23 modules |
-| API| 10 route modules, 39 endpoints
-| `activity`, `auth`, `baseline`, `datasets`, `dq`, `health`, `model_competition`, `schema`, `workflow` |
-
-| Frontend | React 19, TypeScript 5.9, Vite 7, Tailwind 4, Recharts, lucide-react | 69 TS/TSX files |
-| Frontend entry | `AppShell.tsx` 4,651 lines · `workspace.ts` 1,031 lines | the single shell + all mappers |
-| Package manager | pnpm 10.18.0 | — |
-| Deployment shape | one process, one port: FastAPI serves the built SPA from `frontend/dist` | no CORS surface |
+The audience is facilities and operations teams in universities, hospitals,
+offices, manufacturing, hotels, airports, malls and data centers — anyone who
+has to make operating decisions from energy data and will not trust a number they
+cannot trace.
 
 ---
 
-## 3. The locked pipeline, stage by stage
+## 2. What you get
 
-Ten stages in a fixed order. Order, gating, contracts and business logic are **frozen**.
+A local, single-user platform that:
 
-| # | Stage key | What the backend does | What the frontend shows |
-|---|---|---|---|
-| 1 | `library` | Lists analysed datasets with row counts, status, freshness | Dataset library with domain classification, per-dataset **Preview rows** and **Export CSV**, filter counts |
-| 2 | `import` | Accepts multipart CSV/Parquet/JSON, creates an immutable version | Real upload dropzone with progress, error banner, scan steps carrying the recorded row/column counts |
-| 3 | `schema` | Infers column data types, semantic type, nullability, samples | Column table with derived **unit**, derived **role**, plus an animated understanding map (dataset → signal families → roles) |
-| 4 | `quality` | Structural repair only: nulls, timestamps, duplicates, dtypes, units, schema shape, invalid categoricals | Overall rule-outcome band and DQ score first, then the filter and the three-panel source / context / version view |
-| 5 | `transformation` | Records every step it ran with `purpose`, `affected_columns`, `rows_changed` and per-column `before → after` | The recorded steps with expandable per-column evidence (no toggles, no fabricated steps) |
-| 6 | adaptive baseline | Computes this dataset's own normal profile: statistics (mean/median/std/p25/p75/p95/min/max) and an `hour_of_week` learned table | Baseline dataset preview: identity (target, unit, rows, entity column, generated at) + statistics + 7×24 hour-of-week heatmap |
-| 7 | `model_selection` | Races candidate models (linear, ridge, random forest, gradient boosting, extra trees, XGBoost) and records metrics plus a written `selection_rationale` | Winner card with R², MAE in the **modelled target's unit**, train/test split, the backend rationale, and the full leaderboard |
-| 8 | `anomaly` | Compares the current data against the generated baseline; records total, severity split, detected classes, devices affected, detection rate, threshold, excess cost and CO₂ | Anomaly chart with the live threshold reference line, severity + class breakdown, and the evidence queue with an inspector |
-| 9 | `forecast` | Projects the horizon with the winning model and backtests it (`mape_backtest`) | Forecast chart with confidence band, contribution factors from real model weights, day-by-day table, business-impact panel |
-| 9 | `recommendation` | Generates ranked actions with savings, cost, CO₂, priority and confidence | Recommendation cards with recomputed confidence rings, evidence and impact |
-| 10 | `report` | Assembles the executive report and renders the PDF | Report builder with live section counts, timestamps, baseline version, and a bearer-authenticated PDF download |
+- understands a dataset before it models it (library, import, schema, data quality)
+- turns it into model-ready signal (transformation)
+- races candidate models on one identical split and lets the data choose (model selection)
+- finds where and when energy is wasted, against each device's own baseline (anomalies)
+- projects energy, spend and carbon over the window the dataset can express (forecast)
+- turns insight into prioritized actions (recommendations)
+- assembles the recorded story into an executive report (reports)
 
-**Baseline rule enforced by design:** the baseline is generated per dataset. There is no global or
-downloaded baseline anywhere in the system, and the UI labels the baseline with the number of rows it
-learned from when no version number was written.
+Preparation stages all pass before any decision stage is reachable.
+
+The app is meant to be narrated by the run controls: **Run** executes the remaining
+stages, **Step** executes one stage, **Stop** aborts the active run, and **New run**
+starts fresh from stage 01. Those controls live on every page.
 
 ---
 
-## 4. How a dataset becomes a decision (one real trace)
+## 3. Architecture
 
-Verified on the recorded run for **BDG2 Electricity Meters (3-year hourly, open data)**,
-236,757 rows × 24 columns:
+The platform is three responsibilities, kept deliberately simple so a fresh clone
+can become a running app with one command.
 
-| Stage | Recorded result |
-|---|---|
-| library | dataset registered, 236,757 rows |
-| import | 2.10 s — immutable version created |
-| schema | 2.12 s — **14 columns** with types, nullability and samples |
-| quality | DQ score **100 / 100**, zero structural defects on the active run |
-| transformation | recorded steps with per-column before → after evidence (normalisation, encoding, …) |
-| adaptive baseline | 235,574 readings, mean 479.88, median 248, p95 1,643, target `energy_kwh`, unit `kWh`, plus a 168-cell hour-of-week profile |
-| model_selection | winner `ridge`, candidates raced with R² and MAE recorded; MAE shown in **kWh** |
-| anomaly | thousands of anomalies with severity split, detected classes, threshold and excess cost |
-| forecast | horizon with `mape_backtest` and a confidence interval |
-| recommendation | ranked actions with INR savings and kgCO₂ avoided |
-| report | executive sections + downloadable PDF (`report.pdf → 200`) |
+### Backend
 
-**Data quality is not anomaly detection.** Quality repairs integrity only. High load, spikes and
-abnormal behaviour are explicitly excluded from stage 4 and belong to stage 8 — the UI states this
-on the quality page itself.
+`backend/` is FastAPI + SQLAlchemy, and it does four jobs:
 
----
+- REST + SSE API on `/api/v1`
+- JWT auth; every protected route requires `Authorization: Bearer`
+- one service module per stage, plus the data, baseline and forecast logic
+- serves the built SPA from `frontend/dist/` on **http://127.0.0.1:8000**
 
-## 5. API surface
+Key ideas:
 
-All routes are under `/api/v1`. Bearer JWT from `POST /auth/login`.
+- One service per stage. A stage is executed once and recorded; every screen reads
+  that stage's own recorded output.
+- The dataset is stored once as its uploaded CSV and never rewritten. Transformation
+  and processing create derived artefacts; the source stays immutable.
+- A versioned baseline ledger records the artefact newer stages build on, so a forecast
+  or anomaly run can be traced to the baseline revision that produced it.
+- Stream tokens for SSE are short-lived and single-purpose; ordinary session tokens
+  are never sent to a stream endpoint.
+- The built frontend is served by the same app, SPA-style with index.html fallback.
 
-| Module | Representative endpoints |
-|---|---|
-| `health` | `GET /health` |
-| `auth` | `POST /auth/login`, `POST /auth/register`, `GET /auth/me` |
-| `datasets` | `GET/POST /datasets`, `GET/DELETE /datasets/{id}`, `POST /datasets/{id}/refresh`, `GET /datasets/{id}/preview` |
-| `schema` | `GET /datasets/{id}/schema`, `POST /datasets/{id}/schema/discover` |
-| `dq` | `GET /datasets/{id}/dq`, `POST /datasets/{id}/dq/run` |
-| `baseline` | `GET/POST /datasets/{id}/baseline`, `GET /datasets/{id}/baseline/versions` |
-| `model_competition` | `POST /competitions/models/{dataset_id}` — dataset-scoped candidate metrics and selection |
-| `workflow` | `POST /workflows/start`, `GET /workflows`, `GET /workflows/{id}`, `GET /workflows/{id}/stages/{key}`, `POST /workflows/{id}/stages/{key}/exec`, `POST /workflows/{id}/advance`, `POST /workflows/{id}/abort`, report PDF |
-| `activity` | `GET /activity` — the event feed behind the activity terminal |
+### Frontend
 
-**Unit contract.** The backend records the *column* it modelled (`energy_kwh`) and, in the baseline
-record, its `unit` (`kWh`). It does not record a display unit for model error. The frontend therefore
-owns formatting only: `lib/units.ts` maps a column token to one unit, and no view holds a unit literal.
+`frontend/client/src/` is the shell.
 
-**Schema contract.** The backend records column names, types and a semantic type. It does not ship a
-field catalogue. `lib/schema.ts` derives role (`index` / `entity` / `context` / `target` / `signal`)
-and signal family (hvac, chiller, cold chain, it load, …) from the real column name, and falls back to
-`signal` with no unit when it cannot tell. An honest blank beats a plausible guess.
+- React 19 + TypeScript, Vite, TanStack Query, Recharts, lucide icons
+- pnpm; builds to `frontend/dist/`
+- one large shell file owns layout, navigation and the pipeline rail; views and lib
+  sit beside it
 
----
+Key ideas:
 
-## 6. Frontend structure and behaviour
+- The app is viewport-locked; the main region is the only scroll container, and the
+  sidebar scrolls internally.
+- The run controls live in a bar under the topbar on every page.
+- Charts render only recorded data. If the backend has not run a stage, the page does
+  not invent one.
+- Copy states what was recorded and by which stage. No invented thresholds, no fabricated
+  progress.
 
-- **One shell.** `AppShell.tsx` holds the topbar, sidebar, context strip, pipeline rail, all sixteen
-  views, the activity terminal, the evidence inspector and the sign-in screen.
-- **14 views:** Mission control, Dataset library, Import, Schema discovery, Data quality,
-  Transformation, Model competition, Anomaly detection, Prediction, Recommendations, Reports,
-  Run history, Notifications, Workspace settings — plus the sign-in entry and the evidence inspector.
-- **Live state** is a module-level set of `live*` bindings (`liveStages`, `liveCompetition`,
-  `liveBaseline`, `liveTransform`, …) filled by `loadWorkspace()` and `applyWorkspace()`.
-- **Pipeline control.** The pipeline never starts by itself, but the controls are never dead. The
-  context strip — which travels with the user — carries **Run · Step · Stop · New run** on *every*
-  page, and Mission control adds **Guided tour**, which runs the remaining stages while *opening each
-  page as its stage completes*. Every one of them calls `ensureRun()`, so they work on a dataset that
-  has never been run. **Stop** calls `POST /workflows/{id}/abort` and states that everything recorded
-  before the stop is kept. A start tone marks a run or stage beginning; a chime marks completion.
-- **One entry point.** `ecomind.bat` / `ecomind.sh` (both driving `launcher/`) find a Python and a Node,
-  create `.venv`, install requirements and pnpm packages, generate `backend/.env` with a random secret,
-  seed the database, **build the SPA** (a fresh clone has no `frontend/dist`), start the backend from
-  the venv, wait for health, then open the browser — and monitor afterwards. A launcher left behind by
-  a crash is reclaimed automatically rather than blocking every future start.
-- **One dataset per workspace.** `workspace.activeDatasetId` names the dataset every other field was
-  recorded for, and the run lookup is strict — the heading and the panels can never disagree. Selecting
-  a dataset (or uploading one) reloads its recorded outputs.
-- **Context strip honesty.** `BASELINE`, `MODEL` and `STAGES` render an explicit pending label until
-  the stage that produces them has actually recorded output.
-- **Identity.** The topbar name, initials and role come from `GET /auth/me` — never hardcoded.
-- **Empty states** exist for library, schema fields, quality rows, model list, anomaly queue,
-  recommendation list, forecast factors, activity terminal and the baseline preview.
-- **Twelve domains**, each with its own icon, label, scene and cadence: commercial building, industrial
-  plant, distribution centre, hospital, university campus, shopping mall, office complex, data centre,
-  generation plant, transport hub, telecom site and water utility.
-- **Adaptive time window.** The hour/day scale control is derived from the recorded schema, baseline
-  date range and series length. It appears only when the dataset has a real time axis, and its options
-  are the windows that dataset can genuinely express.
+### Launcher
 
-### Verified in the browser this session
+`launcher/` plus `ecomind.bat` / `ecomind.sh` is the one start path. It handles
+environment checks, dependency install, virtualenv, `.env` generation, DB seed, backend
+start, health wait and browser open. That is what makes "from a bare clone" actually
+mean that.
 
-| Check | Result |
-|---|---|
-| Sign in with the seeded account | succeeds, topbar shows the real `full_name` and derived initials |
-| Context strip before a run | `awaiting stage 06` / `awaiting stage 07` / `not started` |
-| Context strip after the recorded run | real baseline label, `linear`, `10 / 10 complete` |
-| Dataset library | **24 datasets** across twelve fields, each with Preview rows / Open |
-| Dataset preview | 100 real rows, per-column units (`kWh`, `kW`, `t`, `°C`, `kgCO₂`, `ratio`, `₹`) |
-| Domain adaptation | Railway Station → *Transport hub*, Telecom Tower → *Telecom site*, Water Treatment →
-  *Water utility*, District Heating / Wind / Solar → *Generation plant*, Data Centre → *Data centre* |
-| Adaptive time window | District Heating: `7 d → 168 buckets`, `30 d → 720`, `60 d → 1008`; selecting `7 d` shrank the
-  rendered path 46,927 → 7,642 characters |
-| Model head-to-head | six candidates × six metrics in one matrix, winner marked, near-tie footnoted |
-| Schema discovery | 16 recorded fields with derived roles (`index` … `signal`) and the packet flow above them |
-| Report preview | structured sections (summary / competition / analytics / anomalies / recommendations), Copy + Download .md |
-| `Run all → report` on a never-run dataset | *Water Treatment Plant* 0/10 → 10/10, landed on its report |
-| `Guided tour` | *Railway Station* observed walking Model competition → Prediction → Recommendations → Reports to 10/10 |
-| Persistent controls | **Run · Step · Stop · New run** present and enabled on Mission control, Import, Schema, Anomalies and Prediction |
-| Library → next page | selecting a dataset loads its recorded outputs and continues to Schema discovery |
-| Inspector → *Open related chart* | closes the drawer, opens Anomaly detection, selects the widest window, explains itself in a toast |
-| Import panel | reads `ACTIVE` for a loaded dataset and `Transport hub · detected` for the domain — no upload is implied |
-| Launcher | `python -m launcher.start` on this machine: rebuilt the SPA, started the backend **from `.venv`**, health `ok`, served the new bundle |
-| Identity | `Admin User` / `AU` from `/auth/me` (no hardcoded name remains) |
-| JS exceptions | 0 |
+### Data
+
+The dataset lives as its uploaded CSV. Derived artefacts live alongside it:
+
+- `backend/data/generated/` — synthetic starter datasets
+- `backend/data/processed/` — processed frames and their type sidecars
+- `backend/data/reports/` — exported executive PDFs
+- `backend/data/models/` — trained model artefacts
+- `backend/data/ecomind.db` — the SQLite database
 
 ---
 
-## 7. Repository layout
+## 4. The ten stages
 
-```
-EcoMind-AI-main/
-├── backend/
-│   ├── app/
-│   │   ├── main.py                 FastAPI app, static SPA mount
-│   │   ├── routes/                 10 modules · 37 endpoints
-│   │   ├── domain/                 23 services (schema → report)
-│   │   ├── workflow/               stages.py (locked graph) · events.py
-│   │   ├── db/                     SQLAlchemy models + session
-│   │   └── core/                   config, security
-│   └── seed.py                     seeded admin workspace
-├── frontend/
-│   ├── client/src/
-│   │   ├── components/shell/       AppShell.tsx + AppShell.css (design system + views)
-│   │   ├── lib/                    api.ts · workspace.ts · units.ts · schema.ts · useSound.ts
-│   │   ├── contexts/ hooks/ styles/ types/
-│   │   └── main.tsx App.tsx index.css
-│   ├── vite.config.ts              react + tailwind, vendor chunks, build stamp
-│   └── package.json                pnpm scripts: dev:static · build:static · check
-├── docs/                           this report + audit, roadmap, decisions, changelog, status
-├── scripts/                        dataset generators, installers, end-to-end demo
-├── launcher/ · ecomind.bat · ecomind.sh · Makefile
-└── pyproject.toml · pytest.ini
-```
+| # | Stage | What you get |
+|---|-------|--------------|
+| 1 | **Library** | Dataset library with provenance, row/column/device counts and defect rates |
+| 2 | **Import** | Estate census: buildings, floors, rooms, devices, rows and date range |
+| 3 | **Schema** | Every column, its detected type, the role it plays, and the evidence for trusting it |
+| 4 | **Data Quality** | Structural rules across five dimensions, severity-scored; a critical rule passes only with zero violations |
+| 5 | **Transformation** | Five steps (normalise, encode, scale, aggregate, derive) with field-level before/after |
+| 6 | **Model Selection** | Candidates on one identical split, chosen on measured results — every candidate carries a written `selection_rationale`, near-ties stated |
+| 7 | **Anomalies** | Where and when energy is wasted, measured against each device's own hour-of-week baseline — the baseline's version is recorded with every anomaly |
+| 8 | **Forecast** | Hourly uncertainty band + per-horizon outlook, with the hour-of-week naive baseline for comparison |
+| 9 | **Recommendations** | Prioritised actions with receipts, savings inventory, payback verdicts and a programme roll-up |
+| 10 | **Report** | Twelve sections in locked order, assembled from the recorded stage outputs |
+
+A stage is executed once and recorded. Adaptive baselines, artifact versions and audit
+events are persisted and browsable.
 
 ---
 
-## 8. How to run it
+## 5. How a run works
+
+The important property is consistency, not speed: every screen reads the same recorded
+object the run wrote.
+
+1. Pick or import a dataset.
+2. The platform loads the dataset's recorded outputs if any exist.
+3. Run controls start a run when none exists, so a newly imported file is not stuck on a
+   disabled button.
+4. Each stage writes its own snapshot, trace and artefacts.
+5. Every page reads the stage it is showing. The anomaly header cards read the recorded
+   anomaly aggregate; the anomaly chart reads the recorded series. They cannot disagree
+   because they read the same stored facts.
+
+The forecast is a projection of the selected model, not a second opinion. It never
+re-races algorithms, and `model_id` on every forecast row points at the one
+`ModelSelection` chose. A user comparing the forecast page against the model page should
+be looking at the same model, and the report cites the same id.
+
+---
+
+## 6. How the forecast works
+
+The forecast is in two tiers, because one method cannot honestly span both.
+
+- Short horizons (24h / 7d / 30d) use the selected model, walked recursively per device.
+- The 12-month view uses additive Holt-Winters over the monthly history, and says so in
+  `method` on every row it produces.
+
+Three things matter:
+
+- Recursive inference walks per device, never per row. Predicting campus totals
+  recursively would feed the building's next hour with the previous device's prediction,
+  which is a fabrication that reads as a trend. Each device is walked on its own timeline
+  and the results are summed afterwards.
+- The band is measured, not asserted. Before forecasting, the last 14 days are withheld
+  and replayed through the exact recursive path, and the spread of those errors sets the
+  band. Where the backtest cannot run (less than 21 days of history) the band is reported
+  as `null` rather than as a number nobody measured.
+- Exogenous features are held at their trailing same-hour-of-week mean over the next seven
+  days, then flat. That is stated in `confidence_note` on every short horizon, because a
+  30-day projection produced under a frozen August temperature is a projection of August,
+  and the reader has to know that is what they are looking at.
+
+---
+
+## 7. How the anomaly engine works
+
+Detection is statistical, never model-based, and the reason is specific. A predictive
+model flags whatever it happens to predict badly, which means it rediscovers its own error
+distribution and calls it an anomaly. A median hour-of-week profile per device cannot be
+moved by the event you are looking for, so a spike stays a spike instead of being absorbed
+into the baseline and explained away.
+
+Three decisions worth stating:
+
+- The baseline is a median, shrunk toward the hour-of-day profile. 30 days of hourly data
+  gives about four samples per hour-of-week bin, and a median of four is not a baseline, it
+  is a rumour. The profile is a count-weighted blend of the hour-of-week median and the
+  hour-of-day median, which has ~30 samples behind it.
+- Only overuse is an anomaly. A building that reads 20% below its baseline has saved money,
+  and reporting that as a fault would be wrong in a way a user cannot easily see through.
+  Deviations are signed, the cost is computed on the positive side only, and `excess_kwh`
+  is never negative.
+- Consecutive readings become one anomaly, not thirty. A chiller tripping at 02:00 and
+  staying tripped produces 24 hourly rows that are one event. Grouping them into an episode
+  is what makes `window_start`/`window_end` meaningful and what lets a facilities manager act
+  on something.
+
+Severity is defined in **sigma** against each device's own learned MAD scale, so no single
+kWh value is "the threshold". The chart rail is the empirical lowest flagged reading, and
+the basis panel states the real rule: a reading enters the queue at 6.0σ (score 0.60),
+plus `critical ≥ 9σ · high ≥ 7.5σ · medium ≥ 6σ`.
+
+---
+
+## 8. API surface
+
+The backend exposes the pipeline and the dataset-scoped reads.
+
+### Auth
+
+- `POST /api/v1/auth/register`
+- `POST /api/v1/auth/login`
+- `GET /api/v1/auth/me`
+
+### Datasets
+
+- `GET /api/v1/datasets`
+- `POST /api/v1/datasets/upload`
+- `GET /api/v1/datasets/{id}`
+- `GET /api/v1/datasets/{id}/hierarchy`
+- `GET /api/v1/datasets/{id}/preview`
+- `GET /api/v1/datasets/{id}/content`
+- `POST /api/v1/datasets/{id}/refresh`
+- `DELETE /api/v1/datasets/{id}`
+- `GET /api/v1/datasets/{id}/schema`
+- `POST /api/v1/datasets/{id}/schema/discover`
+- `GET /api/v1/datasets/{id}/dq`
+- `POST /api/v1/datasets/{id}/dq/run`
+- `GET /api/v1/datasets/{id}/baseline`
+- `POST /api/v1/datasets/{id}/baseline`
+- `GET /api/v1/datasets/{id}/baseline/versions`
+- `GET /api/v1/datasets/{id}/anomalies`
+- `GET /api/v1/datasets/{id}/anomalies/chart`
+- `GET /api/v1/datasets/{id}/forecast/chart`
+- `GET /api/v1/datasets/{id}/anomalies/stage`
+
+### Workflow
+
+- `POST /api/v1/workflows/start`
+- `GET /api/v1/workflows`
+- `GET /api/v1/workflows/{run_id}`
+- `GET /api/v1/workflows/{run_id}/stages/{stage_key}`
+- `POST /api/v1/workflows/{run_id}/advance`
+- `POST /api/v1/workflows/{run_id}/stages/{stage_key}/exec`
+- `POST /api/v1/workflows/{run_id}/abort`
+- `GET /api/v1/workflows/{run_id}/report.pdf`
+
+### System
+
+- `GET /api/v1/health`
+- `GET /api/v1/activity`
+- `GET /api/v1/competitions/...`
+
+Frontend speaks to this surface through one REST client in `frontend/client/src/lib/api.ts`.
+
+---
+
+## 9. Verified status
+
+What has been verified and is safe to treat as done:
+
+- The shell layout is viewport-locked and scrolls internally. The sidebar no longer
+  stretches to the full page height when the document scrolls.
+- The context strip is split so the run controls stay pinned and the metadata scrolls
+  sideways.
+- Responsive clipping breakpoints are tightened so content that used to be unreachable
+  between 881px and 1180px is now reachable.
+- Dead CSS that sat before the live definitions and therefore never applied has been
+  removed.
+- Auth is one token probe on boot, so a stale token costs exactly one 401 instead of a
+  storm of them. A sign-out control exists on the profile popover.
+- The anomaly chart now uses one shared data array, so the series is no longer compressed
+  into a fraction of the plot.
+- The inspector panel scrolls internally instead of hiding two-thirds of itself.
+- The chart no longer prints a fabricated threshold. Severity is in sigma against each
+  device's own learned scale; the basis block states the real detection rule.
+- Pins now stick: clicking a point pins it, the panel follows the pinned reading, and
+  leaving the chart clears the preview.
+- Step, Auto, Guided tour and replay can start a run when none exists, so a newly imported
+  file is not stuck on a disabled control.
+- The run controls are on every page and work from any stage.
+- Dataset file handling no longer silently falls back to a bundled sample when a dataset's
+  own file is missing. A missing file is now an error you can see.
+- Uploaded estate columns under alternate names are renamed to canonical names before any
+  analytics read them, so the estate identity block no longer blanked out.
+- A numpy value handed to a SQL string column is now converted explicitly, and the
+  processed-file sidecar pins string column types across the round trip, so floor numbers
+  no longer came back as binary noise.
+- The anomaly list supports backend-scoped paging with severity, class and building filters
+  and the facet counts the UI needs.
+- Dataset content and preview accept scope parameters, so the Explore scope bar actually
+  narrows the page.
+- Facet counts obey the building filter but not the severity/class filters, so the counts
+  stay truthful as the scope changes.
+
+What is deliberately absent or limited:
+
+- The demo seed and the seeded account are for local evaluation. They are the easiest thing
+  to forget to replace before a wider rollout.
+- Multi-tenant workspaces, Docker Compose, live meter integration and scheduled retraining
+  are roadmap items, not current features.
+- The anomaly chart is hourly, so a long window can still look like a barcode even though
+  the basis block explains what is plotted.
+- Some recommendation, report and forecasting surfaces are only as deep as the stage that
+  produced them. Where a stage has not run, the page says so rather than inventing detail.
+
+---
+
+## 10. Test and check posture
+
+Backend:
 
 ```bash
-# Backend + SPA on one port
-.venv/Scripts/python.exe -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8000
-curl -s http://127.0.0.1:8000/api/v1/health
-
-# Frontend
-cd frontend
-pnpm install
-npx tsc --noEmit          # 0 errors
-pnpm build:static         # writes ../dist, which the API serves
-# open http://127.0.0.1:8000  ·  admin@ecomind.ai / admin123
+.venv/Scripts/python.exe -m pytest -q
 ```
 
----
+Frontend:
 
-## 9. Honest status: verified, open, and known gaps
+```bash
+cd frontend
+pnpm check
+pnpm build:static
+```
 
-**Verified**
+The backend also serves `frontend/dist`, so after any frontend change you must rebuild
+before refreshing or you will see stale code.
 
-- Typecheck 0 errors, production build exit 0 (app 494.55 kB / 147.46 kB gzip, charts 403.49 kB,
-  CSS 230.60 kB).
-- Backend health `ok`; sign-in, datasets, schema, baseline, workflow, anomaly, forecast, report PDF
-  and activity endpoints all return 200 through the UI.
-- Units are derived, never guessed; the model error card reads `kWh` for an `energy_kwh` target.
-- No mock arrays, no placeholder field catalogue, no hardcoded identity, no fake SSO control.
-
-**Open (scheduled, not done)**
-
-| Item | Where |
-|---|---|
-| **Recorded runs, most orphaned/failed** — the library and history are noisy and `/workflows` is heavy. Needs a prune/retention tool. | new |
-| Twenty field datasets for `/sample-datasets` | **done** — `scripts/build_field_datasets.py` |
-| Split `AppShell.tsx`, lazy routes, store, memoisation, table virtualisation | roadmap P2 |
-| Tokenised chart palette, published type scale, remaining mobile breakpoints | roadmap P3 |
-| Chart cross-filtering, brush/zoom, data-table alternatives | roadmap P4 |
-| Guided demo mode, presentation mode, SSE streaming, `Ctrl+K` search | roadmap P5 |
-| Motion bound to backend events | roadmap P6 |
-| `aria-live` terminal, inspector focus trap, contrast pass, Lighthouse | roadmap P8 |
-| CI workflow, Makefile, README refresh, fresh-clone simulation | roadmap P9 |
-| ~~`pytest backend` unverified~~ — **re-run in Session 5: 106 passed, exit 0** | closed |
+Useful logs: `logs/launcher.log`, `logs/backend.log`.
 
 ---
 
-## 10. How to present this (ten-minute demo script)
+## 11. Demo script
 
-1. **Sign in** — the identity is real, the build stamp is real, no invented compliance badges.
-2. **Dataset library** — **24 datasets across twelve fields**, each classified with its own domain.
-   Open **Preview rows** on any card and point at the units column: `energy_kwh → kWh`,
-   `clinker_tonnes → t`, `kiln_temp_c → °C`, `power_factor → ratio`, `cost_inr → ₹`. Export CSV.
-3. **Import** — upload a file, then stop. Nothing runs. The pipeline is staged, not started.
-4. **Guided tour** — press it on Mission control. The app walks Library → Import → Schema → Quality →
-   Transformation → Models → Anomalies → Prediction → Recommendations → Reports, one stage at a time,
-   opening each page as its stage completes. The same walk can be driven from any page with the
-   **Run · Step · Stop · New run** controls in the bar under the topbar.
-5. **Schema** — the animated map shows the dataset flowing into the signal families it actually
-   contains, with role counts underneath.
-6. **Quality** — the overall rule run comes first, then the filter narrows it. State clearly that
-   outliers are *not* here; they belong to the anomaly stage.
-7. **Transformation** — open a step and read the recorded before → after with its column list; then
-   show the baseline dataset preview and hover the hour-of-week heatmap for exact medians.
-8. **Models** — the leaderboard is a race with recorded metrics; the winner's rationale is the
-   backend's own prose, and MAE carries the target's unit.
-9. **Anomalies** — the threshold line is the recorded threshold; the breakdown is the recorded
-   severity and class split.
-10. **Prediction** — the horizon, the confidence band, the day-by-day table, and what the horizon is
-    worth in ₹ and kgCO₂.
-11. **Reports** — download the PDF with the bearer token; it is generated by the backend.
+A short walkthrough that exercises the platform end to end:
 
-**The one sentence to land:** *nothing on this screen is a mock — every figure is a recorded stage
-output, and where a stage has not run the interface says so instead of inventing a number.*
+1. Start the app from the repository root.
+2. Open http://127.0.0.1:8000.
+3. Sign in with the demo account.
+4. Land on Mission control. Read session, config and baseline ledger.
+5. Open the Dataset library and select the seeded dataset.
+6. Continue to Import and watch the ingestion state.
+7. Step through schema, data quality and transformation.
+8. Run model selection and read the winner and its rationale.
+9. Open anomalies, pin a point, read the inspector panel.
+10. Open prediction and read the forecast and its band.
+11. Open recommendations and read the top actions.
+12. Open the report and export it as PDF.
+
+That script is short on purpose. The product is meant to be narrated by the run controls,
+not by a long prose demo.
 
 ---
 
-## 11. Improvement ideas, ranked by impact
+## 12. Known limits and what they mean
 
-**Presentation-critical**
+- The forecast is a projection of the selected model. It never re-races algorithms, so if
+  you want a different model you re-run model selection; the forecast then follows the new
+  selection.
+- The 12-month view is Holt-Winters on monthly history, not a longer recursion of the hourly
+  model. It says so in `method` on every row.
+- The band is measured from a 14-day withheld backtest replayed through the exact recursive
+  path. Where that cannot run, the band is null, not a guessed number.
+- Exogenous features are frozen at their trailing same-hour-of-week mean after seven days.
+  The forecast page states that, because a 30-day projection under a frozen August temperature
+  is a projection of August.
+- The anomaly engine only flags overuse and stopped meters. It deliberately does not report a
+  building that is below its baseline as a fault, because that has saved money and that is not
+  a fault.
+- Severity is in sigma against each device's own learned scale. There is no single kWh threshold.
+- The UI sound policy uses short synthetic tones, not audio files. They are meant to be quiet
+  acknowledgement, not a fanfare. Browsers will not play audio until a real user gesture has
+  happened; the app unlocks on the first pointer/key interaction, so the first click is when the
+  milestone sounds become possible. If the workspace feels silent after a fresh reload, interact
+  once before starting a run.
 
-1. **Prune the 331 orphan runs** — biggest single credibility risk today: a reviewer opening Run
-   history sees hundreds of failed runs.
-2. **Guided demo mode (`Ctrl+D`)** — one keystroke that runs the pipeline, walks the pages and
-   narrates. Nothing else raises the perceived quality as much in a live demo.
-3. **Presentation mode** — hide the sidebar and terminal, enlarge KPIs and charts, fullscreen.
-4. **Anomaly + Prediction as flagship dashboards** — cross-filtering (click a point → the timeline,
-   inspector, device and forecast all react), brush/zoom, device heatmap, scenario comparison.
+---
 
-**High value**
-
-5. **Chart palette tokenisation + published type scale** — one file to re-skin the whole product.
-6. **Table virtualisation** on the anomaly queue and quality rows — the recorded runs are large.
-7. **`Ctrl+K` command palette** over datasets, devices, anomalies, recommendations, reports, runs.
-8. **SSE wiring** so the activity terminal streams instead of polling.
-9. **Accessibility pass** — `aria-live` on the terminal, inspector focus trap, WCAG AA contrast on
-   micro labels.
-10. **Split the shell** into `views/*` with lazy routes — smaller first paint and a place to put tests.
-
-**Longer bets**
-
-11. **Explainable-by-default drill-down** on every number: click any figure to see the stage, the
-    recorded inputs and the formula.
-12. **Compare mode** — two datasets side by side, baseline vs baseline, model vs model.
-13. **Portfolio view** — many sites, one ranked list of what to fix first.
-14. **Forecast scenarios** — ask "what if occupancy drops 20%" and render the backend's answer.
-15. **Public demo dataset** with a deliberately planted quality defect and a planted anomaly, so the
-    pipeline has something to find without touching the generators' honesty.
+Built with ⚡ by **Shashank Gowda N C** — MIT license.

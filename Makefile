@@ -24,19 +24,22 @@ seed:
 	$(PY) backend/seed.py
 
 backend:
-	$(PY) backend/run.py
+	$(PY) -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 
 frontend:
-	cd frontend && pnpm build:static
+	cd frontend && pnpm check && pnpm build:static
 
 dev:
 	cd frontend && pnpm dev:static
 
 test:
-	$(PY) -m pytest
+	$(PY) -m pytest -q
 
 demo:
 	$(PY) scripts/demo_end_to_end.py
+
+check:
+	cd frontend && pnpm check
 
 clean:
 	$(PY) -c "import shutil; [shutil.rmtree(p, ignore_errors=True) for p in ['frontend/dist', '.pytest_cache', 'backend/tests/__pycache__']]"

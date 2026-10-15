@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
-  Activity, AlertTriangle, ArrowDownRight, ArrowRight, ArrowUpRight, BarChart3, Bell, Building2,
+  Activity, AlertTriangle,  ArrowDownRight, ArrowRight, ArrowUpRight, BarChart3, Bell, Building2,
   CalendarClock, Check, CheckCircle2, ChevronDown, ChevronRight, ChevronUp, CircleDot, Clock3, CloudUpload,
   Briefcase, Cpu, Database, DatabaseZap, Download, Eye, Factory, FileCheck2, FileClock, FileText, Filter,
   Gauge, GraduationCap, HardDrive, HeartPulse, History, IndianRupee, Info, Layers3, Leaf, Lightbulb, ListFilter, LockKeyhole, Mail, Moon, MousePointer2, Network,
@@ -15,11 +15,11 @@ import { Area, AreaChart, Bar, BarChart, CartesianGrid, Line, LineChart, Referen
   ResponsiveContainer, Tooltip as RechartsTooltip, TooltipProps, XAxis, YAxis } from "recharts";
 import "./AppShell.css";
 import { useSound, playCompletionChime, playStartTone, unlockAudio } from "@/lib/useSound";
-import { auth, datasets as datasetsApi, domain, getToken, workflow, type AuthUser } from "@/lib/api";
+import { auth, datasets as datasetsApi, domain, getToken, setToken, workflow, type AuthUser } from "@/lib/api";
 import { displayUnit, unitForColumn } from "@/lib/units";
 import { FAMILY_LABEL, ROLE_LABEL, ROLE_NOTE, ROLE_ORDER, familyForColumn, roleForColumn, type FieldFamily, type FieldRole } from "@/lib/schema";
 import {
-  loadWorkspace, runPipeline, STAGE_KEYS,
+  loadWorkspace, runPipeline, STAGE_KEYS, normaliseSeverity,
   type LiveWorkspace, type LiveDataset, type LiveIssue, type LiveModel, type LivePoint,
   type LiveAnomalyPoint, type LiveAnomaly, type LiveForecastPoint, type LiveRec, type LiveActivity,
   type LiveStage, type LiveCompetition, type LiveQualityMeta, type LiveAnomalyMeta,
@@ -27,7 +27,7 @@ import {
   type LiveWindowOption, deriveWindowOptions, deriveForecastWindowOptions,
   type LiveForecastMeta, type LiveRecMeta, type LiveRun, type LiveSchemaField, type LiveBaselineVersion,
 } from "@/lib/workspace";
-import { Snowflake, Thermometer, Waves, ArrowUpDown, Cog } from "lucide-react";
+import { Snowflake, Thermometer, Waves, ArrowUpDown, Cog, LogOut } from "lucide-react";
 
 type NavId = "overview" | "library" | "import" | "schema" | "quality" | "transform" | "models" | "anomalies" | "prediction" | "recommendations" | "reports" | "history" | "notifications" | "settings";
 type DatasetDomain = BackendDomain;
@@ -508,10 +508,12 @@ function SoundPlayer({ kind, onPlay, when = true }: SoundPlayerProps) {
   const sound = useSound({ onPlay });
   useEffect(() => {
     if (!when) return;
-    if (kind === "scan") sound.play({ volume: 0.14, rate: 0.9 });
-    else if (kind === "done") sound.play({ volume: 0.2, rate: 1.05 });
-    else if (kind === "alert") sound.play({ volume: 0.22, rate: 1.2 });
-    else sound.play({ volume: 0.12, rate: 0.95 });
+    // Raised volumes from the earlier "barely audible" settings so a step,
+    // a stage completion and a run completion read as clear feedback rather than a whisper.
+    if (kind === "scan") sound.play({ volume: 0.22, rate: 1.0 });
+    else if (kind === "done") sound.play({ volume: 0.24, rate: 1.05 });
+    else if (kind === "alert") sound.play({ volume: 0.26, rate: 1.2 });
+    else sound.play({ volume: 0.18, rate: 0.95 });
   }, [kind, when, sound]);
   return null;
 }
@@ -766,6 +768,10 @@ export function AppShell() {
   const { theme, toggleTheme } = useTheme();
   const sound = useSound({ onPlay: () => {} });
   const [signedIn, setSignedIn] = useState(false);
+  // Flips true once the stored token has been validated (or found absent).
+  // Every workspace loader waits for it, so one stale token produces one 401
+  // instead of a failed request from each independent loader.
+  const [authChecked, setAuthChecked] = useState(false);
   const [activeView, setActiveView] = useState<NavId>("overview");
   const [activeDataset, setActiveDataset] = useState<Dataset>(datasets[0] ?? EMPTY_DATASET);
   const [sidebarExpanded, setSidebarExpanded] = useState(true);
@@ -1026,17 +1032,46 @@ export function AppShell() {
     }
   };
 
+  // Boot sequence: one token check, then one identity read. A stored token is
+  // taken optimistically so a valid session never flashes the sign-in page,
+  // but every workspace loader waits for `authChecked` — a stale token therefore
+  // costs a single 401 and lands cleanly on sign-in instead of firing the same
+  // doomed request from each loader in turn.
   useEffect(() => {
-    if (!signedIn && getToken()) setSignedIn(true);
-  }, [signedIn]);
-
-  // The real signed-in identity, straight from GET /auth/me. The topbar and the
-  // profile popover show this instead of a hardcoded name.
-  useEffect(() => {
-    if (!signedIn) {
+    let cancelled = false;
+    if (!getToken()) {
+      setSignedIn(false);
       setCurrentUser(null);
+      setAuthChecked(true);
       return;
     }
+    setSignedIn(true);
+    auth
+      .me()
+      .then(user => {
+        if (cancelled) return;
+        setCurrentUser(user);
+        setAuthChecked(true);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setToken(null);
+        setCurrentUser(null);
+        setSignedIn(false);
+        setAuthChecked(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // Runs once on mount: the token only changes through an explicit sign-in or
+    // sign-out, both of which set state directly.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // A fresh sign-in carries a new token, so the identity has to be re-read for
+  // it. Guarded by `authChecked` so it can never race the boot probe.
+  useEffect(() => {
+    if (!authChecked || !signedIn || currentUser) return;
     let cancelled = false;
     auth
       .me()
@@ -1047,7 +1082,7 @@ export function AppShell() {
     return () => {
       cancelled = true;
     };
-  }, [signedIn]);
+  }, [authChecked, signedIn, currentUser]);
 
   const applyWorkspace = (loaded: LiveWorkspace) => {
       if (loaded.datasets.length) datasets = loaded.datasets;
@@ -1062,7 +1097,7 @@ export function AppShell() {
       liveStages = loaded.stages ?? [];
       liveCompetition = loaded.competition ?? null;
       liveQualityMeta = loaded.qualityMeta ?? null;
-      liveAnomalyMeta = loaded.anomalyMeta ?? null;
+      liveAnomalyMeta = loaded.anomalyMeta ?? liveAnomalyMeta ?? null;
       liveForecastMeta = loaded.forecastMeta ?? null;
       liveRecMeta = loaded.recMeta ?? null;
       liveRuns = loaded.runs ?? [];
@@ -1102,7 +1137,7 @@ export function AppShell() {
   };
 
   useEffect(() => {
-    if (!signedIn) return;
+    if (!signedIn || !authChecked) return;
     let cancelled = false;
     (async () => {
       const preferred = pendingDatasetId.current ?? undefined;
@@ -1128,7 +1163,7 @@ export function AppShell() {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [signedIn, reloadKey]);
+  }, [signedIn, authChecked, reloadKey]);
 
   useEffect(() => {
     if (!scanRunning) return;
@@ -1180,7 +1215,9 @@ export function AppShell() {
     setSearchOpen(false);
     setNotificationsOpen(false);
     setProfileOpen(false);
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    // The shell scrolls internally, so the reset has to target the main
+    // region — window.scrollTo no longer moves anything.
+    document.getElementById("main-content")?.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const handleScan = (fileName?: string, domain?: DatasetDomain) => {
@@ -1397,7 +1434,8 @@ export function AppShell() {
   };
 
   const renderView = () => {
-    switch (activeView) {          case "library":
+    switch (activeView) {
+        case "library":
         return (
           <LibraryView
             activeDataset={activeDataset}
@@ -1491,6 +1529,7 @@ export function AppShell() {
             setWindow={setAnomalyWindow}
             onInspect={setSelectedAnomaly}
             onInspectPoint={(point) => { setSelectedAnomaly(null); setSelectedPoint(point); }}
+            onClearPoint={() => setSelectedPoint(null)}
             selectedPoint={selectedPoint}
             dataset={activeDataset}
             baselineName={baselineName}
@@ -1585,7 +1624,9 @@ export function AppShell() {
           <div className="workspace-select__mark">{activeDataset.id.slice(0, 2)}</div>
           <div>
             <span className="workspace-select__label">Workspace</span>
-            <strong>{activeDataset.name}</strong>
+            {/* The chip is narrow by design, so the full name stays reachable on
+                hover rather than being silently truncated. */}
+            <strong title={activeDataset.name}>{activeDataset.name}</strong>
           </div>
           <AppIcon icon={ChevronDown} size={14} />
         </div>
@@ -1773,13 +1814,32 @@ export function AppShell() {
                 <Settings2 size={14} />{" "}
                 Workspace settings
               </button>
-
+              <button
+                type="button"
+                onClick={() => {
+                  // Clearing the token here is the only way out of a stale
+                  // session; without it the app can only bounce back to the
+                  // sign-in page.
+                  auth.logout();
+                  setToken(null);
+                  setCurrentUser(null);
+                  setSignedIn(false);
+                  setProfileOpen(false);
+                  setToast("Signed out. Every recorded run stays in the workspace.");
+                }}
+              >
+                <LogOut size={14} /> Sign out
+              </button>
             </div>
           ) : null}
         </div>
       </header>
       <main className="app-main" id="main-content">
         <div className="context-strip">
+          {/* The metadata scrolls sideways when space runs out; the run controls
+              beside it are pinned, so the buttons that drive the pipeline can
+              never be pushed off the edge of the screen. */}
+          <div className="context-strip__meta">
           <span className="context-strip__item">
             <span className="context-strip__label">DATASET</span>
             <strong>{activeDataset.name}</strong>
@@ -1813,12 +1873,13 @@ export function AppShell() {
               {activeDataset.freshness}
             </strong>
           </span>
+          </div>
           {/* Present on every page: a demonstration should never have to hunt
               for the run controls, and they must never be dead. */}
           <div className="pipeline-quick">
             <button
               type="button"
-              className="pipeline-quick__button"
+              className="pipeline-quick__button pipeline-quick__nav"
               onClick={goPreviousStage}
               title="Move to the previous pipeline stage without running anything"
             >
@@ -1826,7 +1887,7 @@ export function AppShell() {
             </button>
             <button
               type="button"
-              className="pipeline-quick__button"
+              className="pipeline-quick__button pipeline-quick__nav"
               onClick={goNextStage}
               title="Move to the next pipeline stage without running anything"
             >
@@ -1885,7 +1946,9 @@ export function AppShell() {
                 <span className="status-dot status-dot--lime" />
                 AI core online
               </span>
-              <span className="mono-note">{baselineName} / {domainInfo.label}</span>
+              <span className="mono-note">
+                {baselineName ? `${baselineName} / ` : ""}{domainInfo.label}
+              </span>
             </div>
           </div>
           {renderView()}
@@ -3465,55 +3528,136 @@ function SchemaFlowMap({
   dataset,
   families,
   roleCounts,
+  fields,
+  operations,
 }: {
   dataset: Dataset;
   families: { family: FieldFamily; units: string[]; count: number }[];
   roleCounts: Record<FieldRole, number>;
+  fields: { name: string; type: string; family: FieldFamily; role: FieldRole }[];
+  operations: { label: string; detail: string; icon: LucideIcon; state: string }[];
 }) {
+  // Reading a dataset is a sequence — record, interpret, store — so it is shown
+  // as one. `pass` only exists to replay the arrival animation on demand, which
+  // is what makes the order legible rather than merely decorative.
+  const [pass, setPass] = useState(0);
+  const readTokens = fields.slice(0, 14);
+  const notShown = Math.max(0, fields.length - readTokens.length);
   return (
     <div className="schema-flow">
-      <div className="schema-flow__source">
-        <span className="schema-flow__source-icon">
-          <Database size={19} />
+      <div className="schema-flow__bar">
+        <span className="mono-note">
+          {fields.length} recorded column{fields.length === 1 ? "" : "s"} → {families.length} signal
+          famil{families.length === 1 ? "y" : "ies"} → {operations.length} database operation
+          {operations.length === 1 ? "" : "s"}
         </span>
-        <div>
-          <strong>{dataset.name}</strong>
-          <span className="mono-note">
-            {dataset.rows} rows · {dataset.columnCount ?? "—"} columns · {dataset.type}
-          </span>
-        </div>
-        <span className="schema-flow__source-status">
-          <span className="status-dot status-dot--lime" />
-          {liveSchema ? `${liveSchema.length} fields mapped` : "no schema yet"}
-        </span>
+        <button
+          type="button"
+          className="schema-flow__replay"
+          onClick={() => setPass(value => value + 1)}
+          title="Replay the read animation"
+        >
+          <RefreshCw size={11} /> Replay read
+        </button>
       </div>
-      {families.length ? (
-        <div className="schema-flow__branches">
-          {families.map((node, index) => {
-            const Icon = fieldIconFor(node.family);
-            const units = node.units.filter(Boolean);
-            return (
-              <div className="schema-flow-branch" key={node.family} style={{ animationDelay: `${index * 60}ms` }}>
-                <div className="schema-flow-branch__line" />
-                <div className="schema-flow-branch__node">
-                  <span className="schema-flow-branch__icon">
-                    <Icon size={15} />
+      <div className="schema-flow__stages">
+        <section className="schema-stage">
+          <header className="schema-stage__head">
+            <span className="schema-stage__step">01</span>
+            <span className="schema-stage__name">Read</span>
+          </header>
+          <div className="schema-flow__source">
+            <span className="schema-flow__source-icon">
+              <Database size={17} />
+            </span>
+            <div>
+              <strong>{dataset.name}</strong>
+              <span className="mono-note">
+                {dataset.rows} rows · {dataset.columnCount ?? "—"} columns
+              </span>
+            </div>
+          </div>
+          {/* Keyed by `pass` so replay re-mounts the tokens and re-runs the stagger. */}
+          <div className="schema-read" key={pass}>
+            {readTokens.length ? (
+              readTokens.map((field, index) => (
+                <span
+                  className="schema-read__token"
+                  key={field.name}
+                  style={{ animationDelay: `${index * 45}ms` }}
+                >
+                  <code>{field.name}</code>
+                  <em>{field.type || "—"}</em>
+                </span>
+              ))
+            ) : (
+              <span className="mono-note">No columns recorded for this dataset yet.</span>
+            )}
+            {notShown ? <span className="schema-read__more mono-note">+{notShown} more</span> : null}
+          </div>
+        </section>
+        <div className="schema-link" aria-hidden="true">
+          <i />
+        </div>
+        <section className="schema-stage">
+          <header className="schema-stage__head">
+            <span className="schema-stage__step">02</span>
+            <span className="schema-stage__name">Interpret</span>
+          </header>
+          {families.length ? (
+            <div className="schema-flow__branches">
+              {families.map(node => {
+                const Icon = fieldIconFor(node.family);
+                const units = node.units.filter(Boolean);
+                return (
+                  <div className="schema-flow-branch__node" key={node.family}>
+                    <span className="schema-flow-branch__icon">
+                      <Icon size={15} />
+                    </span>
+                    <div>
+                      <strong>{FAMILY_LABEL[node.family]}</strong>
+                      <span className="mono-note">
+                        {node.count} field{node.count === 1 ? "" : "s"}
+                        {units.length ? ` · ${units.join(", ")}` : ""}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="mono-note table-empty-note">No signal families until a schema is recorded.</p>
+          )}
+        </section>
+        <div className="schema-link" aria-hidden="true">
+          <i />
+        </div>
+        <section className="schema-stage">
+          <header className="schema-stage__head">
+            <span className="schema-stage__step">03</span>
+            <span className="schema-stage__name">Store</span>
+          </header>
+          <div className="schema-store">
+            {operations.map(operation => {
+              const Icon = operation.icon;
+              return (
+                <div className={`schema-store__row schema-store__row--${operation.state}`} key={operation.label}>
+                  <span className="schema-store__icon">
+                    <Icon size={13} />
                   </span>
                   <div>
-                    <strong>{FAMILY_LABEL[node.family]}</strong>
-                    <span className="mono-note">
-                      {node.count} field{node.count === 1 ? "" : "s"}
-                      {units.length ? ` · ${units.join(", ")}` : ""}
-                    </span>
+                    <strong>{operation.label}</strong>
+                    <span className="mono-note">{operation.detail}</span>
                   </div>
+                  <span className={`schema-store__state schema-store__state--${operation.state}`}>
+                    {operation.state}
+                  </span>
                 </div>
-              </div>
-            );
-          })}
-        </div>
-      ) : (
-        <p className="mono-note table-empty-note">No signal families until a schema is recorded.</p>
-      )}
+              );
+            })}
+          </div>
+        </section>
+      </div>
       <div className="schema-flow__roles">
         {ROLE_ORDER.filter(role => roleCounts[role] > 0).map(role => (
           <span className={`schema-role schema-role--${role}`} key={role}>
@@ -3630,7 +3774,7 @@ function SchemaView({ dataset }: { dataset: Dataset }) {
           </span>
           <span className="schema-active-strip__note">
             {liveSchema
-              ? `${new Set(liveSchema.map(f => f.role)).size} roles · ${families.length} signal family{families.length === 1 ? "" : "ies"} detected from this dataset’s recorded columns`
+              ? `${new Set(liveSchema.map(f => f.role)).size} roles · ${families.length} signal famil${families.length === 1 ? "y" : "ies"} detected from this dataset’s recorded columns`
               : "No schema recorded yet for this dataset — the schema updates when the active dataset changes."}
           </span>
         </div>
@@ -3746,6 +3890,8 @@ function SchemaView({ dataset }: { dataset: Dataset }) {
               units: [...node.units].map(displayUnit).filter(Boolean),
             }))}
             roleCounts={roleCounts}
+            fields={fields}
+            operations={operations}
           />
         </section>
       </div>
@@ -4047,26 +4193,75 @@ function QualityView({
           <div className="repair-console">
             <div className="repair-console__header">
               <span className="terminal-glyph">›_</span>
-              <span>repair_context / {dataset.id.toLowerCase()}</span>
+              <span>quality_stage / {dataset.id.toLowerCase()}</span>
+              <span className="mono-note">
+                {filteredQuality.length} rule{filteredQuality.length === 1 ? "" : "s"} evaluated
+              </span>
               <span className="repair-console__cursor" />
             </div>
-            {filteredQuality.slice(0, 4).map((issue, index) => (
-              <div className="repair-line" key={issue.id}>
-                <span className="repair-line__num">0{index + 1}</span>
-                <div>
-                  <span className="repair-line__label">CONTEXT WINDOW</span>
-                  <code>{issue.context}</code>
-                  <span className="repair-line__reason">
+            {/* Every rule the stage reported, with the evidence it recorded: the
+                severity, score, the counts it measured and the columns it named.
+                Previously this showed four sentences and hid the rest. */}
+            <div className="repair-console__body">
+              {!filteredQuality.length ? (
+                <p className="mono-note table-empty-note">No rule outcomes recorded for this dataset.</p>
+              ) : null}
+              {filteredQuality.map((issue, index) => (
+                <article
+                  className={`repair-card repair-card--${issue.severity || "info"}`}
+                  key={issue.id}
+                >
+                  <header className="repair-card__head">
+                    <span className="repair-card__num">{String(index + 1).padStart(2, "0")}</span>
+                    <strong>{issue.ruleName || issue.type}</strong>
+                    <TinyTag
+                      tone={
+                        issue.severity === "critical" ? "coral" : issue.severity === "warning" ? "orange" : "blue"
+                      }
+                    >
+                      {issue.severity || "info"}
+                    </TinyTag>
+                    <span className="mono-note">score {issue.score != null ? issue.score.toFixed(1) : "—"}</span>
+                    <TinyTag tone={issue.passed ? "lime" : "neutral"}>
+                      {issue.passed ? "passed" : "flagged"}
+                    </TinyTag>
+                  </header>
+                  <p className="repair-card__context">{issue.context}</p>
+                  {issue.columns.length ? (
+                    <div className="repair-card__section">
+                      <span className="repair-line__label">
+                        COLUMN{issue.columns.length === 1 ? "" : "S"} NAMED
+                      </span>
+                      <div className="repair-card__chips">
+                        {issue.columns.slice(0, 8).map(column => (
+                          <code key={column}>{column}</code>
+                        ))}
+                        {issue.columns.length > 8 ? (
+                          <span className="mono-note">+{issue.columns.length - 8}</span>
+                        ) : null}
+                      </div>
+                    </div>
+                  ) : null}
+                  {issue.detail.length ? (
+                    <div className="repair-card__section">
+                      <span className="repair-line__label">WHAT THE RULE MEASURED</span>
+                      <dl className="repair-card__facts">
+                        {issue.detail.map(fact => (
+                          <div key={fact.label}>
+                            <dt>{fact.label}</dt>
+                            <dd className="mono">{fact.value}</dd>
+                          </div>
+                        ))}
+                      </dl>
+                    </div>
+                  ) : null}
+                  <div className="repair-line__reason">
                     <Sparkles size={11} />{" "}
-                    {issue.type === "Duplicate"
-                      ? "dedupe by event_id + timestamp"
-                      : issue.type === "Missing timestamp"
-                      ? "infer cadence from adjacent rows"
-                      : "surrounding context + domain rule"}
-                  </span>
-                </div>
-              </div>
-            ))}
+                    {issue.fixed}
+                  </div>
+                </article>
+              ))}
+            </div>
           </div>
           <div className="quality-panel__footer">
             <span>
@@ -5099,7 +5294,8 @@ function AnomaliesView({
   setWindow,
   onInspect,
   onInspectPoint,
-  selectedPoint: hoveredPoint,
+  onClearPoint,
+  selectedPoint: pinnedPoint,
   dataset,
   baselineName,
   windowOptions,
@@ -5108,6 +5304,7 @@ function AnomaliesView({
   setWindow: (value: string) => void;
   onInspect: (anomaly: (typeof anomalies)[number]) => void;
   onInspectPoint: (point: LiveAnomalyPoint) => void;
+  onClearPoint: () => void;
   selectedPoint: LiveAnomalyPoint | null;
   dataset: Dataset;
   baselineName: string;
@@ -5123,8 +5320,6 @@ function AnomaliesView({
   const activeWindow =
     windowOptions.find(option => option.id === window) ?? windowOptions[windowOptions.length - 1] ?? null;
   const series = activeWindow ? anomalyData.slice(-activeWindow.points) : anomalyData;
-  const baselineMax = series.length ? Math.max(...series.map(p => p.baseline_energy_kwh ?? 0)) : 0;
-  const thresholdLine = baselineMax > 0 ? Number((baselineMax * 1.2).toFixed(1)) : 0;
 
   // When the backend never returned anomaly points, use the blank markers so the
   // deviation chart still renders the frame, grid, axis and legend instead of
@@ -5158,6 +5353,9 @@ function AnomaliesView({
         // severity dots live on their own lane.
         critical: p.severity === "critical" ? (p.observed_energy_kwh ?? p.baseline_energy_kwh) : null,
         high: p.severity === "high" ? (p.observed_energy_kwh ?? p.baseline_energy_kwh) : null,
+        // `severity` is already the UI's normalised vocabulary (see
+        // normaliseSeverity), so the lanes key off "medium" rather than the
+        // stage's raw word "moderate".
         medium: p.severity === "medium" ? (p.observed_energy_kwh ?? p.baseline_energy_kwh) : null,
         low: p.severity === "low" ? (p.observed_energy_kwh ?? p.baseline_energy_kwh) : null,
       }))
@@ -5165,13 +5363,16 @@ function AnomaliesView({
         zone: "",
         device_code: "", device_name: "", device_type: "", dataset_id: "", dataset_name: "", domain: "", model_name: "", model_version: "", baseline_version: null, origin: "", workflow_run_id: "", critical: null, high: null, medium: null, low: null }];
 
-  const severitySeries = chartSeries.map(p => ({
-    timestamp: p.timestamp,
-    critical: p.critical,
-    high: p.high,
-    medium: p.medium,
-    low: p.low,
-  }));
+  // The stage defines severity in sigma against each device's own learned scale,
+  // so no single kWh value is "the threshold" and drawing one would be inventing
+  // a number. The honest horizontal rail is the lowest reading the stage actually
+  // flagged: everything below it was classified normal, which is a fact about
+  // this window rather than a claim about the model's sigma floor.
+  const flaggedValues = chartSeries
+    .filter(p => p.severity !== "" && Number.isFinite(p.observed_energy_kwh))
+    .map(p => p.observed_energy_kwh);
+  const detectionFloor = flaggedValues.length ? Math.min(...flaggedValues) : 0;
+
   // The focus panel must never be an empty frame. When nothing has been hovered
   // yet it falls back to the most severe reading inside the visible window, so
   // the panel beside the chart always describes a real recorded event.
@@ -5184,7 +5385,10 @@ function AnomaliesView({
           (SEVERITY_RANK[b.severity] ?? 0) - (SEVERITY_RANK[a.severity] ?? 0) ||
           Math.abs(b.deviation_percent ?? 0) - Math.abs(a.deviation_percent ?? 0)
       )[0] ?? null;
-  const selectedPoint = hoveredPoint ?? fallbackPoint;
+  // Precedence: an explicit pin beats the cursor preview, which beats the
+  // window's most severe reading. Without the pin winning, the panel snapped
+  // away from the reading the user had just clicked.
+  const selectedPoint = pinnedPoint ?? hoverPoint ?? fallbackPoint;
   const pointIndex = selectedPoint
     ? chartSeries.findIndex(p => p.timestamp === selectedPoint.timestamp)
     : -1;
@@ -5287,6 +5491,9 @@ function AnomaliesView({
           </div>
         </div>
         <div className="anomaly-chart anomaly-chart--split">
+          {/* The plot owns a definite-height box of its own so the focus panel
+              beside it is never clipped by the chart's fixed height. */}
+          <div className="anomaly-chart__plot">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart
               data={chartSeries}
@@ -5304,7 +5511,13 @@ function AnomaliesView({
                   onInspectPoint(p);
                   sound.play({ volume: 0.12, rate: 1.05 });
                 }
-              }) as any}>
+              }) as any}
+              onMouseLeave={() => {
+                // Leaving the plot drops the preview so the panel falls back to
+                // the pinned reading rather than holding wherever the cursor
+                // happened to exit.
+                setHoverPoint(null);
+              }}>
               <CartesianGrid stroke="#24342d" strokeDasharray="2 5" vertical={false} />
               <XAxis
                 dataKey="timestamp"
@@ -5337,21 +5550,30 @@ function AnomaliesView({
                 }}
               />
               <ReferenceLine
-                y={thresholdLine}
-                stroke="#f5a56d"
+                y={detectionFloor}
+                stroke="#8fa79a"
                 strokeDasharray="3 5"
-                strokeOpacity={0.5}
+                strokeOpacity={0.55}
                 label={{
-                  value: thresholdLine > 0 ? `threshold +${(thresholdLine / (baselineMax || 1) * 100).toFixed(0)}%` : "threshold",
-                  position: "right",
-                  fill: "#f5a56d",
+                  value: "lowest flagged reading",
+                  position: "insideBottomRight",
+                  fill: "#8fa79a",
                   fontSize: 9,
-                  fontWeight: 600,
                 }}
               />
+              {/* A pinned reading gets a vertical rule so the chart and the panel
+                  agree on exactly which moment is being described. */}
+              {pinnedPoint ? (
+                <ReferenceLine
+                  x={pinnedPoint.timestamp}
+                  stroke="#b6f36b"
+                  strokeDasharray="2 3"
+                  strokeOpacity={0.85}
+                />
+              ) : null}
               <RechartsTooltip
                 content={AnomalyTooltipContent}
-                cursor={{ fill: "#1e3127" }}
+                cursor={{ stroke: "#3b5948", strokeWidth: 1, strokeDasharray: "3 3" }}
                 labelStyle={{ color: "#eff8f1", fontWeight: 600, marginBottom: 4 }}
               />
               <Line
@@ -5371,55 +5593,89 @@ function AnomaliesView({
                 dot={{ fill: "#b6f36b", r: 3, strokeWidth: 0 }}
                 activeDot={chartSeries.length > 1 ? { fill: "#b6f36b", r: 4, stroke: "#24342d", strokeWidth: 1.5 } : false}
               />
+              {/* Each severity band is drawn through the readings the stage
+                  actually classified into it. Every one of these shares the
+                  chart's own data array — passing a separate `data` per line
+                  made Recharts count the window four extra times, which is what
+                  squeezed the whole series into a quarter of the plot. The
+                  connectors only bridge consecutive readings of the same band
+                  (connectNulls is off), so a track is never a claim that the
+                  readings between it were quiet. */}
               <Line
                 type="monotone"
                 dataKey="critical"
-                data={severitySeries}
                 stroke="#f07f6e"
-                strokeWidth={0}
-                dot={{ fill: "#f07f6e", r: 7, stroke: "#24342d", strokeWidth: 2 }}
+                strokeWidth={1.6}
+                strokeOpacity={0.55}
+                dot={{ fill: "#f07f6e", r: 5, stroke: "#101c15", strokeWidth: 1.5 }}
+                activeDot={false}
                 connectNulls={false}
+                isAnimationActive={false}
               />
               <Line
                 type="monotone"
                 dataKey="high"
-                data={severitySeries}
                 stroke="#f5a56d"
-                strokeWidth={0}
-                dot={{ fill: "#f5a56d", r: 6, stroke: "#24342d", strokeWidth: 2 }}
+                strokeWidth={1.6}
+                strokeOpacity={0.5}
+                dot={{ fill: "#f5a56d", r: 4.5, stroke: "#101c15", strokeWidth: 1.5 }}
+                activeDot={false}
                 connectNulls={false}
+                isAnimationActive={false}
               />
               <Line
                 type="monotone"
                 dataKey="medium"
-                data={severitySeries}
                 stroke="#e6ca78"
-                strokeWidth={0}
-                dot={{ fill: "#e6ca78", r: 5, stroke: "#24342d", strokeWidth: 2 }}
+                strokeWidth={1.6}
+                strokeOpacity={0.5}
+                dot={{ fill: "#e6ca78", r: 4, stroke: "#101c15", strokeWidth: 1.5 }}
+                activeDot={false}
                 connectNulls={false}
+                isAnimationActive={false}
               />
               <Line
                 type="monotone"
                 dataKey="low"
-                data={severitySeries}
                 stroke="#79d6c4"
-                strokeWidth={0}
-                dot={{ fill: "#79d6c4", r: 4, stroke: "#24342d", strokeWidth: 2 }}
+                strokeWidth={1.6}
+                strokeOpacity={0.45}
+                dot={{ fill: "#79d6c4", r: 3.5, stroke: "#101c15", strokeWidth: 1.5 }}
+                activeDot={false}
                 connectNulls={false}
+                isAnimationActive={false}
               />
             </LineChart>
           </ResponsiveContainer>
+          </div>
           {chartSeries.length > 1 && selectedPoint ? (
             <div className="anomaly-focus-panel">
               <div className="anomaly-focus-panel__head">
-                <span className="section-eyebrow">
-                  FOCUSED READING{pointIndex >= 0 ? ` · ${pointIndex + 1} OF ${chartSeries.length}` : ""}
-                </span>
+                <div className="anomaly-focus-panel__headline">
+                  <span className="section-eyebrow">
+                    FOCUSED READING{pointIndex >= 0 ? ` · ${pointIndex + 1} OF ${chartSeries.length}` : ""}
+                  </span>
+                  {pinnedPoint ? (
+                    <button
+                      type="button"
+                      className="anomaly-focus-panel__unpin"
+                      onClick={() => {
+                        onClearPoint();
+                        sound.play({ volume: 0.08, rate: 0.85 });
+                      }}
+                      title="Release the pin and let the panel follow the cursor again"
+                    >
+                      <X size={11} /> Unpin
+                    </button>
+                  ) : null}
+                </div>
                 <h3>{selectedPoint.severity ? selectedPoint.severity.toUpperCase() : "READING"}</h3>
                 <span className="anomaly-focus-panel__hint">
-                  {hoveredPoint
-                    ? "Following the point under your cursor."
-                    : "Showing the most severe reading in this window — hover the chart to move it."}
+                  {pinnedPoint
+                    ? "Pinned. Hover the chart to preview other readings, click one to move the pin."
+                    : hoverPoint
+                      ? "Following the reading under your cursor — click to pin it."
+                      : "Showing the most severe reading in this window — hover the chart to move it."}
                 </span>
                 <span className="anomaly-focus-panel__stamp mono">
                   {selectedPoint.timestamp || "timestamp not recorded"}
@@ -5567,8 +5823,9 @@ function AnomaliesView({
           <div className="anomaly-chart-basis__cell">
             <span className="anomaly-chart-basis__label">WHAT THE CHART SHOWS</span>
             <span className="anomaly-chart-basis__value">
-              Each reading's measured value against that same reading's learned baseline, with the
-              detector's threshold drawn as a dashed line.
+              Each reading's measured value against that same reading's learned baseline. Readings
+              the stage flagged are drawn as a coloured track for their severity band, and the
+              dashed rule is the lowest reading that was flagged in this window.
             </span>
           </div>
           <div className="anomaly-chart-basis__cell">
@@ -5608,9 +5865,21 @@ function AnomaliesView({
             </span>
           </div>
           <div className="anomaly-chart-basis__cell">
-            <span className="anomaly-chart-basis__label">THRESHOLD</span>
+            <span className="anomaly-chart-basis__label">DETECTION RULE</span>
             <span className="anomaly-chart-basis__value">
-              {meta ? `+${meta.threshold}% over baseline` : "—"}
+              {meta && meta.threshold
+                ? `a reading enters the queue at ${(meta.threshold * meta.zSaturate).toFixed(1)}σ (score ${meta.threshold.toFixed(2)})`
+                : "—"}
+            </span>
+          </div>
+          <div className="anomaly-chart-basis__cell">
+            <span className="anomaly-chart-basis__label">SEVERITY BANDS</span>
+            <span className="anomaly-chart-basis__value mono">
+              {meta?.severityBands.length
+                ? meta.severityBands
+                    .map(band => `${normaliseSeverity(band.severity)} ≥ ${band.sigmaFloor}σ`)
+                    .join(" · ")
+                : "recorded per device by the anomaly stage"}
             </span>
           </div>
         </div>
@@ -5771,6 +6040,18 @@ function PredictionView({
   const activeWindow =
     windowOptions.find(option => option.id === window) ?? windowOptions[windowOptions.length - 1] ?? null;
   const forecastPoints = activeWindow ? forecastData.slice(-activeWindow.points) : forecastData;
+  // The confidence band is painted as a stack — an invisible base at the lower
+  // bound with the recorded half-width stacked on top — so only the band itself
+  // is filled. The previous version masked the overhang with an opaque `#132119`,
+  // which painted a dark slab over the light theme and, on this data, rendered at
+  // zero width so no band showed at all.
+  const bandPoints = forecastPoints.map(point => ({
+    ...point,
+    band_kwh:
+      point.lower_kwh != null && point.upper_kwh != null
+        ? Math.max(0, point.upper_kwh - point.lower_kwh)
+        : null,
+  }));
   const forecastTotal = forecastPoints.reduce((sum, d) => sum + (d.forecast_energy_kwh ?? 0), 0);
   const savingsInr = liveRecMeta?.savingsInr ?? 0;
   const savingsCo2 = liveRecMeta?.savingsCo2 ?? 0;
@@ -5895,78 +6176,135 @@ function PredictionView({
             <TinyTag tone="violet">{fm ? `${fm.algorithm} · ${fm.mape.toFixed(1)}% MAPE` : "no run yet"}</TinyTag>
           </div>
           <div className="prediction-chart">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={forecastPoints} margin={{ top: 20, right: 22, left: -6, bottom: 4 }}>
-                <defs>
-                  <linearGradient id="forecastBand" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#8d86ff" stopOpacity={0.30} />
-                    <stop offset="100%" stopColor="#8d86ff" stopOpacity={0.04} />
-                  </linearGradient>
-                  <linearGradient id="observedBand" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#b6f36b" stopOpacity={0.22} />
-                    <stop offset="100%" stopColor="#b6f36b" stopOpacity={0.02} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid stroke="#24342d" strokeDasharray="2 5" vertical={false} />
-                <XAxis
-                  dataKey="day"
-                  stroke="#61776a"
-                  tickLine={false}
-                  axisLine={false}
-                  interval="preserveStartEnd"
-                  minTickGap={22}
-                  tick={{ fill: "#768e7f", fontSize: 10 }}
-                />
-                <YAxis
-                  stroke="#61776a"
-                  tickLine={false}
-                  axisLine={false}
-                  width={58}
-                  tick={{ fill: "#768e7f", fontSize: 10 }}
-                  tickFormatter={value => fmtCount(Number(value))}
-                />
-                <RechartsTooltip
-                  content={ForecastTooltipContent}
-                  cursor={{ fill: "#1e3127" }}
-                  labelStyle={{ color: "#eff8f1", fontWeight: 600, marginBottom: 4 }}
-                />
-                {originDay ? (
-                  <ReferenceLine
-                    x={originDay}
-                    stroke="#5d7765"
-                    strokeDasharray="4 4"
-                    label={{ value: "now", position: "insideTopRight", fill: "#8fa79a", fontSize: 10 }}
+            {bandPoints.length ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={bandPoints} margin={{ top: 20, right: 22, left: -6, bottom: 4 }}>
+                  <defs>
+                    <linearGradient id="forecastBand" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#8d86ff" stopOpacity={0.30} />
+                      <stop offset="100%" stopColor="#8d86ff" stopOpacity={0.04} />
+                    </linearGradient>
+                    <linearGradient id="observedBand" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#b6f36b" stopOpacity={0.22} />
+                      <stop offset="100%" stopColor="#b6f36b" stopOpacity={0.02} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid stroke="#24342d" strokeDasharray="2 5" vertical={false} />
+                  <XAxis
+                    dataKey="day"
+                    stroke="#61776a"
+                    tickLine={false}
+                    axisLine={false}
+                    interval="preserveStartEnd"
+                    minTickGap={22}
+                    tick={{ fill: "#768e7f", fontSize: 10 }}
                   />
-                ) : null}
-                {/* Observed history fill. */}
-                <Area
-                  type="monotone"
-                  dataKey="observed_energy_kwh"
-                  stroke="none"
-                  fill="url(#observedBand)"
-                />
-                {/* Future forecast line + confidence band. */}
-                <Area
-                  type="monotone"
-                  dataKey="forecast_energy_kwh"
-                  stroke="#8d86ff"
-                  strokeWidth={2.4}
-                  fill="url(#forecastBand)"
-                />
-                <Area
-                  type="monotone"
-                  dataKey="lower_kwh"
-                  stroke="none"
-                  fill="#132119"
-                />
-                <Area
-                  type="monotone"
-                  dataKey="upper_kwh"
-                  stroke="none"
-                  fill="transparent"
-                />
-              </AreaChart>
-            </ResponsiveContainer>
+                  <YAxis
+                    stroke="#61776a"
+                    tickLine={false}
+                    axisLine={false}
+                    width={58}
+                    tick={{ fill: "#768e7f", fontSize: 10 }}
+                    tickFormatter={value => fmtCount(Number(value))}
+                  />
+                  <RechartsTooltip
+                    content={ForecastTooltipContent}
+                    cursor={{ stroke: "#3b5948", strokeWidth: 1, strokeDasharray: "3 3" }}
+                    labelStyle={{ color: "#eff8f1", fontWeight: 600, marginBottom: 4 }}
+                  />
+                  {originDay ? (
+                    <ReferenceLine
+                      x={originDay}
+                      stroke="#5d7765"
+                      strokeDasharray="4 4"
+                      label={{ value: "now", position: "insideTopRight", fill: "#8fa79a", fontSize: 10 }}
+                    />
+                  ) : null}
+                  {/* Observed history fill. */}
+                  <Area
+                    type="monotone"
+                    dataKey="observed_energy_kwh"
+                    stroke="none"
+                    fill="url(#observedBand)"
+                  />
+                  {/* The band first, so the projection line is drawn over it. */}
+                  <Area
+                    type="monotone"
+                    dataKey="lower_kwh"
+                    stackId="confidence"
+                    stroke="none"
+                    fill="transparent"
+                    activeDot={false}
+                    isAnimationActive={false}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="band_kwh"
+                    stackId="confidence"
+                    stroke="none"
+                    fill="url(#forecastBand)"
+                    activeDot={false}
+                    isAnimationActive={false}
+                  />
+                  {/* Future forecast line, drawn over the band it sits inside. */}
+                  <Area
+                    type="monotone"
+                    dataKey="forecast_energy_kwh"
+                    stroke="#8d86ff"
+                    strokeWidth={2.4}
+                    fill="none"
+                    activeDot={{ r: 4, fill: "#8d86ff", stroke: "#101c15", strokeWidth: 1.5 }}
+                    isAnimationActive={false}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="chart-frame--empty chart-frame--prediction">
+                <p className="chart-empty__title">No forecast recorded yet</p>
+                <p className="chart-empty__description">At least one pipeline run is required to generate a forecast. Run the pipeline from the Mission Control to produce a projection of future energy consumption for this dataset.</p>
+              </div>
+            )}
+          </div>
+          <div className="prediction-chart-basis">
+            <div className="prediction-chart-basis__cell">
+              <span className="prediction-chart-basis__label">WHAT THE CHART SHOWS</span>
+              <span className="prediction-chart-basis__value">
+                The area chart plots observed historical energy consumption (green) against the
+                model's future projection (violet), with a confidence band (± standard deviation)
+                showing the forecast range. Green = observed data, Violet = future projection,
+                Band = confidence range based on model uncertainty.
+              </span>
+            </div>
+            <div className="prediction-chart-basis__cell">
+              <span className="prediction-chart-basis__label">X AXIS</span>
+              <span className="prediction-chart-basis__value">
+                {activeWindow?.label ?? "full series"} window · recorded timestamps
+              </span>
+            </div>
+            <div className="prediction-chart-basis__cell">
+              <span className="prediction-chart-basis__label">Y AXIS</span>
+              <span className="prediction-chart-basis__value">
+                {liveTargetUnit ? `${displayUnit(liveTargetUnit)} per reading` : "Recorded energy (kWh)"}
+              </span>
+            </div>
+            <div className="prediction-chart-basis__cell">
+              <span className="prediction-chart-basis__label">SOURCE DATASET</span>
+              <span className="prediction-chart-basis__value mono">{dataset.name}</span>
+            </div>
+            <div className="prediction-chart-basis__cell">
+              <span className="prediction-chart-basis__label">DATASET ID</span>
+              <span className="prediction-chart-basis__value mono">{dataset.id}</span>
+            </div>
+            <div className="prediction-chart-basis__cell">
+              <span className="prediction-chart-basis__label">DOMAIN</span>
+              <span className="prediction-chart-basis__value">{domainMeta[dataset.domain].label}</span>
+            </div>
+            <div className="prediction-chart-basis__cell">
+              <span className="prediction-chart-basis__label">TARGET COLUMN</span>
+              <span className="prediction-chart-basis__value mono">
+                {liveTargetColumn ? `<${liveTargetColumn}>` : "—"}
+              </span>
+            </div>
           </div>
           <div className="forecast-readout">
             {/* Only cells the recorded horizon can actually fill are shown: a

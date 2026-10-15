@@ -50,11 +50,12 @@ jobs:
       - name: Check bundle budget
         run: |
           set -euo pipefail
-          # Bytes, not kB: Vite reports kB as bytes/1000 while most shell
-          # arithmetic divides by 1024, so a kB budget silently drifts from
-          # what the build log says. Comparing raw bytes removes the ambiguity.
           budget_bytes=1000000     # 1000 kB decimal, matching Vite's own unit
-          actual=$(ls -S dist/assets/index-*.js | head -1)
+          actual=$(ls -S dist/assets/index-*.js 2>/dev/null | head -1)
+          if [ -z "$actual" ]; then
+            echo "::error::No entry chunk found in dist/assets/ -- build may have failed."
+            exit 1
+          fi
           size=$(stat -c%s "$actual")
           echo "entry chunk: $(( size / 1000 )) kB / $size bytes (budget $(( budget_bytes / 1000 )) kB)"
           if [ "$size" -gt "$budget_bytes" ]; then
