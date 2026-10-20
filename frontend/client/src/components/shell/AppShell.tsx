@@ -3541,8 +3541,8 @@ function SchemaFlowMap({
   // as one. `pass` only exists to replay the arrival animation on demand, which
   // is what makes the order legible rather than merely decorative.
   const [pass, setPass] = useState(0);
-  const readTokens = fields.slice(0, 14);
-  const notShown = Math.max(0, fields.length - readTokens.length);
+  // Show ALL fields, not just first 14 — every recorded column matters
+  // notShown removed; full field list rendered below
   return (
     <div className="schema-flow">
       <div className="schema-flow__bar">
@@ -3579,8 +3579,8 @@ function SchemaFlowMap({
           </div>
           {/* Keyed by `pass` so replay re-mounts the tokens and re-runs the stagger. */}
           <div className="schema-read" key={pass}>
-            {readTokens.length ? (
-              readTokens.map((field, index) => (
+            {fields.length ? (
+              fields.map((field, index) => (
                 <span
                   className="schema-read__token"
                   key={field.name}
@@ -3593,7 +3593,6 @@ function SchemaFlowMap({
             ) : (
               <span className="mono-note">No columns recorded for this dataset yet.</span>
             )}
-            {notShown ? <span className="schema-read__more mono-note">+{notShown} more</span> : null}
           </div>
         </section>
         <div className="schema-link" aria-hidden="true">
@@ -4456,12 +4455,10 @@ function TransformView({
                   </button>
                   {open ? (
                     <div className="transform-step__evidence">
-                      {!step.fields.length ? (
-                        <p className="mono-note table-empty-note">No per-column evidence recorded.</p>
-                      ) : null}
+                      {step.fields.length ? (
                       {step.fields.map(field => (
                         <div
-                          className={`transform-evidence ${field.changed ? "transform-evidence--changed" : ""}`}
+                          className="transform-evidence"
                           key={field.column}
                         >
                           <span className="transform-evidence__column">{field.column}</span>
@@ -4473,13 +4470,12 @@ function TransformView({
                               ? `${field.unitBefore || "—"} → ${field.unitAfter || "—"}`
                               : ""}
                           </span>
-                          {field.changed ? (
-                            <TinyTag tone="blue">changed</TinyTag>
-                          ) : (
-                            <TinyTag tone="neutral">kept</TinyTag>
-                          )}
+                          <TinyTag tone={field.changed ? "blue" : "neutral"}>{field.changed ? "changed" : "kept"}</TinyTag>
                         </div>
                       ))}
+                    ) : (
+                      <p className="mono-note table-empty-note">No per-column evidence recorded.</p>
+                    )}
                       {step.note ? <p className="transform-step__note">{step.note}</p> : null}
                     </div>
                   ) : null}
