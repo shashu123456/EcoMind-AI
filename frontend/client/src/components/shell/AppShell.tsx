@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { LucideIcon } from "lucide-react";
-import {
+import { Star,
   Activity, AlertTriangle,  ArrowDownRight, ArrowRight, ArrowUpRight, BarChart3, Bell, Building2,
   CalendarClock, Check, CheckCircle2, ChevronDown, ChevronRight, ChevronUp, CircleDot, Clock3, CloudUpload,
   Briefcase, Cpu, Database, DatabaseZap, Download, Eye, Factory, FileCheck2, FileClock, FileText, Filter,
@@ -28,6 +28,18 @@ import {
   type LiveForecastMeta, type LiveRecMeta, type LiveRun, type LiveSchemaField, type LiveBaselineVersion,
 } from "@/lib/workspace";
 import { Snowflake, Thermometer, Waves, ArrowUpDown, Cog, LogOut } from "lucide-react";
+import { TransformStep } from "./TransformStep";
+import { SchemaDiscovery } from "./SchemaDiscovery";
+import { QualityLab } from "./QualityLab";
+import { TransformLab } from "./TransformLab";
+import { ModelLab } from "./ModelLab";
+import { AnomalyLab } from "./AnomalyLab";
+import { RecommendationDesk } from "./RecommendationDesk";
+import { ForecastLab } from "./ForecastLab";
+import { ReportStudio } from "./ReportStudio";
+import { LivingHero } from "./LivingHero";
+import { CommandPalette } from "./CommandPalette";
+import { ImportStudio } from "./ImportStudio";
 
 type NavId = "overview" | "library" | "import" | "schema" | "quality" | "transform" | "models" | "anomalies" | "prediction" | "recommendations" | "reports" | "history" | "notifications" | "settings";
 type DatasetDomain = BackendDomain;
@@ -140,7 +152,7 @@ function AppIcon({ icon: Icon, size = 16 }: { icon: LucideIcon; size?: number })
   return <Icon size={size} strokeWidth={1.8} aria-hidden="true" />;
 }
 
-function TinyTag({ children, tone = "neutral" }: { children: React.ReactNode; tone?: string }) {
+export function TinyTag({ children, tone = "neutral" }: { children: React.ReactNode; tone?: string }) {
   return <span className={`tiny-tag tiny-tag--${tone}`}>{children}</span>;
 }
 
@@ -1457,28 +1469,52 @@ export function AppShell() {
         );
       case "import":
         return (
-          <ImportView
-            scanRunning={scanRunning}
-            scanStage={scanStage}
-            fileName={uploadedFileName}
-            activeDataset={activeDataset}
-            uploadDomain={uploadDomain}
-            onDomainChange={setUploadDomain}
-            onScan={handleScan}
-            onContinue={() => goTo("schema")}
+          <ImportStudio
+            datasetId={activeDataset.id}
+            datasetName={activeDataset.name}
+            rows={activeDataset.rows}
+            columns={activeDataset.columnCount}
+            quality={activeDataset.health}
+            sessions={datasets.map(dataset => ({
+              id: dataset.id,
+              name: dataset.name,
+              type: dataset.type,
+              rows: dataset.rows,
+              health: dataset.health,
+            }))}
             onUploaded={handleUploaded}
-            onSelectDomain={domain => {
-              setUploadDomain(domain);
-              setToast(`Previewing ${domainMeta[domain].label} ingestion.`);
-              sound.play({ volume: 0.1, rate: 0.9 });
-            }}
+            onContinue={() => goTo("schema")}
           />
         );
       case "schema":
-        return <SchemaView dataset={activeDataset} />;
+        return (
+          <SchemaDiscovery
+            dataset={{
+              id: activeDataset.id,
+              name: activeDataset.name,
+              domain: activeDataset.domain,
+              type: activeDataset.type,
+              detail: activeDataset.detail,
+              rows: activeDataset.rows,
+              freshness: activeDataset.freshness,
+              health: activeDataset.health,
+              location: activeDataset.location,
+              rowCount: activeDataset.rowCount,
+              columnCount: activeDataset.columnCount,
+            }}
+            domainLabel={domainMeta[activeDataset.domain]?.label ?? "Dataset"}
+            schema={liveSchema ?? []}
+            targetColumn={liveTargetColumn}
+            quality={liveQualityMeta}
+            activity={activityEvents}
+            versions={liveBaselineVersions}
+            onGoImport={() => goTo("import")}
+          />
+        );
       case "quality":
         return (
           <QualityView
+            onToast={setToast}
             dataset={activeDataset}
             filter={qualityFilter}
             setFilter={setQualityFilter}
@@ -1520,7 +1556,13 @@ export function AppShell() {
           />
         );
       case "models":
-        return <ModelsView selectedModel={selectedModel} setSelectedModel={setSelectedModel} />;
+        return (
+          <ModelsView
+            dataset={activeDataset}
+            selectedModel={selectedModel}
+            setSelectedModel={setSelectedModel}
+          />
+        );
       case "anomalies":
         return (
           <AnomaliesView
@@ -1537,46 +1579,24 @@ export function AppShell() {
         );
       case "prediction":
         return (
-          <PredictionView
-            windowOptions={forecastWindowOptions}
-            window={forecastWindow}
-            setWindow={setForecastWindow}
-            onViewData={() => goTo("transform")}
-            onRefresh={() => void refreshWorkspace()}
-            dataset={activeDataset}
+          <ForecastLab
+            datasetId={activeDataset.id}
+            datasetName={activeDataset.name}
             baselineName={baselineName}
             modelName={modelName}
+            onViewData={() => goTo("transform")}
           />
         );
       case "recommendations":
-        return <RecommendationsView dataset={activeDataset} baselineName={baselineName} />;
-      case "reports":
         return (
-          <ReportsView
-            exported={reportExported}
-            draft={reportDraft}
-            onCloseDraft={() => setReportDraft(null)}
-            onDraft={() => {
-              const totalAnoms = liveAnomalyMeta?.total ?? anomalies.length;
-              const pri = (liveAnomalyMeta?.severity?.critical ?? 0) + (liveAnomalyMeta?.severity?.high ?? 0);
-              const fcTotal = forecastData.reduce((sum, d) => sum + (d.forecast_energy_kwh ?? 0), 0);
-              const recCount = liveRecMeta?.total ?? recommendations.length;
-              const savings = liveRecMeta?.savingsInr ?? 0;
-              setReportDraft(
-                `EcoMind AI — ${activeDataset.name}\n\nProject summary\nDataset: ${activeDataset.name} / ${activeDataset.id}\nDomain: ${domainInfo.label}\nRows: ${activeDataset.rows} · Fields: ${activeDataset.fieldCount ?? "—"}\nPipeline run: ${workspace?.runId ?? "—"}\n\nModel competition\nWinner: ${modelName}\n${liveCompetition ? `Target: ${liveCompetition.target} · Features: ${liveCompetition.features} · Train/test: ${liveCompetition.trainRows}/${liveCompetition.testRows}\n${liveCompetition.rationale}\n` : ""}Baseline\n${baselineName} · DQ score ${liveQualityMeta?.score ?? "—"} / 100\n\nAnalytics\nForecast next 7 days: ${withUnit(Math.round(fcTotal).toLocaleString("en-IN"))}\nModel MAPE backtest: ${liveForecastMeta?.mapeLabel ?? "—"}\n\nAnomalies\n${totalAnoms} detected; ${pri} critical/high priority\n\nRecommendations\n${recCount} ranked actions · est. savings ${displayUnit("INR")}${Math.round(savings).toLocaleString("en-IN")}/mo\n`
-              );
-              sound.play({ volume: 0.16, rate: 1.0 });
-            }}
-            onExport={() => void exportReportPdf()}
-            pdfUrl={reportPdf}
-            pdfBusy={reportPdfBusy}
-            onLoadPdf={() => void loadReportPdf()}
-            dataset={activeDataset}
-            domainInfo={domainInfo}
+          <RecommendationDesk
+            datasetId={activeDataset.id}
+            datasetName={activeDataset.name}
             baselineName={baselineName}
-            modelName={modelName}
           />
         );
+      case "reports":
+        return <ReportStudio datasetId={activeDataset.id} datasetName={activeDataset.name} onNavigate={route => goTo(route as Parameters<typeof goTo>[0])} />;
       case "history":
         return <HistoryView runs={liveRuns} onReplay={handleReplay} />;
       case "notifications":
@@ -1834,6 +1854,10 @@ export function AppShell() {
           ) : null}
         </div>
       </header>
+      <CommandPalette
+        datasets={datasets.map(dataset => ({ id: dataset.id, name: dataset.name }))}
+        onNavigate={route => goTo(route as NavId)}
+      />
       <main className="app-main" id="main-content">
         <div className="context-strip">
           {/* The metadata scrolls sideways when space runs out; the run controls
@@ -2526,6 +2550,13 @@ function OverviewView({
           </div>
         </div>
         <div className="hero-panel__visual">
+          <LivingHero
+            healthScore={healthScore}
+            completedStages={completedStages}
+            totalStages={liveStages.length || 10}
+            rows={Number(activeDataset.rows) || null}
+            anomalies={liveAnomalyMeta?.total ?? anomalies.length}
+          />
           <div className="telemetry-grid" />
           <div className="hero-orbit hero-orbit--one" />
           <div className="hero-orbit hero-orbit--two" />
@@ -2915,6 +2946,42 @@ function LibraryView({
 }) {
   const activeDomain = activeDataset.domain;
   const sound = useSound({ onPlay: () => {} });
+  const [query, setQuery] = useState("");
+  const [sortKey, setSortKey] = useState<"newest" | "rows" | "health" | "name">("newest");
+  const [favorites, setFavorites] = useState<string[]>(() => {
+    try {
+      return JSON.parse(window.localStorage.getItem("ecomind.favorites") ?? "[]") as string[];
+    } catch {
+      return [];
+    }
+  });
+  const toggleFavorite = (id: string) => {
+    setFavorites(previous => {
+      const next = previous.includes(id) ? previous.filter(item => item !== id) : [...previous, id];
+      window.localStorage.setItem("ecomind.favorites", JSON.stringify(next));
+      return next;
+    });
+  };
+  const healthValue = (dataset: Dataset) => parseInt(String(dataset.health).replace(/\D/g, ""), 10) || 0;
+  const needle = query.trim().toLowerCase();
+  const visible = datasets
+    .filter(dataset =>
+      !needle ||
+      `${dataset.name} ${dataset.detail} ${dataset.type} ${dataset.location} ${dataset.id} ${dataset.domain}`
+        .toLowerCase()
+        .includes(needle),
+    )
+    .slice()
+    .sort((a, b) => {
+      const favourite = Number(favorites.includes(b.id)) - Number(favorites.includes(a.id));
+      if (favourite !== 0) return favourite;
+      if (sortKey === "rows") {
+        return Number(String(b.rows).replace(/\D/g, "")) - Number(String(a.rows).replace(/\D/g, ""));
+      }
+      if (sortKey === "health") return healthValue(b) - healthValue(a);
+      if (sortKey === "name") return a.name.localeCompare(b.name);
+      return 0;
+    });
   const domainCounts = datasets.reduce<Record<string, number>>((acc, d) => {
     acc[d.domain] = (acc[d.domain] ?? 0) + 1;
     return acc;
@@ -2925,7 +2992,12 @@ function LibraryView({
       <div className="toolbar-row">
         <div className="toolbar-search">
           <Search size={15} />
-          <input placeholder="Search dataset library" />
+          <input
+            placeholder="Search name, industry, building, owner…"
+            value={query}
+            onChange={event => setQuery(event.target.value)}
+            aria-label="Search dataset library"
+          />
           <kbd>⌘ K</kbd>
         </div>
         <div className="toolbar-actions">
@@ -2933,11 +3005,15 @@ function LibraryView({
             className="filter-button"
             type="button"
             onClick={() => {
+              const order: Array<typeof sortKey> = ["newest", "rows", "health", "name"];
+              setSortKey(order[(order.indexOf(sortKey) + 1) % order.length]);
               sound.play({ volume: 0.08, rate: 0.9 });
             }}
+            title="Cycle sort order"
           >
 <Filter size={14} />{" "}
-            Filter <span>{datasets.length}</span>
+            {sortKey === "newest" ? "Newest" : sortKey === "rows" ? "Rows" : sortKey === "health" ? "Health" : "A–Z"}{" "}
+            <span>{visible.length}</span>
           </button>
           <ActionButton icon={Plus} onClick={onImport}>
             Import dataset
@@ -2945,9 +3021,10 @@ function LibraryView({
         </div>
       </div>
       <div className="library-grid">
-        {datasets.map(dataset => {
+        {visible.map(dataset => {
           const Icon = dataset.icon;
           const active = activeDataset.id === dataset.id;
+          const score = healthValue(dataset);
           return (
             <div className="dataset-card-wrap" key={dataset.id}>
             <button
@@ -2984,7 +3061,22 @@ function LibraryView({
                 </div>
                 <div>
                   <span>HEALTH</span>
-                  <strong>{dataset.health}</strong>
+                  <strong
+                    className={`health-ring health-ring--${score >= 80 ? "good" : score >= 60 ? "warn" : "bad"}`}
+                    title={`AI health ${score}/100 — ${score >= 80 ? "excellent" : score >= 60 ? "good" : score >= 40 ? "warning" : "needs cleaning"}`}
+                  >
+                    <svg viewBox="0 0 36 36" aria-hidden="true">
+                      <circle cx="18" cy="18" r="15" className="health-ring__track" />
+                      <circle
+                        cx="18"
+                        cy="18"
+                        r="15"
+                        className="health-ring__fill"
+                        style={{ strokeDashoffset: 94.25 - (94.25 * Math.min(100, score)) / 100 }}
+                      />
+                    </svg>
+                    {dataset.health}
+                  </strong>
                 </div>
                 <div>
                   <span>FRESHNESS</span>
@@ -3006,6 +3098,13 @@ function LibraryView({
               <button type="button" onClick={() => onSelect(dataset)}>
                 <ArrowUpRight size={13} /> Open
               </button>
+              <button
+                type="button"
+                aria-pressed={favorites.includes(dataset.id)}
+                onClick={() => toggleFavorite(dataset.id)}
+              >
+                <Star size={13} /> {favorites.includes(dataset.id) ? "Favorited" : "Favorite"}
+              </button>
             </div>
             </div>
           );
@@ -3014,6 +3113,9 @@ function LibraryView({
           <p className="mono-note library-empty">
             No datasets available. Import your first dataset to begin the ten-stage pipeline.
           </p>
+        ) : null}
+        {datasets.length > 0 && visible.length === 0 ? (
+          <p className="mono-note library-empty">No dataset matches “{query}”. Clear the search to see all {datasets.length}.</p>
         ) : null}
         <button
           className="dataset-card dataset-card--import"
@@ -3083,316 +3185,6 @@ function LibraryView({
   );
 }
 
-function ImportView({
-  scanRunning,
-  scanStage,
-  fileName,
-  uploadDomain,
-  onDomainChange,
-  onScan,
-  onContinue,
-  onSelectDomain,
-  onUploaded,
-  activeDataset,
-}: {
-  scanRunning: boolean;
-  scanStage: number;
-  fileName: string;
-  uploadDomain: DatasetDomain;
-  onDomainChange: (domain: DatasetDomain) => void;
-  onScan: (fileName?: string, domain?: DatasetDomain) => void;
-  onContinue: () => void;
-  onSelectDomain: (domain: DatasetDomain) => void;
-  onUploaded: (datasetId: string) => void;
-  activeDataset: Dataset;
-}) {
-  const [selectedFile, setSelectedFile] = useState("");
-  const [uploading, setUploading] = useState(false);
-  const [uploadError, setUploadError] = useState("");
-  const [hoveredDomain, setHoveredDomain] = useState<DatasetDomain | null>(null);
-  const activeFile = selectedFile || fileName;
-  const sound = useSound({ onPlay: () => {} });
-  const currentDomain = hoveredDomain ?? uploadDomain;
-  const domain = domainMeta[currentDomain] ?? domainMeta.building;
-  // Every supported domain, each with the hierarchy EcoMind looks for and the
-  // sampling cadence that domain's telemetry normally carries.
-  const domains: { id: DatasetDomain; label: string; icon: LucideIcon; accent: string }[] = [
-    { id: "building", label: "Buildings", icon: Building2, accent: "lime" },
-    { id: "industry", label: "Industry", icon: Factory, accent: "orange" },
-    { id: "logistics", label: "Logistics", icon: Warehouse, accent: "violet" },
-    { id: "hospital", label: "Hospital", icon: HeartPulse, accent: "coral" },
-    { id: "campus", label: "Campus", icon: GraduationCap, accent: "blue" },
-    { id: "mall", label: "Shopping mall", icon: ShoppingBag, accent: "yellow" },
-    { id: "office", label: "Office complex", icon: Briefcase, accent: "lime" },
-    { id: "datacentre", label: "Data centre", icon: Server, accent: "violet" },
-    { id: "plant", label: "Generation plant", icon: Zap, accent: "orange" },
-    { id: "transport", label: "Transport hub", icon: Plane, accent: "blue" },
-    { id: "telecom", label: "Telecom site", icon: RadioTower, accent: "violet" },
-    { id: "water", label: "Water utility", icon: Droplets, accent: "blue" },
-  ];
-  // Two different facts live on this page and used to be reported as one: a
-  // file chosen *now*, and the dataset the workspace already holds. Merging
-  // them is why the panel could announce "upload accepted" with nothing
-  // uploaded. Each line below names which of the two it is describing.
-  const detectedDomain = domainMeta[activeDataset.domain] ?? domainMeta.building;
-  const hasFile = Boolean(selectedFile);
-  const hasDataset = Boolean(activeDataset.id);
-  const scanSteps = [
-    {
-      title: hasFile ? "File chosen this session" : hasDataset ? "Active dataset" : "Source",
-      detail: hasFile
-        ? activeFile
-        : hasDataset
-          ? activeDataset.name
-          : "No file chosen yet — drop one on the left",
-      icon: CloudUpload,
-    },
-    {
-      title: "Data surface",
-      detail: activeDataset.rowCount
-        ? `${activeDataset.rows} rows · ${activeDataset.columnCount ?? "—"} columns recorded`
-        : "Nothing recorded yet",
-      icon: Activity,
-    },
-    {
-      title: "Detected domain",
-      detail: hasDataset ? `${detectedDomain.label} · classified by the backend` : "No dataset to classify",
-      icon: WandSparkles,
-    },
-    {
-      title: "Next step",
-      detail: hasDataset ? "Schema discovery is available" : "Choose a file to begin",
-      icon: CheckCircle2,
-    },
-  ];
-  const scannable = hasFile && scanStage > 0;
-  const selectFile = async (file?: File) => {
-    if (!file) return;
-    setSelectedFile(file.name);
-    setUploadError("");
-    setUploading(true);
-    try {
-      const created = await datasetsApi.upload(file, file.name);
-      sound.play({ volume: 0.18, rate: 1.0 });
-      onScan(file.name, currentDomain);
-      onUploaded(created.id);
-    } catch (err) {
-      setUploadError(err instanceof Error ? err.message : "Upload failed — check that the backend is running.");
-    } finally {
-      setUploading(false);
-    }
-  };
-  return (
-    <div className="view-content">
-      <div className="import-layout">
-        <section
-          className="import-dropzone"
-          onDragOver={event => event.preventDefault()}
-          onDrop={event => {
-            event.preventDefault();
-            void selectFile(event.dataTransfer.files[0]);
-          }}
-        >
-          <div className="import-dropzone__top">
-            <span className="section-eyebrow">STEP 01 / INGESTION</span>
-            <TinyTag tone="blue">SECURE BY DEFAULT</TinyTag>
-          </div>
-          <div className="import-dropzone__visual">
-            <div className="upload-orb">
-              <UploadCloud size={30} />
-              <span />
-            </div>
-            <div className="upload-rays" />
-          </div>
-          <h2>Drop a dataset into the intelligence layer.</h2>
-          <p>
-            EcoMind will identify the domain, discover the schema, and preserve the source version before any
-            transformation begins.
-          </p>
-          <input
-            className="file-input"
-            id="ecomind-file-upload"
-            type="file"
-            accept=".csv,.xlsx"
-            onChange={event => void selectFile(event.currentTarget.files?.[0])}
-          />
-          <label className="dropzone-button" htmlFor="ecomind-file-upload">
-            <UploadCloud size={17} />
-            {uploading ? "Uploading dataset..." : "Choose a dataset"}
-          </label>
-          <span className="dropzone-note">
-            CSV · Excel <span>or drag and drop</span>
-          </span>
-          {uploadError ? <p className="signin-error dropzone-error">{uploadError}</p> : null}
-          <div className="dropzone-footer">
-            <span>
-              <ShieldCheck size={13} />
-              {" "}
-              encrypted in transit
-            </span>
-            <span>
-              <Database size={13} />
-              {" "}
-              versioned storage
-            </span>
-            <span>
-              <Eye size={13} />
-              {" "}
-              inspectable run
-            </span>
-          </div>
-        </section>
-        <section className="import-status-panel">
-          <div className="status-panel__head">
-            <div>
-              <div className="section-eyebrow">INGESTION STATE</div>
-              <h2>
-                {scanRunning
-                  ? "Reading the signal…"
-                  : scannable
-                    ? "File ingested."
-                    : hasDataset
-                      ? "Active dataset loaded."
-                      : "Nothing selected yet."}
-              </h2>
-            </div>
-            <span
-              className={`status-badge ${scanRunning ? "status-badge--processing" : scannable ? "status-badge--done" : ""}`}
-            >
-              <span className="status-dot status-dot--lime" />
-              {scanRunning ? "PROCESSING" : scannable ? "COMPLETE" : hasDataset ? "ACTIVE" : "STANDBY"}
-            </span>
-          </div>
-          <div className="scan-progress">
-            <div className="scan-progress__track">
-              <i style={{ width: `${scanStage === 3 ? 100 : Math.round((scanStage / 3) * 100)}%` }} />
-            </div>
-            <span>
-              <strong>
-                {scanStage === 3 ? "100" : Math.round((scanStage / 3) * 100)}
-              </strong>{" "}
-              preflight complete
-            </span>
-          </div>
-          <div className="scan-steps">
-            {scanSteps.map((step, index) => {
-              const Icon = step.icon;
-              const done = scanStage > index || (scanStage === 3 && index === 3);
-              const current = scanRunning && scanStage === index;
-              return (
-                <div
-                  className={`scan-step ${done ? "scan-step--done" : ""} ${current ? "scan-step--current" : ""}`}
-                  key={step.title}
-                >
-                  <span className="scan-step__icon">
-                    {done ? <Check size={14} /> : <Icon size={14} />}
-                  </span>
-                  <div>
-                    <strong>{step.title}</strong>
-                    <span>{step.detail}</span>
-                  </div>
-                  <span className="scan-step__state">
-                    {done ? "DONE" : current ? "LIVE" : "QUEUED"}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-          <div className="classification-preview">
-            <div className="classification-preview__visual">
-              <domain.icon size={26} />
-              <span>{domain.label.toUpperCase().slice(0, 9)}</span>
-            </div>
-            <div>
-              <span className="section-eyebrow">AI CLASSIFICATION</span>
-              <h3>{domain.label}</h3>
-              <p>
-                {domain.sub}{" "}
-                <span>· {domain.matchStrength}</span>
-              </p>
-            </div>
-          </div>
-          {hasDataset || scannable ? (
-            <ActionButton icon={ArrowRight} onClick={onContinue}>
-              Continue to schema discovery
-            </ActionButton>
-          ) : (
-            <button
-              className="scan-demo-button"
-              type="button"
-              onClick={() => onScan(activeFile, currentDomain)}
-              disabled={scanRunning}
-            >
-              {scanRunning ? "Reading the file…" : "Run preflight"}
-              <ArrowRight size={14} />
-            </button>
-          )}
-        </section>
-      </div>
-      <div className="import-domain-picker">
-        <span className="section-eyebrow">DOMAIN DETECTION</span>
-        <h2>What kind of energy system is this?</h2>
-        <p>
-          EcoMind classifies a dataset from its own name, hierarchy codes and sampling cadence — nothing is
-          chosen for you. The highlighted card is the domain recorded for{" "}
-          <strong>{activeDataset.name}</strong>. Selecting a different card only overrides the classification
-          of the next file you upload.
-        </p>
-        <div className="domain-selector">
-          {domains.map(entry => {
-            const DomainIcon = entry.icon;
-            const detected = activeDataset.domain === entry.id;
-            const override = uploadDomain === entry.id && !detected;
-            const active = detected || override;
-            const hover = hoveredDomain === entry.id;
-            return (
-              <button
-                key={entry.id}
-                type="button"
-                aria-pressed={active}
-                className={`domain-card ${active ? "domain-card--active" : ""} ${hover ? "domain-card--hover" : ""}`}
-                onMouseEnter={() => {
-                  setHoveredDomain(entry.id);
-                  sound.play({ volume: 0.08, rate: 0.9 });
-                }}
-                onMouseLeave={() => setHoveredDomain(null)}
-                onClick={() => {
-                  onSelectDomain(entry.id);
-                  onDomainChange(entry.id);
-                  setHoveredDomain(null);
-                  sound.play({ volume: 0.12, rate: 1.0 });
-                }}
-              >
-                <div className={`domain-card__icon domain-card__icon--${entry.accent}`}>
-                  <DomainIcon size={20} />
-                </div>
-                <strong>{entry.label}</strong>
-                <span>{domainMeta[entry.id].scene}</span>
-                <span className="domain-card__foot">
-                  <span className={`domain-card__badge domain-card__badge--${entry.accent}`}>
-                    {detected ? "detected" : domainMeta[entry.id].anchor}
-                  </span>
-                  <span className="mono-note">{domainMeta[entry.id].cadence}</span>
-                </span>
-                {override ? <span className="domain-card__override">override · next upload</span> : null}
-              </button>
-            );
-          })}
-        </div>
-        <div className="import-note-row">
-          <div>
-            <Info size={15} />
-            <span>
-              EcoMind never replaces an original dataset. Every repair and transformation creates a new
-              immutable version.
-            </span>
-          </div>
-          <span className="mono-note">IMPORT PROTOCOL / 04</span>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 /**
  * Schema understanding map. The recorded dataset sits on the left, every signal
@@ -3445,59 +3237,6 @@ function ReportDraftBody({ text }: { text: string }) {
   );
 }
 
-function ReportPreviewModal({
-  draft,
-  onClose,
-  onCopy,
-  onDownload,
-  onExport,
-  copied,
-}: {
-  draft: string;
-  onClose: () => void;
-  onCopy: () => void;
-  onDownload: () => void;
-  onExport: () => void;
-  copied: boolean;
-}) {
-  return (
-    <div className="modal-scrim" role="dialog" aria-modal="true" aria-label="Report preview">
-      <div className="modal">
-        <div className="modal__head">
-          <div>
-            <span className="section-eyebrow">REPORT PREVIEW / SCOPED BRIEFING</span>
-            <h2>Scoped briefing draft</h2>
-            <span className="mono-note">
-              Project-scoped summary — nothing outside this project is included.
-            </span>
-          </div>
-          <div className="modal__actions">
-            <button type="button" className="icon-button" aria-label="Close report preview" onClick={onClose}>
-              <X size={16} />
-            </button>
-          </div>
-        </div>
-        <div className="modal__body">
-          <ReportDraftBody text={draft} />
-        </div>
-        <div className="modal__foot">
-          <div className="modal__foot-copy">
-            <button type="button" onClick={onCopy}>
-              {copied ? "Copied" : "Copy briefing"}
-            </button>
-            <button type="button" onClick={onDownload}>
-              Download .md
-            </button>
-            <ActionButton icon={Download} onClick={onExport}>
-              Download report
-            </ActionButton>
-          </div>
-          <span className="mono-note">Scoped briefing — project truth only.</span>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function AxisNote({ quantity, unit, origin }: { quantity: string; unit?: string | null; origin: string }) {
   const shown = unit ? displayUnit(unit) : "";
@@ -3524,414 +3263,6 @@ function AxisNote({ quantity, unit, origin }: { quantity: string; unit?: string 
   );
 }
 
-function SchemaFlowMap({
-  dataset,
-  families,
-  roleCounts,
-  fields,
-  operations,
-}: {
-  dataset: Dataset;
-  families: { family: FieldFamily; units: string[]; count: number }[];
-  roleCounts: Record<FieldRole, number>;
-  fields: { name: string; type: string; family: FieldFamily; role: FieldRole }[];
-  operations: { label: string; detail: string; icon: LucideIcon; state: string }[];
-}) {
-  // Reading a dataset is a sequence — record, interpret, store — so it is shown
-  // as one. `pass` only exists to replay the arrival animation on demand, which
-  // is what makes the order legible rather than merely decorative.
-  const [pass, setPass] = useState(0);
-  // Show ALL fields, not just first 14 — every recorded column matters
-  // notShown removed; full field list rendered below
-  return (
-    <div className="schema-flow">
-      <div className="schema-flow__bar">
-        <span className="mono-note">
-          {fields.length} recorded column{fields.length === 1 ? "" : "s"} → {families.length} signal
-          famil{families.length === 1 ? "y" : "ies"} → {operations.length} database operation
-          {operations.length === 1 ? "" : "s"}
-        </span>
-        <button
-          type="button"
-          className="schema-flow__replay"
-          onClick={() => setPass(value => value + 1)}
-          title="Replay the read animation"
-        >
-          <RefreshCw size={11} /> Replay read
-        </button>
-      </div>
-      <div className="schema-flow__stages">
-        <section className="schema-stage">
-          <header className="schema-stage__head">
-            <span className="schema-stage__step">01</span>
-            <span className="schema-stage__name">Read</span>
-          </header>
-          <div className="schema-flow__source">
-            <span className="schema-flow__source-icon">
-              <Database size={17} />
-            </span>
-            <div>
-              <strong>{dataset.name}</strong>
-              <span className="mono-note">
-                {dataset.rows} rows · {dataset.columnCount ?? "—"} columns
-              </span>
-            </div>
-          </div>
-          {/* Keyed by `pass` so replay re-mounts the tokens and re-runs the stagger. */}
-          <div className="schema-read" key={pass}>
-            {fields.length ? (
-              fields.map((field, index) => (
-                <span
-                  className="schema-read__token"
-                  key={field.name}
-                  style={{ animationDelay: `${index * 45}ms` }}
-                >
-                  <code>{field.name}</code>
-                  <em>{field.type || "—"}</em>
-                </span>
-              ))
-            ) : (
-              <span className="mono-note">No columns recorded for this dataset yet.</span>
-            )}
-          </div>
-        </section>
-        <div className="schema-link" aria-hidden="true">
-          <i />
-        </div>
-        <section className="schema-stage">
-          <header className="schema-stage__head">
-            <span className="schema-stage__step">02</span>
-            <span className="schema-stage__name">Interpret</span>
-          </header>
-          {families.length ? (
-            <div className="schema-flow__branches">
-              {families.map(node => {
-                const Icon = fieldIconFor(node.family);
-                const units = node.units.filter(Boolean);
-                return (
-                  <div className="schema-flow-branch__node" key={node.family}>
-                    <span className="schema-flow-branch__icon">
-                      <Icon size={15} />
-                    </span>
-                    <div>
-                      <strong>{FAMILY_LABEL[node.family]}</strong>
-                      <span className="mono-note">
-                        {node.count} field{node.count === 1 ? "" : "s"}
-                        {units.length ? ` · ${units.join(", ")}` : ""}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <p className="mono-note table-empty-note">No signal families until a schema is recorded.</p>
-          )}
-        </section>
-        <div className="schema-link" aria-hidden="true">
-          <i />
-        </div>
-        <section className="schema-stage">
-          <header className="schema-stage__head">
-            <span className="schema-stage__step">03</span>
-            <span className="schema-stage__name">Store</span>
-          </header>
-          <div className="schema-store">
-            {operations.map(operation => {
-              const Icon = operation.icon;
-              return (
-                <div className={`schema-store__row schema-store__row--${operation.state}`} key={operation.label}>
-                  <span className="schema-store__icon">
-                    <Icon size={13} />
-                  </span>
-                  <div>
-                    <strong>{operation.label}</strong>
-                    <span className="mono-note">{operation.detail}</span>
-                  </div>
-                  <span className={`schema-store__state schema-store__state--${operation.state}`}>
-                    {operation.state}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        </section>
-      </div>
-      <div className="schema-flow__roles">
-        {ROLE_ORDER.filter(role => roleCounts[role] > 0).map(role => (
-          <span className={`schema-role schema-role--${role}`} key={role}>
-            <i aria-hidden="true" />
-            <strong>{ROLE_LABEL[role]}</strong>
-            <span className="mono-note">{roleCounts[role]}</span>
-            {ROLE_NOTE[role]}
-          </span>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function SchemaView({ dataset }: { dataset: Dataset }) {
-  const iconForRole = (role: FieldRole): LucideIcon =>
-    role === "index"
-      ? CalendarClock
-      : role === "target"
-        ? Leaf
-        : role === "entity"
-          ? Building2
-          : role === "context"
-            ? UserRound
-            : Zap;
-  // Every field, role, family and unit below is derived from the columns the
-  // backend actually recorded for this dataset.
-  const fields = (liveSchema ?? [])
-    .map(f => {
-      const role = roleForColumn(f.name, f.role);
-      return {
-        name: f.name,
-        type: f.dtype,
-        unit: unitForColumn(f.name),
-        family: familyForColumn(f.name),
-        role,
-        icon: iconForRole(role),
-      };
-    })
-    // Stable sort: index/entity/context/target first, backend order preserved inside a role.
-    .sort((a, b) => ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role));
-  const roleCount = (role: FieldRole) => fields.filter(f => f.role === role).length;
-  const roleCounts = ROLE_ORDER.reduce<Record<FieldRole, number>>(
-    (acc, role) => {
-      acc[role] = roleCount(role);
-      return acc;
-    },
-    { index: 0, entity: 0, context: 0, target: 0, signal: 0 }
-  );
-  const summaryField = fields.find(f => f.name === liveTargetColumn) ?? fields.find(f => f.role === "target") ?? null;
-  const targetFamily = summaryField ? summaryField.family : null;
-  const families = (() => {
-    const map = new Map<FieldFamily, { family: FieldFamily; units: Set<string>; count: number }>();
-    fields.forEach(f => {
-      const entry = map.get(f.family) ?? { family: f.family, units: new Set<string>(), count: 0 };
-      if (f.unit) entry.units.add(f.unit);
-      entry.count += 1;
-      map.set(f.family, entry);
-    });
-    const all = [...map.values()].sort((a, b) => b.count - a.count || a.family.localeCompare(b.family));
-    // Lead with the family the model actually modelled, then everything else.
-    const ordered = targetFamily ? all.filter(f => f.family === targetFamily).concat(all.filter(f => f.family !== targetFamily)) : all;
-    return ordered.slice(0, 6);
-  })();
-  const domainInfo = domainMeta[dataset.domain] ?? domainMeta.building;
-  const domainSignalCount = fields.filter(f => f.role === "signal" || f.role === "target").length;
-  const sound = useSound({ onPlay: () => {} });
-  const indexField = fields.find(f => f.role === "index");
-  const firstEntity = fields.find(f => f.role === "entity");
-  const operations = [
-    { label: "Store", detail: `${dataset.rows} rows ingested as v1`, icon: HardDrive, state: "complete" },
-    { label: "Load", detail: `${dataset.rows} rows / ${dataset.columnCount ?? "—"} cols`, icon: Database, state: "complete" },
-    {
-      label: "Index",
-      detail: indexField ? `${indexField.name}${firstEntity ? ` + ${firstEntity.name}` : ""}` : "no index field detected yet",
-      icon: DatabaseZap,
-      state: indexField ? "complete" : "pending",
-    },
-    {
-      label: "Retrieve",
-      detail: fields.length ? `${fields.length} fields served to the pipeline` : "waiting for a schema",
-      icon: Eye,
-      state: fields.length ? "live" : "pending",
-    },
-  ];
-  return (
-    <div className="view-content">
-      <div className="schema-active-strip">
-        <div className="schema-active-strip__identity">
-          <span className="section-eyebrow">SCHEMA DISCOVERY / ACTIVE DATASET</span>
-          <div>
-            <strong>{dataset.name}</strong>
-            <span className="mono-note">
-              {dataset.id} · {domainInfo.label} · {dataset.type}
-            </span>
-          </div>
-        </div>
-        <div className="schema-active-strip__facts">
-          <span>
-            <small>ROWS</small>
-            <strong>{dataset.rows}</strong>
-          </span>
-          <span>
-            <small>COLUMNS</small>
-            <strong>{dataset.columnCount ?? "—"}</strong>
-          </span>
-          <span>
-            <small>RECORDED FIELDS</small>
-            <strong>{liveSchema ? String(liveSchema.length) : "—"}</strong>
-          </span>
-          <span>
-            <small>TARGET</small>
-            <strong>{summaryField ? summaryField.name : "—"}</strong>
-          </span>
-          <span className="schema-active-strip__note">
-            {liveSchema
-              ? `${new Set(liveSchema.map(f => f.role)).size} roles · ${families.length} signal famil${families.length === 1 ? "y" : "ies"} detected from this dataset’s recorded columns`
-              : "No schema recorded yet for this dataset — the schema updates when the active dataset changes."}
-          </span>
-        </div>
-      </div>
-      <div className="schema-summary-row">
-        <div className="schema-summary-card">
-          <span className="section-eyebrow">AI UNDERSTANDING</span>
-          <strong>{liveSchema ? `${liveSchema.length} fields` : "—"}</strong>
-          <span>{liveSchema ? `${new Set(liveSchema.map(f => f.role)).size} roles detected` : "no schema recorded yet"}</span>
-        </div>
-        <div className="schema-summary-card">
-          <span className="section-eyebrow">TEMPORAL GRAIN</span>
-          <strong>{dataset.rowCount ? `${fmtCount(dataset.rowCount)} rows` : "—"}</strong>
-          <span>{dataset.columnCount ? `${dataset.columnCount} columns detected` : "no dataset loaded"}</span>
-        </div>
-        <div className="schema-summary-card">
-          <span className="section-eyebrow">PRIMARY TARGET</span>
-          <strong>{summaryField ? summaryField.name : "—"}</strong>
-          <span>
-            {summaryField
-              ? `${displayUnit(summaryField.unit) || summaryField.type} · ${summaryField.role}`
-              : "no target recorded yet"}
-          </span>
-        </div>
-        <div className="schema-summary-card">
-          <span className="section-eyebrow">DOMAIN FIT</span>
-          <strong>{domainInfo.label}</strong>
-          <span>{domainInfo.matchStrength} · {domainInfo.anchor}</span>
-        </div>
-      </div>
-      <div className="schema-layout">
-        <section className="panel schema-fields-panel">
-          <SectionHeading
-            eyebrow="GENERATED SCHEMA / ACTIVE DATASET"
-            title="Fields mapped by role"
-            detail="Every field below is from the active dataset’s recorded schema — it changes when the dataset meter changes."
-            action={
-              <button
-                className="icon-button icon-button--small"
-                type="button"
-                aria-label="Schema settings"
-                onClick={() => sound.play({ volume: 0.08, rate: 0.9 })}
-              >
-                <SlidersHorizontal size={14} />
-              </button>
-            }
-          />
-          <div className="schema-fields">
-            {!fields.length ? (
-              <p className="mono-note table-empty-note">No schema recorded yet for this dataset.</p>
-            ) : null}
-            {fields.map(field => {
-              const Icon = field.icon;
-              return (
-                <div className="schema-field" key={field.name}>
-                  <span className="schema-field__icon">
-                    <Icon size={15} />
-                  </span>
-                  <div>
-                    <strong>{field.name}</strong>
-                    <span>
-                      {field.type}
-                      {field.unit ? ` · ${displayUnit(field.unit)}` : ""}
-                      · {field.role}
-                    </span>
-                  </div>
-                  <span className={`field-role field-role--${field.role}`}>{field.role}</span>
-                  <ChevronRight size={14} />
-                </div>
-              );
-            })}
-          </div>
-          <div className="schema-field-family-strip">
-            <span className="section-eyebrow">SIGNAL FAMILIES</span>
-            <h3>Families detected in {dataset.name}</h3>
-            <div className="family-mesh">
-              {!families.length ? (
-                <p className="mono-note table-empty-note">No signal families until a schema is recorded.</p>
-              ) : null}
-              {families.map(node => {
-                const Icon = fieldIconFor(node.family);
-                const units = [...node.units].map(displayUnit).filter(Boolean);
-                return (
-                  <div className="family-node" key={node.family}>
-                    <span className="family-node__icon">
-                      <Icon size={14} />
-                    </span>
-                    <span>{FAMILY_LABEL[node.family]}</span>
-                    <span className="mono-note">
-                      {node.count} field{node.count === 1 ? "" : "s"}
-                      {units.length ? ` · ${units.join(", ")}` : ""}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-          <div className="panel-link panel-link--bottom">
-            {liveSchema?.length ?? 0} fields recorded for this dataset
-          </div>
-        </section>
-        <section className="panel relationship-panel">
-          <SectionHeading
-            eyebrow="SCHEMA UNDERSTANDING / ACTIVE DATASET"
-            title="How EcoMind reads this dataset"
-            detail="This map is built from the active dataset’s recorded columns — switch the dataset meter and this map changes with it."
-          />
-          <SchemaFlowMap
-            dataset={dataset}
-            families={families.map(node => ({
-              family: node.family,
-              count: node.count,
-              units: [...node.units].map(displayUnit).filter(Boolean),
-            }))}
-            roleCounts={roleCounts}
-            fields={fields}
-            operations={operations}
-          />
-        </section>
-      </div>
-      <section className="panel operations-panel">
-        <div className="operations-panel__header">
-          <div>
-            <div className="section-eyebrow">DATABASE OPERATIONS</div>
-            <h2>From object store to query plan.</h2>
-          </div>
-          <TinyTag tone="lime">TRACEABLE</TinyTag>
-        </div>
-        <div className="operations-timeline">
-          {operations.map((operation, index) => {
-            const Icon = operation.icon;
-            return (
-              <div className="db-operation" key={operation.label}>
-                <div className={`db-operation__icon db-operation__icon--${operation.state}`}>
-                  <Icon size={15} />
-                </div>
-                <div>
-                  <span className="mono-note">0{index + 1}</span>
-                  <strong>{operation.label}</strong>
-                  <p>{operation.detail}</p>
-                </div>
-                {index < operations.length - 1 ? <span className="db-operation__connector" /> : null}
-              </div>
-            );
-          })}
-        </div>
-        <div className="operations-panel__foot">
-          <span>
-            <Database size={13} />{" "}
-            {dataset.name} · import v1
-          </span>
-          <span className="mono-note">{liveBaselineVersions.length ? `v${liveBaselineVersions[0].version} / immutable` : "immutable"}</span>
-        </div>
-      </section>
-    </div>
-  );
-}
-
 function QualityView({
   dataset,
   filter,
@@ -3941,6 +3272,7 @@ function QualityView({
   onRepair,
   saved,
   onSave,
+  onToast,
 }: {
   dataset: Dataset;
   filter: string;
@@ -3950,392 +3282,41 @@ function QualityView({
   onRepair: () => void;
   saved: boolean;
   onSave: () => void;
+  onToast?: (message: string) => void;
 }) {
-  const filters = ["All issues", "Null value", "Missing timestamp", "Duplicate", "Datatype mismatch", "Invalid value"];
-  const sound = useSound({ onPlay: () => {} });
-  const totalIssues = qualityIssues.length;
-  const typeCounts = qualityIssues.reduce<Record<string, number>>((acc, issue) => {
-    acc[issue.type] = (acc[issue.type] ?? 0) + 1;
-    return acc;
-  }, {});
-  const avgConfidence = qualityIssues.length
-    ? qualityIssues.reduce((sum, issue) => sum + (parseFloat(issue.confidence) || 0), 0) / qualityIssues.length
-    : 0;
-  const qScore = liveQualityMeta?.score ?? null;
-  const passedCount = liveQualityMeta?.passed ?? 0;
-  const failedCount = liveQualityMeta?.failed ?? 0;
-  // Repairs by type for the summary
-  const repairsByType = filteredQuality.reduce<Record<string, { total: number; repaired: number }>>((acc, issue) => {
-    const t = issue.type;
-    if (!acc[t]) acc[t] = { total: 0, repaired: 0 };
-    acc[t].total++;
-    if (repaired) acc[t].repaired++;
-    return acc;
-  }, {});
+  // Presentation moved into QualityLab. The repair engine, the filter that
+  // feeds this view and the save flow are unchanged and still owned here.
   return (
-    <div className="view-content">
-      <div className="quality-topline">
-        <div className="quality-kpis">
-          <Metric
-            label="ISSUES"
-            value={String(totalIssues)}
-            delta={`${Object.keys(typeCounts).length} types flagged`}
-            accent="coral"
-          />
-          <Metric
-            label="RULES PASSED"
-            value={String(passedCount)}
-            delta={`${failedCount} failed`}
-            direction="down"
-            accent="lime"
-          />
-          <Metric
-            label="DQ SCORE"
-            value={qScore != null ? `${qScore} / 100` : "—"}
-            delta="structural rules only"
-            direction="down"
-            accent="blue"
-          />
-        </div>
-        <div className="quality-actions">
-          <ActionButton variant="secondary" icon={RefreshCw} onClick={() => sound.play({ volume: 0.08, rate: 0.9 })}>
-            Rescan issues
-          </ActionButton>
-          <ActionButton icon={ShieldCheck} onClick={onRepair}>
-            {repaired ? "Repairs applied" : "Apply repairs"}
-          </ActionButton>
-        </div>
-      </div>
-      {/* The overall run comes first; filtering is a drill-down on top of it. */}
-      <section className="panel quality-process">
-        <SectionHeading
-          eyebrow="QUALITY PROCESS / STAGE 04"
-          title="What the structural check evaluated"
-          detail="Missing values, timestamps, duplicates, data types, units, schema shape and invalid categoricals. Outliers and abnormal behaviour are deliberately excluded — the anomaly stage owns those."
-        />
-        <div className="quality-process__grid">
-          <div className="quality-process__rules">
-            <span className="section-eyebrow">RULE OUTCOMES</span>
-            {Object.entries(typeCounts).length ? (
-              Object.entries(typeCounts)
-                .sort((a, b) => b[1] - a[1])
-                .map(([type, count]) => (
-                  <div className="quality-rule" key={type}>
-                    <span className="quality-rule__dot quality-rule__dot--flag" />
-                    <span className="quality-rule__label">{type}</span>
-                    <span className="mono-note">{count} flagged</span>
-                  </div>
-                ))
-            ) : (
-              <p className="mono-note table-empty-note">
-                Every structural rule passed on this dataset — nothing was repaired.
-              </p>
-            )}
-          </div>
-          <div className="quality-process__meter">
-            <span className="section-eyebrow">DATA QUALITY SCORE</span>
-            <strong>{qScore != null ? `${qScore} / 100` : "—"}</strong>
-            <span
-              className="quality-meter"
-              role="img"
-              aria-label={qScore != null ? `Data quality score ${qScore} of 100` : "No quality score recorded"}
-            >
-              <span className="quality-meter__fill" style={{ width: `${qScore ?? 0}%` }} />
-            </span>
-            <span className="mono-note">
-              {totalIssues} flagged row{totalIssues === 1 ? "" : "s"} · {Object.keys(typeCounts).length} rule type{Object.keys(typeCounts).length === 1 ? "" : "s"}
-              {avgConfidence ? ` · confidence ${avgConfidence.toFixed(1)}%` : ""}
-            </span>
-            <span className="mono-note">
-              {repaired ? "Repairs applied and versioned" : "Source preserved — review before saving"}
-            </span>
-          </div>
-        </div>
-      </section>
-      {/* Quality summary: the heart of the project - what the DQ engine actually concluded. */}
-      <section className="panel quality-summary">
-        <SectionHeading
-          eyebrow="DATA QUALITY ENGINE / STAGE 04"
-          title="What the quality engine concluded"
-          detail="Structural quality first. Each rule is scored, each issue is explained, and every repair preserves the source — the anomaly stage still owns outliers."
-        />
-        <div className="quality-summary__grid">
-          {qScore != null ? (
-            <div className="quality-summary__item">
-              <span className="quality-summary__dot" style={{ background: qScore >= 80 ? "var(--eco-mint)" : qScore >= 60 ? "var(--eco-yellow)" : "var(--eco-coral)" }} />
-              <div>
-                <strong>Overall score {qScore} / 100</strong>
-                <span className="mono-note">
-                  {passedCount > 0 ? `${passedCount} rules passed · ${failedCount} failed` : "no rule results recorded"}
-                  {totalIssues > 0 ? ` · ${totalIssues} flagged rows` : "no flagged rows"}
-                </span>
-              </div>
-              <span className="quality-summary__impact">
-                {qScore >= 80 ? "Dataset is structurally clean enough to model." :
-                 qScore >= 60 ? "Review the failed rules before trusting downstream stages." :
-                 "Quality is holding back prediction — repairs are recommended."}
-              </span>
-            </div>
-          ) : (
-            <div className="quality-summary__item">
-              <span className="quality-summary__dot" style={{ background: "var(--eco-text-muted)" }} />
-              <div>
-                <strong>No quality score yet</strong>
-                <span className="mono-note">Run the pipeline to score the eight structural rules.</span>
-              </div>
-              <span className="quality-summary__impact">
-                Quality scoring is what makes the rest of the project readable.
-              </span>
-            </div>
-          )}
-          {Object.entries(repairsByType).length === 0 ? (
-            <p className="mono-note table-empty-note">No issues to summarise.</p>
-          ) : (
-            Object.entries(repairsByType).map(([type, stats]) => (
-              <div className="quality-summary__item" key={type}>
-                <span className="quality-summary__dot" style={{ background: type === "Null value" ? "var(--eco-coral)" : type === "Missing timestamp" ? "var(--eco-orange)" : type === "Duplicate" ? "var(--eco-yellow)" : type === "Datatype mismatch" ? "var(--eco-blue)" : "var(--eco-violet)" }} />
-                <div>
-                  <strong>{type}</strong>
-                  <span className="mono-note">
-                    {stats.repaired > 0 ? `${stats.repaired} of ${stats.total} repaired` : `${stats.total} need repair`}
-                  </span>
-                </div>
-                <span className="quality-summary__impact">
-                  {type === "Null value" ? "Missing readings break aggregations" :
-                   type === "Missing timestamp" ? "Gaps break time-series alignment" :
-                   type === "Duplicate" ? "Double-counts distort baselines" :
-                   type === "Datatype mismatch" ? "Wrong types break model features" :
-                   "Invalid values corrupt every stage"}
-                </span>
-              </div>
-            ))
-          )}
-        </div>
-      </section>
-      <div className="quality-filters">
-        <span className="section-eyebrow">FILTER BY ISSUE TYPE</span>
-        {filters.map(item => (
-          <button
-            type="button"
-            className={`quality-filter ${filter === item ? "quality-filter--active" : ""}`}
-            onClick={() => {
-              setFilter(item);
-              sound.play({ volume: 0.08, rate: 0.9 });
-            }}
-            key={item}
-          >
-            {item}
-            {item !== "All issues" ? (
-              <span>
-                {typeCounts[item] ?? 0}
-              </span>
-            ) : null}
-          </button>
-        ))}
-      </div>
-      <div className="quality-three-panel">
-        <section className="quality-panel">
-          <div className="quality-panel__head">
-            <div>
-              <span className="panel-step">01</span>
-              <div>
-                <div className="section-eyebrow">SOURCE SNAPSHOT</div>
-                <h2>Raw issue rows</h2>
-              </div>
-            </div>
-            <TinyTag tone="coral">{repaired ? "RESOLVED" : "BEFORE"}</TinyTag>
-          </div>
-          <div className="quality-table">
-            {!filteredQuality.length ? (
-              <p className="mono-note table-empty-note">No structural quality issues recorded for this dataset.</p>
-            ) : null}
-            {filteredQuality.map(issue => (
-              <div className="quality-row" key={issue.id}>
-                <span className="quality-row__id">{issue.id}</span>
-                <div>
-                  <strong>{issue.field}</strong>
-                  <span>row {issue.row}</span>
-                </div>
-                <code>{issue.raw}</code>
-                <TinyTag tone="coral">{issue.type}</TinyTag>
-              </div>
-            ))}
-          </div>
-          <div className="quality-panel__footer">
-            <span>
-              <AlertTriangle size={13} />{" "}
-              showing {filteredQuality.length} of {totalIssues} flagged rows
-            </span>
-            <button
-              type="button"
-              onClick={() => sound.play({ volume: 0.08, rate: 0.9 })}
-            >
-              <Eye size={13} />{" "}
-              inspect raw
-            </button>
-          </div>
-        </section>
-        <section className="quality-panel quality-panel--ai">
-          <div className="quality-panel__head">
-            <div>
-              <span className="panel-step panel-step--lime">02</span>
-              <div>
-                <div className="section-eyebrow">CONTEXT ENGINE</div>
-                <h2>Live AI repair</h2>
-              </div>
-            </div>
-            <span className="ai-mini-status">
-              <span className="status-dot status-dot--lime" />
-              {repaired ? "APPLIED" : "READY"}
-            </span>
-          </div>
-          <div className="repair-console">
-            <div className="repair-console__header">
-              <span className="terminal-glyph">›_</span>
-              <span>quality_stage / {dataset.id.toLowerCase()}</span>
-              <span className="mono-note">
-                {filteredQuality.length} rule{filteredQuality.length === 1 ? "" : "s"} evaluated
-              </span>
-              <span className="repair-console__cursor" />
-            </div>
-            {/* Every rule the stage reported, with the evidence it recorded: the
-                severity, score, the counts it measured and the columns it named.
-                Previously this showed four sentences and hid the rest. */}
-            <div className="repair-console__body">
-              {!filteredQuality.length ? (
-                <p className="mono-note table-empty-note">No rule outcomes recorded for this dataset.</p>
-              ) : null}
-              {filteredQuality.map((issue, index) => (
-                <article
-                  className={`repair-card repair-card--${issue.severity || "info"}`}
-                  key={issue.id}
-                >
-                  <header className="repair-card__head">
-                    <span className="repair-card__num">{String(index + 1).padStart(2, "0")}</span>
-                    <strong>{issue.ruleName || issue.type}</strong>
-                    <TinyTag
-                      tone={
-                        issue.severity === "critical" ? "coral" : issue.severity === "warning" ? "orange" : "blue"
-                      }
-                    >
-                      {issue.severity || "info"}
-                    </TinyTag>
-                    <span className="mono-note">score {issue.score != null ? issue.score.toFixed(1) : "—"}</span>
-                    <TinyTag tone={issue.passed ? "lime" : "neutral"}>
-                      {issue.passed ? "passed" : "flagged"}
-                    </TinyTag>
-                  </header>
-                  <p className="repair-card__context">{issue.context}</p>
-                  {issue.columns.length ? (
-                    <div className="repair-card__section">
-                      <span className="repair-line__label">
-                        COLUMN{issue.columns.length === 1 ? "" : "S"} NAMED
-                      </span>
-                      <div className="repair-card__chips">
-                        {issue.columns.slice(0, 8).map(column => (
-                          <code key={column}>{column}</code>
-                        ))}
-                        {issue.columns.length > 8 ? (
-                          <span className="mono-note">+{issue.columns.length - 8}</span>
-                        ) : null}
-                      </div>
-                    </div>
-                  ) : null}
-                  {issue.detail.length ? (
-                    <div className="repair-card__section">
-                      <span className="repair-line__label">WHAT THE RULE MEASURED</span>
-                      <dl className="repair-card__facts">
-                        {issue.detail.map(fact => (
-                          <div key={fact.label}>
-                            <dt>{fact.label}</dt>
-                            <dd className="mono">{fact.value}</dd>
-                          </div>
-                        ))}
-                      </dl>
-                    </div>
-                  ) : null}
-                  <div className="repair-line__reason">
-                    <Sparkles size={11} />{" "}
-                    {issue.fixed}
-                  </div>
-                </article>
-              ))}
-            </div>
-          </div>
-          <div className="quality-panel__footer">
-            <span>
-              <CircleDot size={13} />{" "}
-              {repaired ? "Repair applied with audit trail" : "Repairs are reversible until saved"}
-            </span>
-            <span className="mono-note">CONFIDENCE / {avgConfidence ? `${avgConfidence.toFixed(1)}%` : "—"}</span>
-          </div>
-        </section>
-        <section className="quality-panel">
-          <div className="quality-panel__head">
-            <div>
-              <span className="panel-step panel-step--blue">03</span>
-              <div>
-                <div className="section-eyebrow">VERSION PREVIEW</div>
-                <h2>Corrected rows</h2>
-              </div>
-            </div>
-            <TinyTag tone="lime">{repaired ? "SAVED" : "PREVIEW"}</TinyTag>
-          </div>
-          <div className="quality-table">
-            {filteredQuality.map(issue => (
-              <div className="quality-row quality-row--corrected" key={issue.id}>
-                <span className="quality-row__id">{issue.id}</span>
-                <div>
-                  <strong>{issue.field}</strong>
-                  <span>row {issue.row}</span>
-                </div>
-                <code>{repaired ? issue.fixed : "pending"}</code>
-                <TinyTag tone="lime">{issue.confidence}</TinyTag>
-              </div>
-            ))}
-          </div>
-          <div className="quality-panel__footer">
-            <span>
-              <Database size={13} />{" "}
-              {saved ? "New version persisted" : "Original source stays untouched"}
-            </span>
-            <button
-              type="button"
-              onClick={() => {
-                sound.play({ volume: 0.1, rate: 0.95 });
-              }}
-            >
-              <FileCheck2 size={13} />{" "}
-              audit trail
-            </button>
-          </div>
-        </section>
-      </div>
-      {!saved && (
-        <div className="quality-save-row">
-          <div className="quality-save-note">
-            <Database size={15} />
-            <span>
-              Saving creates a new immutable version. The raw source remains available for audit.
-            </span>
-          </div>
-          <ActionButton icon={DatabaseZap} onClick={onSave} disabled={!repaired}>
-            {saved ? "Version saved" : "Save new version"}
-          </ActionButton>
-        </div>
-      )}
-      <div className="quality-scope-note">
-        <ShieldCheck size={15} />
-        <div>
-          <strong>Scope guardrail</strong>
-          <span>
-            EcoMind repairs null values, missing timestamps, duplicates, datatype mismatches, and invalid values
-            only. Outliers are preserved for the anomaly stage.
-          </span>
-        </div>
-        <span className="mono-note">RULESET / QUALITY_05</span>
-      </div>
-    </div>
+    <QualityLab
+      dataset={{
+        id: dataset.id,
+        name: dataset.name,
+        domain: dataset.domain,
+        type: dataset.type,
+        detail: dataset.detail,
+        rows: dataset.rows,
+        freshness: dataset.freshness,
+        health: dataset.health,
+        location: dataset.location,
+        rowCount: dataset.rowCount,
+        columnCount: dataset.columnCount,
+      }}
+      domainLabel={(domainMeta[dataset.domain] ?? domainMeta.building).label}
+      issues={qualityIssues}
+      filteredQuality={filteredQuality}
+      filter={filter}
+      setFilter={setFilter}
+      repaired={repaired}
+      saved={saved}
+      onRepair={onRepair}
+      onSave={onSave}
+      quality={liveQualityMeta}
+      schema={liveSchema ?? []}
+      targetColumn={liveTargetColumn}
+      activity={activityEvents}
+      versions={liveBaselineVersions}
+      onToast={onToast}
+    />
   );
 }
 
@@ -4363,668 +3344,67 @@ function TransformView({
   baselineName: string;
   onOpenBaselinePreview?: () => void;
 }) {
-  const [openStep, setOpenStep] = useState<string | null>(null);
-  const domainInfo = domainMeta[dataset.domain] ?? domainMeta.building;
-  const unit = displayUnit(baseline?.unit || liveTargetUnit);
-  const steps = transform?.steps ?? [];
-  const cells = baseline?.hourOfWeek ?? [];
-
-  const heat = useMemo(() => {
-    if (!cells.length) return null;
-    const medians = cells.map(c => c.median);
-    const lo = Math.min(...medians);
-    const hi = Math.max(...medians);
-    const grid: (LiveBaselineCell | null)[][] = Array.from({ length: 7 }, () =>
-      Array.from({ length: 24 }, () => null)
-    );
-    cells.forEach(c => {
-      if (c.day >= 0 && c.day < 7 && c.hour >= 0 && c.hour < 24) grid[c.day][c.hour] = c;
-    });
-    return { grid, lo, hi };
-  }, [cells]);
-
-  const fmtValue = (n: number): string =>
-    n >= 1000 ? Math.round(n).toLocaleString("en-IN") : n.toFixed(1);
-
+  // Presentation moved into TransformLab. The stage records, the baseline and
+  // the preview callback are passed through untouched.
+  const selected = modelData.find(m => m.selected) ?? null;
   return (
-    <div className="view-content">
-      <div className="transform-banner">
-        <div className="transform-banner__icon">
-          <WandSparkles size={24} />
-        </div>
-        <div>
-          <span className="section-eyebrow">ADAPTIVE BASELINE / GENERATED FROM THIS DATASET</span>
-          <h2>
-            {dataset.name} / {domainInfo.label.toLowerCase()} aware
-          </h2>
-          <p>
-            {baseline
-              ? `Learned from ${fmtCount(baseline.rowCount)} readings of ${
-                  baseline.target || "the target column"
-                } for this dataset only - never a global profile.`
-              : "No adaptive baseline has been recorded for this dataset yet."}
-          </p>
-        </div>
-        <div className="transform-banner__metric">
-          <span>BASELINE FIT</span>
-          <strong>
-            {modelData.find(m => m.selected)?.r2 != null
-              ? `${modelData.find(m => m.selected)?.r2} R²`
-              : "—"}
-          </strong>
-          <TinyTag tone="lime">{baseline ? "GENERATED" : "PENDING"}</TinyTag>
-        </div>
-      </div>
-
-      <div className="transform-layout">
-        <section className="panel transform-steps-panel">
-          <SectionHeading
-            eyebrow="RECORDED TRANSFORMATION"
-            title="What the stage actually did"
-            detail="Every step is a record from the transformation stage, with the columns it touched and the value it wrote."
-          />
-          <div className="transform-steps">
-            {!steps.length ? (
-              <p className="mono-note table-empty-note">
-                No transformation has been recorded for this run yet — the stage will normalise, encode, scale, aggregate and derive columns from this dataset when it runs.
-              </p>
-            ) : null}
-            {steps.map((step, index) => {
-              const open = openStep === step.key;
-              return (
-                <div className={`transform-step ${open ? "transform-step--open" : ""}`} key={step.key}>
-                  <button
-                    type="button"
-                    className="transform-step__head"
-                    aria-expanded={open}
-                    onClick={() => setOpenStep(open ? null : step.key)}
-                  >
-                    <span className="transform-step__index">{String(index + 1).padStart(2, "0")}</span>
-                    <div>
-                      <strong>{step.label}</strong>
-                      <span>{step.purpose}</span>
-                    </div>
-                    <div className="transform-step__meta">
-                      <TinyTag tone={step.status === "done" ? "lime" : "neutral"}>
-                        {step.status || "recorded"}
-                      </TinyTag>
-                      <span className="mono-note">{fmtCount(step.rowsChanged)} rows</span>
-                      <span className="mono-note">{step.columns.length} columns</span>
-                    </div>
-                    <ChevronDown size={15} className={open ? "transform-step__chevron--open" : ""} />
-                  </button>
-                  {open ? (
-                    <div className="transform-step__evidence">
-                      {step.fields.length ? (
-                      {step.fields.map(field => (
-                        <div
-                          className="transform-evidence"
-                          key={field.column}
-                        >
-                          <span className="transform-evidence__column">{field.column}</span>
-                          <code>{field.before}</code>
-                          <ArrowRight size={12} />
-                          <code>{field.after}</code>
-                          <span className="mono-note">
-                            {field.unitBefore || field.unitAfter
-                              ? `${field.unitBefore || "—"} → ${field.unitAfter || "—"}`
-                              : ""}
-                          </span>
-                          <TinyTag tone={field.changed ? "blue" : "neutral"}>{field.changed ? "changed" : "kept"}</TinyTag>
-                        </div>
-                      ))}
-                    ) : (
-                      <p className="mono-note table-empty-note">No per-column evidence recorded.</p>
-                    )}
-                      {step.note ? <p className="transform-step__note">{step.note}</p> : null}
-                    </div>
-                  ) : null}
-                </div>
-              );
-            })}
-          </div>
-          <div className="transform-step-footer">
-            <span>
-              <DatabaseZap size={13} />{" "}
-              what the stage did is recorded here — every step writes a new immutable version, the uploaded file is never modified
-            </span>
-            <span className="mono-note">
-              {steps.length} step{steps.length === 1 ? "" : "s"} recorded · {steps.reduce((n, s) => n + (s.rowsChanged || 0), 0)} rows touched
-            </span>
-          </div>
-        </section>
-
-        <section className="panel transform-baseline-panel">
-          <SectionHeading
-            eyebrow="BASELINE DATASET PREVIEW"
-            title="The normal EcoMind learned"
-            detail="Computed from this dataset alone — the reference every later stage compares against."
-            action={
-              baseline ? (
-                <button
-                  type="button"
-                  className="action-button action-button--secondary"
-                  onClick={() => onOpenBaselinePreview?.()}
-                  title="Open the recorded baseline preview for this dataset"
-                >
-                  Open baseline preview
-                </button>
-              ) : null
-            }
-          />
-          {!baseline ? (
-            <div className="baseline-identity baseline-identity--empty">
-              <span className="baseline-identity__cell">
-                <small>TARGET</small>
-                <strong>—</strong>
-              </span>
-              <span className="baseline-identity__cell">
-                <small>UNIT</small>
-                <strong>{liveTargetUnit ? displayUnit(liveTargetUnit) : "—"}</strong>
-              </span>
-              <span className="baseline-identity__cell">
-                <small>LEARNED FROM</small>
-                <strong>—</strong>
-              </span>
-              <span className="baseline-identity__cell">
-                <small>ENTITY COLUMN</small>
-                <strong>—</strong>
-              </span>
-              <span className="baseline-identity__cell">
-                <small>GENERATED</small>
-                <strong>—</strong>
-              </span>
-              <span className="baseline-identity__cell">
-                <small>VERSION</small>
-                <strong>—</strong>
-              </span>
-              <p className="mono-note" style={{ gridColumn: "1 / -1", marginTop: 10 }}>
-                Run the adaptive baseline stage to generate this dataset’s own normal behaviour.
-              </p>
-            </div>
-          ) : (
-            <>
-              <div className="baseline-identity">
-                <span className="baseline-identity__cell">
-                  <small>TARGET</small>
-                  <strong>{baseline.target || "—"}</strong>
-                </span>
-                <span className="baseline-identity__cell">
-                  <small>UNIT</small>
-                  <strong>{unit || "—"}</strong>
-                </span>
-                <span className="baseline-identity__cell">
-                  <small>LEARNED FROM</small>
-                  <strong>{fmtCount(baseline.rowCount)} rows</strong>
-                </span>
-                <span className="baseline-identity__cell">
-                  <small>ENTITY COLUMN</small>
-                  <strong>{baseline.deviceColumn || "—"}</strong>
-                </span>
-                <span className="baseline-identity__cell">
-                  <small>GENERATED</small>
-                  <strong>{baseline.generatedAt ? fmtRunClock(baseline.generatedAt) : "—"}</strong>
-                </span>
-                <span className="baseline-identity__cell">
-                  <small>VERSION</small>
-                  <strong>{baselineName || "—"}</strong>
-                </span>
-              </div>
-              <div className="baseline-stats">
-                {(
-                  [
-                    ["MIN", baseline.stats.min],
-                    ["P25", baseline.stats.p25],
-                    ["MEDIAN", baseline.stats.median],
-                    ["MEAN", baseline.stats.mean],
-                    ["P75", baseline.stats.p75],
-                    ["P95", baseline.stats.p95],
-                    ["MAX", baseline.stats.max],
-                    ["STD DEV", baseline.stats.std],
-                  ] as [string, number][]
-                ).map(([label, value]) => (
-                  <span className="baseline-stat" key={label}>
-                    <small>{label}</small>
-                    <strong>{fmtValue(value)}</strong>
-                  </span>
-                ))}
-              </div>
-            </>
-          )}
-        </section>
-      </div>
-
-      {/* Full timeline: raw → processed → baseline, shown openly. */}
-      {baseline && energyData.length ? (
-        <section className="panel transform-timeline-panel">
-          <SectionHeading
-            eyebrow="FULL TIMELINE / RAW → PROCESSED → BASELINE"
-            title="The complete recorded story"
-            detail="Everything the pipeline touched, in order: the uploaded signal, the processed target the models trained on, and the baseline EcoMind learned from this dataset. No stage is hidden behind a shaded region."
-          />
-          <div className="timeline-flow">
-            <div className="timeline-step">
-              <div className="timeline-step__dot timeline-step__dot--raw" />
-              <div>
-                <strong>Raw data</strong>
-                <span>uploaded signal, before any transformation</span>
-              </div>
-            </div>
-            <ArrowRight size={14} className="timeline-arrow" />
-            <div className="timeline-step">
-              <div className="timeline-step__dot timeline-step__dot--processed" />
-              <div>
-                <strong>Processed data</strong>
-                <span>target column after transformation — what the models and baseline actually see</span>
-              </div>
-            </div>
-            <ArrowRight size={14} className="timeline-arrow" />
-            <div className="timeline-step">
-              <div className="timeline-step__dot timeline-step__dot--baseline" />
-              <div>
-                <strong>Generated baseline</strong>
-                <span> Adaptive baseline learned from this dataset — the normal every later stage compares against</span>
-              </div>
-            </div>
-          </div>
-          <div className="timeline-chart">
-            <ResponsiveContainer width="100%" height={160}>
-              <LineChart data={energyData} margin={{ top: 8, right: 12, left: -6, bottom: 0 }}>
-                <CartesianGrid stroke="#24342d" strokeDasharray="2 5" vertical={false} />
-                <XAxis
-                  dataKey="time"
-                  stroke="#61776a"
-                  tickLine={false}
-                  axisLine={false}
-                  interval="preserveStartEnd"
-                  minTickGap={24}
-                  tick={{ fill: "#768e7f", fontSize: 9 }}
-                />
-                <YAxis
-                  stroke="#61776a"
-                  tickLine={false}
-                  axisLine={false}
-                  width={44}
-                  tick={{ fill: "#768e7f", fontSize: 9 }}
-                  tickFormatter={v => fmtCount(Number(v))}
-                />
-                <RechartsTooltip
-                  contentStyle={{ background: "#15231b", border: "1px solid #30473a", borderRadius: 8, color: "#eff8f1", fontSize: 11 }}
-                  labelStyle={{ color: "#eff8f1", fontWeight: 600, marginBottom: 4 }}
-                  formatter={(value, name) => {
-                    const n = Number(value);
-                    if (name === "energy") return [fmtCount(n), displayUnit(liveTargetUnit)];
-                    if (name === "baseline") return [fmtCount(n), "baseline"];
-                    return [fmtCount(n), String(name)];
-                  }}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="baseline"
-                  stroke="#718b7b"
-                  strokeDasharray="4 4"
-                  strokeWidth={1.5}
-                  dot={false}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="energy"
-                  stroke="#b6f36b"
-                  strokeWidth={2}
-                  dot={{ fill: "#b6f36b", r: 2, strokeWidth: 0 }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="timeline-legend">
-            <span>
-              <i style={{ background: "#b6f36b" }} />
-              {" "}
-              processed target — the observed energy EcoMind measures against the baseline
-            </span>
-            <br />
-            <span>
-              <i style={{ background: "#718b7b" }} />
-              {" "}
-              adaptive baseline — the normal learned from {fmtCount(baseline.rowCount)} readings of {baseline.target || "the target column"}
-            </span>
-          </div>
-          <div className="mono-note" style={{ marginTop: 6 }}>
-            GENERATED / {baseline.generatedAt ? fmtRunClock(baseline.generatedAt) : "—"} · {baselineName || "baseline"}
-          </div>
-        </section>
-      ) : null}
-
-      {heat ? (
-        <section className="panel baseline-heat-panel">
-          <SectionHeading
-            eyebrow="LEARNED PROFILE / HOUR OF WEEK"
-            title="When this dataset behaves normally"
-            detail={`Median ${
-              baseline?.target || "load"
-            } for every hour of every weekday, learned from this dataset alone. Hover a cell for the exact value.`}
-          />
-          <div
-            className="baseline-heat"
-            role="img"
-            aria-label={`Hour-of-week median ${baseline?.target || "load"} heatmap`}
-          >
-            <div className="baseline-heat__hours">
-              <span />
-              {Array.from({ length: 24 }, (_, hour) => (
-                <span key={hour}>{hour % 3 === 0 ? String(hour).padStart(2, "0") : ""}</span>
-              ))}
-            </div>
-            {heat.grid.map((row, day) => (
-              <div className="baseline-heat__row" key={day}>
-                <span className="baseline-heat__day">{WEEKDAY_LABELS[day] ?? `D${day}`}</span>
-                {row.map((cell, hour) => {
-                  const span = heat.hi - heat.lo;
-                  const alpha = cell ? (span > 0 ? 10 + 78 * ((cell.median - heat.lo) / span) : 45) : 0;
-                  return (
-                    <span
-                      className={`baseline-heat__cell ${cell ? "" : "baseline-heat__cell--empty"}`}
-                      key={hour}
-                      style={cell ? { background: `rgb(182 243 107 / ${alpha.toFixed(1)}%)` } : undefined}
-                      title={
-                        cell
-                          ? `${WEEKDAY_LABELS[day] ?? day} ${String(hour).padStart(2, "0")}:00 — median ${fmtValue(
-                              cell.median
-                            )}${unit ? ` ${unit}` : ""} · mean ${fmtValue(cell.mean)} · ${fmtCount(
-                              cell.count
-                            )} readings`
-                          : undefined
-                      }
-                    >
-                      {cell ? fmtValue(cell.median) : "—"}
-                    </span>
-                  );
-                })}
-              </div>
-            ))}
-            <div className="chart-legend">
-              <span>
-                <i style={{ background: "rgb(182 243 107 / 20%)" }} /> low
-              </span>
-              <span>
-                <i style={{ background: "rgb(182 243 107 / 88%)" }} /> high
-              </span>
-              <span className="mono-note">
-                {heat.lo.toLocaleString("en-IN")} – {heat.hi.toLocaleString("en-IN")}
-                {unit ? ` ${unit}` : ""} median
-              </span>
-            </div>
-          </div>
-        </section>
-      ) : null}
-
-      <div className="database-trace">
-        <div className="database-trace__label">
-          <Database size={15} />
-          <span>VERSIONED DATABASE TRACE</span>
-        </div>
-        <div className="database-trace__flow">
-          <span>uploaded source</span>
-          <ArrowRight size={13} />
-          <span className="database-trace__active">transformed</span>
-          <ArrowRight size={13} />
-          <span>model input</span>
-        </div>
-        <span className="trace-status">
-          <span className="status-dot status-dot--lime" />
-          {steps.length ? `${steps.length} steps recorded` : "awaiting stage 05"}
-        </span>
-      </div>
-    </div>
+    <TransformLab
+      dataset={{
+        id: dataset.id,
+        name: dataset.name,
+        domain: dataset.domain,
+        type: dataset.type,
+        detail: dataset.detail,
+        rows: dataset.rows,
+        freshness: dataset.freshness,
+        health: dataset.health,
+        location: dataset.location,
+        rowCount: dataset.rowCount,
+        columnCount: dataset.columnCount,
+      }}
+      domainLabel={(domainMeta[dataset.domain] ?? domainMeta.building).label}
+      transform={transform}
+      baseline={baseline}
+      baselineName={baselineName}
+      signal={energyData}
+      schema={liveSchema ?? []}
+      targetUnit={liveTargetUnit}
+      unitLabel={displayUnit(baseline?.unit || liveTargetUnit)}
+      model={selected ? { name: selected.name, r2: selected.r2, mae: selected.mae, rmse: selected.rmse } : null}
+      weights={liveCompetition?.weights ?? []}
+      versions={liveBaselineVersions}
+      onOpenBaselinePreview={onOpenBaselinePreview}
+    />
   );
 }
 
 function ModelsView({
   selectedModel,
   setSelectedModel,
+  dataset,
 }: {
   selectedModel: string;
   setSelectedModel: (model: string) => void;
+  dataset: Dataset;
 }) {
-  const sound = useSound({ onPlay: () => {} });
-  const comp = liveCompetition;
-  const winner = modelData.find(m => m.selected) ?? modelData[0] ?? null;
-  const second = modelData[1] ?? null;
-  const topR2 = winner ? winner.r2 : null;
-  const topMae = winner ? winner.mae : null;
-  const maeGain = winner && second && second.mae > 0 ? ((winner.mae - second.mae) / second.mae) * 100 : null;
+  // Presentation moved into ModelLab; the recorded competition and the
+  // selection state are passed through unchanged.
   return (
-    <div className="view-content">
-      <div className="models-topline">
-        <div className="models-kpis">
-          <Metric
-            label="BEST MODEL"
-            value={topR2 != null ? `R² ${topR2}` : "—"}
-            delta={winner ? "selected on measured results" : "no run yet"}
-            accent="lime"
-          />
-          <Metric
-            label="ERROR / MAE"
-            value={topMae != null ? withUnit(String(topMae)) : "—"}
-            delta={maeGain != null ? `${maeGain <= 0 ? "" : "+"}${maeGain.toFixed(1)}% vs next` : "no run yet"}
-            direction={maeGain != null && maeGain < 0 ? "down" : "up"}
-            accent="blue"
-          />
-          <Metric
-            label="TRAIN SPLIT"
-            value={comp ? `${fmtCount(comp.trainRows)} rows` : "—"}
-            delta={comp ? `${comp.features} features / test ${fmtCount(comp.testRows)}` : "no run yet"}
-            direction="down"
-            accent="violet"
-          />
-        </div>
-        <div className="system-chip">
-          <span className="status-dot status-dot--violet" />
-          {modelData.length ? `${modelData.length} model${modelData.length === 1 ? "" : "s"} compared` : "no competition recorded"}
-        </div>
-      </div>
-      <div className="models-layout">
-        <section className="panel model-ranking-panel">
-          <SectionHeading
-            eyebrow="MODEL COMPETITION"
-            title="Same data. Clear winner."
-            detail="Ranked by MAE first, then stability across the validation window."
-          />
-          <div className="model-list">
-            {modelData.map((model, index) => (
-              <button
-                type="button"
-                className={`model-row ${selectedModel === model.name ? "model-row--selected" : ""}`}
-                key={model.name}
-                onClick={() => {
-                  setSelectedModel(model.name);
-                  sound.play({ volume: 0.1, rate: 0.95 });
-                }}
-              >
-                <span className={`model-rank ${index === 0 ? "model-rank--winner" : ""}`}>
-                  0{index + 1}
-                </span>
-                <span
-                  className="model-row__badge"
-                  style={{ color: model.color, borderColor: `${model.color}55` }}
-                >
-                  {model.short}
-                </span>
-                <div className="model-row__name">
-                  <strong>{model.name}</strong>
-                  <span>
-                    {model.rationale
-                      ? model.rationale.length > 110
-                        ? `${model.rationale.slice(0, 107)}...`
-                        : model.rationale
-                      : `rank ${index + 1} candidate`}
-                  </span>
-                </div>
-                <div className="model-row__metrics">
-                  <span>
-                    <small>MAE</small>
-                    <strong>{model.mae}</strong>
-                  </span>
-                  <span>
-                    <small>RMSE</small>
-                    <strong>{model.rmse}</strong>
-                  </span>
-                  <span>
-                    <small>R²</small>
-                    <strong>{model.r2}</strong>
-                  </span>
-                </div>
-                {model.selected ? (
-                  <TinyTag tone="lime">PROMOTED</TinyTag>
-                ) : (
-                  <ChevronRight size={15} />
-                )}
-              </button>
-            ))}
-          </div>
-        </section>
-        <section className="panel model-chart-panel">
-          <SectionHeading
-            eyebrow="EVALUATION METRICS"
-            title="Error profile"
-            detail="Lower MAE is better. Lower spread means a steadier operating forecast."
-          />
-          <div className="model-chart">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={modelData} layout="vertical" margin={{ left: 0, right: 18 }}>
-                <CartesianGrid stroke="#24342d" strokeDasharray="2 5" horizontal={false} />
-                <XAxis
-                  type="number"
-                  stroke="#61776a"
-                  tickLine={false}
-                  axisLine={false}
-                  tick={{ fill: "#768e7f", fontSize: 10 }}
-                />
-                <YAxis
-                  dataKey="short"
-                  type="category"
-                  stroke="#61776a"
-                  tickLine={false}
-                  axisLine={false}
-                  tick={{ fill: "#b9c9bd", fontSize: 11 }}
-                  width={38}
-                />
-                <RechartsTooltip
-                  cursor={{ fill: "#1e3127" }}
-                  contentStyle={{ background: "#15231b", border: "1px solid #30473a", borderRadius: 8, color: "#eff8f1", fontSize: 11 }}
-                />
-                <Bar dataKey="mae" fill="#b6f36b" radius={[0, 5, 5, 0]} barSize={16} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="model-chart-footer">
-            <AxisNote
-              quantity="MAE"
-              unit={liveTargetUnit}
-              origin="Recorded by the model selection stage: mean absolute error of this model on the held-out test split, in the unit of the modelled target column."
-            />
-            <span className="mono-note">VALIDATION / 20%</span>
-          </div>
-        </section>
-      </div>
-      {modelData.length > 1 ? (
-        <section className="panel model-headtohead">
-          <SectionHeading
-            eyebrow="HEAD TO HEAD"
-            title="Every candidate on the same rows"
-            detail="All candidates trained on identical processed rows and scored on the same held-out split. The winner leads each metric it is allowed to lead."
-          />
-          <div className="h2h">
-            <div className="h2h__row h2h__row--head">
-              <span className="h2h__metric">METRIC</span>
-              {modelData.map(model => (
-                <span key={model.name} className={model.selected ? "h2h__winner" : ""}>
-                  {model.short}
-                  {model.selected ? " \u2605" : ""}
-                </span>
-              ))}
-            </div>
-            {(
-              [
-                { label: "R\u00b2", unit: "", better: "high" as const, get: (m: LiveModel) => m.r2, fmt: (v: number) => v.toFixed(3) },
-                { label: "RMSE", unit: liveTargetUnit ? displayUnit(liveTargetUnit) : "", better: "low" as const, get: (m: LiveModel) => m.rmse, fmt: (v: number) => fmtCount(v) },
-                { label: "MAE", unit: liveTargetUnit ? displayUnit(liveTargetUnit) : "", better: "low" as const, get: (m: LiveModel) => m.mae, fmt: (v: number) => fmtCount(v) },
-                { label: "Training", unit: "s", better: "low" as const, get: (m: LiveModel) => m.trainSeconds ?? null, fmt: (v: number) => v.toFixed(3) },
-                { label: "Composite", unit: "", better: "high" as const, get: (m: LiveModel) => m.composite ?? null, fmt: (v: number) => v.toFixed(3) },
-                { label: "MAPE", unit: "%", better: "low" as const, get: (m: LiveModel) => m.mape ?? null, fmt: (v: number) => v.toFixed(1) },
-              ] as {
-                label: string;
-                unit: string;
-                better: "high" | "low";
-                get: (model: LiveModel) => number | null;
-                fmt: (value: number) => string;
-              }[]
-            ).map(row => {
-              const values = modelData.map(row.get).filter((value): value is number => value != null);
-              if (!values.length) return null;
-              const best = row.better === "high" ? Math.max(...values) : Math.min(...values);
-              return (
-                <div className="h2h__row" key={row.label}>
-                  <span className="h2h__metric">
-                    {row.label}
-                    {row.unit ? ` (${row.unit})` : ""}
-                  </span>
-                  {modelData.map(model => {
-                    const value = row.get(model);
-                    const isBest = value != null && Math.abs(value - best) < 1e-9;
-                    return (
-                      <span key={model.name} className={isBest ? "h2h__best" : ""}>
-                        {value == null ? "\u2014" : row.fmt(value)}
-                      </span>
-                    );
-                  })}
-                </div>
-              );
-            })}
-          </div>
-          <div className="h2h__foot">
-            <span>
-              <strong>{comp?.winner ?? "\u2014"}</strong> won on composite score
-              {comp ? ` by ${comp.margin.toFixed(3)}` : ""}
-              {comp?.nearTie ? " \u2014 recorded as a near tie, so the difference sits inside noise." : ""}
-            </span>
-            <span className="mono-note">
-              {comp?.criteria?.length ? `won: ${comp.criteria.join(", ")}` : ""}
-              {comp?.lostCriteria?.length ? ` \u00b7 traded away: ${comp.lostCriteria.join(", ")}` : ""}
-            </span>
-          </div>
-        </section>
-      ) : null}
-      <div className="winner-callout">
-        <div className="winner-callout__icon">
-          <Sparkles size={18} />
-        </div>
-        <div>
-          <span className="section-eyebrow">WHY {comp?.winner ? comp.winner.toUpperCase() : "THIS MODEL"}</span>
-          <h3>{comp?.nearTie ? "A near-tie, decided on stability." : "Chosen on measured results."}</h3>
-          <p>
-            {comp && comp.rationale
-              ? comp.rationale
-              : winner
-                ? `${winner.name} led the competition on one identical train/test split.`
-                : "Run the pipeline to record the selection rationale."}
-          </p>
-        </div>
-        <ActionButton variant="secondary" icon={Eye}>
-          Inspect evaluation
-        </ActionButton>
-      </div>
-    </div>
+    <ModelLab
+      models={modelData}
+      competition={liveCompetition}
+      selectedModel={selectedModel}
+      setSelectedModel={setSelectedModel}
+      signal={energyData}
+      unit={displayUnit(liveTargetUnit)}
+      target={liveCompetition?.target || liveTargetColumn}
+      versions={liveBaselineVersions}
+      datasetName={dataset.name}
+      rowCount={dataset.rowCount ?? null}
+    />
   );
 }
 
-/**
- * Rich hover tooltip for the anomaly deviation chart.
- *
- * Renders the estate, energy and AI provenance the backend attached to each
- * plotted point, so the chart never needs a second API call to explain itself.
- * Content is driven entirely by `LiveAnomalyPoint` — nothing here is fabricated.
- */
 const AnomalyTooltipContent = (props: TooltipProps<number, string>) => {
   // TooltipProps carries the active point in `payload` (an array of the
   // stacked series entries at the hovered x). We read the observed series
@@ -5291,7 +3671,7 @@ function AnomaliesView({
   onInspect,
   onInspectPoint,
   onClearPoint,
-  selectedPoint: pinnedPoint,
+  selectedPoint,
   dataset,
   baselineName,
   windowOptions,
@@ -5306,1639 +3686,28 @@ function AnomaliesView({
   baselineName: string;
   windowOptions: LiveWindowOption[];
 }) {
-  const sound = useSound({ onPlay: () => {} });
-  // Hovering the chart moves the cursor; the parent's selection is what a click
-  // commits. Both feed the same panel, so the panel is never stale.
-  const [hoverPoint, setHoverPoint] = useState<LiveAnomalyPoint | null>(null);
-  const meta = liveAnomalyMeta;
-  const anomalyTotal = meta?.total ?? anomalies.length;
-  const criticalHigh = (meta?.severity?.critical ?? 0) + (meta?.severity?.high ?? 0);
-  const activeWindow =
-    windowOptions.find(option => option.id === window) ?? windowOptions[windowOptions.length - 1] ?? null;
-  const series = activeWindow ? anomalyData.slice(-activeWindow.points) : anomalyData;
-
-  // When the backend never returned anomaly points, use the blank markers so the
-  // deviation chart still renders the frame, grid, axis and legend instead of
-  // collapsing to a blank rectangle.
-  const chartSeries = series.length
-    ? series.map(p => ({
-        timestamp: p.timestamp,
-        observed_energy_kwh: p.observed_energy_kwh,
-        baseline_energy_kwh: p.baseline_energy_kwh,
-        predicted_energy_kwh: p.predicted_energy_kwh,
-        deviation_percent: p.deviation_percent,
-        severity: p.severity,
-        confidence: p.confidence,
-        anomaly_type: p.anomaly_type,
-        building_code: p.building_code,
-        building_name: p.building_name,
-        floor_no: p.floor_no,
-        room_code: p.room_code,
-        zone: p.zone,
-        device_code: p.device_code,
-        device_name: p.device_name,
-        device_type: p.device_type,
-        dataset_id: p.dataset_id,
-        dataset_name: p.dataset_name,
-        domain: p.domain,
-        model_name: p.model_name,
-        model_version: p.model_version,
-        baseline_version: p.baseline_version,
-        origin: p.origin,
-        workflow_run_id: p.workflow_run_id,
-        // severity dots live on their own lane.
-        critical: p.severity === "critical" ? (p.observed_energy_kwh ?? p.baseline_energy_kwh) : null,
-        high: p.severity === "high" ? (p.observed_energy_kwh ?? p.baseline_energy_kwh) : null,
-        // `severity` is already the UI's normalised vocabulary (see
-        // normaliseSeverity), so the lanes key off "medium" rather than the
-        // stage's raw word "moderate".
-        medium: p.severity === "medium" ? (p.observed_energy_kwh ?? p.baseline_energy_kwh) : null,
-        low: p.severity === "low" ? (p.observed_energy_kwh ?? p.baseline_energy_kwh) : null,
-      }))
-    : [{ timestamp: activeWindow?.label ?? window, observed_energy_kwh: NaN, baseline_energy_kwh: NaN, predicted_energy_kwh: null, deviation_percent: 0, severity: "", confidence: null, anomaly_type: "", building_code: "", building_name: "", floor_no: "",        room_code: "",
-        zone: "",
-        device_code: "", device_name: "", device_type: "", dataset_id: "", dataset_name: "", domain: "", model_name: "", model_version: "", baseline_version: null, origin: "", workflow_run_id: "", critical: null, high: null, medium: null, low: null }];
-
-  // The stage defines severity in sigma against each device's own learned scale,
-  // so no single kWh value is "the threshold" and drawing one would be inventing
-  // a number. The honest horizontal rail is the lowest reading the stage actually
-  // flagged: everything below it was classified normal, which is a fact about
-  // this window rather than a claim about the model's sigma floor.
-  const flaggedValues = chartSeries
-    .filter(p => p.severity !== "" && Number.isFinite(p.observed_energy_kwh))
-    .map(p => p.observed_energy_kwh);
-  const detectionFloor = flaggedValues.length ? Math.min(...flaggedValues) : 0;
-
-  // The focus panel must never be an empty frame. When nothing has been hovered
-  // yet it falls back to the most severe reading inside the visible window, so
-  // the panel beside the chart always describes a real recorded event.
-  const SEVERITY_RANK: Record<string, number> = { critical: 4, high: 3, medium: 2, low: 1 };
-  const fallbackPoint =
-    [...chartSeries]
-      .filter(p => Number.isFinite(p.observed_energy_kwh))
-      .sort(
-        (a, b) =>
-          (SEVERITY_RANK[b.severity] ?? 0) - (SEVERITY_RANK[a.severity] ?? 0) ||
-          Math.abs(b.deviation_percent ?? 0) - Math.abs(a.deviation_percent ?? 0)
-      )[0] ?? null;
-  // Precedence: an explicit pin beats the cursor preview, which beats the
-  // window's most severe reading. Without the pin winning, the panel snapped
-  // away from the reading the user had just clicked.
-  const selectedPoint = pinnedPoint ?? hoverPoint ?? fallbackPoint;
-  const pointIndex = selectedPoint
-    ? chartSeries.findIndex(p => p.timestamp === selectedPoint.timestamp)
-    : -1;
+  // Presentation moved into AnomalyLab. Detection records, the window control
+  // and both inspector callbacks are passed through unchanged.
   return (
-    <div className="view-content">
-      <div className="anomaly-topline">
-        <div className="quality-kpis">
-          <Metric
-            label="ANOMALIES"
-            value={String(anomalyTotal)}
-            delta={`${criticalHigh} critical / high`}
-            accent="coral"
-          />
-          <Metric
-            label="DETECTION RATE"
-            value={meta ? `${meta.ratePct.toFixed(2)}%` : "—"}
-            delta={meta ? `${fmtCount(meta.scanned)} readings scanned` : "no run yet"}
-            direction="down"
-            accent="lime"
-          />
-          <Metric
-            label="EXCESS COST"
-            value={meta ? `${displayUnit("INR")}${fmtCount(meta.excessCost)}` : "—"}
-            delta={meta ? `${fmtCount(meta.excessCo2)} ${displayUnit("kgCO2")}` : "no run yet"}
-            direction="up"
-            accent="orange"
-          />
-        </div>
-        {windowOptions.length ? (
-          <div className="segmented-control">
-            {windowOptions.map(option => (
-              <button
-                type="button"
-                className={activeWindow?.id === option.id ? "active" : ""}
-                key={option.id}
-                title={option.detail}
-                onClick={() => {
-                  setWindow(option.id);
-                  sound.play({ volume: 0.08, rate: 0.9 });
-                }}
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
-        ) : (
-          <span className="mono-note">
-            No time axis recorded for this dataset — the detection window follows the data as it is.
-          </span>
-        )}
-      </div>
-      <section className="panel anomaly-chart-panel">
-        <div className="anomaly-chart-head">
-          <div>
-            <div className="section-eyebrow">
-              DEVIATION FROM BASELINE / {(activeWindow?.label ?? window).toUpperCase()}
-            </div>
-            <h2>
-              {anomalyTotal
-                ? `${anomalyTotal} event${anomalyTotal === 1 ? "" : "s"} broke the pattern.`
-                : "No anomalies recorded."}
-            </h2>
-          </div>
-          <div className="chart-legend">
-            <span>
-              <i style={{ background: "#b6f36b" }} />
-              {" "}
-              observed load
-            </span>
-            <span>
-              <i style={{ background: "#718b7b" }} />
-              {" "}
-              baseline
-            </span>
-            <span>
-              <i style={{ background: "#f07f6e" }} />
-              {" "}
-              critical
-            </span>
-            <span>
-              <i style={{ background: "#f5a56d" }} />
-              {" "}
-              high
-            </span>
-            <span>
-              <i style={{ background: "#e6ca78" }} />
-              {" "}
-              medium
-            </span>
-            <span>
-              <i style={{ background: "#79d6c4" }} />
-              {" "}
-              low
-            </span>
-            <AxisNote
-              quantity="Observed load"
-              unit={liveTargetUnit}
-              origin="Recorded by the anomaly stage: the measured target column compared against the adaptive baseline for this dataset. Readings outside the learned threshold are marked as anomalies and coloured by severity."
-            />
-          </div>
-        </div>
-        <div className="anomaly-chart anomaly-chart--split">
-          {/* The plot owns a definite-height box of its own so the focus panel
-              beside it is never clipped by the chart's fixed height. */}
-          <div className="anomaly-chart__plot">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart
-              data={chartSeries}
-              margin={{ top: 16, right: 34, left: 6, bottom: 20 }}
-              onMouseMove={((data: readonly unknown[], index: number | undefined) => {
-                if (index == null || index < 0 || index >= chartSeries.length) return;
-                const p = chartSeries[index];
-                if (p && Number.isFinite(p.observed_energy_kwh)) setHoverPoint(p);
-              }) as any}
-              onClick={((data: readonly unknown[], index: number | undefined, _evt: React.MouseEvent) => {
-                if (index == null || index < 0 || index >= chartSeries.length) return;
-                const p = chartSeries[index];
-                if (p && Number.isFinite(p.observed_energy_kwh) && onInspectPoint) {
-                  setHoverPoint(p);
-                  onInspectPoint(p);
-                  sound.play({ volume: 0.12, rate: 1.05 });
-                }
-              }) as any}
-              onMouseLeave={() => {
-                // Leaving the plot drops the preview so the panel falls back to
-                // the pinned reading rather than holding wherever the cursor
-                // happened to exit.
-                setHoverPoint(null);
-              }}>
-              <CartesianGrid stroke="#24342d" strokeDasharray="2 5" vertical={false} />
-              <XAxis
-                dataKey="timestamp"
-                stroke="#61776a"
-                tickLine={false}
-                axisLine={false}
-                tick={{ fill: "#768e7f", fontSize: 10 }}
-                label={{
-                  value: "RECORDED TIMESTAMP",
-                  position: "insideBottom",
-                  offset: -14,
-                  fill: "#6f8578",
-                  fontSize: 9,
-                }}
-              />
-              <YAxis
-                stroke="#61776a"
-                tickLine={false}
-                axisLine={false}
-                tick={{ fill: "#768e7f", fontSize: 10 }}
-                label={{
-                  value: liveTargetUnit
-                    ? `${displayUnit(liveTargetUnit).toUpperCase()} PER READING`
-                    : "RECORDED VALUE",
-                  angle: -90,
-                  position: "insideLeft",
-                  offset: 16,
-                  fill: "#6f8578",
-                  fontSize: 9,
-                }}
-              />
-              <ReferenceLine
-                y={detectionFloor}
-                stroke="#8fa79a"
-                strokeDasharray="3 5"
-                strokeOpacity={0.55}
-                label={{
-                  value: "lowest flagged reading",
-                  position: "insideBottomRight",
-                  fill: "#8fa79a",
-                  fontSize: 9,
-                }}
-              />
-              {/* A pinned reading gets a vertical rule so the chart and the panel
-                  agree on exactly which moment is being described. */}
-              {pinnedPoint ? (
-                <ReferenceLine
-                  x={pinnedPoint.timestamp}
-                  stroke="#b6f36b"
-                  strokeDasharray="2 3"
-                  strokeOpacity={0.85}
-                />
-              ) : null}
-              <RechartsTooltip
-                content={AnomalyTooltipContent}
-                cursor={{ stroke: "#3b5948", strokeWidth: 1, strokeDasharray: "3 3" }}
-                labelStyle={{ color: "#eff8f1", fontWeight: 600, marginBottom: 4 }}
-              />
-              <Line
-                type="monotone"
-                dataKey="baseline_energy_kwh"
-                stroke="#718b7b"
-                strokeDasharray="4 4"
-                strokeWidth={1.5}
-                dot={false}
-                activeDot={chartSeries.length > 1 ? { r: 3, strokeWidth: 0 } : false}
-              />
-              <Line
-                type="monotone"
-                dataKey="observed_energy_kwh"
-                stroke="#b6f36b"
-                strokeWidth={2.5}
-                dot={{ fill: "#b6f36b", r: 3, strokeWidth: 0 }}
-                activeDot={chartSeries.length > 1 ? { fill: "#b6f36b", r: 4, stroke: "#24342d", strokeWidth: 1.5 } : false}
-              />
-              {/* Each severity band is drawn through the readings the stage
-                  actually classified into it. Every one of these shares the
-                  chart's own data array — passing a separate `data` per line
-                  made Recharts count the window four extra times, which is what
-                  squeezed the whole series into a quarter of the plot. The
-                  connectors only bridge consecutive readings of the same band
-                  (connectNulls is off), so a track is never a claim that the
-                  readings between it were quiet. */}
-              <Line
-                type="monotone"
-                dataKey="critical"
-                stroke="#f07f6e"
-                strokeWidth={1.6}
-                strokeOpacity={0.55}
-                dot={{ fill: "#f07f6e", r: 5, stroke: "#101c15", strokeWidth: 1.5 }}
-                activeDot={false}
-                connectNulls={false}
-                isAnimationActive={false}
-              />
-              <Line
-                type="monotone"
-                dataKey="high"
-                stroke="#f5a56d"
-                strokeWidth={1.6}
-                strokeOpacity={0.5}
-                dot={{ fill: "#f5a56d", r: 4.5, stroke: "#101c15", strokeWidth: 1.5 }}
-                activeDot={false}
-                connectNulls={false}
-                isAnimationActive={false}
-              />
-              <Line
-                type="monotone"
-                dataKey="medium"
-                stroke="#e6ca78"
-                strokeWidth={1.6}
-                strokeOpacity={0.5}
-                dot={{ fill: "#e6ca78", r: 4, stroke: "#101c15", strokeWidth: 1.5 }}
-                activeDot={false}
-                connectNulls={false}
-                isAnimationActive={false}
-              />
-              <Line
-                type="monotone"
-                dataKey="low"
-                stroke="#79d6c4"
-                strokeWidth={1.6}
-                strokeOpacity={0.45}
-                dot={{ fill: "#79d6c4", r: 3.5, stroke: "#101c15", strokeWidth: 1.5 }}
-                activeDot={false}
-                connectNulls={false}
-                isAnimationActive={false}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-          </div>
-          {chartSeries.length > 1 && selectedPoint ? (
-            <div className="anomaly-focus-panel">
-              <div className="anomaly-focus-panel__head">
-                <div className="anomaly-focus-panel__headline">
-                  <span className="section-eyebrow">
-                    FOCUSED READING{pointIndex >= 0 ? ` · ${pointIndex + 1} OF ${chartSeries.length}` : ""}
-                  </span>
-                  {pinnedPoint ? (
-                    <button
-                      type="button"
-                      className="anomaly-focus-panel__unpin"
-                      onClick={() => {
-                        onClearPoint();
-                        sound.play({ volume: 0.08, rate: 0.85 });
-                      }}
-                      title="Release the pin and let the panel follow the cursor again"
-                    >
-                      <X size={11} /> Unpin
-                    </button>
-                  ) : null}
-                </div>
-                <h3>{selectedPoint.severity ? selectedPoint.severity.toUpperCase() : "READING"}</h3>
-                <span className="anomaly-focus-panel__hint">
-                  {pinnedPoint
-                    ? "Pinned. Hover the chart to preview other readings, click one to move the pin."
-                    : hoverPoint
-                      ? "Following the reading under your cursor — click to pin it."
-                      : "Showing the most severe reading in this window — hover the chart to move it."}
-                </span>
-                <span className="anomaly-focus-panel__stamp mono">
-                  {selectedPoint.timestamp || "timestamp not recorded"}
-                </span>
-              </div>
-              <div className="anomaly-focus-panel__identity">
-                <div className="anomaly-focus-row">
-                  <span className="anomaly-focus-label">Building</span>
-                  <span className="anomaly-focus-value">{selectedPoint.building_name || selectedPoint.building_code || "—"}</span>
-                </div>
-                <div className="anomaly-focus-row">
-                  <span className="anomaly-focus-label">Floor</span>
-                  <span className="anomaly-focus-value mono">{selectedPoint.floor_no || "—"}</span>
-                </div>
-                <div className="anomaly-focus-row">
-                  <span className="anomaly-focus-label">Room</span>
-                  <span className="anomaly-focus-value mono">{selectedPoint.room_code || "—"}</span>
-                </div>
-                <div className="anomaly-focus-row">
-                  <span className="anomaly-focus-label">Device</span>
-                  <span className="anomaly-focus-value">{selectedPoint.device_name || selectedPoint.device_code || "—"}</span>
-                </div>
-                <div className="anomaly-focus-row">
-                  <span className="anomaly-focus-label">Device type</span>
-                  <span className="anomaly-focus-value mono">{selectedPoint.device_type || "—"}</span>
-                </div>
-                {selectedPoint.zone ? (
-                  <div className="anomaly-focus-row">
-                    <span className="anomaly-focus-label">Zone</span>
-                    <span className="anomaly-focus-value mono">{selectedPoint.zone}</span>
-                  </div>
-                ) : null}
-              </div>
-              <div className="anomaly-focus-panel__energy">
-                <div className="anomaly-focus-section">
-                  <span className="section-eyebrow">ENERGY</span>
-                  <div className="anomaly-focus-metrics">
-                    <div>
-                      <strong>Observed</strong>
-                      <span className="mono">
-                        {selectedPoint.observed_energy_kwh != null
-                          ? `${selectedPoint.observed_energy_kwh.toFixed(1)} ${liveTargetUnit ? displayUnit(liveTargetUnit) : ""}`.trim()
-                          : "—"}
-                      </span>
-                      <small>recorded reading</small>
-                    </div>
-                    <div>
-                      <strong>Baseline</strong>
-                      <span className="mono">
-                        {selectedPoint.baseline_energy_kwh != null
-                          ? `${selectedPoint.baseline_energy_kwh.toFixed(1)} ${liveTargetUnit ? displayUnit(liveTargetUnit) : ""}`.trim()
-                          : "—"}
-                      </span>
-                      <small>learned normal</small>
-                    </div>
-                    <div>
-                      <strong>Deviation</strong>
-                      <span className="mono" style={{ color: selectedPoint.deviation_percent != null && selectedPoint.deviation_percent > 0 ? "var(--eco-orange)" : "" }}>
-                        {selectedPoint.deviation_percent != null
-                          ? `${selectedPoint.deviation_percent >= 0 ? "+" : ""}${selectedPoint.deviation_percent.toFixed(1)}%`
-                          : "—"}
-                      </span>
-                      <small>vs baseline</small>
-                    </div>
-                    {selectedPoint.predicted_energy_kwh != null ? (
-                      <div>
-                        <strong>Forecast</strong>
-                        <span className="mono">
-                          {`${selectedPoint.predicted_energy_kwh.toFixed(1)} ${liveTargetUnit ? displayUnit(liveTargetUnit) : ""}`.trim()}
-                        </span>
-                        <small>forecast at this point</small>
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-              </div>
-              <div className="anomaly-focus-panel__ai">
-                <div className="anomaly-focus-section">
-                  <span className="section-eyebrow">AI</span>
-                  <div className="anomaly-focus-metrics">
-                    <div>
-                      <strong>Severity</strong>
-                      <span>{selectedPoint.severity || "—"}</span>
-                    </div>
-                    <div>
-                      <strong>Anomaly type</strong>
-                      <span>{selectedPoint.anomaly_type || "—"}</span>
-                    </div>
-                    <div>
-                      <strong>Confidence</strong>
-                      <span className="mono">
-                        {selectedPoint.confidence != null
-                          ? selectedPoint.confidence.toFixed(2)
-                          : "—"}
-                      </span>
-                      <small>detection confidence</small>
-                    </div>
-                    <div>
-                      <strong>Winning model</strong>
-                      <span>
-                        {selectedPoint.model_name || "—"}
-                        {selectedPoint.model_version ? ` · v${selectedPoint.model_version}` : ""}
-                      </span>
-                    </div>
-                    <div>
-                      <strong>Baseline version</strong>
-                      <span className="mono">
-                        {selectedPoint.baseline_version != null ? `v${selectedPoint.baseline_version}` : "—"}
-                      </span>
-                    </div>
-                    <div>
-                      <strong>Origin</strong>
-                      <span>{selectedPoint.origin || "—"}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div className="anomaly-focus-panel__prov">
-                <div className="anomaly-focus-section">
-                  <span className="section-eyebrow">PROVENANCE</span>
-                  <div className="anomaly-focus-metrics">
-                    <div>
-                      <strong>Dataset</strong>
-                      <span className="mono">{selectedPoint.dataset_id}</span>
-                    </div>
-                    <div>
-                      <strong>Dataset</strong>
-                      <span>{selectedPoint.dataset_name || "—"}</span>
-                    </div>
-                    <div>
-                      <strong>Domain</strong>
-                      <span>{selectedPoint.domain || "—"}</span>
-                    </div>
-                    <div>
-                      <strong>Workflow run</strong>
-                      <span className="mono">{selectedPoint.workflow_run_id || "—"}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          ) : null}
-        </div>
-        <div className="anomaly-chart-basis">
-          <div className="anomaly-chart-basis__cell">
-            <span className="anomaly-chart-basis__label">WHAT THE CHART SHOWS</span>
-            <span className="anomaly-chart-basis__value">
-              Each reading's measured value against that same reading's learned baseline. Readings
-              the stage flagged are drawn as a coloured track for their severity band, and the
-              dashed rule is the lowest reading that was flagged in this window.
-            </span>
-          </div>
-          <div className="anomaly-chart-basis__cell">
-            <span className="anomaly-chart-basis__label">X AXIS</span>
-            <span className="anomaly-chart-basis__value">
-              Recorded timestamp · {activeWindow ? activeWindow.label : "full series"} window
-            </span>
-          </div>
-          <div className="anomaly-chart-basis__cell">
-            <span className="anomaly-chart-basis__label">Y AXIS</span>
-            <span className="anomaly-chart-basis__value">
-              {liveTargetUnit ? `${displayUnit(liveTargetUnit)} per reading` : "Recorded value (no unit was recorded)"}
-            </span>
-          </div>
-          <div className="anomaly-chart-basis__cell">
-            <span className="anomaly-chart-basis__label">SOURCE DATASET</span>
-            <span className="anomaly-chart-basis__value">{dataset.name}</span>
-          </div>
-          <div className="anomaly-chart-basis__cell">
-            <span className="anomaly-chart-basis__label">DATASET ID</span>
-            <span className="anomaly-chart-basis__value mono">{dataset.id}</span>
-          </div>
-          <div className="anomaly-chart-basis__cell">
-            <span className="anomaly-chart-basis__label">DOMAIN</span>
-            <span className="anomaly-chart-basis__value">{domainMeta[dataset.domain].label}</span>
-          </div>
-          <div className="anomaly-chart-basis__cell">
-            <span className="anomaly-chart-basis__label">TARGET COLUMN</span>
-            <span className="anomaly-chart-basis__value mono">
-              {liveTargetColumn ? `<${liveTargetColumn}>` : "—"}
-            </span>
-          </div>
-          <div className="anomaly-chart-basis__cell">
-            <span className="anomaly-chart-basis__label">BASELINE</span>
-            <span className="anomaly-chart-basis__value">
-              {baselineName || "—"} · {activeWindow ? activeWindow.label : "—"} window
-            </span>
-          </div>
-          <div className="anomaly-chart-basis__cell">
-            <span className="anomaly-chart-basis__label">DETECTION RULE</span>
-            <span className="anomaly-chart-basis__value">
-              {meta && meta.threshold
-                ? `a reading enters the queue at ${(meta.threshold * meta.zSaturate).toFixed(1)}σ (score ${meta.threshold.toFixed(2)})`
-                : "—"}
-            </span>
-          </div>
-          <div className="anomaly-chart-basis__cell">
-            <span className="anomaly-chart-basis__label">SEVERITY BANDS</span>
-            <span className="anomaly-chart-basis__value mono">
-              {meta?.severityBands.length
-                ? meta.severityBands
-                    .map(band => `${normaliseSeverity(band.severity)} ≥ ${band.sigmaFloor}σ`)
-                    .join(" · ")
-                : "recorded per device by the anomaly stage"}
-            </span>
-          </div>
-        </div>
-      </section>
-      <section className="panel anomaly-breakdown">
-        <SectionHeading
-          eyebrow="DETECTION BREAKDOWN"
-          title="How the anomalies split"
-          detail="Severity counts and the classes EcoMind detected, both recorded by the anomaly stage."
-        />
-        {!anomalyTotal ? (
-          <p className="mono-note table-empty-note">No anomalies recorded for this run yet.</p>
-        ) : (
-          <div className="anomaly-breakdown__grid">
-            <div className="anomaly-breakdown__block">
-              <span className="section-eyebrow">SEVERITY</span>
-              <div className="severity-bar" role="img" aria-label="Anomaly severity split">
-                {SEVERITY_ORDER.map(sev => {
-                  const count = meta?.severity?.[sev] ?? 0;
-                  const width = anomalyTotal ? (count / anomalyTotal) * 100 : 0;
-                  return count ? (
-                    <span
-                      key={sev}
-                      className={`severity-bar__seg severity-bar__seg--${sev}`}
-                      style={{ width: `${width.toFixed(2)}%` }}
-                      title={`${sev}: ${fmtCount(count)}`}
-                    />
-                  ) : null;
-                })}
-              </div>
-              <div className="severity-legend">
-                {SEVERITY_ORDER.map(sev => (
-                  <span className={`severity-legend__item severity-legend__item--${sev}`} key={sev}>
-                    <i aria-hidden="true" /> {sev} · {fmtCount(meta?.severity?.[sev] ?? 0)}
-                  </span>
-                ))}
-              </div>
-            </div>
-            <div className="anomaly-breakdown__block">
-              <span className="section-eyebrow">DETECTED CLASSES</span>
-              <div className="class-rank">
-                {!(meta?.byClass ?? []).length ? (
-                  <p className="mono-note table-empty-note">No class breakdown recorded.</p>
-                ) : null}
-                {(meta?.byClass ?? []).map(item => {
-                  const share = anomalyTotal ? (item.count / anomalyTotal) * 100 : 0;
-                  return (
-                    <div className="class-rank__row" key={item.label}>
-                      <span className="class-rank__label">{item.label}</span>
-                      <span className="class-rank__track">
-                        <span className="class-rank__fill" style={{ width: `${Math.min(100, share).toFixed(1)}%` }} />
-                      </span>
-                      <span className="mono-note">
-                        {fmtCount(item.count)} · {share.toFixed(1)}%
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        )}
-      </section>
-      <section className="panel anomaly-table-panel">
-        <div className="table-panel-head">
-          <div>
-            <div className="section-eyebrow">ANOMALY QUEUE</div>
-            <h2>Evidence, not just alerts.</h2>
-          </div>
-          <button
-            className="filter-button"
-            type="button"
-            onClick={() => sound.play({ volume: 0.08, rate: 0.9 })}
-          >
-            <ListFilter size={14} />{" "}
-            Filter <span>{anomalies.length}</span>
-          </button>
-        </div>
-        <div className="data-table">
-          <div className="data-table__head">
-            <span>SEVERITY</span>
-            <span>TYPE</span>
-            <span>TIMESTAMP</span>
-            <span>AFFECTED FEATURE</span>
-            <span>REASON</span>
-            <span />
-          </div>
-          {anomalies.map(item => (
-            <div className="data-table__row" key={item.id}>
-              <span>
-                <TinyTag
-                  tone={
-                    item.severity === "critical"
-                      ? "coral"
-                      : item.severity === "high"
-                        ? "orange"
-                        : item.severity === "medium"
-                          ? "yellow"
-                          : item.severity === "low"
-                            ? "blue"
-                            : "neutral"
-                  }
-                >
-                  {item.severity}
-                </TinyTag>
-              </span>
-              <strong style={{ color: item.severity === "critical" ? "var(--eco-coral)" : item.severity === "high" ? "var(--eco-orange)" : item.severity === "medium" ? "var(--eco-yellow)" : "var(--eco-text)" }}>{item.type}</strong>
-              <span className="mono-note">{item.timestamp}</span>
-              <code>{item.feature}</code>
-              <span>{item.reason}</span>
-              <button
-                type="button"
-                aria-label={`Inspect ${item.id}`}
-                onClick={() => {
-                  onInspect(item);
-                  sound.play({ volume: 0.12, rate: 1.05 });
-                }}
-              >
-                <Eye size={14} />
-              </button>
-            </div>
-          ))}
-        </div>
-      </section>
-    </div>
+    <AnomalyLab
+      window={window}
+      setWindow={setWindow}
+      windowOptions={windowOptions}
+      points={anomalyData}
+      anomalies={anomalies}
+      meta={liveAnomalyMeta}
+      pinned={selectedPoint}
+      onInspectPoint={onInspectPoint}
+      onClearPoint={onClearPoint}
+      onInspect={onInspect}
+      datasetName={dataset.name}
+      datasetId={dataset.id}
+      domainLabel={(domainMeta[dataset.domain] ?? domainMeta.building).label}
+      baselineName={baselineName}
+      unit={liveTargetUnit ? displayUnit(liveTargetUnit) : ""}
+    />
   );
 }
 
-function PredictionView({
-  window,
-  setWindow,
-  windowOptions,
-  onViewData,
-  onRefresh,
-  dataset,
-  baselineName,
-  modelName,
-}: {
-  window: string;
-  setWindow: (value: string) => void;
-  onViewData: () => void;
-  onRefresh?: () => void;
-  dataset: Dataset;
-  baselineName: string;
-  modelName: string;
-  windowOptions: LiveWindowOption[];
-}) {
-  const sound = useSound({ onPlay: () => {} });
-  // Re-read the recorded forecast only when the dataset in view changes. Depending
-  // on the callback itself would re-run this on every render — and because the
-  // refresh writes state, that is an endless reload loop, not a refresh.
-  useEffect(() => {
-    if (onRefresh) {
-      void onRefresh();
-    }
-  }, [dataset.id]);
-  const fm = liveForecastMeta;
-  const activeWindow =
-    windowOptions.find(option => option.id === window) ?? windowOptions[windowOptions.length - 1] ?? null;
-  const forecastPoints = activeWindow ? forecastData.slice(-activeWindow.points) : forecastData;
-  // The confidence band is painted as a stack — an invisible base at the lower
-  // bound with the recorded half-width stacked on top — so only the band itself
-  // is filled. The previous version masked the overhang with an opaque `#132119`,
-  // which painted a dark slab over the light theme and, on this data, rendered at
-  // zero width so no band showed at all.
-  const bandPoints = forecastPoints.map(point => ({
-    ...point,
-    band_kwh:
-      point.lower_kwh != null && point.upper_kwh != null
-        ? Math.max(0, point.upper_kwh - point.lower_kwh)
-        : null,
-  }));
-  const forecastTotal = forecastPoints.reduce((sum, d) => sum + (d.forecast_energy_kwh ?? 0), 0);
-  const savingsInr = liveRecMeta?.savingsInr ?? 0;
-  const savingsCo2 = liveRecMeta?.savingsCo2 ?? 0;
-  // Read the chart's own recorded values so the annotations below describe the
-  // series on screen rather than a summary computed from something else.
-  const observedPoints = forecastPoints.filter(p => p.observed_energy_kwh != null);
-  const futurePoints = forecastPoints.filter(p => p.is_future === true);
-  const observedAvg = observedPoints.length
-    ? observedPoints.reduce((sum, p) => sum + (p.observed_energy_kwh ?? 0), 0) / observedPoints.length
-    : 0;
-  const futureAvg = futurePoints.length
-    ? futurePoints.reduce((sum, p) => sum + (p.forecast_energy_kwh ?? 0), 0) / futurePoints.length
-    : 0;
-  const horizonDeltaPct = observedAvg > 0 ? ((futureAvg - observedAvg) / observedAvg) * 100 : null;
-  const peakDay = forecastPoints.length
-    ? forecastPoints.reduce((best, p) => ((p.forecast_energy_kwh ?? 0) > (best.forecast_energy_kwh ?? 0) ? p : best), forecastPoints[0])
-    : null;
-  // When the forecast snapshot carries only future data (no recorded history),
-  // the NOW divider still needs a place to stand: the first projected day becomes
-  // the history/future boundary so the chart is never a single unmarked line.
-  const originDay =
-    observedPoints.length
-      ? observedPoints[observedPoints.length - 1].day
-      : futurePoints.length
-        ? futurePoints[0].day
-        : "";
-  const bandWidth = forecastPoints.length
-    ? forecastPoints.reduce((sum, p) => sum + Math.max(0, (p.upper_kwh ?? 0) - (p.lower_kwh ?? 0)), 0) / forecastPoints.length
-    : 0;
-  return (
-    <div className="view-content">
-      <div className="prediction-topline">
-        <div className="prediction-kpis">
-          <Metric
-            label="FORECAST HORIZON"
-            value={forecastData.length ? withUnit(fmtCount(forecastTotal)) : "—"}
-            delta={fm ? `${fm.mape.toFixed(1)}% MAPE backtest` : "no run yet"}
-            direction="down"
-            accent="lime"
-          />
-          <Metric
-            label="SAVINGS / MONTH"
-            value={liveRecMeta ? `${displayUnit("INR")}${fmtCount(savingsInr)}` : "—"}
-            delta="from ranked actions"
-            direction="down"
-            accent="orange"
-          />
-          <Metric
-            label="CO₂ AVOIDED"
-            value={liveRecMeta ? `${fmtCount(savingsCo2)} kg` : "—"}
-            delta="per month"
-            direction="down"
-            accent="blue"
-          />
-        </div>
-        <div className="prediction-actions">
-          {windowOptions.length ? (
-            <div className="segmented-control">
-              {windowOptions.map(option => (
-                <button
-                  type="button"
-                  className={activeWindow?.id === option.id ? "active" : ""}
-                  key={option.id}
-                  title={option.detail}
-                  onClick={() => {
-                    setWindow(option.id);
-                    sound.play({ volume: 0.08, rate: 0.9 });
-                  }}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-          ) : (
-            <span className="mono-note">
-              No time axis recorded — the horizon is shown exactly as the forecast stage wrote it.
-            </span>
-          )}
-          <ActionButton variant="secondary" icon={Table2} onClick={onViewData}>
-            View processed data
-          </ActionButton>
-        </div>
-      </div>
-      {forecastData.length ? (
-        <section className="panel prediction-summary">
-          <div className="prediction-summary__grid">
-            <div className="prediction-summary__item">
-              <span className="section-eyebrow">WHAT THIS IS</span>
-              <strong>Forecast for {dataset.name}</strong>
-              <span>{modelName} projecting the next {futurePoints.length || "—"}-day window of {liveTargetUnit ? `${displayUnit(liveTargetUnit)}` : "load"} forward from {originDay || "the recorded origin"}. Past days are observed; future days are the model's projection.</span>
-            </div>
-            <div className="prediction-summary__item">
-              <span className="section-eyebrow">SOURCE DATASET</span>
-              <strong>{dataset.name}</strong>
-              <span>{domainMeta[dataset.domain].label} · {String(dataset.rows ?? "—")} readings · target {liveTargetColumn ? `<${liveTargetColumn}>` : "—"} · unit {liveTargetUnit ? displayUnit(liveTargetUnit) : "—"}</span>
-            </div>
-            <div className="prediction-summary__item">
-              <span className="section-eyebrow">BASELINE</span>
-              <strong>{baselineName || "—"}</strong>
-              <span>Adaptive baseline generated from this dataset, versioned with every run.</span>
-            </div>
-            <div className="prediction-summary__item">
-              <span className="section-eyebrow">BACKTEST</span>
-              <strong>{fm ? `${fm.mape.toFixed(1)}% MAPE` : "—"}</strong>
-              <span>How the selected model performed on held-out data before it was trusted with this forecast.</span>
-            </div>
-          </div>
-        </section>
-      ) : null}
-      <div className="prediction-layout">
-        <section className="panel prediction-chart-panel">
-          <div className="prediction-chart-head">
-            <div>
-              <div className="section-eyebrow">
-                FORECAST / {(activeWindow?.label ?? window).toUpperCase()}
-              </div>
-              <h2>Energy consumption forecast</h2>
-              <p>
-                {dataset.name} · {modelName} · {baselineName} · green = observed, violet = future projection, band = confidence range
-              </p>
-            </div>
-            <TinyTag tone="violet">{fm ? `${fm.algorithm} · ${fm.mape.toFixed(1)}% MAPE` : "no run yet"}</TinyTag>
-          </div>
-          <div className="prediction-chart">
-            {bandPoints.length ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={bandPoints} margin={{ top: 20, right: 22, left: -6, bottom: 4 }}>
-                  <defs>
-                    <linearGradient id="forecastBand" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#8d86ff" stopOpacity={0.30} />
-                      <stop offset="100%" stopColor="#8d86ff" stopOpacity={0.04} />
-                    </linearGradient>
-                    <linearGradient id="observedBand" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#b6f36b" stopOpacity={0.22} />
-                      <stop offset="100%" stopColor="#b6f36b" stopOpacity={0.02} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid stroke="#24342d" strokeDasharray="2 5" vertical={false} />
-                  <XAxis
-                    dataKey="day"
-                    stroke="#61776a"
-                    tickLine={false}
-                    axisLine={false}
-                    interval="preserveStartEnd"
-                    minTickGap={22}
-                    tick={{ fill: "#768e7f", fontSize: 10 }}
-                  />
-                  <YAxis
-                    stroke="#61776a"
-                    tickLine={false}
-                    axisLine={false}
-                    width={58}
-                    tick={{ fill: "#768e7f", fontSize: 10 }}
-                    tickFormatter={value => fmtCount(Number(value))}
-                  />
-                  <RechartsTooltip
-                    content={ForecastTooltipContent}
-                    cursor={{ stroke: "#3b5948", strokeWidth: 1, strokeDasharray: "3 3" }}
-                    labelStyle={{ color: "#eff8f1", fontWeight: 600, marginBottom: 4 }}
-                  />
-                  {originDay ? (
-                    <ReferenceLine
-                      x={originDay}
-                      stroke="#5d7765"
-                      strokeDasharray="4 4"
-                      label={{ value: "now", position: "insideTopRight", fill: "#8fa79a", fontSize: 10 }}
-                    />
-                  ) : null}
-                  {/* Observed history fill. */}
-                  <Area
-                    type="monotone"
-                    dataKey="observed_energy_kwh"
-                    stroke="none"
-                    fill="url(#observedBand)"
-                  />
-                  {/* The band first, so the projection line is drawn over it. */}
-                  <Area
-                    type="monotone"
-                    dataKey="lower_kwh"
-                    stackId="confidence"
-                    stroke="none"
-                    fill="transparent"
-                    activeDot={false}
-                    isAnimationActive={false}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="band_kwh"
-                    stackId="confidence"
-                    stroke="none"
-                    fill="url(#forecastBand)"
-                    activeDot={false}
-                    isAnimationActive={false}
-                  />
-                  {/* Future forecast line, drawn over the band it sits inside. */}
-                  <Area
-                    type="monotone"
-                    dataKey="forecast_energy_kwh"
-                    stroke="#8d86ff"
-                    strokeWidth={2.4}
-                    fill="none"
-                    activeDot={{ r: 4, fill: "#8d86ff", stroke: "#101c15", strokeWidth: 1.5 }}
-                    isAnimationActive={false}
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="chart-frame--empty chart-frame--prediction">
-                <p className="chart-empty__title">No forecast recorded yet</p>
-                <p className="chart-empty__description">At least one pipeline run is required to generate a forecast. Run the pipeline from the Mission Control to produce a projection of future energy consumption for this dataset.</p>
-              </div>
-            )}
-          </div>
-          <div className="prediction-chart-basis">
-            <div className="prediction-chart-basis__cell">
-              <span className="prediction-chart-basis__label">WHAT THE CHART SHOWS</span>
-              <span className="prediction-chart-basis__value">
-                The area chart plots observed historical energy consumption (green) against the
-                model's future projection (violet), with a confidence band (± standard deviation)
-                showing the forecast range. Green = observed data, Violet = future projection,
-                Band = confidence range based on model uncertainty.
-              </span>
-            </div>
-            <div className="prediction-chart-basis__cell">
-              <span className="prediction-chart-basis__label">X AXIS</span>
-              <span className="prediction-chart-basis__value">
-                {activeWindow?.label ?? "full series"} window · recorded timestamps
-              </span>
-            </div>
-            <div className="prediction-chart-basis__cell">
-              <span className="prediction-chart-basis__label">Y AXIS</span>
-              <span className="prediction-chart-basis__value">
-                {liveTargetUnit ? `${displayUnit(liveTargetUnit)} per reading` : "Recorded energy (kWh)"}
-              </span>
-            </div>
-            <div className="prediction-chart-basis__cell">
-              <span className="prediction-chart-basis__label">SOURCE DATASET</span>
-              <span className="prediction-chart-basis__value mono">{dataset.name}</span>
-            </div>
-            <div className="prediction-chart-basis__cell">
-              <span className="prediction-chart-basis__label">DATASET ID</span>
-              <span className="prediction-chart-basis__value mono">{dataset.id}</span>
-            </div>
-            <div className="prediction-chart-basis__cell">
-              <span className="prediction-chart-basis__label">DOMAIN</span>
-              <span className="prediction-chart-basis__value">{domainMeta[dataset.domain].label}</span>
-            </div>
-            <div className="prediction-chart-basis__cell">
-              <span className="prediction-chart-basis__label">TARGET COLUMN</span>
-              <span className="prediction-chart-basis__value mono">
-                {liveTargetColumn ? `<${liveTargetColumn}>` : "—"}
-              </span>
-            </div>
-          </div>
-          <div className="forecast-readout">
-            {/* Only cells the recorded horizon can actually fill are shown: a
-                row of dashes is noise, not information. */}
-            {observedPoints.length ? (
-              <div className="forecast-readout__cell">
-                <small>OBSERVED DAYS</small>
-                <strong>{observedPoints.length}</strong>
-              </div>
-            ) : null}
-            <div className="forecast-readout__cell">
-              <small>FORECAST DAYS</small>
-              <strong>{futurePoints.length || "—"}</strong>
-            </div>
-            <div className="forecast-readout__cell">
-              <small>PEAK DAY</small>
-              <strong>{peakDay ? `${peakDay.day} · ${withUnit(fmtCount(peakDay.forecast_energy_kwh ?? 0))}` : "—"}</strong>
-            </div>
-            <div className="forecast-readout__cell">
-              <small>AVG CONFIDENCE BAND</small>
-              <strong>{bandWidth ? `±${withUnit(fmtCount(bandWidth / 2))}` : "—"}</strong>
-            </div>
-            {horizonDeltaPct != null ? (
-              <div className="forecast-readout__cell">
-                <small>HORIZON VS OBSERVED</small>
-                <strong className={horizonDeltaPct < 0 ? "forecast-readout__down" : ""}>
-                  {`${horizonDeltaPct >= 0 ? "+" : ""}${horizonDeltaPct.toFixed(1)}%`}
-                </strong>
-              </div>
-            ) : null}
-          </div>
-          <div className="chart-legend">
-            <span>
-              <i style={{ background: "#b6f36b" }} />
-              {" "}
-              observed
-            </span>
-            <span>
-              <i style={{ background: "#8d86ff" }} />
-              {" "}
-              forecast
-            </span>
-            <span>
-              <i style={{ background: "#8d86ff", opacity: 0.28 }} />
-              {" "}
-              confidence band
-            </span>
-            <AxisNote
-              quantity="Daily total"
-              unit={liveTargetUnit}
-              origin="Recorded by the forecast stage: the selected model's prediction for each day of the horizon, with the backtest confidence band."
-            />
-          </div>
-        </section>
-        <section className="panel forecast-breakdown">
-          <SectionHeading eyebrow="FORECAST BREAKDOWN" title="What moves the number" />
-          {liveCompetition?.weights?.length ? (
-            liveCompetition.weights.slice(0, 4).map(weight => (
-              <div className="forecast-factor" key={weight.label}>
-                <span className="forecast-factor__icon forecast-factor__icon--lime">
-                  <TrendingUp size={15} />
-                </span>
-                <div>
-                  <strong>{weight.label}</strong>
-                  <span>recorded model weight</span>
-                </div>
-                <strong>{weight.weight.toFixed(2)}</strong>
-              </div>
-            ))
-          ) : (
-            <p className="mono-note forecast-breakdown__empty">No model weights recorded for this run.</p>
-          )}
-          <div className="forecast-breakdown__note">
-            <Sparkles size={14} />
-            <span>
-              {liveCompetition?.weights?.length
-                ? `The winning model's recorded feature weights, read from the model competition stage for this run.`
-                : "No factor weights were recorded, so none are shown."}
-            </span>
-          </div>
-        </section>
-      </div>
-      <div className="prediction-detail">
-        <section className="panel forecast-days">
-          <SectionHeading
-            eyebrow="DAY BY DAY"
-            title="The horizon, one line at a time"
-            detail={`Every recorded forecast value in the ${activeWindow?.label ?? "full"} window, with its backtest interval, in the unit of the modelled target column.`}
-          />
-          {!forecastData.length ? (
-            <p className="mono-note table-empty-note">No forecast recorded for this dataset yet.</p>
-          ) : (
-            <div className="data-table">
-              <div className="data-table__head forecast-days__row">
-                <span>DAY</span>
-                <span>OBSERVED</span>
-                <span>FORECAST</span>
-                <span>INTERVAL</span>
-                <span>COST</span>
-                <span>CO₂</span>
-              </div>
-              {forecastPoints.map(point => {
-                const delta =
-                  point.observed_energy_kwh != null && point.observed_energy_kwh !== 0
-                    ? ((point.forecast_energy_kwh ?? 0) - point.observed_energy_kwh) / point.observed_energy_kwh * 100
-                    : null;
-                const u = liveTargetUnit ? ` ${displayUnit(liveTargetUnit)}` : "";
-                const interval = (point.lower_kwh != null && point.upper_kwh != null)
-                  ? `±${fmtCount(Number(((point.upper_kwh - point.lower_kwh) / 2).toFixed(1)))}${u}`
-                  : "—";                const cost = point.expected_cost_inr != null ? `${displayUnit("INR")}${fmtCount(point.expected_cost_inr)}` : "—";
-                const co2 = point.expected_co2_kg != null ? `${fmtCount(point.expected_co2_kg)} kgCO₂` : "—";
-                return (
-                  <div className="data-table__row forecast-days__row" key={point.day}>
-                    <strong>{point.day}</strong>
-                    <span>{point.observed_energy_kwh != null ? `${fmtCount(point.observed_energy_kwh)}${u}` : "—"}</span>
-                    <span><strong>{fmtCount(point.forecast_energy_kwh ?? 0)}</strong>{u}</span>
-                    <span className="mono-note">{interval}</span>
-                    <span className="mono-note">{cost}</span>
-                    <span className="mono-note">{co2}</span>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </section>
-      </div>
-      <div className="prediction-detail">
-        <section className="panel forecast-now">
-          <SectionHeading
-            eyebrow="NOW DIVIDER"
-            title="History is fixed. Future is projected."
-            detail="The dataset ends here — the right side of the chart is the model's projection, with its measured confidence band."
-          />
-          <div className="impact-list">
-            <div className="impact-row">
-              <span>Cost opportunity</span>
-              <strong>
-                {liveRecMeta ? `${displayUnit("INR")}${fmtCount(savingsInr)}` : "—"}
-                <small> / month</small>
-              </strong>
-            </div>
-            <div className="impact-row">
-              <span>Carbon avoided</span>
-              <strong>
-                {liveRecMeta ? fmtCount(savingsCo2) : "—"}
-                <small> {displayUnit("kgCO2")} / month</small>
-              </strong>
-            </div>
-            <div className="impact-row">
-              <span>Backtest error</span>
-              <strong>
-                {fm?.mape ? `${fm.mape.toFixed(1)}` : "—"}
-                <small> % MAPE</small>
-              </strong>
-            </div>
-            <div className="impact-row">
-              <span>Selected model</span>
-              <strong>{modelName || "—"}</strong>
-            </div>
-            <div className="impact-row">
-              <span>Horizon origin</span>
-              <strong>{fm?.origin || "—"}</strong>
-            </div>
-            <div className="impact-row">
-              <span>Baseline compared</span>
-              <strong>{baselineName || "—"}</strong>
-            </div>
-          </div>
-        </section>
-      </div>
-      <div className="prediction-footnote">
-        <span>
-          <Info size={14} />{" "}
-          Cost uses current tariff schedule · carbon uses regional grid factor
-        </span>
-        <span className="mono-note">
-          GENERATED / {fm?.origin ?? "—"}
-        </span>
-      </div>
-    </div>
-  );
-}
 
-function RecommendationsView({
-  dataset,
-  baselineName,
-}: {
-  dataset: Dataset;
-  baselineName: string;
-}) {
-  const sound = useSound({ onPlay: () => {} });
-  const recCount = liveRecMeta?.total ?? recommendations.length;
-  const savingsInr = liveRecMeta?.savingsInr ?? 0;
-  const savingsCo2 = liveRecMeta?.savingsCo2 ?? 0;
-  const anomalyCount = liveAnomalyMeta?.total ?? anomalies.length;
-  const avgConf = recommendations.length
-    ? recommendations.reduce((sum, r) => sum + (parseFloat(r.confidence) || 0), 0) / recommendations.length
-    : 0;
-  return (
-    <div className="view-content">
-      <div className="recommendation-banner">
-        <div className="recommendation-banner__icon">
-          <Lightbulb size={22} />
-        </div>
-        <div>
-          <span className="section-eyebrow">AI ACTION LAYER</span>
-          <h2>{recCount ? `${recCount} action${recCount === 1 ? "" : "s"} ${recCount === 1 ? "is" : "are"} worth your attention.` : "No recommendations recorded."}</h2>
-          <p>
-            Generated from {anomalyCount} anomalies, the {baselineName} baseline, and the recorded forecast.
-          </p>
-        </div>
-        <div className="recommendation-banner__score">
-          <span>EXPECTED MONTHLY IMPACT</span>
-          <strong>{displayUnit("INR")}{fmtCount(savingsInr)}</strong>
-          <span>{fmtCount(savingsCo2)} {displayUnit("kgCO2")} avoided</span>
-        </div>
-      </div>
-      <div className="recommendation-layout">
-        <div className="recommendation-main">
-        <div className="recommendation-list__head">
-          <span className="section-eyebrow">ACTION PLAN</span>
-          <h3>Staged operating actions</h3>
-          <p>
-            Each recommendation can be added to your action plan so your team can track what to do next.
-            The plan is a staging area — add the actions you intend to take, then execute them in your own workflow.
-          </p>
-        </div>
-        <section className="recommendation-list">
-          {!recommendations.length ? (
-            <p className="mono-note table-empty-note">No recommendations recorded for this dataset.</p>
-          ) : null}
-          {recommendations.map(item => (
-            <article className={`recommendation-card recommendation-card--${item.color}`} key={item.priority}>
-              <div className="recommendation-card__index">{item.priority}</div>
-              <div className="recommendation-card__body">
-                <div className="recommendation-card__meta">
-                  <TinyTag
-                    tone={
-                      item.color === "lime"
-                        ? "lime"
-                        : item.color === "orange"
-                        ? "orange"
-                        : "violet"
-                    }
-                  >
-                    {item.color === "lime" ? "QUICK WIN" : item.color === "orange" ? "INSPECT" : "OPTIMIZE"}
-                  </TinyTag>
-                  <span>
-                    <Sparkles size={12} />{" "}
-                    {item.confidence} confidence
-                  </span>
-                </div>
-                <h3>{item.title}</h3>
-                <p>{item.body}</p>
-                <div className="recommendation-card__evidence">
-                  <span>
-                    <small>PRIORITY</small>
-                    <strong>{item.band}</strong>
-                  </span>
-                  <span>
-                    <small>CATEGORY</small>
-                    <strong>{item.category}</strong>
-                  </span>
-                  <span>
-                    <small>DEVICE</small>
-                    <strong>
-                      {item.deviceLabel}
-                      {item.deviceCode !== "—" ? ` · ${item.deviceCode}` : ""}
-                    </strong>
-                  </span>
-                  <span>
-                    <small>RECOVERABLE</small>
-                    <strong>
-                      {item.savingsKwh
-                        ? `${fmtCount(item.savingsKwh)}${liveTargetUnit ? ` ${displayUnit(liveTargetUnit)}` : ""}`
-                        : "—"}
-                    </strong>
-                  </span>
-                  <span>
-                    <small>COST</small>
-                    <strong>
-                      {item.savingsCostInr ? `${displayUnit("INR")}${fmtCount(item.savingsCostInr)}` : "—"}
-                    </strong>
-                  </span>
-                  <span>
-                    <small>CO₂</small>
-                    <strong>
-                      {item.savingsCo2Kg ? `${fmtCount(item.savingsCo2Kg)} ${displayUnit("kgCO2")}` : "—"}
-                    </strong>
-                  </span>
-                  <span>
-                    <small>PAYBACK</small>
-                    <strong>
-                      {item.paybackMonths != null
-                        ? `${item.paybackMonths.toFixed(1)} mo · ${item.paybackVerdict}`
-                        : item.paybackVerdict}
-                    </strong>
-                  </span>
-                  <span>
-                    <small>EVIDENCE</small>
-                    <strong>
-                      {item.evidenceCount
-                        ? `${item.evidenceCount} recorded anomal${item.evidenceCount === 1 ? "y" : "ies"}`
-                        : "—"}
-                    </strong>
-                  </span>
-                </div>
-                {item.reason ? <p className="recommendation-card__reason">{item.reason}</p> : null}
-                <div className="recommendation-card__impact">
-                  <span>
-                    <TrendingDown size={13} />{" "}
-                    {item.impact}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      sound.play({ volume: 0.12, rate: 1.05 });
-                    }}
-                  >
-                    Add to action plan <ArrowRight size={13} />
-                  </button>
-                  <span className="recommendation-card__action-note">
-                    Save this to your staged operating actions.
-                  </span>
-                </div>
-              </div>
-              <button
-                className="recommendation-card__check"
-                type="button"
-                aria-label={`Mark ${item.title} complete`}
-                onClick={() => {
-                  sound.play({ volume: 0.14, rate: 1.1 });
-                }}
-              >
-                <Check size={15} />
-              </button>
-            </article>
-          ))}
-          </section>
-        </div>
-        <aside className="recommendation-aside">
-          <section className="panel evidence-panel">
-            <SectionHeading
-              eyebrow="WHY THESE ACTIONS"
-              title="Where the confidence comes from"
-              detail="Every recommendation is tied to the active run — anomalies, forecast, and tariff context."
-            />
-            <div className="evidence-ring">
-              <div className="evidence-ring__circle">
-                <strong>{avgConf ? Math.round(avgConf) : "—"}</strong>
-                <span>confidence</span>
-              </div>
-              <div className="evidence-ring__labels">
-                <span>
-                  <i style={{ background: "#b6f36b" }} />
-                  {" "}
-                  {anomalyCount} anomalies
-                </span>
-                <span>
-                  <i style={{ background: "#8d86ff" }} />
-                  {" "}
-                  {forecastData.length ? `${forecastData.length}-period forecast` : "no forecast"}
-                </span>
-                <span>
-                  <i style={{ background: "#f5a56d" }} />
-                  {" "}
-                  tariff context
-                </span>
-              </div>
-            </div>
-            <div className="evidence-foot">
-              <span>
-                <Database size={13} />{" "}
-                {dataset.id.toLowerCase()}
-              </span>
-              <span>
-                <Clock3 size={13} />{" "}
-                refreshed {dataset.freshness}
-              </span>
-            </div>
-          </section>
-          <section className="panel recommendation-note">
-            <Info size={16} />
-            <div>
-              <strong>Human-in-the-loop</strong>
-              <p>These are suggestions, not automated changes. Your team stays in control of execution.</p>
-            </div>
-          </section>
-        </aside>
-      </div>
-    </div>
-  );
-}
 
-function ReportsView({
-  exported,
-  draft,
-  onDraft,
-  onCloseDraft,
-  onExport,
-  pdfUrl,
-  pdfBusy,
-  onLoadPdf,
-  dataset,
-  domainInfo,
-  baselineName,
-  modelName,
-}: {
-  exported: boolean;
-  draft: string | null;
-  onDraft: () => void;
-  onCloseDraft: () => void;
-  onExport: () => void;
-  pdfUrl: string;
-  pdfBusy: boolean;
-  onLoadPdf: () => void;
-  dataset: Dataset;
-  domainInfo: (typeof domainMeta)[DatasetDomain];
-  baselineName: string;
-  modelName: string;
-}) {
-  const sound = useSound({ onPlay: () => {} });
-  const [copied, setCopied] = useState(false);
-  const copyDraft = async () => {
-    if (!draft) return;
-    try {
-      await navigator.clipboard.writeText(draft);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 2000);
-    } catch {
-      setCopied(false);
-    }
-  };
-  const downloadDraft = () => {
-    if (!draft) return;
-    const url = URL.createObjectURL(new Blob([draft], { type: "text/markdown;charset=utf-8" }));
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = `ecomind-${dataset.id.toLowerCase()}-briefing.md`;
-    anchor.click();
-    URL.revokeObjectURL(url);
-  };
-  const sections = [
-    {
-      label: "Project summary",
-      detail: liveRunId ? `Dataset ${dataset.id} / run ${liveRunId.slice(0, 8)}` : "No run recorded yet",
-      icon: FileText,
-    },
-    {
-      label: "Analytics",
-      detail: `${modelName} metrics + forecast breakdown`,
-      icon: BarChart3,
-    },
-    {
-      label: "Anomalies",
-      detail: `${liveAnomalyMeta?.total ?? anomalies.length} flagged events with evidence`,
-      icon: AlertTriangle,
-    },
-    {
-      label: "Recommendations",
-      detail: `${liveRecMeta?.total ?? recommendations.length} ranked operating actions`,
-      icon: Lightbulb,
-    },
-  ];
-  return (
-    <div className="view-content">
-      <div className="report-layout">
-        <section className="report-cover">
-          <div className="report-cover__grid" />
-          <div className="report-cover__top">
-            <span className="brand-mini">
-              <EcoMindMark size={23} />
-              <strong>EcoMind</strong>
-            </span>
-            <span className="mono-note">REPORT / {fmtRunClock(new Date().toISOString())}</span>
-          </div>
-          <div className="report-cover__content">
-            <span className="section-eyebrow">
-              {dataset.name} / {dataset.id}
-            </span>
-            <h2>
-              Energy intelligence
-              <br />
-              <em>briefing</em>
-            </h2>
-            <p>
-              Project-scoped findings from the {dataset.name} AI pipeline.
-            </p>
-            <div className="report-cover__rule" />
-            <div className="report-cover__meta">
-              <span>
-                <small>DATASET</small>
-                <strong>{dataset.name}</strong>
-              </span>
-              <span>
-                <small>DOMAIN</small>
-                <strong>{domainInfo.label}</strong>
-              </span>
-              <span>
-                <small>VERSION</small>
-                <strong>{baselineName}</strong>
-              </span>
-              <span>
-                <small>MODEL</small>
-                <strong>{modelName}</strong>
-              </span>
-            </div>
-          </div>
-          <div className="report-cover__footer">
-            <span>
-              <span className="status-dot status-dot--lime" />
-              AI decisions inspectable
-            </span>
-            <span>Page 01 / {String(sections.length + 5).padStart(2, "0")}</span>
-          </div>
-        </section>
-        <section className="panel report-export-panel">
-          <div className="report-export-panel__head">
-            <div>
-              <div className="section-eyebrow">EXPORT SCOPE</div>
-              <h2>Only project truth.</h2>
-              <p>
-                Reports include the active project's summaries, analytics, anomalies, predictions, and
-                recommendations — nothing else.
-              </p>
-            </div>
-            <div className="report-format">
-              <span>FORMAT</span>
-              <strong>PDF</strong>
-              <ChevronDown size={13} />
-            </div>
-          </div>
-          <div className="report-sections">
-            {sections.map(section => {
-              const Icon = section.icon;
-              return (
-                <div className="report-section-row" key={section.label}>
-                  <span className="report-section-row__icon">
-                    <Icon size={16} />
-                  </span>
-                  <div>
-                    <strong>{section.label}</strong>
-                    <span>{section.detail}</span>
-                  </div>
-                  <CheckCircle2 size={15} className="report-section-row__check" />
-                </div>
-              );
-            })}
-          </div>
-          <div className="report-export-panel__footer">
-            <div>
-              <span className="mono-note">{sections.length} SECTIONS / DATASET {dataset.id}</span>
-              <span>{exported ? "Exported just now" : "Last generated: never"}</span>
-            </div>
-            <div className="report-export-actions">
-              <button
-                className="report-preview-button"
-                type="button"
-                onClick={() => {
-                  onDraft();
-                  sound.play({ volume: 0.14, rate: 1.0 });
-                }}
-              >
-                <Sparkles size={14} />
-                {" "}
-                {draft ? "Regenerate preview" : "Preview report"}
-              </button>
-              {draft && (
-                <ReportPreviewModal
-                  draft={draft}
-                  copied={copied}
-                  onClose={onCloseDraft}
-                  onCopy={copyDraft}
-                  onDownload={downloadDraft}
-                  onExport={onExport}
-                />
-              )}
-              <ActionButton icon={exported ? Check : Download} onClick={onExport}>
-                {exported ? "Report exported" : "Export project report"}
-              </ActionButton>
-            </div>
-          </div>
-        </section>
-      </div>
-      <section className="panel report-pdf-panel">
-        <div className="report-pdf-panel__head">
-          <div>
-            <div className="section-eyebrow">REPORT PREVIEW</div>
-            <h2>The generated PDF</h2>
-            <p>
-              This is the file the backend produced for this run — the same document the export button
-              saves. Nothing is downloaded until you press export.
-            </p>
-          </div>
-          <ActionButton icon={FileText} onClick={onLoadPdf}>
-            {pdfBusy ? "Loading…" : pdfUrl ? "Reload PDF" : "Load PDF preview"}
-          </ActionButton>
-        </div>
-        {pdfUrl ? (
-          <iframe
-            className="report-pdf-frame"
-            title="EcoMind executive report PDF"
-            src={pdfUrl}
-          />
-        ) : (
-          <div className="report-pdf-empty">
-            <FileText size={18} />
-            <span>
-              {liveRunId
-                ? "Load the PDF to read the report in place."
-                : "No run recorded yet — run the pipeline to generate the report PDF."}
-            </span>
-          </div>
-        )}
-      </section>
-      <div className="report-history-strip">
-        <div>
-          <FileCheck2 size={15} />
-          <span>
-            <strong>Export control</strong>{" "}
-            Project-scoped summaries only
-          </span>
-        </div>
-        <div>
-          <Database size={15} />
-          <span>
-            <strong>Source</strong>{" "}
-            {dataset.name} / {baselineName}
-          </span>
-        </div>
-        <div>
-          <ShieldCheck size={15} />
-          <span>
-            <strong>Privacy</strong>{" "}
-            No cross-workspace data
-          </span>
-        </div>
-      </div>
-    </div>
-  );
-}

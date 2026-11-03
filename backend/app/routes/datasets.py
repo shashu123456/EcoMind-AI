@@ -178,6 +178,74 @@ def forecast_chart(
     return forecast_service.get_prediction_chart_data(db, id, filters or {})
 
 
+@router.get("/{dataset_id}/forecast")
+def forecast_detail(
+    dataset_id: str,
+    horizon: str = Query("30d"),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """The full forecast payload the prediction page renders.
+
+    One read rather than four: the chart, the KPI cards, the model that produced
+    them, the measured error and the version ledger belong to the same forecast,
+    and assembling them from separate endpoints is how a page ends up showing a
+    chart from one run beside a model name from another.
+    """
+    from app.domain import forecast_service
+
+    return forecast_service.detail(db, dataset_id, horizon)
+
+
+@router.post("/{dataset_id}/forecast")
+def forecast_generate(
+    dataset_id: str,
+    body: dict | None = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Generate (or regenerate) a forecast on demand for one horizon.
+
+    This is what the empty state and the horizon selector call. It loads the
+    selected model's saved artifact, walks the horizon, writes a new versioned
+    ``forecasts`` row and returns the same payload the reader serves, so the page
+    never has to refetch to see what it just generated.
+    """
+    from app.domain import forecast_service
+
+    horizon = str((body or {}).get("horizon") or "30d")
+    return forecast_service.generate(db, dataset_id, horizon)
+
+
+@router.get("/{dataset_id}/forecast/history")
+def forecast_history(
+    dataset_id: str,
+    horizon: str = Query("30d"),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Every stored run for a horizon, newest first — the version ledger."""
+    from app.domain import forecast_service
+
+    return {"horizon": horizon, "versions": forecast_service.history(db, dataset_id, horizon)}
+
+
+@router.post("/{dataset_id}/forecast/restore")
+def forecast_restore(
+    dataset_id: str,
+    body: dict,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Make an earlier version current again by re-recording it."""
+    from app.domain import forecast_service
+
+    forecast_id = str(body.get("forecast_id") or "")
+    if not forecast_id:
+        raise HTTPException(400, "forecast_id is required")
+    return forecast_service.restore(db, dataset_id, forecast_id)
+
+
 @router.get("/{dataset_id}/anomalies/stage")
 def anomaly_stage_output(
     dataset_id: str,

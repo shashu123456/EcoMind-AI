@@ -879,3 +879,50 @@
 .report-pdf-panel__head p { color: var(--eco-text-muted); font-size: 10px; line-height: 1.5; margin: 0; max-width: 560px; }
 .report-pdf-frame { width: 100%; height: 780px; margin-top: 16px; border: 1px solid var(--eco-line); border-radius: 10px; background: #fff; }
 .report-pdf-empty { display: grid; gap: 10px; justify-items: start; margin-top: 16px; padding: 22px; border: 1px dashed var(--eco-line-strong); border-radius: 10px; color: var(--eco-text-muted); font-size: 10.5px; }
+
+/* Dataset health ring — circular score inside the existing stat block. */
+.health-ring {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.health-ring svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+.health-ring__track {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.1);
+  stroke-width: 3;
+}
+
+.health-ring__fill {
+  fill: none;
+  stroke: var(--accent, #c6f36a);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-dasharray: 94.25;
+  transition: stroke-dashoffset 0.8s ease;
+}
+
+.health-ring--warn .health-ring__fill {
+  stroke: #f2b45c;
+}
+
+.health-ring--bad .health-ring__fill {
+  stroke: #ff6a6a;
+}
+
+.dataset-card__actions button[aria-pressed="true"] {
+  color: var(--accent, #c6f36a);
+}

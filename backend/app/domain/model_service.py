@@ -32,6 +32,7 @@ import pandas as pd
 from app.core.config import settings
 from app.db.models import Model, ModelSelection
 from app.domain import snapshots
+from app.domain.model_artifacts import save_artifact
 from app.domain.data import json_safe
 from app.domain.dataset_service import audit, load_dataframe
 from app.domain.feature_service import TARGET_CANDIDATES, target_column
@@ -79,6 +80,13 @@ SAME_ROW_TARGET_DERIVATIVES = {
     "rolling_mean_24h",
     "rolling_std_24h",
     "diff_1h",
+    # Tariff identity. On a metered dataset `cost_inr` is the target multiplied
+    # by the hour's rate and `co2_kg` is the target multiplied by a constant, so
+    # a model given either reproduces the target by division. It scored R² of
+    # 1.0000 and MAPE of 0.00% and then "forecast" energy from a cost that no
+    # future hour can supply — arithmetic wearing a forecast's clothes.
+    "cost_inr",
+    "co2_kg",
 }
 
 #: Energy and power are the same measurement over an hourly interval: kWh is kW ×
@@ -279,6 +287,27 @@ def train_candidates(db: Session, dataset_id: str, params: dict | None = None) -
         )
         db.add(row)
         db.flush()
+        # Persist the fitted estimator under the model row's own id, plus the
+        # exact column order it was trained on. Without this the forecast stage
+        # holds metrics about a model it cannot call, which is the state this
+        # dataset was stuck in: a completed forecast stage and no forecast.
+        if not error:
+            try:
+                row.model_path = save_artifact(
+                    row.id,
+                    model,
+                    feature_cols=feature_cols,
+                    target=target,
+                    algorithm=algorithm,
+                    hyperparameters=hp,
+                    training_rows=int(len(y_tr)),
+                    validation_rows=int(len(y_te)),
+                    training_seconds=trained_seconds,
+                )
+            except Exception:
+                # A failed save must not fail the race: the metrics are real and
+                # the forecast stage retrains from them when no file is found.
+                row.model_path = None
         display, family = ALGORITHM_INFO.get(algorithm, (algorithm, "linear"))
         candidates.append(
             {

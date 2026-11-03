@@ -57,6 +57,8 @@ from .routes import (  # noqa: E402
 from .routes import (  # noqa: E402
     schema as schema_route,
 )
+from .routes import recommendations as recommendations_route  # noqa: E402
+from .routes import reports as reports_route  # noqa: E402
 
 app.include_router(health.router, prefix="/api/v1", tags=["health"])
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
@@ -65,6 +67,10 @@ app.include_router(schema_route.router, prefix="/api/v1/datasets", tags=["schema
 app.include_router(dq.router, prefix="/api/v1/datasets", tags=["dq"])
 app.include_router(baseline.router, prefix="/api/v1/datasets", tags=["baseline"])
 app.include_router(activity.router, prefix="/api/v1/activity", tags=["activity"])
+app.include_router(
+    recommendations_route.router, prefix="/api/v1/datasets", tags=["recommendations"]
+)
+app.include_router(reports_route.router, prefix="/api/v1/datasets", tags=["reports"])
 app.include_router(workflow.router, prefix="/api/v1/workflows", tags=["workflows"])
 
 # Serve built frontend in production (SPA with fallback to index.html)

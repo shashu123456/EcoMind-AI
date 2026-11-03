@@ -170,6 +170,194 @@ export const domain = {
   reportPdfUrl: (runId: string) => `${BASE}/workflows/${runId}/report.pdf`,
 };
 
+/* ── Recommendations (decision desk) ──────────────────────────────── */
+export type RecCard = {
+  id: string;
+  priority: string;
+  status: string;
+  category: string;
+  category_label: string;
+  title: string;
+  reason: string;
+  action: string;
+  device_code: string;
+  device_label: string;
+  building_code: string;
+  floor_no?: string | null;
+  room_code?: string | null;
+  severity?: string | null;
+  confidence?: number | null;
+  savings_kwh: number;
+  savings_cost_inr: number;
+  savings_co2_kg: number;
+  monthly_savings_inr?: number | null;
+  estimated_cost_inr?: number | null;
+  payback_months?: number | null;
+  payback_verdict?: string;
+  anomaly_count?: number | null;
+  peak_hours?: string[];
+  first_seen?: string | null;
+  last_seen?: string | null;
+  risk?: { level: string; note: string };
+  assignment?: Record<string, string | null>;
+  history?: { event: string; detail: string; at: string; by: string }[];
+  forecast_basis?: string;
+  created_at?: string | null;
+};
+
+export type RecSummary = {
+  total: number;
+  active: number;
+  closed: number;
+  by_priority: Record<string, number>;
+  by_status: Record<string, number>;
+  savings_kwh: number;
+  savings_cost_inr: number;
+  savings_co2_kg: number;
+  critical: number;
+  avg_confidence_pct: number | null;
+  devices_affected: number;
+  buildings_affected: number;
+  implementation_cost_inr: number | null;
+  avg_roi_pct: number | null;
+  avg_payback_months: number | null;
+  currency: string;
+  currency_symbol: string;
+};
+
+export type RecListResponse = {
+  status: "ready" | "empty";
+  message?: string;
+  summary: RecSummary;
+  filtered?: number;
+  recommendations: RecCard[];
+  priority_matrix: { id: string; title: string; priority: string; impact_inr: number; effort_inr: number | null; confidence_pct: number; status: string }[];
+  facets?: { priority: Record<string, number>; status: Record<string, number>; building: string[]; device: string[]; category: string[] };
+  statuses: string[];
+};
+
+export type RecDetail = {
+  recommendation: RecCard;
+  problem: Record<string, unknown>;
+  evidence: {
+    anomalies: { id: string; timestamp: string | null; class: string; severity: string; deviation_pct: number | null; expected_kwh: number | null; actual_kwh: number | null; excess_kwh: number | null }[];
+    anomaly_count: number;
+    forecast_basis: string;
+  };
+  root_causes: { factor: string; occurrences: number | null; contribution_pct: number | null; effect: string; evidence: string }[];
+  financials: Record<string, number | string | null>;
+  energy: Record<string, number | null>;
+  carbon: { co2_kg: number; kg_per_kwh: number };
+  risk: { level: string; note: string };
+  implementation: { steps: string[]; maintenance_action: string; rollback: string; affected_systems: string[] };
+  assignment: Record<string, string | null>;
+  history: { event: string; detail: string; at: string; by: string }[];
+  timeline: { event: string; detail?: string; at: string | null; by?: string }[];
+};
+
+/* ── Forecast (prediction page) ───────────────────────────────────── */
+export type ForecastPoint = {
+  timestamp: string;
+  energy_kwh: number;
+  lower_kwh: number | null;
+  upper_kwh: number | null;
+  cost_inr: number | null;
+  co2_kg: number | null;
+  confidence: number | null;
+  tariff_band: string;
+  temperature_c: number | null;
+};
+
+export type ForecastDetail = {
+  status: "ready" | "missing";
+  message?: string;
+  dataset_id: string;
+  dataset_name?: string;
+  target_column?: string | null;
+  unit?: string;
+  horizon?: string;
+  horizon_label?: string;
+  horizons?: { horizon: string; label: string; hours: number }[];
+  forecast?: {
+    id: string;
+    horizon: string;
+    tier: string;
+    method: string;
+    points: ForecastPoint[];
+    history: { timestamp: string; observed_kwh: number; cost_inr: number; co2_kg: number; tariff_band: string }[];
+    aggregates: Record<string, number | string | null | unknown>;
+    peaks: Record<string, string | number | null>;
+    generated_at: string | null;
+    exogenous_assumption?: string | null;
+    devices?: string[];
+  };
+  kpis?: {
+    energy_kwh: number;
+    cost_inr: number;
+    carbon_kg: number;
+    peak_kw: number | null;
+    peak_at: string | null;
+    avg_kw: number;
+    window_start: string | null;
+    window_end: string | null;
+    horizon: string;
+    horizon_label: string;
+    confidence_pct: number | null;
+    model_version: string | null;
+    generated_at: string | null;
+    version: number | null;
+    band_width_pct: number | null;
+  };
+  model?: {
+    id: string;
+    algorithm: string;
+    version: string | number;
+    trained_at: string | null;
+    training_rows: number | null;
+    training_seconds: number | null;
+    hyperparameters: Record<string, unknown>;
+    metrics: Record<string, number | null>;
+    feature_count: number | null;
+    features: string[];
+    artifact: string | null;
+    artifact_source: string | null;
+  } | null;
+  quality?: Record<string, number | string | null>;
+  features?: { feature: string; label: string; importance: number; importance_pct: number | null; direction: string | null; correlation: number | null; coefficient: number | null; group: string }[];
+  history?: { version: number; id: string; generated_at: string | null; horizon: string; method: string; total_kwh: number | null; total_cost_inr: number | null; co2_tonnes: number | null; mape: number | null; status: string; run_id: string | null }[];
+  generated_ms?: number | null;
+  tariff?: Record<string, unknown>;
+};
+
+export const forecastApi = {
+  detail: (datasetId: string, horizon: string) =>
+    api.get<ForecastDetail>(`/datasets/${datasetId}/forecast`, { horizon }),
+  generate: (datasetId: string, horizon: string) =>
+    api.post<ForecastDetail>(`/datasets/${datasetId}/forecast`, { horizon }),
+  history: (datasetId: string, horizon: string) =>
+    api.get<{ versions: ForecastDetail["history"] }>(`/datasets/${datasetId}/forecast/history`, { horizon }),
+  restore: (datasetId: string, forecastId: string) =>
+    api.post<{ forecast_id: string }>(`/datasets/${datasetId}/forecast/restore`, { forecast_id: forecastId }),
+};
+
+export const recommendationsApi = {
+  list: (datasetId: string, q?: Record<string, string | number | undefined | null>) =>
+    api.get<RecListResponse>(`/datasets/${datasetId}/recommendations`, q),
+  detail: (datasetId: string, recId: string) =>
+    api.get<RecDetail>(`/datasets/${datasetId}/recommendations/${recId}`),
+  setStatus: (datasetId: string, recId: string, status: string, note?: string) =>
+    api.post<{ id: string; status: string }>(`/datasets/${datasetId}/recommendations/${recId}/status`, { status, note }),
+  assign: (datasetId: string, recId: string, body: Record<string, unknown>) =>
+    api.post<{ id: string; status: string }>(`/datasets/${datasetId}/recommendations/${recId}/assign`, body),
+  simulate: (datasetId: string, recId: string, body: Record<string, unknown>) =>
+    api.post<{ projected: Record<string, number | null>; baseline: Record<string, number>; method: string }>(
+      `/datasets/${datasetId}/recommendations/${recId}/simulate`,
+      body,
+    ),
+  exportUrl: (datasetId: string, format: "csv" | "json") =>
+    `${BASE}/datasets/${datasetId}/recommendations/export/all?format=${format}`,
+};
+
 // Legacy alias kept so existing call sites compile before the route is renamed.
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
 type _Never = typeof domain;

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 
 type UseSoundOptions = {
   onPlay?: () => void;
@@ -39,8 +39,13 @@ const TONE_SRC =
 // by this hook. It is intentionally short and low-energy; the workspace controls
 // perceived loudness through volume and rate, not through a loud source file.
 
+// The one tone element for the whole session. It lives at module scope rather
+// than inside the hook because the milestone tones (playStartTone /
+// playCompletionChime) are module-level functions that play through the same
+// element; when it was a per-hook ref they could not reach it and threw.
+const tone: { current: HTMLAudioElement | null } = { current: null };
+
 export function useSound({ onPlay }: UseSoundOptions = {}): UseSoundReturn {
-  const tone = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") return;

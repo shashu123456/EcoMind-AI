@@ -1,0 +1,84 @@
+/* Living hero layer — sits behind the existing hero copy. */
+
+.living-hero {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+.living-hero__canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0.95;
+}
+
+.living-hero__float {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 5px 8px;
+  border: 1px solid rgba(198, 243, 106, 0.16);
+  border-radius: 7px;
+  background: rgba(10, 14, 12, 0.55);
+  backdrop-filter: blur(6px);
+  animation: lh-drift 14s ease-in-out infinite;
+}
+
+.living-hero__float small {
+  font-size: 7.5px;
+  letter-spacing: 0.14em;
+  color: rgba(198, 243, 106, 0.62);
+}
+
+.living-hero__float strong {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: rgba(238, 244, 240, 0.88);
+}
+
+.living-hero__float--a {
+  top: 16%;
+  left: 12%;
+  animation-delay: -2s;
+}
+
+.living-hero__float--b {
+  top: 26%;
+  right: 10%;
+  animation-delay: -6s;
+}
+
+.living-hero__float--c {
+  bottom: 24%;
+  left: 16%;
+  animation-delay: -9s;
+}
+
+.living-hero__float--d {
+  bottom: 16%;
+  right: 18%;
+  animation-delay: -4s;
+}
+
+@keyframes lh-drift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+    opacity: 0.82;
+  }
+  50% {
+    transform: translate3d(0, -7px, 0);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .living-hero__float {
+    animation: none;
+  }
+}

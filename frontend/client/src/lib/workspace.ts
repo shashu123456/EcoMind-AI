@@ -409,6 +409,17 @@ export type LiveRun = {
   total: number;
 };
 
+export type LiveColumnStats = {
+  mean: number | null;
+  std: number | null;
+  min: number | null;
+  max: number | null;
+  median: number | null;
+  q25: number | null;
+  q75: number | null;
+  skew: number | null;
+};
+
 export type LiveSchemaField = {
   name: string;
   dtype: string;
@@ -417,6 +428,16 @@ export type LiveSchemaField = {
   unique?: string;
   sample: string;
   role: string;
+  /** Recorded null count for this column. */
+  nullCount?: number;
+  /** Recorded distinct value count. */
+  uniqueCount?: number | null;
+  /** Recorded row count for the scan, when the backend reported one. */
+  rowCount?: number | null;
+  /** All recorded sample values, not only the first. */
+  samples?: string[];
+  /** Recorded numeric summary, present only for numeric columns. */
+  stats?: LiveColumnStats | null;
 };
 
 export type LiveBaselineVersion = {
@@ -913,23 +934,45 @@ const mapRuns = (runs: Record<string, unknown>[], nameById: Map<string, string>)
       total: Number(r.total_stages ?? 10),
     }));
 
-const mapSchema = (res: Record<string, unknown> | undefined): LiveSchemaField[] => {
+export const mapSchema = (res: Record<string, unknown> | undefined): LiveSchemaField[] => {
   const cols = res && Array.isArray(res.columns) ? (res.columns as Record<string, unknown>[]) : [];
   return cols.map(c => {
-    const samples = Array.isArray(c.sample_values) ? (c.sample_values as unknown[]) : [];
+    const samples = Array.isArray(c.sample_values) ? (c.sample_values as unknown[]).map(String) : [];
     const nullCount = Number(c.null_count ?? 0);
     const stat = (c.statistics ?? {}) as Record<string, unknown>;
-    const rowCount = Number(stat.row_count ?? stat.total_rows ?? 0);
-    const nullPct = rowCount > 0 ? `${((nullCount / rowCount) * 100).toFixed(1)}%` : "0%";
+    const rowCount = Number(stat.row_count ?? stat.total_rows ?? 0) || null;
+    const nullPct = rowCount && rowCount > 0 ? `${((nullCount / rowCount) * 100).toFixed(1)}%` : "0%";
     const unique = c.unique_count;
+    const num = (key: string): number | null => {
+      const v = stat[key];
+      return typeof v === "number" && isFinite(v) ? v : null;
+    };
+    const hasStats = num("mean") != null || num("min") != null || num("max") != null;
+    const stats = hasStats
+      ? {
+          mean: num("mean"),
+          std: num("std"),
+          min: num("min"),
+          max: num("max"),
+          median: num("median"),
+          q25: num("q25"),
+          q75: num("q75"),
+          skew: num("skewness"),
+        }
+      : null;
     return {
       name: String(c.name ?? "—"),
       dtype: String(c.data_type ?? "—"),
       nullable: Boolean(c.nullable),
       nullPct,
-      unique: typeof unique === "number" && isFinite(unique) ? fmtInt(unique) : undefined,
-      sample: samples.length ? String(samples[0]) : "—",
+      unique: typeof unique === "number" && isFinite(Number(unique)) ? fmtInt(Number(unique)) : undefined,
+      sample: samples.length ? samples[0] : "—",
       role: typeof c.semantic_type === "string" && c.semantic_type ? c.semantic_type.replace(/_/g, " ") : "field",
+      nullCount,
+      uniqueCount: typeof unique === "number" && isFinite(Number(unique)) ? Number(unique) : null,
+      rowCount,
+      samples,
+      stats,
     };
   });
 };

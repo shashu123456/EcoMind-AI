@@ -411,6 +411,21 @@ def recommend(db: Session, dataset_id: str, params: dict | None = None) -> dict:
     by_building: dict[str, list[dict]] = {}
     rows: list[Recommendation] = []
 
+    # Human decisions survive a re-run. Regeneration used to write every row
+    # with status="open", so approving, assigning or completing a recommendation
+    # and then re-running the pipeline silently discarded the decision — which
+    # makes approval meaningless. A group is matched on (device, category), the
+    # same pair that defines it, and carries its status, assignment and audit
+    # trail forward into the new row.
+    carry: dict[tuple[str, str], Recommendation] = {}
+    for prev in (
+        db.query(Recommendation)
+        .filter(Recommendation.dataset_id == dataset_id)
+        .order_by(Recommendation.created_at.desc())
+        .all()
+    ):
+        carry.setdefault((prev.device_code or "", prev.category or ""), prev)
+
     for item in staged:
         head = item["head"]
         members = item["members"]
@@ -499,6 +514,16 @@ def recommend(db: Session, dataset_id: str, params: dict | None = None) -> dict:
             status="open",
             confidence=round(min(1.0, 0.4 + 0.6 * float(play["recovery"])), 3),
         )
+        prior = carry.get((device_code or "", play["category"] or ""))
+        if prior is not None:
+            row.status = prior.status or "open"
+            carried = dict(row.supporting_evidence or {})
+            previous = dict(prior.supporting_evidence or {})
+            for key in ("assignment", "history"):
+                if previous.get(key):
+                    carried[key] = previous[key]
+            carried["carried_from"] = prior.id
+            row.supporting_evidence = carried
         db.add(row)
         rows.append(row)
         by_building.setdefault(item["building_code"], []).append(row)
