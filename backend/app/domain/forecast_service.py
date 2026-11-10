@@ -1357,16 +1357,22 @@ def get_prediction_chart_data(
         for key in sorted(daily):
             slot = daily[key]
             n = max(slot["n"], 1)
+            has_observed = bool(slot["has_observed"])
             days.append(
                 {
                     "day": key,
-                    "observed_energy_kwh": round(slot["observed"], 4) if slot["has_observed"] else None,
+                    "observed_energy_kwh": round(slot["observed"], 4) if has_observed else None,
                     "forecast_energy_kwh": round(slot["forecast"], 4),
                     "lower_kwh": round(slot["lower"], 4) if slot["lower"] else None,
                     "upper_kwh": round(slot["upper"], 4) if slot["upper"] else None,
                     "expected_cost_inr": round(slot["cost"], 2),
                     "expected_co2_kg": round(slot["co2"], 3),
-                    "is_future": key > today,
+                    # A projected day is one that was modelled, not metered. Tying
+                    # this to the wall clock made every persisted forecast read as
+                    # entirely historical the moment its origin aged past today,
+                    # which is not what the flag means: it marks the modelled half
+                    # of the chart so the UI can distinguish it from observed days.
+                    "is_future": not has_observed,
                     "points": int(n),
                 }
             )

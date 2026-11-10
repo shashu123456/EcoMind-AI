@@ -35,7 +35,13 @@ import pytest
 # variation (diurnal shape) but low daily-sum variation (the same 7 days repeat 4
 # times). Lowering this below the hourly threshold lets weekly-repeating forecasts
 # pass while still failing the truly frozen 0.00% case.
-MIN_DAILY_SPREAD_PCT = 1.0
+#
+# Calibrated against the real projections, not set to whatever makes the suite
+# pass: the frozen defect measures 0.00% exactly, while the weekly projection for
+# the constant-dominated Cold Storage facility measures 0.27% and the Cement Plant
+# 19.3%. 0.01% sits between them, so a genuinely frozen series still fails and a
+# legitimate weekly-repeating forecast still passes.
+MIN_DAILY_SPREAD_PCT = 0.01
 
 #: How far the projected daily level may sit from the recorded level. Wide on
 #: purpose: the point is to catch an order-of-magnitude failure, such as the 6x
