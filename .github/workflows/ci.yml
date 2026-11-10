@@ -118,6 +118,15 @@ jobs:
         with:
           node-version: 20
 
+      # The launcher installs the frontend with pnpm when a lockfile is
+      # present and falls back to npm otherwise. On a bare checkout the
+      # fallback fires, and npm cannot resolve the pnpm lockfile, so the
+      # bootstrap fails with an ERESOLVE error. Set pnpm up here so the
+      # launcher takes the real path.
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
       - name: Confirm the checkout really is bare
         run: |
           set -euo pipefail
