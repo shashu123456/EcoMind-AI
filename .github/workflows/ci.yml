@@ -80,6 +80,14 @@ jobs:
 
       - run: pip install -r requirements.txt
 
+      # The suite logs in as the seeded admin user, so it needs the seeded
+      # database. A bare checkout has none -- without this step every test
+      # that touches the API fails with "Invalid email or password", which is
+      # what the fresh-clone job below already exercises by running the
+      # launcher. Seeding here too keeps the two jobs testing the same thing.
+      - name: Seed the database
+        run: python backend/seed.py
+
       # No test database service: the suite runs against SQLite and creates its
       # own fixtures, so there is nothing external to depend on.
       - name: Test
