@@ -86,7 +86,7 @@ jobs:
       # what the fresh-clone job below already exercises by running the
       # launcher. Seeding here too keeps the two jobs testing the same thing.
       - name: Seed the database
-        run: python backend/seed.py
+        run: python seed.py
 
       # No test database service: the suite runs against SQLite and creates its
       # own fixtures, so there is nothing external to depend on.
