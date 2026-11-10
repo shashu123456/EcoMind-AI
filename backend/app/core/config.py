@@ -42,6 +42,10 @@ class Settings(BaseSettings):
     secret_key: str = DEV_SECRET_KEY
     access_token_expire_minutes: int = 60 * 24
     jwt_algorithm: str = "HS256"
+    # Origins the API will accept credentials from. The default is the local
+    # dev server; a deployment sets ECOMIND_CORS_ORIGINS to its own origin(s),
+    # comma-separated or as a JSON array. Never "*" with credentials.
+    cors_origins: list[str] = ["http://localhost:8000"]
 
     root_dir: Path = Path(__file__).resolve().parents[2]
     data_dir: Path = Path(root_dir) / "data"
@@ -171,3 +175,20 @@ for _d in (
     settings.models_dir,
 ):
     _d.mkdir(parents=True, exist_ok=True)
+
+# A deployment that forgets to set ECOMIND_SECRET_KEY would otherwise come up
+# signing every JWT with a string that ships in this file. Local development
+# keeps the warning; production refuses to start instead.
+if settings.env == "production" and (
+    not settings.secret_key or settings.secret_key == DEV_SECRET_KEY
+):
+    raise RuntimeError(
+        "ECOMIND_SECRET_KEY must be set to a real value (not the dev default) "
+        "when ECOMIND_ENV=production. Every JWT this process signs would be "
+        "forgeable otherwise."
+    )
+if settings.env == "production" and len(settings.secret_key) < 32:
+    raise RuntimeError(
+        f"ECOMIND_SECRET_KEY is only {len(settings.secret_key)} characters; "
+        "HS256 needs at least 32."
+    )
