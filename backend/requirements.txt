@@ -4,7 +4,7 @@ pydantic==2.7.1
 pydantic-settings==2.2.1
 sqlalchemy==2.0.30
 python-multipart==0.0.9
-python-jose[cryptography]==3.3.0
+python-jose[cryptography]==3.4.0
 # Password hashing, called directly rather than through passlib. passlib 1.7.4
 # (last released 2020) raises "password cannot be longer than 72 bytes" against
 # bcrypt 4.1+, so anyone installing from this file fresh got a seeder that
@@ -22,4 +22,6 @@ xgboost==3.2.0
 statsmodels==0.14.4
 openpyxl==3.1.2
 reportlab==4.2.0
+python-docx==1.2.0
+python-pptx==1.0.2
 jinja2==3.1.4

@@ -38,6 +38,8 @@ import { RecommendationDesk } from "./RecommendationDesk";
 import { ForecastLab } from "./ForecastLab";
 import { ReportStudio } from "./ReportStudio";
 import { LivingHero } from "./LivingHero";
+import { EnergyFlow } from "../fx/EnergyFlow";
+import { NumberTicker } from "../fx/NumberTicker";
 import { CommandPalette } from "./CommandPalette";
 import { ImportStudio } from "./ImportStudio";
 
@@ -145,6 +147,9 @@ const viewMeta: Record<NavId, { kicker: string; title: string; description: stri
   notifications: { kicker: "System / Notifications", title: "Signals that need your attention.", description: "High-value events from the active project, without the noise." },
   settings: { kicker: "System / Workspace settings", title: "Shape the intelligence layer.", description: "Manage defaults, retention, permissions, and project preferences." },
 };
+
+/* Pages that do not render a titled block of their own keep the shell header. */
+const PLAIN_HEADER_VIEWS: NavId[] = ["library", "import"];
 
 type SoundKind = "ui" | "scan" | "done" | "alert";
 
@@ -351,7 +356,7 @@ function HistoryView({ runs, onReplay }: { runs: LiveRun[]; onReplay: (datasetId
             <span>RUN ID</span>
             <span />
           </div>
-          {runs.map(r => (
+          {runs.slice(0, 40).map(r => (
             <div className="data-table__row" key={r.id}>
               <span>
                 <TinyTag tone={r.status === "completed" ? "lime" : r.status === "failed" ? "coral" : "orange"}>
@@ -376,6 +381,11 @@ function HistoryView({ runs, onReplay }: { runs: LiveRun[]; onReplay: (datasetId
             </div>
           ))}
         </div>
+        {runs.length > 40 ? (
+          <p className="mono-note table-empty-note">
+            Showing the 40 most recent runs of {runs.length}. Older runs stay in the backend audit trail.
+          </p>
+        ) : null}
       </section>
     </div>
   );
@@ -1610,6 +1620,7 @@ export function AppShell() {
             activeDataset={activeDataset}
             domainInfo={domainInfo}
             baselineName={baselineName}
+            modelName={modelName}
             onStep={() => void execNextStage()}
             onAuto={() => void execRemainingStages()}
             onRunAll={() => void execAllAndReport()}
@@ -1959,22 +1970,22 @@ export function AppShell() {
           </div>
         </div>
         <div className="view-shell">
-          <div className="view-header">
-            <div>
-              <div className="view-header__kicker">{viewMeta[activeView].kicker}</div>
-              <h1>{viewMeta[activeView].title}</h1>
-              <p>{viewMeta[activeView].description}</p>
+          {/* Overview and every pipeline page open with their own titled block, so
+              the generic shell header is only rendered where the page has none. */}
+          {PLAIN_HEADER_VIEWS.includes(activeView) ? (
+            <div className="view-header view-header--compact">
+              <h1>{viewMeta[activeView].kicker.split(" / ").pop()}</h1>
+              <div className="view-header__meta">
+                <span className="system-chip">
+                  <span className="status-dot status-dot--lime" />
+                  AI core online
+                </span>
+                <span className="mono-note">
+                  {baselineName ? `${baselineName} / ` : ""}{domainInfo.label}
+                </span>
+              </div>
             </div>
-            <div className="view-header__meta">
-              <span className="system-chip">
-                <span className="status-dot status-dot--lime" />
-                AI core online
-              </span>
-              <span className="mono-note">
-                {baselineName ? `${baselineName} / ` : ""}{domainInfo.label}
-              </span>
-            </div>
-          </div>
+          ) : null}
           {renderView()}
         </div>
       </main>
@@ -2482,6 +2493,7 @@ function OverviewView({
   activeDataset,
   domainInfo,
   baselineName,
+  modelName,
   onStep,
   onAuto,
   onRunAll,
@@ -2494,6 +2506,7 @@ function OverviewView({
   activeDataset: Dataset;
   domainInfo: (typeof domainMeta)[DatasetDomain];
   baselineName: string;
+  modelName: string;
   onStep: () => void;
   onAuto: () => void;
   onRunAll: () => void;
@@ -2502,351 +2515,285 @@ function OverviewView({
   stageBusy: string;
   autoRunning: boolean;
 }) {
+  const totalStages = liveStages.length || pipelineStages.length;
   const completedStages = liveStages.filter(s => s.status === "completed").length;
-  const energyTotal = Math.round(energyData.reduce((sum, p) => sum + p.energy, 0));
-  const baselineTotal = energyData.reduce((sum, p) => sum + p.baseline, 0);
-  const energyDeltaPct = baselineTotal > 0 ? ((energyTotal - baselineTotal) / baselineTotal) * 100 : 0;
-  const energyDelta = energyData.length
-    ? `${energyDeltaPct >= 0 ? "+" : ""}${energyDeltaPct.toFixed(1)}% vs baseline`
-    : "no live readings";
+  const allDone = completedStages >= totalStages;
   const healthScore = liveQualityMeta?.score ?? null;
   const failedChecks = liveQualityMeta?.failed ?? null;
-  const recentActivity = activityEvents.slice(0, 4);
+  const anomalyTotal = liveAnomalyMeta?.total ?? anomalies.length;
+  const criticalAnomalies = (liveAnomalyMeta?.severity?.critical ?? 0) + (liveAnomalyMeta?.severity?.high ?? 0);
   const topAnomaly = anomalies[0] ?? null;
+  const busy = !!stageBusy || autoRunning;
+  const healthPct = Number.parseInt(activeDataset.health, 10);
+  const healthWidth = Number.isFinite(healthPct) ? Math.max(0, Math.min(100, healthPct)) : 0;
   const stageState = (key: string) => liveStages.find(s => s.id === key)?.status ?? "pending";
+
   return (
     <div className="view-content view-content--overview">
-      <section className="hero-panel">
-        <div className="hero-panel__copy">
-          <div className="hero-kicker">
-            <span className="hero-kicker__line" />
-            AI-FIRST ENERGY OPERATING SYSTEM
-          </div>
-          <h2>
-            Make every <em>kilowatt</em><br />
-            explainable.
-          </h2>
+      <section className="hero-block">
+        <div className="hero-block__copy">
+          <span className="section-eyebrow">LIVE ENERGY INTELLIGENCE / {activeDataset.id.slice(0, 8).toUpperCase()}</span>
+          <h1>
+            Every <em>kilowatt</em> traced from signal to decision.
+          </h1>
           <p>
-            EcoMind turns operational data into an inspectable chain of decisions — from raw signal to practical
-            action.
+            {activeDataset.name} · {domainInfo.label}. Ten stages, every decision recorded and inspectable.
           </p>
-          <div className="hero-panel__actions">
-            <ActionButton icon={Play} onClick={() => onNavigate("library")}>
-              Open active pipeline
-            </ActionButton>
-            <button className="text-button" type="button" onClick={() => onNavigate("reports")}>
-              View latest report <ArrowRight size={14} />
-            </button>
-          </div>
-          <div className="hero-panel__proof">
-            <span>
-              <CheckCircle2 size={14} />{" "}
-              {liveStages.length ? `${liveStages.length} stages orchestrated` : "10 stages orchestrated"}
-            </span>
-            <span>
-              <CheckCircle2 size={14} />{" "}
-              No black-box handoffs
-            </span>
+          <div className="blk-tagrow">
+            <TinyTag tone={activeDataset.accent}>{domainInfo.label}</TinyTag>
+            <span className="blk-chip">{activeDataset.rows} rows</span>
+            <span className="blk-chip">{activeDataset.fieldCount ?? activeDataset.columnCount ?? "—"} fields</span>
+            <span className="blk-chip">{activeDataset.freshness} freshness</span>
+            <span className="blk-chip">{liveRunId ? `run ${liveRunId.slice(0, 12)}` : "no run recorded"}</span>
           </div>
         </div>
-        <div className="hero-panel__visual">
+        <div className="hero-block__visual">
           <LivingHero
             healthScore={healthScore}
             completedStages={completedStages}
-            totalStages={liveStages.length || 10}
+            totalStages={totalStages}
             rows={Number(activeDataset.rows) || null}
-            anomalies={liveAnomalyMeta?.total ?? anomalies.length}
+            anomalies={anomalyTotal}
           />
-          <div className="telemetry-grid" />
-          <div className="hero-orbit hero-orbit--one" />
-          <div className="hero-orbit hero-orbit--two" />
-          <div className="hero-core">
-            <div className="hero-core__ring hero-core__ring--outer" />
-            <div className="hero-core__ring hero-core__ring--inner" />
-            <div className="hero-core__icon">
-              <Leaf size={23} />
-            </div>
-            <span>AI CORE</span>
-            <strong>{healthScore != null ? `${healthScore}%` : "—"}</strong>
-            <small>quality score</small>
-          </div>
-          <div className="hero-visual-label hero-visual-label--top">
-            <span className="status-dot status-dot--lime" />
-            LIVE PIPELINE <strong>{liveStages.filter(s => s.status === "completed").length} / 10</strong>
-          </div>
-          <div className="hero-visual-label hero-visual-label--bottom">
-            <span>ENERGY INTELLIGENCE</span>
-            <strong>{activeDataset.id}</strong>
-          </div>
-          <div className="hero-signal hero-signal--one" />
-          <div className="hero-signal hero-signal--two" />
-          <div className="hero-signal hero-signal--three" />
+          <div className="hero-block__visual-grid" />
+          <EnergyFlow
+            sourceLabel="ACTIVE DATASET"
+            sourceValue={activeDataset.name}
+            nodes={[
+              { label: "Schema", value: stageState("schema"), done: stageState("schema") === "completed" },
+              { label: "Quality", value: stageState("quality"), done: stageState("quality") === "completed" },
+              { label: "Model", value: stageState("model_selection"), done: stageState("model_selection") === "completed" },
+              { label: "Report", value: stageState(STAGE_KEY_BY_VIEW["reports"] ?? "reports"), done: stageState(STAGE_KEY_BY_VIEW["reports"] ?? "reports") === "completed" },
+            ]}
+          />
         </div>
       </section>
-      <section className="pipeline-panel">
-        <div className="pipeline-panel__top">
-          <div>
-            <div className="section-eyebrow">INTELLIGENCE PIPELINE</div>
-            <h2>One continuous thread from data to decision.</h2>
+
+      <div className="blk-kpis">
+        <article className="blk blk-kpi">
+          <span className="blk-kpi__label">PIPELINE</span>
+          <strong className="blk-kpi__value">
+            <NumberTicker value={completedStages} />
+            <em>/ {totalStages}</em>
+          </strong>
+          <span className="blk-kpi__note">
+            {busy ? `running ${stageBusy || "pipeline"}…` : allDone ? "every stage recorded" : "ready for the next stage"}
+          </span>
+        </article>
+        <article className="blk blk-kpi">
+          <span className="blk-kpi__label">DATA QUALITY</span>
+          <strong className="blk-kpi__value">
+            {healthScore == null ? "—" : <NumberTicker value={healthScore} />}
+            <em>{healthScore == null ? "" : "/ 100"}</em>
+          </strong>
+          <span className="blk-kpi__note">
+            {failedChecks == null ? "no quality run recorded" : failedChecks === 0 ? "all rules passed" : `${failedChecks} ${failedChecks === 1 ? "check needs" : "checks need"} attention`}
+          </span>
+        </article>
+        <article className="blk blk-kpi">
+          <span className="blk-kpi__label">ANOMALIES</span>
+          <strong className="blk-kpi__value">
+            <NumberTicker value={anomalyTotal} />
+          </strong>
+          <span className="blk-kpi__note">{criticalAnomalies ? `${criticalAnomalies} critical or high` : "none critical"}</span>
+        </article>
+        <article className="blk blk-kpi">
+          <span className="blk-kpi__label">BASELINE</span>
+          <strong className="blk-kpi__value blk-kpi__value--text" title={baselineName || undefined}>
+            {baselineName || "—"}
+          </strong>
+          <span className="blk-kpi__note">{modelName ? `${modelName} selected` : "no model recorded"}</span>
+        </article>
+      </div>
+
+      <div className="blk-launch">
+        <button
+          type="button"
+          className="blk-launch__card"
+          onClick={onAuto}
+          disabled={busy}
+          title="Runs the remaining stages and opens each page as its stage completes"
+        >
+          <span className="blk-launch__icon">
+            <Play size={16} />
+          </span>
+          <span className="blk-launch__copy">
+            <strong>Guided run</strong>
+            <span>Step through the pipeline page by page — each stage opens its own screen as it completes.</span>
+          </span>
+          <span className="blk-launch__cta">
+            {autoRunning ? "Running" : "Start"}
+            <ArrowRight size={12} />
+          </span>
+        </button>
+        <button
+          type="button"
+          className="blk-launch__card blk-launch__card--primary"
+          onClick={onRunAll}
+          disabled={busy}
+          title="Runs every remaining stage, then lands on the executive report"
+        >
+          <span className="blk-launch__icon">
+            <Sparkles size={16} />
+          </span>
+          <span className="blk-launch__copy">
+            <strong>Auto run</strong>
+            <span>Run all remaining stages in one pass and finish on the executive report.</span>
+          </span>
+          <span className="blk-launch__cta">
+            {autoRunning ? "Running" : allDone ? "Open report" : "Run all"}
+            <ArrowRight size={12} />
+          </span>
+        </button>
+      </div>
+
+      <section className="blk">
+        <div className="blk-head">
+          <div className="blk-head__copy">
+            <span className="blk-head__eyebrow">INTELLIGENCE PIPELINE</span>
+            <h2 className="blk-head__title">Ten stages, one dataset, no black boxes.</h2>
+            <p className="blk-head__note">
+              {liveRunId
+                ? `Run ${liveRunId.slice(0, 12)} · ${completedStages} of ${totalStages} stages recorded`
+                : "No run yet — a guided or auto run starts one on the active dataset."}
+            </p>
           </div>
-          <div className="pipeline-controls">
-            <span className="mono-note">
-              RUN ID / {liveRunId ? liveRunId.slice(0, 12) : "no run yet · Step starts one"}
-            </span>
-            <button
-              type="button"
-              className="pipeline-control"
-              onClick={onStep}
-              disabled={!!stageBusy || autoRunning}
-            >
-              <Play size={13} />
-              {stageBusy ? `Running ${stageBusy}` : "Step"}
-            </button>
-            <button
-              type="button"
-              className="pipeline-control pipeline-control--primary"
-              onClick={onAuto}
-              disabled={!!stageBusy || autoRunning}
-              title="Run the remaining stages and follow them: the app opens each page as its stage completes"
-            >
-              <Play size={13} />
-              {autoRunning ? "Running..." : "Guided tour"}
-            </button>
-            <button
-              type="button"
-              className="pipeline-control"
-              onClick={onRunAll}
-              disabled={!!stageBusy || autoRunning}
-              title="Run every remaining stage, then land on the executive report"
-            >
-              <Play size={13} />
-              Run all → report
+          <div className="blk-head__action">
+            <button type="button" className="pipeline-control" onClick={onStep} disabled={busy}>
+              <Play size={12} />
+              {stageBusy && !autoRunning ? `Running ${stageBusy}` : "Step one stage"}
             </button>
           </div>
         </div>
-        <div className="pipeline-rail">
+        <ol className="blk-rail">
           {pipelineStages.map(stage => {
             const Icon = stage.icon;
             const ls = liveStages.find(s => s.id === (STAGE_KEY_BY_VIEW[stage.id] ?? stage.id));
             const done = ls?.status === "completed";
+            const active = ls?.status === "pending" && stageBusy === (STAGE_KEY_BY_VIEW[stage.id] ?? stage.id);
             return (
-              <button
-                type="button"
-                className={`pipeline-stage ${done ? "pipeline-stage--done" : ""}`}
-                key={stage.id}
-                onClick={() => onNavigate(stage.id)}
-              >
-                <span className="pipeline-stage__node">
-                  <Icon size={15} />
-                </span>
-                <span className="pipeline-stage__num">{stage.short}</span>
-                <strong>{stage.label}</strong>
-                {ls ? (
-                  <span className="pipeline-stage__meta">
-                    {done ? fmtLiveDuration(ls) : ls.status}
+              <li key={stage.id}>
+                <button
+                  type="button"
+                  className={`blk-rail__step ${done ? "blk-rail__step--done" : ""} ${active ? "blk-rail__step--active" : ""}`}
+                  onClick={() => onNavigate(stage.id)}
+                >
+                  <span className="blk-rail__top">
+                    <span className="blk-rail__num">{stage.short}</span>
+                    {done ? <CheckCircle2 size={13} /> : <Icon size={13} />}
                   </span>
-                ) : null}
-                {stage.id !== "reports" ? <span className="pipeline-stage__connector" /> : null}
-              </button>
+                  <strong>{stage.label}</strong>
+                  <span className="blk-rail__meta">{done && ls ? fmtLiveDuration(ls) : ls ? ls.status : "pending"}</span>
+                </button>
+              </li>
             );
           })}
-        </div>
+        </ol>
       </section>
-      <div className="dashboard-grid dashboard-grid--overview">
-        <section className="panel panel--library">
-          <SectionHeading
-            eyebrow={`ACTIVE DATASET / ${activeDataset.id}`}
-            title={activeDataset.name}
-            detail={`${domainInfo.label} · ${activeDataset.location}`}
-            action={
+
+      <div className="blk-grid blk-grid--main">
+        <section className="blk">
+          <div className="blk-head">
+            <div className="blk-head__copy">
+              <span className="blk-head__eyebrow">ACTIVE DATASET</span>
+              <h2 className="blk-head__title">{activeDataset.name}</h2>
+              <p className="blk-head__note">{activeDataset.detail}</p>
+            </div>
+            <div className="blk-head__action">
               <button className="panel-link" type="button" onClick={() => onNavigate("library")}>
-                View library <ArrowRight size={13} />
+                Library <ArrowRight size={13} />
               </button>
-            }
-          />
-          <div className="dataset-summary">              <div className={`dataset-summary__icon dataset-summary__icon--${activeDataset.accent}`}>
-                <AppIcon icon={datasetDomainIcon(activeDataset.domain)} size={23} />
             </div>
-            <div className="dataset-summary__details">
-              <div>
-                <span className="mono-note">FRESHNESS / {activeDataset.freshness.toUpperCase()}</span>
-                <TinyTag tone={activeDataset.accent}>AI CLASSIFIED</TinyTag>
-              </div>
-              <strong>{activeDataset.detail}</strong>
-              <span>
-                {activeDataset.rows} rows · {activeDataset.fieldCount ?? activeDataset.columnCount ?? "—"} fields · {activeDataset.freshness} freshness
-              </span>
+          </div>
+          <div className="blk-rows">
+            <div className="blk-row">
+              <span>Domain</span>
+              <strong>{domainInfo.label}</strong>
             </div>
-            <div className="dataset-summary__health">
-              <span>DATA HEALTH</span>
+            <div className="blk-row">
+              <span>Location</span>
+              <strong>{activeDataset.location}</strong>
+            </div>
+            <div className="blk-row">
+              <span>Rows · fields</span>
+              <strong>
+                {activeDataset.rows} · {activeDataset.fieldCount ?? activeDataset.columnCount ?? "—"}
+              </strong>
+            </div>
+            <div className="blk-row">
+              <span>Data health</span>
               <strong>{activeDataset.health}</strong>
-              <div className="mini-progress">
-                <i style={{ width: activeDataset.health }} />
+            </div>
+          </div>
+          <div className="blk-meter">
+            <i style={{ width: `${healthWidth}%` }} />
+          </div>
+          <p className="blk-note">
+            Original source preserved{baselineName ? ` · adaptive baseline ${baselineName}` : ""}. Every stage reads these
+            recorded rows; nothing is regenerated for display.
+          </p>
+        </section>
+
+        <div className="blk-grid">
+          <section className="blk">
+            <div className="blk-head">
+              <div className="blk-head__copy">
+                <span className="blk-head__eyebrow">PIPELINE HEALTH</span>
+                <h2 className="blk-head__title">
+                  {healthScore == null ? "No quality run yet" : failedChecks === 0 ? "Ready to model" : "Needs a review"}
+                </h2>
+              </div>
+              <div className="blk-head__action">
+                <button className="panel-link" type="button" onClick={() => onNavigate("quality")}>
+                  Quality <ArrowRight size={13} />
+                </button>
               </div>
             </div>
-          </div>
-          <div className="mini-chart-wrap">
-            <div className="mini-chart-label">
-              <span>
-                SIGNALS / {energyData.length} RECORDED POINT
-                {energyData.length === 1 ? "" : "S"}
-              </span>
-              <strong>{energyData.length ? withUnit(fmtCount(energyTotal)) : "—"} <em>{energyDelta}</em></strong>
-            </div>
-            <div className="mini-chart">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={energyData}>
-                  <defs>
-                    <linearGradient id="miniFill" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#b6f36b" stopOpacity={0.30} />
-                      <stop offset="100%" stopColor="#b6f36b" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <Area
-                    type="monotone"
-                    dataKey="energy"
-                    stroke="#b6f36b"
-                    strokeWidth={2.2}
-                    fill="url(#miniFill)"
-                    dot={false}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="baseline"
-                    stroke="#718b7b"
-                    strokeDasharray="4 4"
-                    strokeWidth={1.2}
-                    dot={false}
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-            <span className="axis-note mini-chart-note">
-              {energyData.length
-                ? `Yellow: measured ${liveTargetColumn || "target"} for ${activeDataset.name}. Dashed green: the adaptive baseline the pipeline learned from the same rows — the reference every later stage compares against.`
-                : "No recorded series for this dataset yet — run the pipeline to plot it."}
-            </span>
-          </div>
-        </section>
-        <section className="panel panel--health">
-          <SectionHeading
-            eyebrow="PIPELINE HEALTH"
-            title="Everything is moving."
-            action={
-              <button
-                className="icon-button icon-button--small"
-                type="button"
-                aria-label="Refresh recorded pipeline state"
-                onClick={onRefresh}
-              >
-                <RefreshCw size={14} className={refreshing ? "is-spinning" : ""} />
-              </button>
-            }
-          />
-          <div className="health-score">
-            <div className="health-score__ring" data-score={healthScore ?? ""}>
-              <span>{healthScore ?? "—"}</span>
-              <small>health</small>
-            </div>
-            <div>
-              <strong>Good to model</strong>
-              <p>{failedChecks == null ? "No quality run recorded for this dataset yet." : failedChecks === 0 ? "Every structural quality rule passed on the active run." : `${failedChecks} quality ${failedChecks === 1 ? "check" : "checks"} need attention before the next run.`}</p>
-              <button
-                className="panel-link"
-                type="button"
-                onClick={() => onNavigate("quality")}
-              >
-                Review quality <ArrowRight size={13} />
-              </button>
-            </div>
-          </div>
-          <div className="health-list">
-            {(["schema", "quality", "transformation", "model_selection"] as const).map(key => {
-              const st = stageState(key);
-              const tone = st === "completed" ? "lime" : st === "failed" ? "coral" : "orange";
-              return (
-                <div key={key}>
-                  <span>
-                    <span className={`status-dot status-dot--${tone}`} />
-                    {STAGE_LABEL_TEXT[key]}
-                  </span>
-                  <strong>
-                    {st === "completed"
-                      ? key === "quality" && healthScore != null
-                        ? `${healthScore} / 100`
-                        : "Complete"
-                      : st === "failed"
-                        ? "Failed"
-                        : "Pending"}
-                  </strong>
-                </div>
-              );
-            })}
-          </div>
-        </section>
-        <section className="panel panel--activity">
-          <SectionHeading
-            eyebrow="LIVE OPERATIONS"
-            title="Transparent by default."
-            detail="Last 4 events from the active pipeline"
-            action={
-              <button className="panel-link" type="button" onClick={() => onNavigate("history")}>
-                Open history <ArrowRight size={13} />
-              </button>
-            }
-          />
-          <div className="operation-list">
-            {recentActivity.length ? (
-              recentActivity.map((event, index) => (
-                <div className="operation-row" key={`${event.time}-${event.operation}-${index}`}>
-                  <span
-                    className={`operation-row__icon operation-row__icon--${
-                      event.severity === "warning" ? "orange" : event.severity === "success" ? "lime" : "blue"
-                    }`}
-                  >
-                    <DatabaseZap size={14} />
-                  </span>
-                  <div>
-                    <strong>{event.operation}</strong>
+            <div className="blk-rows">
+              {(["schema", "quality", "transformation", "model_selection"] as const).map(key => {
+                const st = stageState(key);
+                const tone = st === "completed" ? "lime" : st === "failed" ? "coral" : "orange";
+                return (
+                  <div className="blk-row" key={key}>
                     <span>
-                      {event.service} / {event.time}
+                      <span className={`status-dot status-dot--${tone}`} /> {STAGE_LABEL_TEXT[key]}
                     </span>
+                    <strong>
+                      {st === "completed"
+                        ? key === "quality" && healthScore != null
+                          ? `${healthScore} / 100`
+                          : "Complete"
+                        : st === "failed"
+                          ? "Failed"
+                          : "Pending"}
+                    </strong>
                   </div>
-                  <TinyTag tone={event.severity === "warning" ? "orange" : event.severity === "success" ? "lime" : "blue"}>
-                    {event.status}
-                  </TinyTag>
-                </div>
-              ))
-            ) : (
-              <p className="mono-note">No pipeline activity recorded yet.</p>
-            )}
-          </div>
-        </section>
-        <section className="panel panel--next">
-          <div className="next-step-card">
-            <div className="next-step-card__top">
-              <span className="section-eyebrow">NEXT BEST ACTION</span>
-              <TinyTag tone="lime">AI SUGGESTED</TinyTag>
+                );
+              })}
             </div>
-            <h3>{topAnomaly ? `Review ${topAnomaly.type.toLowerCase()} on ${topAnomaly.feature}.` : "No action required yet."}</h3>
-            <p>
-              {topAnomaly
-                ? `${topAnomaly.severity} severity · ${topAnomaly.reason}. Inspect the evidence before exporting.`
-                : "Run the pipeline to derive the next best action from live anomalies and recommendations."}
-            </p>
-            <ActionButton variant="secondary" icon={ArrowRight} onClick={() => onNavigate("anomalies")}>
-              Inspect anomaly
-            </ActionButton>
-          </div>
-        </section>
-      </div>
-      <div className="overview-footer">
-        <span>
-          <span className="status-dot status-dot--lime" />
-          {liveRunId ? `Run ${liveRunId.slice(0, 8)} / ${completedStages} of 10 stages complete` : "Pipeline idle — no run recorded"}
-        </span>
-        <span>Original source preserved{baselineName ? ` · ${baselineName}` : ""}</span>
-        <span>Workspace: {activeDataset.name}</span>
+          </section>
+
+          <section className="blk">
+            <div className="blk-head">
+              <div className="blk-head__copy">
+                <span className="blk-head__eyebrow">NEXT BEST ACTION</span>
+                <h2 className="blk-head__title">
+                  {topAnomaly ? `Review ${topAnomaly.type.toLowerCase()} on ${topAnomaly.feature}` : "No action required yet"}
+                </h2>
+                <p className="blk-head__note">
+                  {topAnomaly
+                    ? `${topAnomaly.severity} severity · ${topAnomaly.reason}`
+                    : "Run the pipeline to derive the next action from recorded anomalies and recommendations."}
+                </p>
+              </div>
+            </div>
+            <div className="blk-tagrow" style={{ marginTop: 12 }}>
+              <ActionButton variant="secondary" icon={ArrowRight} onClick={() => onNavigate(topAnomaly ? "anomalies" : "library")}>
+                {topAnomaly ? "Inspect anomaly" : "Open library"}
+              </ActionButton>
+            </div>
+          </section>
+        </div>
       </div>
     </div>
   );
@@ -3032,15 +2979,11 @@ function LibraryView({
               type="button"
               onClick={() => onSelect(dataset)}
             >
-              <div className={`dataset-card__glow dataset-card__glow--${dataset.accent}`} />
               <div className="dataset-card__head">
                 <div className={`dataset-card__icon dataset-card__icon--${dataset.accent}`}>
                   <Icon size={22} />
                 </div>
                 <div className="dataset-card__head-copy">
-                  <span className="mono-note" title={dataset.id}>
-                    {dataset.id}
-                  </span>
                   <TinyTag
                     tone={dataset.accent === "lime" ? "lime" : dataset.accent === "orange" ? "orange" : "violet"}
                   >
@@ -3098,13 +3041,6 @@ function LibraryView({
               <button type="button" onClick={() => onSelect(dataset)}>
                 <ArrowUpRight size={13} /> Open
               </button>
-              <button
-                type="button"
-                aria-pressed={favorites.includes(dataset.id)}
-                onClick={() => toggleFavorite(dataset.id)}
-              >
-                <Star size={13} /> {favorites.includes(dataset.id) ? "Favorited" : "Favorite"}
-              </button>
             </div>
             </div>
           );
@@ -3132,54 +3068,6 @@ function LibraryView({
           <span>CSV or Excel · the two formats the API accepts</span>
           <div className="dataset-card--import__line" />
         </button>
-      </div>
-      <div className="library-bottom-grid">
-        <section className="panel">
-          <SectionHeading
-            eyebrow="CLASSIFICATION LAYER"
-            title="Context changes the UI."
-            detail="EcoMind detects domain, meter family, and reporting grain at ingestion."
-          />
-          <div className="classification-row">
-            <div>
-              <Building2 size={16} />
-              <span>Buildings</span>
-              <strong>{domainPct(domainCounts.building ?? 0)}</strong>
-            </div>
-            <div>
-              <Factory size={16} />
-              <span>Industry</span>
-              <strong>{domainPct(domainCounts.industry ?? 0)}</strong>
-            </div>
-            <div>
-              <Warehouse size={16} />
-              <span>Logistics</span>
-              <strong>{domainPct(domainCounts.logistics ?? 0)}</strong>
-            </div>
-          </div>
-        </section>
-        <section className="panel panel--source">
-          <div className="source-icon">
-            <Database size={17} />
-          </div>
-          <div>
-            <span className="section-eyebrow">DATABASE / OBJECT STORE</span>
-            <h3>{datasets.length} analyzed dataset{datasets.length === 1 ? "" : "s"}</h3>
-            <p>
-              All versions are immutable, searchable, and traceable to their original import.
-            </p>
-          </div>
-          <button
-            className="icon-button icon-button--small"
-            type="button"
-            aria-label="Open storage"
-            onClick={() => {
-              sound.play({ volume: 0.1, rate: 0.95 });
-            }}
-          >
-            <ArrowRight size={14} />
-          </button>
-        </section>
       </div>
     </div>
   );

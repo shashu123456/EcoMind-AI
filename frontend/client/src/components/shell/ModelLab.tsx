@@ -330,9 +330,6 @@ export function ModelLab({
             <Kpi label="MODELS EVALUATED" value={String(Math.round(animModels))} hint={`${models.filter(m => m.selected).length} selected`} />
             <Kpi label="BEST R²" value={bestR2 == null ? "—" : fmt(animBest, 3)} hint="held-out split" />
             <Kpi label="SELECTED ALGORITHM" value={comp?.winner ?? winner?.name ?? "—"} hint={comp?.nearTie ? "near tie" : "on measured results"} />
-            <Kpi label="TRAINING TIME" value={totalTrain ? `${fmt(animTrain, 2)} s` : "—"} hint={totalTrain ? "sum of candidates" : "not recorded"} />
-            <Kpi label="DATASET SIZE" value={fmt(Math.round(animRows), 0)} hint="rows" />
-            <Kpi label="STATUS" value={comp ? "evaluated" : "pending"} hint={comp ? `margin ${fmt(comp.margin, 3)}` : "run the stage"} />
           </div>
         </div>
         <div className="ml-hero__actions">
@@ -345,22 +342,6 @@ export function ModelLab({
         </div>
       </div>
 
-      {/* Live evaluation sequence ------------------------------------- */}
-      <div className={`ml-run ${trainStep < models.length + 1 ? "ml-run--on" : ""}`}>
-        {models.map((m, i) => {
-          const done = trainStep > i;
-          return (
-            <span key={m.name} className={done ? "ml-run__step ml-run__step--done" : "ml-run__step"}>
-              {done ? <Check size={10} /> : trainStep === i ? <Loader2 size={10} className="ml-spin" /> : null}
-              Training {m.name}
-            </span>
-          );
-        })}
-        <span className={`ml-run__step ${trainStep > models.length ? "ml-run__step--done" : ""}`}>
-          {trainStep > models.length ? <Check size={10} /> : <Loader2 size={10} className="ml-spin" />}
-          Selecting best model
-        </span>
-      </div>
 
       {/* Leaderboard -------------------------------------------------- */}
       <section className="panel ml-board">
@@ -393,7 +374,7 @@ export function ModelLab({
                   <span className={`ml-rank ${model.selected ? "ml-rank--win" : ""}`}>{model.selected ? <Trophy size={12} /> : `0${index + 1}`}</span>
                   <span className="ml-card__name">
                     <strong>{model.name}</strong>
-                    <small>{model.family ?? model.short} · {model.rationale ? model.rationale.slice(0, 64) : "candidate"}</small>
+                    <small>{model.family ?? model.short}{model.selected ? " · selected" : ""}</small>
                   </span>
                   <span className="ml-card__metrics">
                     <span><small>R²</small><strong>{fmt(model.r2, 3)}</strong></span>
@@ -416,17 +397,6 @@ export function ModelLab({
                       <div><small>FEATURES</small><span>{comp?.features ?? "—"}</span></div>
                       <div><small>DATASET</small><span>{datasetName}</span></div>
                     </div>
-                    <div className="ml-card__cols">
-                      <div><small>ADVANTAGES</small><span>{model.selected ? "Selected on composite score across the same held-out split." : "Recorded as a valid candidate on identical rows."}</span></div>
-                      <div><small>LIMITATIONS</small><span>{model.mape == null ? "MAPE not meaningful for this target range." : `Backtest MAPE ${fmt(model.mape, 1)}%.`}</span></div>
-                      <div><small>CROSS VALIDATION</small><span className="mono-note">not recorded by the stage</span></div>
-                      <div><small>CONFUSION / ROC</small><span className="mono-note">regression target — not applicable</span></div>
-                    </div>
-                    <div className="ml-card__logs">
-                      <code>[stage 06] candidate={model.short} r2={model.r2} mae={model.mae} rmse={model.rmse}</code>
-                      <code>[stage 06] composite={model.composite ?? "—"} selected={String(!!model.selected)}</code>
-                      {model.rationale ? <code>[stage 06] {model.rationale}</code> : null}
-                    </div>
                     <button type="button" className="ml-btn ml-btn--small" onClick={() => setDrawer(model.name)}>
                       Open details <ArrowRight size={12} />
                     </button>
@@ -438,296 +408,6 @@ export function ModelLab({
         </div>
       </section>
 
-      {/* Radar + why chosen ------------------------------------------ */}
-      <div className="ml-grid2">
-        <section className="panel ml-radar">
-          <div className="ml-head">
-            <div>
-              <span className="section-eyebrow">MODEL COMPARISON</span>
-              <h2>Where each candidate is strong</h2>
-            </div>
-            <span className="mono-note">0–100 · recorded or derived</span>
-          </div>
-          <div className="ml-radar__pick">
-            {models.map(m => (
-              <button
-                type="button"
-                key={m.name}
-                className={`ml-mini ${compareWith.includes(m.name) ? "ml-mini--on" : ""}`}
-                onClick={() => setCompareWith(prev => prev.includes(m.name) ? prev.filter(n => n !== m.name) : [...prev, m.name].slice(-3))}
-              >
-                {m.short}
-              </button>
-            ))}
-          </div>
-          <ResponsiveContainer width="100%" height={250}>
-            <RadarChart data={radarData} outerRadius="72%">
-              <PolarGrid stroke="#2b3f34" />
-              <PolarAngleAxis dataKey="axis" tick={{ fill: "#8aa597", fontSize: 9 }} />
-              <PolarRadiusAxis domain={[0, 100]} tick={false} axisLine={false} />
-              {visible.slice(0, 4).map(m => (
-                <Radar key={m.name} name={m.short} dataKey={m.short} stroke={m.color} fill={m.color} fillOpacity={0.14} strokeWidth={1.6} />
-              ))}
-              <Legend wrapperStyle={{ fontSize: 9 }} />
-              <RechartsTooltip contentStyle={{ background: "#15231b", border: "1px solid #30473a", borderRadius: 8, fontSize: 11 }} />
-            </RadarChart>
-          </ResponsiveContainer>
-        </section>
-
-        <section className="panel ml-why">
-          <div className="ml-head">
-            <div>
-              <span className="section-eyebrow">WHY THIS MODEL WAS CHOSEN</span>
-              <h2>{comp?.winner ?? winner?.name ?? "No selection recorded"}</h2>
-            </div>
-            <Sparkles size={15} />
-          </div>
-          <p className="ml-why__body">
-            {comp?.rationale || "Run the model competition stage to record the selection rationale."}
-          </p>
-          <div className="ml-why__facts">
-            <span><small>MARGIN</small>{comp ? fmt(comp.margin, 3) : "—"}</span>
-            <span><small>NEAR TIE</small>{comp ? (comp.nearTie ? "yes" : "no") : "—"}</span>
-            <span><small>WON</small>{comp?.criteria?.length ? comp.criteria.join(", ") : "—"}</span>
-            <span><small>TRADED AWAY</small>{comp?.lostCriteria?.length ? comp.lostCriteria.join(", ") : "—"}</span>
-          </div>
-          <div className="ml-why__note">
-            <BadgeCheck size={13} />
-            <span>Every candidate trained on {comp ? comp.trainRows.toLocaleString("en-IN") : "the same"} rows and scored on {comp ? comp.testRows.toLocaleString("en-IN") : "the same"} held-out rows.</span>
-          </div>
-        </section>
-      </div>
-
-      {/* Metric cards ------------------------------------------------- */}
-      <section className="panel ml-metrics">
-        <div className="ml-head">
-          <div>
-            <span className="section-eyebrow">PERFORMANCE METRICS</span>
-            <h2>{active?.name ?? "No model selected"}</h2>
-          </div>
-          <Tag tone="blue">hover a card for the definition</Tag>
-        </div>
-        {active ? (
-          <div className="ml-metric-grid">
-            {[
-              { key: "r2", label: "R²", value: fmt(active.r2, 4) },
-              { key: "mae", label: "MAE", value: fmt(active.mae, 3) },
-              { key: "rmse", label: "RMSE", value: fmt(active.rmse, 3) },
-              { key: "mse", label: "MSE", value: fmt(active.rmse ** 2, 2) },
-              { key: "mape", label: "MAPE", value: active.mape != null ? `${fmt(active.mape, 2)}%` : "n/a" },
-              { key: "variance", label: "EXPLAINED VAR.", value: fmt(active.normalised?.r2 != null ? active.normalised.r2 * 100 : active.r2 * 100, 1) + "%" },
-              { key: "train", label: "TRAIN TIME", value: active.trainSeconds != null ? `${fmt(active.trainSeconds, 3)}s` : "—" },
-              { key: "latency", label: "LATENCY", value: active.normalised?.speed != null ? fmt(1 / Math.max(1e-6, active.normalised.speed), 4) + "s" : "—" },
-              { key: "speed", label: "SPEED SCORE", value: fmt(active.normalised?.speed ?? null, 3) },
-            ].map(card => {
-              const meta = METRIC_META[card.key] ?? METRIC_META.accuracy;
-              return (
-                <div className="ml-metric" key={card.key} tabIndex={0}>
-                  <small>{card.label}</small>
-                  <strong>{card.value}</strong>
-                  <div className="ml-metric__pop">
-                    <b>{meta.what}</b>
-                    <span>{meta.why}</span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        ) : null}
-      </section>
-
-      {/* Breakdown + timeline ---------------------------------------- */}
-      <div className="ml-grid2">
-        <section className="panel ml-break">
-          <div className="ml-head">
-            <span className="section-eyebrow">SCORE BREAKDOWN</span>
-            <Tag tone="lime">{active?.short ?? "—"}</Tag>
-          </div>
-          <div className="ml-break__rows">
-            {breakdown.map(b => (
-              <div className="ml-break__row" key={b.label}>
-                <span>{b.label}</span>
-                <div className="ml-break__track"><i style={{ width: `${Math.max(0, Math.min(100, b.value))}%` }} /></div>
-                <strong>{Math.round(Math.max(0, Math.min(100, b.value)))}</strong>
-              </div>
-            ))}
-          </div>
-          <p className="mono-note">Inverted metrics score 100 for the best candidate in this competition.</p>
-        </section>
-
-        <section className="panel ml-timeline">
-          <div className="ml-head">
-            <div>
-              <span className="section-eyebrow">SCORE TIMELINE</span>
-              <h2>Composite score per candidate</h2>
-            </div>
-            <span className="mono-note">{models.length} points</span>
-          </div>
-          <ResponsiveContainer width="100%" height={180}>
-            <LineChart data={timelineData} margin={{ top: 6, right: 12, left: -12, bottom: 0 }}>
-              <CartesianGrid stroke="#24342d" strokeDasharray="2 5" vertical={false} />
-              <XAxis dataKey="name" tick={{ fill: "#768e7f", fontSize: 9 }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fill: "#768e7f", fontSize: 9 }} axisLine={false} tickLine={false} />
-              <RechartsTooltip contentStyle={{ background: "#15231b", border: "1px solid #30473a", borderRadius: 8, fontSize: 11 }} />
-              <ReferenceLine y={0} stroke="#324a3c" />
-              <Line type="monotone" dataKey="composite" name="composite" stroke="#7ef0c0" strokeWidth={2} dot={{ r: 2.5 }} />
-            </LineChart>
-          </ResponsiveContainer>
-          <p className="mono-note">Per-epoch loss and learning-rate history was not recorded by this stage; this plots the recorded composite score of each candidate.</p>
-        </section>
-      </div>
-
-      {/* Residual analysis ------------------------------------------- */}
-      <div className="ml-grid2">
-        <section className="panel ml-resid">
-          <div className="ml-head">
-            <div>
-              <span className="section-eyebrow">PREDICTION ERROR</span>
-              <h2>Residual analysis</h2>
-            </div>
-            {residualStats ? <Tag tone={residualStats.p95 <= residualStats.mean * 2 ? "lime" : "orange"}>p95 {fmt(residualStats.p95, 1)}</Tag> : null}
-          </div>
-          {residuals.length ? (
-            <>
-              <div className="ml-resid__stats">
-                <span><small>MEAN |ERR|</small>{fmt(residualStats?.mean, 2)}</span>
-                <span><small>STD</small>{fmt(residualStats?.std, 2)}</span>
-                <span><small>P50</small>{fmt(residualStats?.p50, 2)}</span>
-                <span><small>MAX</small>{fmt(residualStats?.max, 2)}</span>
-              </div>
-              <div className="ml-resid__hist">
-                {residualStats?.bins.map(b => (
-                  <div className="ml-resid__bar" key={b.x} title={`${b.n} readings in bucket ${b.x}`}>
-                    <i style={{ height: `${(b.n / Math.max(1, ...(residualStats?.bins.map(x => x.n) ?? [1]))) * 100}%` }} />
-                  </div>
-                ))}
-              </div>
-              <div className="ml-resid__scatter">
-                {residuals.slice(0, 220).map((r, i) => {
-                  const maxR = Math.max(...residuals.map(x => Math.abs(x.residual))) || 1;
-                  return (
-                    <span
-                      key={`${r.time}-${i}`}
-                      className="ml-dot"
-                      style={{ left: `${(i / Math.max(1, Math.min(220, residuals.length))) * 100}%`, top: `${50 - (r.residual / maxR) * 45}%` }}
-                      title={`${r.time} · actual ${fmt(r.actual)} · predicted ${fmt(r.predicted)} · residual ${fmt(r.residual)}`}
-                    />
-                  );
-                })}
-              </div>
-              <p className="mono-note">Residual = observed − baseline, from the recorded comparison series. Hover a point for exact values.</p>
-            </>
-          ) : (
-            <p className="mono-note">No recorded observed/baseline series for this dataset, so residuals cannot be plotted. Run the prediction stage to record them.</p>
-          )}
-        </section>
-
-        <section className="panel ml-conf">
-          <div className="ml-head">
-            <div>
-              <span className="section-eyebrow">CONFIDENCE ANALYSIS</span>
-              <h2>How sure the fit is</h2>
-            </div>
-            <Layers3 size={15} />
-          </div>
-          {confidence ? (
-            <div className="ml-conf__rows">
-              {confidence.map(c => (
-                <div className={`ml-conf__row ml-conf__row--${c.tone}`} key={c.label}>
-                  <span>{c.label}</span>
-                  <div className="ml-conf__track"><i style={{ width: `${(c.count / Math.max(1, residuals.length)) * 100}%` }} /></div>
-                  <strong>{c.count}</strong>
-                  <small>avg err {fmt(c.avg, 1)}</small>
-                </div>
-              ))}
-            </div>
-          ) : <p className="mono-note">Confidence buckets are computed from recorded residuals; none are available yet.</p>}
-          <p className="mono-note">Buckets split at one and two standard deviations of the absolute residual.</p>
-        </section>
-      </div>
-
-      {/* Comparison matrix ------------------------------------------ */}
-      <section className="panel ml-matrix">
-        <div className="ml-head">
-          <div>
-            <span className="section-eyebrow">COMPARISON MATRIX</span>
-            <h2>Every candidate, every recorded metric</h2>
-          </div>
-          <Tag tone="lime">best in green · worst in red</Tag>
-        </div>
-        <div className="ml-matrix__scroll">
-          <div className="ml-table">
-            <div className="ml-table__head">
-              <span>MODEL</span><span>R²</span><span>MAE</span><span>RMSE</span><span>TRAIN</span><span>SPEED</span><span>STABILITY</span><span>GENERALISATION</span><span>MEMORY</span><span>USE CASE</span>
-            </div>
-            {models.map(m => {
-              const vals = {
-                r2: models.map(x => x.r2),
-                mae: models.map(x => x.mae),
-                rmse: models.map(x => x.rmse),
-                time: models.map(x => x.trainSeconds ?? Infinity),
-                speed: models.map(x => x.normalised?.speed ?? 0),
-              };
-              const best = (arr: number[], high: boolean) => high ? Math.max(...arr) : Math.min(...arr);
-              const worst = (arr: number[], high: boolean) => high ? Math.min(...arr) : Math.max(...arr);
-              const cls = (v: number, arr: number[], high: boolean) =>
-                v === best(arr, high) ? "ml-cell--best" : v === worst(arr, high) ? "ml-cell--worst" : "";
-              const speed = m.normalised?.speed ?? 0;
-              const stability = m.rmse > 0 ? 1 - (m.rmse - m.mae) / m.rmse : 0;
-              const gen = m.normalised?.rmse != null ? 1 - m.normalised.rmse : m.r2;
-              return (
-                <button type="button" className={`ml-table__row ${m.selected ? "ml-table__row--win" : ""}`} key={m.name} onClick={() => { setSelectedModel(m.name); setDrawer(m.name); }}>
-                  <span>{m.name}{m.selected ? " ★" : ""}</span>
-                  <span className={cls(m.r2, vals.r2, true)}>{fmt(m.r2, 3)}</span>
-                  <span className={cls(m.mae, vals.mae, false)}>{fmt(m.mae)}</span>
-                  <span className={cls(m.rmse, vals.rmse, false)}>{fmt(m.rmse)}</span>
-                  <span className={m.trainSeconds == null ? "" : cls(m.trainSeconds, vals.time.filter(isFinite), false)}>{m.trainSeconds != null ? `${fmt(m.trainSeconds, 2)}s` : "—"}</span>
-                  <span className={cls(speed, vals.speed, true)}>{fmt(speed, 3)}</span>
-                  <span>{fmt(stability * 100, 0)}%</span>
-                  <span>{fmt(gen * 100, 0)}%</span>
-                  <span className="mono-note">n/r</span>
-                  <span className="mono-note">{m.selected ? "production" : "fallback"}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      </section>
-
-      {/* Training pipeline ------------------------------------------ */}
-      <section className="panel ml-pipe">
-        <div className="ml-head">
-          <div>
-            <span className="section-eyebrow">TRAINING PIPELINE</span>
-            <h2>Identical rows, identical split</h2>
-          </div>
-          <span className="mono-note">click a stage</span>
-        </div>
-        <div className="ml-pipe__flow">
-          {pipeline.map((p, i) => (
-            <button type="button" key={p.key} className={`ml-pipe__node ${pipeOpen === p.key ? "ml-pipe__node--open" : ""}`} onClick={() => setPipeOpen(pipeOpen === p.key ? null : p.key)}>
-              <span>{String(i + 1).padStart(2, "0")}</span>
-              {p.label}
-            </button>
-          ))}
-        </div>
-        {pipeOpen ? (() => {
-          const p = pipeline.find(x => x.key === pipeOpen);
-          if (!p) return null;
-          return (
-            <div className="ml-pipe__detail">
-              <strong>{p.label}</strong>
-              <div className="ml-pipe__grid">
-                <span><small>ROWS</small>{p.rows == null ? "—" : Number(p.rows).toLocaleString("en-IN")}</span>
-                <span><small>ALGORITHM</small>{comp?.winner ?? winner?.short ?? "—"}</span>
-                <span><small>FEATURES</small>{comp?.features ?? "—"}</span>
-                <span><small>TARGET</small>{comp?.target ?? target}</span>
-              </div>
-              <p className="mono-note">{p.detail} · execution time not recorded by the stage</p>
-            </div>
-          );
-        })() : null}
-      </section>
 
       {/* Feature importance ----------------------------------------- */}
       <section className="panel ml-feat">

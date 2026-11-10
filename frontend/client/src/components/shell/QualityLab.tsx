@@ -655,8 +655,6 @@ export function QualityLab({
             <Counter label="QUALITY SCORE" value={qScore == null ? "—" : String(Math.round(animScore))} suffix={qScore == null ? undefined : "/100"} hint={`${passedCount} passed · ${failedCount} failed`} />
             <Counter label="ISSUES FOUND" value={int(Math.round(animIssues))} hint={`${Object.keys(typeCounts).length} issue types`} />
             <Counter label="REPAIRS APPLIED" value={int(Math.round(animRepairs))} hint={repaired ? "audit trail kept" : "awaiting apply"} />
-            <Counter label="PROCESSING TIME" value={processingLabel} hint={processingMs > 0 ? `${activity.length} recorded events` : `${activity.length} events · no durations`} />
-            <Counter label="DATASET VERSION" value={currentVersion == null ? "—" : `v${Math.round(animVersion)}`} hint={saved ? "clean snapshot saved" : "source preserved"} />
           </div>
         </div>
         <div className="ql-hero__actions">
@@ -672,17 +670,6 @@ export function QualityLab({
         </div>
       </div>
 
-      {/* Processing strip */}
-      <div className={`ql-scan ${scanning ? "ql-scan--on" : ""}`}>
-        <div className="ql-scan__bar"><span style={{ width: `${(scanStep / 6) * 100}%` }} /></div>
-        <div className="ql-scan__steps">
-          {scanSteps.map((s, i) => (
-            <span key={s} className={i < scanStep ? "ql-scan__step ql-scan__step--done" : "ql-scan__step"}>
-              {i < scanStep ? <Check size={10} /> : <CircleDot size={9} />} {s}
-            </span>
-          ))}
-        </div>
-      </div>
 
       {empty ? (
         <div className="ql-empty">
@@ -738,9 +725,6 @@ export function QualityLab({
             { label: "Failing rules", before: int(failedCount), after: repaired ? "0" : int(failedCount) },
             { label: "Null %", before: nullRate == null ? "—" : pct1(nullRate), after: nullRate == null ? "—" : repaired ? "0.0%" : pct1(nullRate) },
             { label: "Quality score", before: qScore == null ? "—" : `${qScore}%`, after: qScore == null ? "—" : repaired ? "re-scored on save" : `${qScore}%` },
-            { label: "Average", before: target?.stats?.mean != null ? target.stats.mean.toFixed(2) : "—", after: target?.stats?.mean != null ? target.stats.mean.toFixed(2) : "—" },
-            { label: "Median", before: target?.stats?.median != null ? target.stats.median.toFixed(2) : "—", after: target?.stats?.median != null ? target.stats.median.toFixed(2) : "—" },
-            { label: "Std deviation", before: target?.stats?.std != null ? target.stats.std.toFixed(2) : "—", after: target?.stats?.std != null ? target.stats.std.toFixed(2) : "—" },
           ].map(row => (
             <div className="ql-before__row" key={row.label}>
               <span>{row.label}</span>
@@ -816,225 +800,7 @@ export function QualityLab({
         </div>
       </section>
 
-      {/* ── Timeline ─────────────────────────────────────────────────── */}
-      <section className="panel ql-timeline-card">
-        <div className="ql-panel-head">
-          <div>
-            <span className="section-eyebrow">LIVE REPAIR TIMELINE</span>
-            <h2>How this dataset was processed</h2>
-          </div>
-          <button type="button" className="ql-btn ql-btn--small" onClick={runScan}><RefreshCw size={13} /> Replay</button>
-        </div>
-        <Timeline steps={timeline} active={step} onSelect={key => setNodeKey(nodeKey === key ? null : key)} />
-        {node ? (
-          <div className="ql-node">
-            <div className="ql-node__head">
-              <strong>{node.label}</strong>
-              <button type="button" onClick={() => setNodeKey(null)} aria-label="Close"><X size={13} /></button>
-            </div>
-            <p>{node.detail}</p>
-            <div className="ql-node__grid">
-              <span><small>ROWS AFFECTED</small>{int(dataset.rowCount)}</span>
-              <span><small>EXECUTION</small>{processingLabel}</span>
-              <span><small>METHOD</small>{repaired ? "recorded repair rule" : "pending apply"}</span>
-              <span><small>STATUS</small>{saved ? "version saved" : repaired ? "repairs in memory" : "source untouched"}</span>
-            </div>
-          </div>
-        ) : null}
-      </section>
 
-      {/* ── Repair table ─────────────────────────────────────────────── */}
-      <section className="panel ql-table-card">
-        <div className="ql-panel-head">
-          <div>
-            <span className="section-eyebrow">REPAIR DETAIL</span>
-            <h2>Every finding, with its evidence</h2>
-          </div>
-          <Tag tone={repaired ? "lime" : "blue"}>{repaired ? "repaired" : "open"}</Tag>
-        </div>
-        <div className="ql-table">
-          <div className="ql-table__head">
-            <span>RULE</span><span>COLUMN</span><span>ISSUE</span><span>ORIGINAL</span><span>NEW</span><span>CONF.</span><span>STATUS</span>
-          </div>
-          {pageRows.map(issue => (
-            <div className={`ql-table__group ${openRow === issue.id ? "ql-table__group--open" : ""}`} key={issue.id}>
-              <button type="button" className="ql-table__row" onClick={() => setOpenRow(openRow === issue.id ? null : issue.id)}>
-                <span>{issue.ruleName || issue.type}</span>
-                <code>{issue.columns[0] ?? issue.field}</code>
-                <span className="ql-table__issue">{issue.type}</span>
-                <code>{issue.raw}</code>
-                <code className="ql-table__new">{repaired && !issue.passed ? issue.fixed.slice(0, 26) : "pending"}</code>
-                <span>{issue.confidence}</span>
-                <Tag tone={issue.passed ? "lime" : repaired ? "lime" : issue.severity === "critical" ? "coral" : "orange"}>
-                  {issue.passed ? "passed" : repaired ? "repaired" : "open"}
-                </Tag>
-              </button>
-              {openRow === issue.id ? (
-                <div className="ql-table__detail">
-                  <div><small>REASON</small><p>{issue.context}</p></div>
-                  <div><small>MODEL DECISION</small><p>{issue.fixed}</p></div>
-                  <div><small>AFFECTED DOWNSTREAM</small><p>Transform · Model competition · Prediction</p></div>
-                  <div><small>RECORDED FACTS</small>
-                    <p>{issue.detail.length ? issue.detail.map(f => `${f.label}: ${f.value}`).join(" · ") : "no additional facts recorded"}</p>
-                  </div>
-                </div>
-              ) : null}
-            </div>
-          ))}
-        </div>
-        <div className="ql-pager">
-          <span className="mono-note">{rows.length} findings in this view</span>
-          <div>
-            <button type="button" className="ql-btn ql-btn--small" disabled={currentPage === 0} onClick={() => setPage(currentPage - 1)}>Previous</button>
-            <button type="button" className="ql-btn ql-btn--small" disabled={currentPage >= pageCount - 1} onClick={() => setPage(currentPage + 1)}>Next</button>
-          </div>
-        </div>
-      </section>
-
-      {/* ── Explanation + charts ─────────────────────────────────────── */}
-      <div className="ql-grid3">
-        <section className="panel ql-explain">
-          <div className="ql-panel-head">
-            <div>
-              <span className="section-eyebrow">AI REPAIR EXPLANATION</span>
-              <h2>How EcoMind repaired this dataset</h2>
-            </div>
-            <Sparkles size={15} />
-          </div>
-          <ul className="ql-explain__list">
-            {missingFindings > 0 ? (
-              <li><Check size={12} />{missingFindings} missing-value rules were evaluated; values are filled from neighbouring readings only after repairs are applied.</li>
-            ) : <li><Check size={12} />No missing-value gaps were recorded.</li>}
-            {dupFindings > 0 ? (
-              <li><Check size={12} />{dupFindings} duplicate rules flagged repeated readings, where timestamps and values matched exactly.</li>
-            ) : <li><Check size={12} />No duplicate rows were recorded.</li>}
-            {invalidFindings > 0 ? (
-              <li><Check size={12} />{invalidFindings} invalid or mistyped values were caught before they could reach a model.</li>
-            ) : <li><Check size={12} />Every value matched its recorded datatype.</li>}
-            <li><AlertTriangle size={12} />Spikes beyond the anomaly threshold are flagged downstream, not silently overwritten — the anomaly stage owns outliers.</li>
-            <li><Timer size={12} />Average rule confidence {avgConfidence == null ? "—" : `${avgConfidence.toFixed(1)}%`} across {issues.length} rules.</li>
-          </ul>
-        </section>
-
-        <section className="panel ql-charts">
-          <div className="ql-panel-head">
-            <span className="section-eyebrow">REPAIRS BY TYPE</span>
-            <Tag tone="blue">{flaggedRows} flagged</Tag>
-          </div>
-          <BarChart data={Object.entries(typeCounts).map(([label, value]) => ({ label, value }))} />
-          <div className="ql-charts__divider" />
-          <span className="section-eyebrow">REPAIR DISTRIBUTION</span>
-          <Donut data={distribution} total={totalIssues} />
-        </section>
-
-        <section className="panel ql-trend">
-          <div className="ql-panel-head">
-            <span className="section-eyebrow">QUALITY TREND</span>
-            <Tag tone={repaired ? "lime" : "neutral"}>{repaired ? "after repair" : "current"}</Tag>
-          </div>
-          <Sparkline before={qScore} after={repaired ? qScore : qScore} repaired={repaired} />
-          <p className="mono-note">Score recorded by the quality stage. It is recomputed when the clean version is saved.</p>
-          <div className="ql-trend__divider" />
-          <span className="section-eyebrow">CONFIDENCE DISTRIBUTION</span>
-          <Histogram buckets={histogram} total={issues.length} />
-        </section>
-      </div>
-
-      {/* ── Heatmap + versions ───────────────────────────────────────── */}
-      <div className="ql-grid2">
-        <section className="panel ql-heat-card">
-          <div className="ql-panel-head">
-            <div>
-              <span className="section-eyebrow">DATA QUALITY HEATMAP</span>
-              <h2>Where the weak columns are</h2>
-            </div>
-            <span className="mono-note">green healthy · amber warning · red critical</span>
-          </div>
-          <Heatmap rows={heatRows} />
-        </section>
-
-        <section className="panel ql-versions">
-          <div className="ql-panel-head">
-            <div>
-              <span className="section-eyebrow">VERSION HISTORY</span>
-              <h2>Recorded snapshots</h2>
-            </div>
-            <History size={15} />
-          </div>
-          {versionRows.length ? (
-            <div className="ql-versions__rail">
-              {versionRows.map(v => (
-                <button
-                  type="button"
-                  key={v.version}
-                  className={`ql-version ${activeVersion === v.version ? "ql-version--active" : ""}`}
-                  onClick={() => setActiveVersion(activeVersion === v.version ? null : v.version)}
-                >
-                  <span className="ql-version__dot" />
-                  <span className="ql-version__body">
-                    <strong>v{v.version}</strong>
-                    <small>{int(v.rowCount)} rows · {v.created ? new Date(v.created).toLocaleString() : "timestamp not recorded"}</small>
-                  </span>
-                  <ChevronDown size={13} className={activeVersion === v.version ? "ql-chev ql-chev--open" : "ql-chev"} />
-                </button>
-              ))}
-            </div>
-          ) : (
-            <p className="mono-note">No artifact versions recorded yet. Saving a clean snapshot adds the first one.</p>
-          )}
-          {activeVersion != null ? (
-            <div className="ql-version__detail">
-              <span className="section-eyebrow">COMPARED WITH CURRENT</span>
-              <div className="ql-version__grid">
-                {(() => {
-                  const v = versionRows.find(x => x.version === activeVersion);
-                  const prev = versionRows.filter(x => x.version < activeVersion).sort((a, b) => b.version - a.version)[0];
-                  return [
-                    ["Rows", v && v.rowCount ? int(v.rowCount) : "not recorded", prev && prev.rowCount ? int(prev.rowCount) : int(rowsScanned)],
-                    ["Created", v?.created ? new Date(v.created).toLocaleDateString() : "—", prev?.created ? new Date(prev.created).toLocaleDateString() : "—"],
-                    ["Rules", String(ruleTotal), String(ruleTotal)],
-                    ["Findings", String(totalIssues), String(totalIssues)],
-                  ].map(([label, now, then]) => (
-                    <span key={label}><small>{label.toUpperCase()}</small>{now} <em>vs</em> {then}</span>
-                  ));
-                })()}
-              </div>
-            </div>
-          ) : null}
-          <div className="ql-versions__save">
-            <span className="mono-note">{saved ? "Clean snapshot persisted." : repaired ? "Repairs are in memory — save to version them." : "Apply repairs before saving."}</span>
-            <button type="button" className="ql-btn ql-btn--small" onClick={onSave} disabled={!repaired}>
-              <Database size={13} /> {saved ? "Saved" : "Save version"}
-            </button>
-          </div>
-        </section>
-      </div>
-
-      {/* ── Save row + guardrail (existing behaviour preserved) ──────── */}
-      {!saved ? (
-        <div className="ql-save-row">
-          <div>
-            <Database size={15} />
-            <span>Saving creates a new immutable version. The raw source remains available for audit.</span>
-          </div>
-          <button type="button" className="ql-btn ql-btn--primary" onClick={onSave} disabled={!repaired}>
-            <DatabaseZap size={14} /> Save new version
-          </button>
-        </div>
-      ) : null}
-      <div className="ql-guard">
-        <ShieldCheck size={15} />
-        <div>
-          <strong>Scope guardrail</strong>
-          <span>EcoMind repairs null values, missing timestamps, duplicates, datatype mismatches and invalid values only. Outliers are preserved for the anomaly stage.</span>
-        </div>
-        <span className="mono-note">RULESET / QUALITY_05</span>
-      </div>
-      <div className="ql-footnote">
-        <FileCheck2 size={13} />
-        <span>{saved ? "New version persisted" : "Original source stays untouched"} · {repaired ? "repair applied with audit trail" : "repairs are reversible until saved"} · confidence {avgConfidence == null ? "—" : `${avgConfidence.toFixed(1)}%`}</span>
-        <GaugeIcon size={13} />
-      </div>
     </div>
   );
 

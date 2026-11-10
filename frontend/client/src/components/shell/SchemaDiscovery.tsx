@@ -809,16 +809,8 @@ export function SchemaDiscovery({
           </div>
           <h1>The shape of the system, understood.</h1>
           <p>
-            {dataset.name} — {domainLabel}. EcoMind read the recorded columns, resolved their types, and linked the
-            time axis, identifiers and measurable signal into one traceable schema.
+            {dataset.name} · {domainLabel} · {int(rows)} rows recorded across {int(columns)} columns.
           </p>
-          <div className="sd-hero__strip">
-            <span><small>ROWS</small><strong>{int(Math.round(animRows))}</strong></span>
-            <span><small>COLUMNS</small><strong>{int(Math.round(animCols))}</strong></span>
-            <span><small>MISSING</small><strong>{int(Math.round(animNulls))}</strong></span>
-            <span><small>CONFIDENCE</small><strong>{confidence == null ? "—" : `${animHealth.toFixed(0)}%`}</strong></span>
-            <span className="sd-hero__state">{state === "refreshing" ? "discovering…" : state === "replaying" ? "replaying pipeline…" : empty ? "no schema yet" : "ready"}</span>
-          </div>
         </div>
         <div className="sd-hero__actions">
           <button type="button" className="sd-btn sd-btn--primary" onClick={() => void refresh()} disabled={state === "refreshing"}>
@@ -827,8 +819,8 @@ export function SchemaDiscovery({
           <button type="button" className="sd-btn" onClick={replay}>
             <RotateCcw size={14} /> Replay
           </button>
-          <button type="button" className="sd-btn" onClick={() => setModal("compare")}>
-            <GitCompareArrows size={14} /> Compare
+          <button type="button" className="sd-btn sd-btn--icon" onClick={() => setModal("compare")} title="Compare with the schema recorded on load" aria-label="Compare schema">
+            <GitCompareArrows size={14} />
           </button>
           <button type="button" className="sd-btn" onClick={exportJson} disabled={empty}>
             <Download size={14} /> Export
@@ -836,11 +828,11 @@ export function SchemaDiscovery({
           <button type="button" className="sd-btn" onClick={() => setModal("inspect")} disabled={empty}>
             <FileJson size={14} /> Inspect
           </button>
-          <button type="button" className="sd-btn" onClick={() => void copySchema()} disabled={empty}>
-            {copied ? <Check size={14} /> : <Copy size={14} />} {copied ? "Copied" : "Copy"}
+          <button type="button" className="sd-btn sd-btn--icon" onClick={() => void copySchema()} disabled={empty} title={copied ? "Schema copied" : "Copy schema JSON"} aria-label="Copy schema">
+            {copied ? <Check size={14} /> : <Copy size={14} />}
           </button>
-          <button type="button" className="sd-btn" onClick={() => setModal("versions")}>
-            <History size={14} /> Versions
+          <button type="button" className="sd-btn sd-btn--icon" onClick={() => setModal("versions")} title="Recorded schema versions" aria-label="Schema versions">
+            <History size={14} />
           </button>
         </div>
       </div>
@@ -887,46 +879,30 @@ export function SchemaDiscovery({
 
       {!empty ? (
         <>
-          <div className="sd-summary">
-            <section className="panel sd-summary__meta">
-              <div className="sd-panel-head">
-                <span className="section-eyebrow">DATASET SUMMARY</span>
-                <Badge tone="lime">{dataset.health !== "—" ? `${dataset.health} healthy` : "recorded"}</Badge>
-              </div>
-              <div className="sd-summary__grid">
-                <StatCell label="SOURCE" value={dataset.type || "upload"} hint={dataset.detail.slice(0, 48)} />
-                <StatCell label="REGISTERED" value={dataset.freshness} hint={dataset.location} />
-                <StatCell label="TOTAL ROWS" value={int(rows)} />
-                <StatCell label="TOTAL COLUMNS" value={int(columns)} />
-                <StatCell label="TARGET COLUMN" value={targetColumn || "—"} hint="modelled downstream" />
-                <StatCell label="DATASET TYPE" value={domainLabel} />
-                <StatCell label="EST. MEMORY" value={memoryMb == null ? "—" : `${memoryMb.toFixed(1)} MB`} hint="8 bytes / cell" />
-                <StatCell label="DUPLICATE ROWS" value={int(duplicates)} hint="rows sharing a timestamp" />
-                <StatCell label="MISSING VALUES" value={int(totalNulls)} hint={pct(completeness == null ? null : 100 - completeness)} />
-                <StatCell label="SCHEMA CONFIDENCE" value={confidence == null ? "—" : pct(confidence)} hint={`${recognized} of ${fields.length} roles resolved`} />
-              </div>
-            </section>
+          <div className="blk-kpis">
+          <article className="blk blk-kpi">
+            <span className="blk-kpi__label">ROWS</span>
+            <div className="blk-kpi__value">{int(Math.round(animRows))}</div>
+            <p className="blk-kpi__note">{dataset.freshness}</p>
+          </article>
+          <article className="blk blk-kpi">
+            <span className="blk-kpi__label">COLUMNS</span>
+            <div className="blk-kpi__value">{int(Math.round(animCols))}</div>
+            <p className="blk-kpi__note">{int(recognized)} roles resolved</p>
+          </article>
+          <article className="blk blk-kpi">
+            <span className="blk-kpi__label">MISSING CELLS</span>
+            <div className="blk-kpi__value">{int(Math.round(animNulls))}</div>
+            <p className="blk-kpi__note">{pct(completeness == null ? null : 100 - completeness)} of cells</p>
+          </article>
+          <article className="blk blk-kpi">
+            <span className="blk-kpi__label">SCHEMA CONFIDENCE</span>
+            <div className="blk-kpi__value">{confidence == null ? "—" : `${Math.round(animHealth)}`}<em>%</em></div>
+            <p className="blk-kpi__note">{memoryMb == null ? "size not recorded" : `${memoryMb.toFixed(1)} MB in memory`}</p>
+          </article>
+        </div>
 
-            <section className="panel sd-summary__health">
-              <div className="sd-panel-head">
-                <span className="section-eyebrow">DATASET HEALTH</span>
-                <Badge tone={healthOverall != null && healthOverall >= 92 ? "lime" : healthOverall != null && healthOverall >= 78 ? "orange" : "coral"}>
-                  {healthOverall == null ? "unscored" : healthOverall >= 92 ? "excellent" : healthOverall >= 78 ? "attention" : "at risk"}
-                </Badge>
-              </div>
-              <div className="sd-health-score">
-                <span className="sd-health-score__value">{healthOverall == null ? "—" : animHealth.toFixed(1)}</span>
-                <span className="sd-health-score__unit">/ 100</span>
-              </div>
-              <HealthRow label="Completeness" value={completeness} note={`${int(totalNulls)} missing cells of ${int(cells)}`} />
-              <HealthRow label="Uniqueness" value={uniqueness} note={indexField ? `time axis ${indexField.name}` : "no time axis recorded"} />
-              <HealthRow label="Schema validation" value={validation} note={quality ? `${quality.passed} passed · ${quality.failed} failed` : "quality stage not run"} />
-              <HealthRow label="Structural integrity" value={structural} note={`${recognized} of ${fields.length} roles resolved`} />
-              <HealthRow label="Type consistency" value={consistency} note={`${fields.filter(f => isNumeric(f.dtype)).length} numeric columns`} />
-            </section>
-          </div>
-
-          <div className="sd-layout">
+        <div className="sd-layout">
             <section className="panel sd-fields">
               <div className="sd-panel-head">
                 <div>
@@ -975,6 +951,24 @@ export function SchemaDiscovery({
             </section>
 
             <div className="sd-side">
+              <section className="panel sd-summary__health">
+              <div className="sd-panel-head">
+                <span className="section-eyebrow">DATASET HEALTH</span>
+                <Badge tone={healthOverall != null && healthOverall >= 92 ? "lime" : healthOverall != null && healthOverall >= 78 ? "orange" : "coral"}>
+                  {healthOverall == null ? "unscored" : healthOverall >= 92 ? "excellent" : healthOverall >= 78 ? "attention" : "at risk"}
+                </Badge>
+              </div>
+              <div className="sd-health-score">
+                <span className="sd-health-score__value">{healthOverall == null ? "—" : animHealth.toFixed(1)}</span>
+                <span className="sd-health-score__unit">/ 100</span>
+              </div>
+              <HealthRow label="Completeness" value={completeness} note={`${int(totalNulls)} missing cells of ${int(cells)}`} />
+              <HealthRow label="Uniqueness" value={uniqueness} note={indexField ? `time axis ${indexField.name}` : "no time axis recorded"} />
+              <HealthRow label="Schema validation" value={validation} note={quality ? `${quality.passed} passed · ${quality.failed} failed` : "quality stage not run"} />
+              <HealthRow label="Structural integrity" value={structural} note={`${recognized} of ${fields.length} roles resolved`} />
+              <HealthRow label="Type consistency" value={consistency} note={`${fields.filter(f => isNumeric(f.dtype)).length} numeric columns`} />
+            </section>
+
               <section className="panel sd-pipeline">
                 <div className="sd-panel-head">
                   <div>
@@ -1013,90 +1007,9 @@ export function SchemaDiscovery({
                 ) : null}
               </section>
 
-              <section className="panel sd-insights">
-                <div className="sd-panel-head">
-                  <div>
-                    <span className="section-eyebrow">AI REASONING</span>
-                    <h2>Why EcoMind read it this way</h2>
-                  </div>
-                  <Sparkles size={15} className="sd-insights__spark" />
-                </div>
-                <div className="sd-insights__list">
-                  {insights.map(i => (
-                    <div className={`sd-insight sd-insight--${i.tone}`} key={i.key}>
-                      <div className="sd-insight__head">
-                        <strong>{i.title}</strong>
-                        <span className="mono-note">{i.confidence ? `${i.confidence}%` : "—"}</span>
-                      </div>
-                      <p>{i.body}</p>
-                    </div>
-                  ))}
-                </div>
-              </section>
-
-              <section className="panel sd-activity">
-                <div className="sd-panel-head">
-                  <div>
-                    <span className="section-eyebrow">LIVE ACTIVITY</span>
-                    <h2>Discovery events</h2>
-                  </div>
-                  <ActivityIcon size={15} />
-                </div>
-                {feed.length ? (
-                  <ol className="sd-feed">
-                    {feed.map(e => (
-                      <li key={e.id} className={`sd-feed__item sd-feed__item--${e.tone}`}>
-                        <span className="sd-feed__dot" />
-                        <span className="mono-note">{e.time}</span>
-                        <strong>{e.label}</strong>
-                        <span>{e.detail}</span>
-                      </li>
-                    ))}
-                  </ol>
-                ) : (
-                  <p className="mono-note">No discovery events recorded yet — run discovery to populate this feed.</p>
-                )}
-              </section>
-            </div>
+                          </div>
           </div>
 
-          <section className="panel sd-relations">
-            <div className="sd-panel-head">
-              <div>
-                <span className="section-eyebrow">RELATIONSHIPS</span>
-                <h2>How the columns connect</h2>
-              </div>
-              <span className="mono-note">{selectedField ? `focused on ${selectedField}` : "select a field to trace its links"}</span>
-            </div>
-            <div className="sd-relations__grid">
-              {fields.slice(0, 18).map(field => {
-                const linked = linkedNames.has(field.name) || selectedField === field.name;
-                return (
-                  <button
-                    type="button"
-                    key={field.name}
-                    className={`sd-chip ${linked ? "sd-chip--linked" : ""} ${selectedField === field.name ? "sd-chip--active" : ""}`}
-                    onClick={() => setSelectedField(selectedField === field.name ? null : field.name)}
-                  >
-                    <span className={`sd-chip__dot sd-chip__dot--${ROLE_TONE[normRole(field.role)] ?? "neutral"}`} />
-                    {field.name}
-                  </button>
-                );
-              })}
-            </div>
-            {selectedField && selectedLinks.length ? (
-              <div className="sd-relations__lines">
-                {selectedLinks.map(l => (
-                  <div className="sd-relations__line" key={l.name}>
-                    <span>{selectedField}</span>
-                    <span className="sd-relations__track"><i style={{ opacity: 0.35 + l.strength * 0.65, height: `${1 + l.strength * 2}px` }} /></span>
-                    <span>{l.name}</span>
-                    <span className="mono-note">linked because it {l.reason} · {Math.round(l.strength * 100)}% overlap</span>
-                  </div>
-                ))}
-              </div>
-            ) : null}
-          </section>
         </>
       ) : null}
 

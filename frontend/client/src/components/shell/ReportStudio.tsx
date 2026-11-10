@@ -334,62 +334,7 @@ export function ReportStudio({
 
   return (
     <div className="view-content report-studio">
-      <div className="report-layout">
-        <section className={`report-cover${lightPaper ? " is-paper" : ""}`}>
-          <div className="report-cover__grid" />
-          <div className="report-cover__top">
-            <span className="brand-mini">
-              <FileText size={18} />
-              <strong>EcoMind</strong>
-            </span>
-            <span className="mono-note">
-              REPORT / {document?.generated_at ? new Date(document.generated_at).toLocaleString("en-IN") : "NOT GENERATED"}
-            </span>
-          </div>
-          <div className="report-cover__content">
-            <span className="section-eyebrow">
-              {datasetName} / {document?.organization ?? "Organisation"}
-            </span>
-            <h2>
-              Energy intelligence
-              <br />
-              <em>briefing</em>
-            </h2>
-            <p>
-              {document
-                ? `${document.title} — ${document.sections.length} sections drawn from the current pipeline.`
-                : "Generate a report to assemble every module's recorded output into one document."}
-            </p>
-            <div className="report-cover__rule" />
-            <div className="report-cover__meta">
-              <span>
-                <small>SECTIONS</small>
-                <strong>{document ? document.sections.length : "—"}</strong>
-              </span>
-              <span>
-                <small>GENERATED</small>
-                <strong>{document?.generated_at ? new Date(document.generated_at).toLocaleDateString("en-IN") : "—"}</strong>
-              </span>
-              <span>
-                <small>MODEL</small>
-                <strong>{reports[0]?.model_version ?? "—"}</strong>
-              </span>
-              <span>
-                <small>BASELINE</small>
-                <strong>{reports[0]?.baseline_version != null ? `v${reports[0].baseline_version}` : "—"}</strong>
-              </span>
-            </div>
-          </div>
-          <div className="report-cover__footer">
-            <span>
-              <span className="status-dot status-dot--lime" />
-              {document ? "Stored and reproducible" : "Awaiting generation"}
-            </span>
-            <span>Page 01 / {String(totalPages).padStart(2, "0")}</span>
-          </div>
-        </section>
-
-        <section className="panel report-export-panel">
+      <section className="panel report-export-panel">
           <div className="report-export-panel__head">
             <div>
               <div className="section-eyebrow">REPORT GENERATION</div>
@@ -427,7 +372,9 @@ export function ReportStudio({
                           ? "Not recorded by the pipeline"
                           : state === "active"
                             ? "Reading stored outputs…"
-                            : "Queued"}
+                            : document
+                              ? ""
+                              : "Not generated yet"}
                     </span>
                   </div>
                   {state === "done" && <Check size={15} className="report-section-row__check" />}
@@ -468,8 +415,7 @@ export function ReportStudio({
               ))}
             </div>
           </div>
-        </section>
-      </div>
+      </section>
 
       {error && (
         <div className="rs-error" role="alert">

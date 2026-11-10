@@ -1,5 +1,5 @@
-import { Toaster } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
+import { Toaster } from "sonner";
+import { TooltipProvider } from "@radix-ui/react-tooltip";
 import "@/styles/primitives.css";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { AppShell } from "./components/shell/AppShell";

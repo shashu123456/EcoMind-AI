@@ -1,0 +1,11 @@
+.git
+**/__pycache__
+**/*.pyc
+backend/data
+frontend/node_modules
+frontend/dist
+frontend/client/node_modules
+.cloud-attachments
+*.bak
+*.log
+docs/

@@ -426,13 +426,8 @@ export function AnomalyLab({
         <Kpi label="TOTAL ANOMALIES" value={String(Math.round(animTotal))} hint={`${criticalHigh} critical / high`} explain="Count recorded by the anomaly stage for this dataset, across all detected readings." />
         <Kpi label="DETECTION RATE" value={meta ? `${animRate.toFixed(2)}%` : "—"} hint={meta ? `${meta.scanned.toLocaleString("en-IN")} scanned` : "no run"} explain="Anomalies ÷ readings scanned, both recorded by the stage." />
         <Kpi label="ENERGY LOSS" value={`${num(Math.round(animLoss), 0)} ${unit}`} hint="in this window" explain="Sum of (observed − baseline) for positive deviations in the visible window." />
-        <Kpi label="FINANCIAL LOSS" value={meta ? `${num(meta.excessCost, 0)}` : "—"} hint="excess cost recorded" explain="Excess cost recorded by the anomaly stage for this run." />
         <Kpi label="HIGHEST DEVIATION" value={maxDeviation == null ? "—" : `${num(maxDeviation)}%`} hint="abs. vs baseline" explain="Largest absolute deviation among flagged readings in the window." />
-        <Kpi label="AVERAGE DEVIATION" value={avgDeviation == null ? "—" : `${num(avgDeviation)}%`} hint={`${flagged.length} flagged`} explain="Mean absolute deviation across flagged readings in the window." />
-        <Kpi label="TOP SEVERITY" value={topSeverity} hint="recorded bands" explain="Highest severity band with a non-zero recorded count." />
         <Kpi label="MOST AFFECTED DEVICE" value={mostAffectedDevice} hint={`${deviceCounts[0]?.count ?? 0} events`} explain="Device with the most flagged readings in the window." />
-        <Kpi label="MOST AFFECTED WEEKDAY" value={mostAffectedDay} hint="by event count" explain="Weekday carrying the largest number of flagged readings." />
-        <Kpi label="TIME RANGE" value={timeRange} hint="visible window" explain="First and last recorded timestamp in the visible window." />
       </div>
 
       {/* Filters ------------------------------------------------------ */}
@@ -538,172 +533,18 @@ export function AnomalyLab({
             <div className="al-detail__grid">
               <span><small>OBSERVED</small>{num(selectedPoint.observed_energy_kwh)} {unit}</span>
               <span><small>EXPECTED</small>{num(selectedPoint.baseline_energy_kwh)} {unit}</span>
-              <span><small>DIFFERENCE</small>{num(selectedPoint.observed_energy_kwh - selectedPoint.baseline_energy_kwh)}</span>
-              <span><small>DIFFERENCE %</small>{num(selectedPoint.deviation_percent)}%</span>
-              <span><small>ENERGY LOSS</small>{num(Math.max(0, selectedPoint.observed_energy_kwh - selectedPoint.baseline_energy_kwh))}</span>
+              <span><small>DIFFERENCE</small>{num(selectedPoint.deviation_percent)}% · {num(Math.max(0, selectedPoint.observed_energy_kwh - selectedPoint.baseline_energy_kwh))} {unit}</span>
               <span><small>CONFIDENCE</small>{selectedPoint.confidence != null ? selectedPoint.confidence.toFixed(2) : "—"}</span>
               <span><small>DEVICE</small>{selectedPoint.device_name || selectedPoint.device_code || "—"}</span>
-              <span><small>DEVICE TYPE</small>{selectedPoint.device_type || "—"}</span>
-              <span><small>BUILDING</small>{selectedPoint.building_name || selectedPoint.building_code || "—"}</span>
-              <span><small>FLOOR / ROOM</small>{selectedPoint.floor_no || "—"} / {selectedPoint.room_code || "—"}</span>
-              <span><small>WEEKDAY / HOUR</small>{WEEKDAYS[dayOf(selectedPoint.timestamp)]} {String(hourOf(selectedPoint.timestamp)).padStart(2, "0")}:00</span>
+              <span><small>LOCATION</small>{selectedPoint.building_name || selectedPoint.building_code || "—"} · floor {selectedPoint.floor_no || "—"} · {selectedPoint.room_code || "—"}</span>
               <span><small>ANOMALY TYPE</small>{selectedPoint.anomaly_type || "—"}</span>
-              <span><small>BASELINE VER.</small>{selectedPoint.baseline_version != null ? `v${selectedPoint.baseline_version}` : "—"}</span>
-              <span><small>DETECTION MODEL</small>{selectedPoint.model_name || "—"}</span>
-              <span><small>PREDICTION</small>{selectedPoint.predicted_energy_kwh != null ? num(selectedPoint.predicted_energy_kwh) : "—"}</span>
-              <span><small>ORIGIN</small>{selectedPoint.origin || "—"}</span>
+              <span><small>READING</small>{clockOf(selectedPoint.timestamp)}</span>
             </div>
 
-            <div className="al-xai">
-              <span className="section-eyebrow">CONTRIBUTION / WHY THIS FLAGGED</span>
-              {[
-                { label: "Deviation above baseline", value: Math.max(0, selectedPoint.deviation_percent) },
-                { label: "Device share of anomalies", value: ((deviceCounts.find(d => d.device === (selectedPoint.device_name || selectedPoint.device_code))?.count ?? 0) / Math.max(1, flagged.length)) * 100 },
-                { label: "Detection confidence", value: (selectedPoint.confidence ?? 0) * 100 },
-                { label: "Off-hours contribution", value: hourOf(selectedPoint.timestamp) >= 18 || hourOf(selectedPoint.timestamp) < 6 ? 100 : 0 },
-              ].map(c => (
-                <div className="al-xai__row" key={c.label}>
-                  <span>{c.label}</span>
-                  <div className="al-xai__track"><i style={{ width: `${Math.min(100, Math.abs(c.value))}%` }} /></div>
-                  <strong>{num(c.value, 0)}</strong>
-                </div>
-              ))}
-              <p className="mono-note">Contributions are derived from the recorded point and its window aggregates; the stage does not persist SHAP values for individual readings.</p>
-            </div>
           </div>
         ) : null}
       </section>
 
-      {/* Root cause + distribution ------------------------------------ */}
-      <div className="al-grid2">
-        <section className="panel al-causes">
-          <div className="al-head">
-            <div><span className="section-eyebrow">ROOT CAUSE</span><h2>Ranked reasons</h2></div>
-            <Flame size={15} />
-          </div>
-          {causes.length ? (
-            <div className="al-causes__list">
-              {causes.map(c => (
-                <div className="al-cause" key={c.label}>
-                  <div className="al-cause__head"><strong>{c.label}</strong><span className="mono-note">{c.count} · {c.share.toFixed(0)}%</span></div>
-                  <div className="al-cause__track"><i style={{ width: `${c.pct}%` }} /></div>
-                  <small>{c.note}</small>
-                </div>
-              ))}
-            </div>
-          ) : <p className="mono-note">No flagged readings in this window, so no causes can be ranked.</p>}
-        </section>
-
-        <section className="panel al-dist">
-          <div className="al-head">
-            <div><span className="section-eyebrow">DISTRIBUTION</span><h2>Where anomalies cluster</h2></div>
-            <span className="mono-note">click to filter</span>
-          </div>
-          <div className="al-stack">
-            {SEV_ORDER.map(s => {
-              const c = flagged.filter(p => p.severity === s).length;
-              const w = flagged.length ? (c / flagged.length) * 100 : 0;
-              return c ? (
-                <button type="button" key={s} className={`al-stack__seg al-stack__seg--${s}`} style={{ width: `${w}%` }} title={`${s}: ${c}`} onClick={() => setSevFilter([s])}>
-                  {w > 8 ? c : ""}
-                </button>
-              ) : null;
-            })}
-          </div>
-          <div className="al-bars">
-            {deviceCounts.slice(0, 5).map(d => (
-              <button type="button" className="al-bar" key={d.device} onClick={() => setDeviceFilter([d.device])}>
-                <span>{d.device}</span>
-                <div><i style={{ width: `${(d.count / Math.max(1, deviceCounts[0]?.count ?? 1)) * 100}%` }} /></div>
-                <strong>{d.count}</strong>
-              </button>
-            ))}
-          </div>
-        </section>
-      </div>
-
-      {/* Heatmap + AI insight ----------------------------------------- */}
-      <div className="al-grid2">
-        <section className="panel al-heat-card">
-          <div className="al-head">
-            <div><span className="section-eyebrow">ANOMALY HEATMAP</span><h2>Weekday × hour</h2></div>
-            <span className="mono-note">click a cell to filter</span>
-          </div>
-          <div className="al-heat">
-            <div className="al-heat__hours"><span />{Array.from({ length: 24 }, (_, h) => <span key={h}>{h % 3 === 0 ? String(h).padStart(2, "0") : ""}</span>)}</div>
-            {WEEKDAYS.map((d, di) => (
-              <div className="al-heat__row" key={d}>
-                <span className="al-heat__day">{d}</span>
-                {Array.from({ length: 24 }, (_, h) => {
-                  const c = flagged.filter(p => dayOf(p.timestamp) === di && hourOf(p.timestamp) === h).length;
-                  const max = Math.max(1, ...WEEKDAYS.map((_, dd) => flagged.filter(p => dayOf(p.timestamp) === dd).length));
-                  return (
-                    <button type="button" key={h} className={`al-heat__cell ${c ? "" : "al-heat__cell--empty"}`} style={c ? { background: `rgba(240,127,110,${(0.15 + 0.75 * (c / max)).toFixed(2)})` } : undefined} title={`${d} ${String(h).padStart(2, "0")}:00 · ${c} anomalies`} onClick={() => { setWeekdayFilter(di); setHourFilter(h); }}>
-                      {c || ""}
-                    </button>
-                  );
-                })}
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section className="panel al-insight">
-          <div className="al-head">
-            <div><span className="section-eyebrow">AI INSIGHT</span><h2>What the pattern says</h2></div>
-            <Sparkles size={15} />
-          </div>
-          <p className="al-insight__body">{insight}</p>
-          <div className="al-insight__facts">
-            <span><small>FLAGGED</small>{flagged.length}</span>
-            <span><small>DEVICES</small>{deviceCounts.length}</span>
-            <span><small>CRITICAL</small>{meta?.severity?.critical ?? 0}</span>
-            <span><small>BASELINE</small>{baselineName || "—"}</span>
-          </div>
-          <div className="al-compare">
-            <span className="section-eyebrow">HISTORICAL COMPARISON</span>
-            <div className="al-compare__legend">
-              <span><i style={{ background: "#b6f36b" }} /> current window</span>
-              <span><i style={{ background: "#6aa8ff" }} /> previous window</span>
-              <span><i style={{ background: "#718b7b" }} /> baseline</span>
-            </div>
-            <ResponsiveContainer width="100%" height={110}>
-              <ComposedChart data={compareData} margin={{ top: 4, right: 8, left: -18, bottom: 0 }}>
-                <XAxis dataKey="time" hide />
-                <YAxis hide />
-                <Line type="monotone" dataKey="baseline" stroke="#718b7b" strokeDasharray="4 4" strokeWidth={1.2} dot={false} />
-                <Line type="monotone" dataKey="previous" stroke="#6aa8ff" strokeWidth={1.3} dot={false} />
-                <Line type="monotone" dataKey="observed" stroke="#b6f36b" strokeWidth={1.8} dot={false} />
-              </ComposedChart>
-            </ResponsiveContainer>
-          </div>
-        </section>
-      </div>
-
-      {/* Device impact ------------------------------------------------- */}
-      <section className="panel al-devices">
-        <div className="al-head">
-          <div><span className="section-eyebrow">DEVICE IMPACT</span><h2>Which assets cost the most</h2></div>
-          <span className="mono-note">click a device to filter</span>
-        </div>
-        <div className="al-devices__head">
-          <span>DEVICE</span><span>ANOMALIES</span><span>ENERGY LOSS</span><span>HIGHEST</span><span>AVG DEV</span><span>TREND</span>
-        </div>
-        {deviceCounts.slice(0, 8).map(d => (
-          <button type="button" className="al-devices__row" key={d.device} onClick={() => setDeviceFilter([d.device])}>
-            <span>{d.device}</span>
-            <span>{d.count}</span>
-            <span>{num(d.loss, 0)} {unit}</span>
-            <span className={`al-sev--${SEV_ORDER.find(s => SEV_RANK[s] === d.maxSev) ?? "low"}`}>{SEV_ORDER.find(s => SEV_RANK[s] === d.maxSev) ?? "—"}</span>
-            <span>{num(d.devSum / Math.max(1, d.count))}%</span>
-            <span className="al-spark">
-              {flagged.filter(p => (p.device_name || p.device_code) === d.device).slice(0, 16).map((p, i) => (
-                <i key={i} style={{ height: `${Math.min(100, Math.abs(p.deviation_percent))}%` }} />
-              ))}
-            </span>
-          </button>
-        ))}
-      </section>
 
       {/* Evidence table ------------------------------------------------ */}
       <section className="panel al-table-panel">

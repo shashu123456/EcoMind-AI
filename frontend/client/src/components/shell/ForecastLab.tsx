@@ -216,10 +216,7 @@ export function ForecastLab({ datasetId, datasetName, baselineName, modelName, o
         <div>
           <span className="section-eyebrow">FORECAST / {data?.horizon_label ?? horizon}</span>
           <h2>{forecast ? `${num(kpis?.energy_kwh)} kWh projected` : "No forecast recorded yet"}</h2>
-          <p>
-            {datasetName} · {data?.model?.algorithm ?? modelName} · {baselineName}
-            {forecast?.method ? ` · ${forecast.method}` : ""}
-          </p>
+          <p>{datasetName}</p>
         </div>
         <div className="fl-head__actions">
           <div className="fl-horizons" role="group" aria-label="Forecast horizon">
@@ -278,11 +275,7 @@ export function ForecastLab({ datasetId, datasetName, baselineName, modelName, o
               { label: "FORECAST COST", value: `₹${num(kpis?.cost_inr)}`, tip: "Each hour priced at the tariff band it falls in." },
               { label: "FORECAST CARBON", value: `${num(kpis?.carbon_kg)} kg`, tip: "Projected kWh × the configured grid factor." },
               { label: "PEAK LOAD", value: `${num(kpis?.peak_kw, 1)} kW`, tip: `Highest hourly projection, at ${clock(kpis?.peak_at)}.` },
-              { label: "AVERAGE LOAD", value: `${num(kpis?.avg_kw, 1)} kW`, tip: "Projected energy ÷ hours in the horizon." },
-              { label: "WINDOW", value: kpis?.horizon_label ?? "—", tip: `${clock(kpis?.window_start)} → ${clock(kpis?.window_end)}` },
               { label: "CONFIDENCE", value: kpis?.confidence_pct != null ? `${kpis.confidence_pct}%` : "—", tip: "100 − the measured backtest MAPE." },
-              { label: "MODEL", value: kpis?.model_version ?? "—", tip: "The selected model that produced this forecast." },
-              { label: "GENERATED", value: clock(kpis?.generated_at), tip: `Version ${kpis?.version ?? "—"} of this horizon.` },
             ].map(k => (
               <div className="fl-kpi" key={k.label} title={k.tip}>
                 <span>{k.label}</span>
@@ -373,12 +366,6 @@ export function ForecastLab({ datasetId, datasetName, baselineName, modelName, o
               <div className="fl-kv">
                 <span>Algorithm<strong>{data.model?.algorithm ?? "—"}</strong></span>
                 <span>Version<strong>{data.model?.version ?? "—"}</strong></span>
-                <span>Trained<strong>{clock(data.model?.trained_at)}</strong></span>
-                <span>Training rows<strong>{num(data.model?.training_rows)}</strong></span>
-                <span>Features<strong>{num(data.model?.feature_count)}</strong></span>
-                <span>Artifact<strong>{data.model?.artifact_source ?? "—"}</strong></span>
-                <span>Generation<strong>{data.generated_ms != null ? `${num(data.generated_ms)} ms` : "—"}</strong></span>
-                <span>Prediction rows<strong>{num(points.length)}</strong></span>
               </div>
               <div className="fl-gauges">
                 {[
@@ -386,8 +373,6 @@ export function ForecastLab({ datasetId, datasetName, baselineName, modelName, o
                   ["RMSE", num(quality.rmse as number, 2)],
                   ["MAE", num(quality.mae as number, 2)],
                   ["R²", num(quality.r2 as number, 3)],
-                  ["Trend acc.", quality.trend_accuracy != null ? `${num(quality.trend_accuracy as number, 1)}%` : "—"],
-                  ["Bias", num(quality.bias as number, 2)],
                 ].map(([label, value]) => (
                   <div className="fl-gauge" key={label}>
                     <span>{label}</span>
@@ -399,21 +384,8 @@ export function ForecastLab({ datasetId, datasetName, baselineName, modelName, o
             </section>
           </div>
 
-          <div className="fl-grid2">
-            <section className="panel">
-              <div className="fl-panel-head"><h3>Peaks in this horizon</h3></div>
-              <div className="fl-kv">
-                <span>Peak hour<strong>{clock(forecast.peaks.peak_hour as string)}</strong></span>
-                <span>Peak load<strong>{num(forecast.peaks.peak_kwh as number, 1)} kWh</strong></span>
-                <span>Lowest hour<strong>{clock(forecast.peaks.lowest_hour as string)}</strong></span>
-                <span>Lowest load<strong>{num(forecast.peaks.lowest_kwh as number, 1)} kWh</strong></span>
-                <span>Peak day<strong>{String(forecast.peaks.peak_day ?? "—")}</strong></span>
-                <span>Mean<strong>{num(forecast.peaks.mean_kwh as number, 1)} kWh</strong></span>
-              </div>
-            </section>
-
-            <section className="panel">
-              <div className="fl-panel-head"><h3>Version history</h3></div>
+          <section className="panel">
+            <div className="fl-panel-head"><h3>Version history</h3></div>
               <div className="fl-history">
                 {(data.history ?? []).slice(0, 6).map(v => (
                   <div className={`fl-history__row ${v.status === "current" ? "is-current" : ""}`} key={v.id}>
@@ -431,9 +403,8 @@ export function ForecastLab({ datasetId, datasetName, baselineName, modelName, o
                   </div>
                 ))}
                 {!(data.history ?? []).length ? <p className="fl-note">No versions recorded yet.</p> : null}
-              </div>
-            </section>
-          </div>
+            </div>
+          </section>
 
           <section className="panel">
             <div className="fl-panel-head">
@@ -485,10 +456,6 @@ export function ForecastLab({ datasetId, datasetName, baselineName, modelName, o
             ) : null}
           </section>
 
-          <div className="fl-foot">
-            <span><Gauge size={13} /> {num(kpis?.version)} version · {clock(kpis?.generated_at)}</span>
-            <span className="mono-note"><ArrowUpRight size={12} /> {datasetName}</span>
-          </div>
         </>
       ) : null}
     </div>

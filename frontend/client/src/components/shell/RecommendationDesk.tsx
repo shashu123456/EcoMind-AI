@@ -244,10 +244,6 @@ export function RecommendationDesk({ datasetId, datasetName, baselineName }: Pro
         <div>
           <span className="section-eyebrow">DECISION SUPPORT</span>
           <h2>{summary?.active ?? 0} actions are worth your attention.</h2>
-          <p>
-            Generated from recorded anomalies, the {baselineName} baseline and this dataset&apos;s forecast —
-            {" "}{summary?.total ?? 0} recommendations across {summary?.devices_affected ?? 0} meters.
-          </p>
         </div>
         <div className="desk-head__impact">
           <span>EXPECTED MONTHLY RECOVERY</span>
@@ -260,9 +256,6 @@ export function RecommendationDesk({ datasetId, datasetName, baselineName }: Pro
         {[
           { label: "ACTIVE", value: num(summary?.active), note: `${summary?.closed ?? 0} closed`, tip: "Recommendations not yet rejected, completed or ignored." },
           { label: "CRITICAL", value: num(summary?.critical), note: "P1 band", tip: "Top-ranked recoverable value in this dataset." },
-          { label: "ENERGY", value: `${num(summary?.savings_kwh)} kWh`, note: "recoverable", tip: "Recoverable excess energy across active actions." },
-          { label: "COST", value: money(symbol, summary?.savings_cost_inr), note: "over detected window", tip: "Recoverable rupees at the tariff recorded for those hours." },
-          { label: "CARBON", value: `${num(summary?.savings_co2_kg)} kg`, note: "kgCO₂", tip: "Recoverable kWh × the configured grid factor." },
           { label: "CONFIDENCE", value: summary?.avg_confidence_pct != null ? `${summary.avg_confidence_pct}%` : "—", note: "average", tip: "Mean of the recorded per-recommendation confidence." },
           { label: "ROI", value: summary?.avg_roi_pct != null ? `${summary.avg_roi_pct}%` : "—", note: "cost vs recovery", tip: "(Recoverable value − implementation cost) ÷ implementation cost." },
           { label: "PAYBACK", value: summary?.avg_payback_months != null ? `${summary.avg_payback_months} mo` : "—", note: "average", tip: "Implementation cost ÷ window-normalised monthly recovery." },
@@ -351,11 +344,8 @@ export function RecommendationDesk({ datasetId, datasetName, baselineName }: Pro
                 <span><small>ENERGY</small><strong>{num(rec.savings_kwh)} kWh</strong></span>
                 <span><small>COST</small><strong>{money(symbol, rec.savings_cost_inr)}</strong></span>
                 <span><small>CARBON</small><strong>{num(rec.savings_co2_kg)} kg</strong></span>
-                <span><small>MONTHLY</small><strong>{money(symbol, rec.monthly_savings_inr)}</strong></span>
                 <span><small>PAYBACK</small><strong>{rec.payback_months != null ? `${rec.payback_months} mo` : "—"}</strong></span>
                 <span><small>DEVICE</small><strong>{rec.device_code}</strong></span>
-                <span><small>LOCATION</small><strong>{[rec.building_code, rec.floor_no, rec.room_code].filter(Boolean).join(" / ") || "—"}</strong></span>
-                <span><small>EVIDENCE</small><strong>{rec.anomaly_count ?? 0} readings</strong></span>
               </div>
 
               <div className="desk-card__actions">
@@ -593,12 +583,6 @@ export function RecommendationDesk({ datasetId, datasetName, baselineName }: Pro
         </div>
       ) : null}
 
-      <div className="desk-foot">
-        <span><Check size={13} /> Every action above is written to the backend audit trail.</span>
-        <span className="mono-note">
-          <ChevronDown size={12} /> {data?.filtered ?? 0} shown · dataset {datasetId.slice(0, 8)}
-        </span>
-      </div>
     </div>
   );
 }

@@ -15,6 +15,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 
 from .db.base import init_db
+from .core.config import settings
 from .events.event_bus import event_bus
 
 
@@ -34,7 +35,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.cors_origins or ["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
