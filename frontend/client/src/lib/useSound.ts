@@ -52,19 +52,25 @@ export function useSound({ onPlay }: UseSoundOptions = {}): UseSoundReturn {
     try {
       // Do not create the element before the page is visibly alive; a
       // hidden or closed audio context is not a useful place to hang one.
-      const ctx =
+      const CtxCtor =
         window.AudioContext ||
         (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-      if (ctx && ctx.state !== "closed") {
-        const a =
-          (window as unknown as { AudioElement?: () => HTMLAudioElement }).AudioElement?.() ??
-          (window as unknown as { Audio: { new (): HTMLAudioElement } }).Audio();
-        a.src = TONE_SRC;
-        // Start muted; the caller sets the volume each time it plays. This avoids
-        // a flash of sound on creation and keeps the default state inert.
-        a.volume = 0;
-        a.preload = "auto";
-        tone.current = a;
+      if (CtxCtor) {
+        const ctx = new CtxCtor();
+        if (ctx.state !== "closed") {
+          const a =
+            (window as unknown as { AudioElement?: () => HTMLAudioElement }).AudioElement?.() ??
+            (window as unknown as { Audio?: { new (): HTMLAudioElement } }).Audio
+              ? new (window.Audio as { new (): HTMLAudioElement })()
+              : null;
+          if (!a) return;
+          a.src = TONE_SRC;
+          // Start muted; the caller sets the volume each time it plays. This avoids
+          // a flash of sound on creation and keeps the default state inert.
+          a.volume = 0;
+          a.preload = "auto";
+          tone.current = a;
+        }
       }
     } catch {
       tone.current = null;

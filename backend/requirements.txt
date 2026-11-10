@@ -24,4 +24,7 @@ openpyxl==3.1.2
 reportlab==4.2.0
 python-docx==1.2.0
 python-pptx==1.0.2
+# Test runner. Declared here rather than only in a dev-requirements file because
+# CI installs from this file alone and runs the suite on it.
+pytest==8.2.2
 jinja2==3.1.4
