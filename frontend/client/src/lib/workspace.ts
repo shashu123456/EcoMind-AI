@@ -1341,25 +1341,24 @@ export async function loadWorkspace(preferredDatasetId?: string): Promise<{
     const runList = ((runsRes.runs ?? []) as unknown as Record<string, unknown>[]);
     if (runList.length) ws.runs = mapRuns(runList, nameById);
 
-    // Selection order: explicit preferred id → is_active dataset with its file
-    // available → biggest dataset with its file available → biggest dataset
-    // large enough to train on (>= 50 rows) → dsList[0]. Never auto-select a
-    // dataset whose file is missing and that cannot complete the pipeline.
+    // Selection order: preferred id -> is_active && loadable -> biggest loadable
+    // -> biggest dataset with row_count >= 50 -> dsList[0]. A dataset is
+    // "loadable" when either its upload file or its processed copy is on disk,
+    // so the campus dataset (whose upload is missing but whose processed copy
+    // exists) is still selectable. Never auto-select a dataset that cannot
+    // complete the pipeline.
     const MIN_ROWS_TO_TRAIN = 50;
-    const completedRuns = (runList as unknown as RunPayload[])
-      .filter(r => r.status === "completed" && r.dataset_id && nameById.has(r.dataset_id))
-      .sort((a, b) => Date.parse(String(b.started_at ?? "")) - Date.parse(String(a.started_at ?? "")));
-    const activeAvailable = dsList.find(d => d.is_active === true && d.file_available === true);
-    const biggestAvailable = dsList
-      .filter(d => d.file_available === true)
+    const loadable = (d: LiveDataset) => d.file_available === true || d.has_processed === true;
+    const activeLoadable = dsList.find(d => d.is_active === true && loadable(d));
+    const biggestLoadable = dsList
+      .filter(d => loadable(d))
       .sort((a, b) => (b.rowCount ?? 0) - (a.rowCount ?? 0));
     const biggestEnough = dsList
       .filter(d => (d.rowCount ?? 0) >= MIN_ROWS_TO_TRAIN)
       .sort((a, b) => (b.rowCount ?? 0) - (a.rowCount ?? 0));
     const fallbackId =
-      activeAvailable?.id ??
-      biggestAvailable[0]?.id ??
-      completedRuns[0]?.dataset_id ??
+      activeLoadable?.id ??
+      biggestLoadable[0]?.id ??
       biggestEnough[0]?.id ??
       dsList[0]?.id;
     const activeId =

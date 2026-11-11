@@ -63,6 +63,8 @@ def _dataset_payload(ds: Dataset) -> dict:
     rows in `dataset_buildings`, but the library renders all of them for every
     dataset on every load, and the library is the first page anyone sees.
     """
+    file_path = Path(ds.file_path) if ds.file_path else None
+    processed = settings.processed_dir / f"{ds.id}.csv"
     return {
         "id": ds.id,
         "name": ds.name,
@@ -91,6 +93,8 @@ def _dataset_payload(ds: Dataset) -> dict:
         "status": ds.status,
         "created_at": ds.created_at.isoformat() if ds.created_at else None,
         "updated_at": ds.updated_at.isoformat() if ds.updated_at else None,
+        "file_available": bool(file_path and file_path.exists()),
+        "has_processed": processed.exists(),
     }
 
 
