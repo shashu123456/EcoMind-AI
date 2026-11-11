@@ -795,7 +795,7 @@ export function AppShell() {
   // instead of a failed request from each independent loader.
   const [authChecked, setAuthChecked] = useState(false);
   const [activeView, setActiveView] = useState<NavId>("overview");
-  const [activeDataset, setActiveDataset] = useState<Dataset>(datasets[0] ?? EMPTY_DATASET);
+  const [activeDataset, setActiveDataset] = useState<Dataset>(EMPTY_DATASET);
   const [sidebarExpanded, setSidebarExpanded] = useState(true);
   const [searchOpen, setSearchOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
@@ -838,6 +838,12 @@ export function AppShell() {
   const [autoRunning, setAutoRunning] = useState(false);
   const [awaitingRun, setAwaitingRun] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  // The workspace data lives in module-level `let` variables so the (slow)
+  // workspace loader can keep writing while a render is in flight. Those
+  // assignments do not trigger a re-render on their own, so this counter is
+  // bumped whenever applyWorkspace finishes. It is only ever called from an
+  // effect or an event handler, never during render, so it cannot loop.
+  const [, setRenderTick] = useState(0);
   // Set when a fresh upload should become the active dataset on the next load,
   // so a new file is never shadowed by an older dataset's completed run.
   const pendingDatasetId = useRef<string | null>(null);
@@ -1141,10 +1147,20 @@ export function AppShell() {
     // heading and the panels can never disagree about which dataset is shown.
     setActiveDataset(
       (loaded.activeDatasetId && datasets.find(d => d.id === loaded.activeDatasetId)) ||
-        datasets[0] ||
-        EMPTY_DATASET
+      // The backend records no active-dataset pointer, so without this the
+      // workspace lands on datasets[0] — a raw CSV upload with no model, no
+      // quality run and no forecast, which is exactly what made the prediction
+      // page look broken on first load. Prefer a dataset that has actually
+      // been through the pipeline; fall back to the first one otherwise.
+      datasets.find(d => d.health !== "—" && Number(d.health) > 0) ||
+      datasets[0] ||
+      EMPTY_DATASET
     );
     setWorkspace(loaded);
+    // The module-level variables above just changed; without this the render
+    // that is already in flight keeps the previous values and every page
+    // shows the empty-state copy even though the API returned 25 datasets.
+    setRenderTick(t => t + 1);
   };
 
   /** Re-read every recorded stage output for the active dataset. */
