@@ -131,7 +131,14 @@ def test_workflow_totals_are_ten():
     ]
     with _client() as c:
         h = _auth(c)
-        ds_id = c.get("/api/v1/datasets", headers=h).json()["datasets"][0]["id"]
+        datasets_page = c.get("/api/v1/datasets", headers=h).json()["datasets"]
+        # Never depend on datasets[0] (the 40-row import). Pick any dataset with
+        # >= 50 rows so the pipeline can actually run.
+        ds = next(
+            (d for d in datasets_page if (d.get("row_count") or 0) >= 50),
+            datasets_page[0],
+        )
+        ds_id = ds["id"]
         started = c.post("/api/v1/workflows/start", json={"dataset_id": ds_id}, headers=h)
         assert started.status_code == 200, started.text
         assert started.json()["run"]["total_stages"] == 10
@@ -147,7 +154,15 @@ def test_decision_stage_is_gated_on_preparation():
 
     with _client() as c:
         h = _auth(c)
-        ds_id = c.get("/api/v1/datasets", headers=h).json()["datasets"][0]["id"]
+        datasets_page = c.get("/api/v1/datasets", headers=h).json()["datasets"]
+        # Never depend on datasets[0] (the 40-row import) or the active dataset
+        # (whose sample file is missing from disk). Pick any dataset with >= 50
+        # rows so the pipeline can actually run.
+        ds = next(
+            (d for d in datasets_page if (d.get("row_count") or 0) >= 50),
+            datasets_page[0],
+        )
+        ds_id = ds["id"]
         run_id = c.post("/api/v1/workflows/start", json={"dataset_id": ds_id}, headers=h).json()[
             "run"
         ]["id"]

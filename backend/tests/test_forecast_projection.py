@@ -149,7 +149,15 @@ class TestAnomalyIdentityIsReported:
 
     @pytest.fixture(scope="class")
     def series(self, client, auth):
-        for ds in client.get("/api/v1/datasets", headers=auth).json()["datasets"]:
+        datasets_page = client.get("/api/v1/datasets", headers=auth).json()["datasets"]
+        # Prefer datasets with >= 50 rows so the anomaly data is real; never
+        # depend on datasets[0] (the 40-row import).
+        ordered = [
+            d for d in datasets_page if (d.get("row_count") or 0) >= 50
+        ] + [
+            d for d in datasets_page if (d.get("row_count") or 0) < 50
+        ]
+        for ds in ordered:
             r = client.get(f"/api/v1/datasets/{ds['id']}/anomalies/chart", headers=auth)
             if r.status_code == 200 and r.json().get("series"):
                 return r.json()["series"]
