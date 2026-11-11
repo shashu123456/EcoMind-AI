@@ -45,7 +45,7 @@ import { ImportStudio } from "./ImportStudio";
 
 type NavId = "overview" | "library" | "import" | "schema" | "quality" | "transform" | "models" | "anomalies" | "prediction" | "recommendations" | "reports" | "history" | "notifications" | "settings";
 type DatasetDomain = BackendDomain;
-type Dataset = { id: string; name: string; domain: DatasetDomain; type: string; detail: string; rows: string; freshness: string; health: string; accent: string; icon: LucideIcon; location: string; unitSystem: "metric-india" | "metric-eu"; fieldCount?: number; rowCount?: number; columnCount?: number };
+type Dataset = { id: string; name: string; domain: DatasetDomain; type: string; detail: string; rows: string; freshness: string; health: string; accent: string; icon: LucideIcon; location: string; unitSystem: "metric-india" | "metric-eu"; fieldCount?: number; rowCount?: number; columnCount?: number; file_available?: boolean; has_processed?: boolean };
 
 // Explicit empty state used before any dataset is loaded. It is NOT sample
 // data: nothing renders as a metric until the backend returns a real dataset.
@@ -796,6 +796,14 @@ export function AppShell() {
   const [authChecked, setAuthChecked] = useState(false);
   const [activeView, setActiveView] = useState<NavId>("overview");
   const [activeDataset, setActiveDataset] = useState<Dataset>(EMPTY_DATASET);
+  // True only once the backend has returned at least one real dataset. While
+  // false the shell renders an empty-state block with a Retry action instead of
+  // the "No dataset loaded" placeholder, so a missing dataset never looks loaded.
+  const [datasetsReady, setDatasetsReady] = useState(false);
+  // Last error returned by loadWorkspace (401, timeout, genuinely empty account, ...).
+  // Rendered in the empty state instead of a hardcoded guess, so every failure
+  // mode is surfaced honestly rather than pretending an empty list is the cause.
+  const [workspaceError, setWorkspaceError] = useState<string | null>(null);
   const [sidebarExpanded, setSidebarExpanded] = useState(true);
   const [searchOpen, setSearchOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
@@ -1146,21 +1154,34 @@ export function AppShell() {
     // The workspace names the dataset its recorded outputs belong to, so the
     // heading and the panels can never disagree about which dataset is shown.
     setActiveDataset(
-      (loaded.activeDatasetId && datasets.find(d => d.id === loaded.activeDatasetId)) ||
+      // Match against the data that just arrived, not the module-level
+      // `datasets` array — that one is still empty the first time this runs
+      // because the render trigger below is what populates it. Reading from
+      // `loaded.datasets` instead means the active dataset is chosen from the
+      // real 25 datasets the API returned, not from a placeholder.
+      (loaded.activeDatasetId && loaded.datasets.find(d => d.id === loaded.activeDatasetId)) ||
       // The backend records no active-dataset pointer, so without this the
       // workspace lands on datasets[0] — a raw CSV upload with no model, no
       // quality run and no forecast, which is exactly what made the prediction
-      // page look broken on first load. Prefer a dataset that has actually
-      // been through the pipeline; fall back to the first one otherwise.
-      datasets.find(d => d.health !== "—" && Number(d.health) > 0) ||
-      datasets[0] ||
+      // page look broken on first load. The backend's own fallback already
+      // prefers the most recent completed run's dataset over the newest raw
+      // upload, so `loaded.datasets[0]` is the right choice here; do not
+      // second-guess it with a health filter, because every dataset's health
+      // renders as "—" until a quality run has recorded one.
+      loaded.datasets[0] ||
       EMPTY_DATASET
     );
+    setDatasetsReady(loaded.datasets.length > 0);
+    const chosen =
+      (loaded.activeDatasetId && loaded.datasets.find(d => d.id === loaded.activeDatasetId)) ||
+      loaded.datasets[0] ||
+      EMPTY_DATASET;
     setWorkspace(loaded);
     // The module-level variables above just changed; without this the render
     // that is already in flight keeps the previous values and every page
     // shows the empty-state copy even though the API returned 25 datasets.
     setRenderTick(t => t + 1);
+    console.log("[shell] applyWorkspace datasets=", loaded.datasets.length, "activeId=", loaded.activeDatasetId, "chosen=", chosen?.name);
   };
 
   /** Re-read every recorded stage output for the active dataset. */
@@ -1170,17 +1191,20 @@ export function AppShell() {
       if (!getToken()) setSignedIn(false);
       return false;
     }
+    setWorkspaceError(res.error ?? null);
     applyWorkspace(res.workspace);
     return true;
   };
 
   useEffect(() => {
+    console.log("[shell] workspace effect fired", { signedIn, authChecked, reloadKey });
     if (!signedIn || !authChecked) return;
     let cancelled = false;
     (async () => {
       const preferred = pendingDatasetId.current ?? undefined;
       pendingDatasetId.current = null;
       const res = await loadWorkspace(preferred);
+      console.log("[shell] loadWorkspace returned", res ? res.workspace.datasets.length + " datasets" : "null", "pendingRun:", res?.pendingRun);
       if (cancelled) return;
       if (!res) {
         if (!getToken()) setSignedIn(false);
@@ -1188,6 +1212,7 @@ export function AppShell() {
         return;
       }
       applyWorkspace(res.workspace);
+      setWorkspaceError(res.error ?? null);
       if (res.pendingRun) {
         // The pipeline is never started without an explicit choice. Step runs
         // one stage, Auto runs the remainder — both live in the pipeline rail.
@@ -1476,6 +1501,7 @@ export function AppShell() {
         case "library":
         return (
           <LibraryView
+            key={activeDataset.id}
             activeDataset={activeDataset}
             onSelect={dataset => {
               setActiveDataset(dataset);
@@ -1484,7 +1510,10 @@ export function AppShell() {
               // load its recorded outputs and continue to schema discovery so
               // the flow keeps moving instead of stopping on a toast.
               void loadWorkspace(dataset.id).then(res => {
-                if (res) applyWorkspace(res.workspace);
+                if (res) {
+                  setWorkspaceError(res.error ?? null);
+                  applyWorkspace(res.workspace);
+                }
               });
               goTo("import");
               setToast(`${dataset.name} selected — showing ingestion with the detected domain.`);
@@ -1496,6 +1525,7 @@ export function AppShell() {
       case "import":
         return (
           <ImportStudio
+            key={activeDataset.id}
             datasetId={activeDataset.id}
             datasetName={activeDataset.name}
             rows={activeDataset.rows}
@@ -1515,6 +1545,7 @@ export function AppShell() {
       case "schema":
         return (
           <SchemaDiscovery
+            key={activeDataset.id}
             dataset={{
               id: activeDataset.id,
               name: activeDataset.name,
@@ -1540,6 +1571,7 @@ export function AppShell() {
       case "quality":
         return (
           <QualityView
+            key={activeDataset.id}
             onToast={setToast}
             dataset={activeDataset}
             filter={qualityFilter}
@@ -1563,6 +1595,7 @@ export function AppShell() {
       case "transform":
         return (
           <TransformView
+            key={activeDataset.id}
             transform={workspace?.transform}
             baseline={workspace?.baseline}
             dataset={activeDataset}
@@ -1584,6 +1617,7 @@ export function AppShell() {
       case "models":
         return (
           <ModelsView
+            key={activeDataset.id}
             dataset={activeDataset}
             selectedModel={selectedModel}
             setSelectedModel={setSelectedModel}
@@ -1592,6 +1626,7 @@ export function AppShell() {
       case "anomalies":
         return (
           <AnomaliesView
+            key={activeDataset.id}
             windowOptions={windowOptions}
             window={anomalyWindow}
             setWindow={setAnomalyWindow}
@@ -1606,6 +1641,7 @@ export function AppShell() {
       case "prediction":
         return (
           <ForecastLab
+            key={activeDataset.id}
             datasetId={activeDataset.id}
             datasetName={activeDataset.name}
             baselineName={baselineName}
@@ -1616,22 +1652,24 @@ export function AppShell() {
       case "recommendations":
         return (
           <RecommendationDesk
+            key={activeDataset.id}
             datasetId={activeDataset.id}
             datasetName={activeDataset.name}
             baselineName={baselineName}
           />
         );
       case "reports":
-        return <ReportStudio datasetId={activeDataset.id} datasetName={activeDataset.name} onNavigate={route => goTo(route as Parameters<typeof goTo>[0])} />;
+        return <ReportStudio key={activeDataset.id} datasetId={activeDataset.id} datasetName={activeDataset.name} onNavigate={route => goTo(route as Parameters<typeof goTo>[0])} />;
       case "history":
-        return <HistoryView runs={liveRuns} onReplay={handleReplay} />;
+        return <HistoryView key={activeDataset.id} runs={liveRuns} onReplay={handleReplay} />;
       case "notifications":
-        return <NotificationsView />;
+        return <NotificationsView key={activeDataset.id} />;
       case "settings":
-        return <SettingsView workspace={workspace} baselineName={baselineName} modelName={modelName} />;
+        return <SettingsView key={activeDataset.id} workspace={workspace} baselineName={baselineName} modelName={modelName} />;
       default:
         return (
           <OverviewView
+            key={activeDataset.id}
             onNavigate={goTo}
             activeDataset={activeDataset}
             domainInfo={domainInfo}
@@ -2002,7 +2040,39 @@ export function AppShell() {
               </div>
             </div>
           ) : null}
-          {renderView()}
+          {!datasetsReady ? (
+            <section className="blk blk--flush">
+              <div className="blk-head">
+                <div className="blk-head__copy">
+                  <span className="blk-head__eyebrow">WORKSPACE EMPTY</span>
+                  <h2 className="blk-head__title">No dataset loaded</h2>
+                  <p className="blk-head__note">
+                    {workspaceError || "The backend returned no datasets. Import a CSV or Excel file to begin the ten-stage pipeline."}
+                  </p>
+                </div>
+                <div className="blk-head__actions">
+                  <button type="button" className="blk-launch" onClick={() => goTo("import")}>
+                    <span className="blk-launch__icon">
+                      <UploadCloud size={16} />
+                    </span>
+                    <span className="blk-launch__copy">
+                      <strong>Import a dataset</strong>
+                      <span>Start ingestion from the file dropzone.</span>
+                    </span>
+                    <span className="blk-launch__cta">
+                      Start
+                      <ArrowRight size={12} />
+                    </span>
+                  </button>
+                  <button type="button" className="panel-link" onClick={() => setReloadKey(k => k + 1)}>
+                    <RefreshCw size={14} className="import-spin" /> Retry
+                  </button>
+                </div>
+              </div>
+            </section>
+          ) : (
+            renderView()
+          )}
         </div>
       </main>
       <ActivityTerminal
@@ -2543,6 +2613,11 @@ function OverviewView({
   const healthPct = Number.parseInt(activeDataset.health, 10);
   const healthWidth = Number.isFinite(healthPct) ? Math.max(0, Math.min(100, healthPct)) : 0;
   const stageState = (key: string) => liveStages.find(s => s.id === key)?.status ?? "pending";
+  // A dataset below the training minimum cannot run the pipeline. Show an
+  // honest notice and keep the guided / auto run buttons disabled so the user
+  // never hits a generic 500 from an undersized dataset.
+  const rowCount = activeDataset.rowCount ?? 0;
+  const rowsTooFew = rowCount > 0 && rowCount < 50;
 
   return (
     <div className="view-content view-content--overview">
@@ -2561,7 +2636,18 @@ function OverviewView({
             <span className="blk-chip">{activeDataset.fieldCount ?? activeDataset.columnCount ?? "—"} fields</span>
             <span className="blk-chip">{activeDataset.freshness} freshness</span>
             <span className="blk-chip">{liveRunId ? `run ${liveRunId.slice(0, 12)}` : "no run recorded"}</span>
+            {activeDataset.has_processed && !activeDataset.file_available ? (
+              <span className="blk-chip blk-chip--processed">
+                Using processed copy
+                <Database size={12} />
+              </span>
+            ) : null}
           </div>
+          {rowsTooFew ? (
+            <p className="blk-head__note" style={{ color: "var(--em-status-error)", marginTop: 8 }}>
+              This dataset has {rowCount} rows; at least 50 are required to train. The pipeline stages are disabled until a larger dataset is selected.
+            </p>
+          ) : null}
         </div>
         <div className="hero-block__visual">
           <LivingHero
@@ -2627,7 +2713,7 @@ function OverviewView({
           type="button"
           className="blk-launch__card"
           onClick={onAuto}
-          disabled={busy}
+          disabled={busy || rowsTooFew}
           title="Runs the remaining stages and opens each page as its stage completes"
         >
           <span className="blk-launch__icon">
@@ -2646,7 +2732,7 @@ function OverviewView({
           type="button"
           className="blk-launch__card blk-launch__card--primary"
           onClick={onRunAll}
-          disabled={busy}
+          disabled={busy || rowsTooFew}
           title="Runs every remaining stage, then lands on the executive report"
         >
           <span className="blk-launch__icon">
@@ -2675,7 +2761,7 @@ function OverviewView({
             </p>
           </div>
           <div className="blk-head__action">
-            <button type="button" className="pipeline-control" onClick={onStep} disabled={busy}>
+            <button type="button" className="pipeline-control" onClick={onStep} disabled={busy || rowsTooFew}>
               <Play size={12} />
               {stageBusy && !autoRunning ? `Running ${stageBusy}` : "Step one stage"}
             </button>

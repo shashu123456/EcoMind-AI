@@ -95,6 +95,8 @@ def _dataset_payload(ds: Dataset) -> dict:
 
 
 def summary_payload(ds: Dataset) -> dict:
+    file_path = Path(ds.file_path) if ds.file_path else None
+    processed = settings.processed_dir / f"{ds.id}.csv"
     return {
         "id": ds.id,
         "name": ds.name,
@@ -104,6 +106,12 @@ def summary_payload(ds: Dataset) -> dict:
         "column_count": ds.column_count,
         "device_count": ds.device_count or 0,
         "status": ds.status,
+        # `file_available` is true when the recorded upload file is on disk.
+        # `has_processed` is true when a processed copy exists at
+        # settings.processed_dir / f"{ds.id}.csv`. A dataset whose upload file
+        # is missing but whose processed copy exists is still readable.
+        "file_available": bool(file_path and file_path.exists()),
+        "has_processed": processed.exists(),
     }
 
 
@@ -701,15 +709,26 @@ def get_hierarchy(db: Session, dataset_id: str) -> dict:
 def _dataset_path(ds: Dataset) -> Path:
     """Where this dataset's readings live.
 
-    There is no fallback. The previous version silently returned a bundled
-    30-day BDG2 sample when a dataset's own file was missing, which meant a
-    broken import looked like a working one — with entirely different numbers.
+    Prefers the dataset's recorded `file_path`. When that file is missing
+    (an import whose source was moved or deleted), fall back to the processed
+    copy at `settings.processed_dir / f"{ds.id}.csv` if one exists. Only raise
+    409 when neither is on disk.
     """
+    processed = settings.processed_dir / f"{ds.id}.csv"
     if ds.file_path:
         p = Path(ds.file_path)
         if p.exists():
             return p
-        raise HTTPException(409, f"Dataset file is missing from disk: {ds.file_path}")
+        # Fall back to the processed copy so a missing upload file does not
+        # make a recorded dataset unreadable.
+        if processed.exists():
+            return processed
+        raise HTTPException(
+            409,
+            f"Dataset file is missing from disk: {ds.file_path} (no processed copy)",
+        )
+    if processed.exists():
+        return processed
     raise HTTPException(409, "This dataset has no file on disk")
 
 

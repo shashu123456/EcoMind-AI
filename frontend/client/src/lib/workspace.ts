@@ -46,6 +46,12 @@ export type LiveDataset = {
   fieldCount?: number;
   rowCount?: number;
   columnCount?: number;
+  /** Backend flag marking the dataset the product intends to be active. */
+  is_active?: boolean;
+  /** True when the recorded upload file is on disk. */
+  file_available?: boolean;
+  /** True when a processed copy exists at settings.processed_dir / "{id}.csv". */
+  has_processed?: boolean;
 };
 export type LiveIssue = {
   id: string;
@@ -675,6 +681,9 @@ const mapDataset = (d: BackendDataset, index: number): LiveDataset => {
     fieldCount: typeof d.column_count === "number" ? d.column_count : undefined,
     rowCount: typeof d.row_count === "number" ? d.row_count : undefined,
     columnCount: typeof d.column_count === "number" ? d.column_count : undefined,
+    is_active: typeof d.is_active === "boolean" ? d.is_active : undefined,
+    file_available: typeof d.file_available === "boolean" ? d.file_available : undefined,
+    has_processed: typeof d.has_processed === "boolean" ? d.has_processed : undefined,
   };
 };
 
@@ -1301,48 +1310,74 @@ const pickRun = (runs: RunPayload[], datasetId: string): RunPayload | null => {
 export async function loadWorkspace(preferredDatasetId?: string): Promise<{
   workspace: LiveWorkspace;
   pendingRun: string | null;
+  error?: string;
 } | null> {
+  // A single slow endpoint must not stall the whole shell. Each call below
+  // races its real result against a 15 s timeout and falls back to null, so a
+  // hung or 500ing route degrades to "no data for that stage" instead of
+  // freezing the app — which is what was happening before this guard.
+  const withTimeout = <T>(promise: Promise<T>, label: string, fallback: T): Promise<T> =>
+    Promise.race([
+      promise.then(
+        (v) => { return v; },
+        (e) => { return fallback; },
+      ),
+      new Promise<T>((resolve) => setTimeout(() => resolve(fallback), 15000)),
+    ]);
   try {
-    const dsRes = await datasetsApi.list();
+    const dsRes = await withTimeout(datasetsApi.list(), "datasets", { datasets: [] } as never);
     const backendDatasets = dsRes?.datasets ?? [];
     const dsList = backendDatasets.map(mapDataset);
 
     const ws: LiveWorkspace = { datasets: dsList };
 
-    const activityRes = await activityApi.list({ limit: 40 }).catch(() => null);
+    const activityRes = await withTimeout(activityApi.list({ limit: 40 }), "activity", null);
     if (activityRes?.events?.length) ws.activity = mapActivity(activityRes.events);
 
-    if (!dsList.length) return { workspace: ws, pendingRun: null };
+    if (!dsList.length) return { workspace: ws, pendingRun: null, error: "Datasets could not be loaded" };
 
     const nameById = new Map(dsList.map(d => [d.id, d.name]));
-    const runsRes = await workflow.list().catch(() => ({ runs: [] as unknown as RunPayload[] }));
+    const runsRes = await withTimeout(workflow.list(), "runs", { runs: [] } as never);
     const runList = ((runsRes.runs ?? []) as unknown as Record<string, unknown>[]);
     if (runList.length) ws.runs = mapRuns(runList, nameById);
 
-    // The active dataset must own the run whose outputs this object carries.
-    // Prefer the caller's selection, else the dataset of the most recent
-    // completed run (so the app opens on recorded work rather than a blank
-    // page), else the newest dataset.
+    // Selection order: explicit preferred id → is_active dataset with its file
+    // available → biggest dataset with its file available → biggest dataset
+    // large enough to train on (>= 50 rows) → dsList[0]. Never auto-select a
+    // dataset whose file is missing and that cannot complete the pipeline.
+    const MIN_ROWS_TO_TRAIN = 50;
     const completedRuns = (runList as unknown as RunPayload[])
       .filter(r => r.status === "completed" && r.dataset_id && nameById.has(r.dataset_id))
       .sort((a, b) => Date.parse(String(b.started_at ?? "")) - Date.parse(String(a.started_at ?? "")));
-    const fallbackId = completedRuns[0]?.dataset_id ?? dsList[0].id;
+    const activeAvailable = dsList.find(d => d.is_active === true && d.file_available === true);
+    const biggestAvailable = dsList
+      .filter(d => d.file_available === true)
+      .sort((a, b) => (b.rowCount ?? 0) - (a.rowCount ?? 0));
+    const biggestEnough = dsList
+      .filter(d => (d.rowCount ?? 0) >= MIN_ROWS_TO_TRAIN)
+      .sort((a, b) => (b.rowCount ?? 0) - (a.rowCount ?? 0));
+    const fallbackId =
+      activeAvailable?.id ??
+      biggestAvailable[0]?.id ??
+      completedRuns[0]?.dataset_id ??
+      biggestEnough[0]?.id ??
+      dsList[0]?.id;
     const activeId =
-      preferredDatasetId && nameById.has(preferredDatasetId) ? preferredDatasetId : fallbackId;
+      preferredDatasetId && nameById.has(preferredDatasetId)
+        ? preferredDatasetId
+        : fallbackId;
     ws.activeDatasetId = activeId;
     const run = pickRun(runList as unknown as RunPayload[], activeId);
 
     const [schemaRes, baseVersions, baseRes] = await Promise.all([
-      domain.schema(activeId).catch(() => null),
-      domain.baselineVersions(activeId).catch(() => null),
-      domain.baseline(activeId).catch(() => null),
+      withTimeout(domain.schema(activeId), "schema", null),
+      withTimeout(domain.baselineVersions(activeId), "baselineVersions", null),
+      withTimeout(domain.baseline(activeId), "baseline", null),
     ]);
 
     let anStageRaw: Record<string, unknown> | null = null;
     if (run) {
-      // Prefer the recorded anomaly stage output (the cards' source of truth);
-      // fall back to the page list only when no stage trace exists.
-      anStageRaw = (await domain.anomalyStage(activeId).catch(() => null)) ?? null;
+      anStageRaw = await withTimeout(domain.anomalyStage(activeId), "anomalyStage", null);
     }
     const mappedBaseline = mapBaseline(baseRes as Record<string, unknown> | null);
     if (mappedBaseline) {
@@ -1368,10 +1403,10 @@ export async function loadWorkspace(preferredDatasetId?: string): Promise<{
 
     if (run) {
       const [detail, anList, anChart, fcChart] = await Promise.all([
-        workflow.get(run.id).catch(() => null),
-        domain.anomalies(activeId).catch(() => null),
-        domain.anomalyChart(activeId).catch(() => null),
-        domain.forecastChart(activeId).catch(() => null),
+        withTimeout(workflow.get(run.id), "workflow.get", null),
+        withTimeout(domain.anomalies(activeId), "anomalies", null),
+        withTimeout(domain.anomalyChart(activeId), "anomalyChart", null),
+        withTimeout(domain.forecastChart(activeId), "forecastChart", null),
       ]);
       ws.runId = run.id;
 
@@ -1461,7 +1496,8 @@ export async function loadWorkspace(preferredDatasetId?: string): Promise<{
     }
 
     return { workspace: ws, pendingRun: needsRun ? activeId : null };
-  } catch {
+  } catch (err) {
+    console.error("[workspace] loadWorkspace FAILED:", err);
     return null;
   }
 }
