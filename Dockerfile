@@ -18,4 +18,4 @@ COPY --from=fe /src/frontend/dist /app/frontend/dist
 ENV ECOMIND_PORT=8000
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=40s CMD curl -fsS http://127.0.0.1:8000/api/v1/health || exit 1
-CMD ["python", "run.py"]
+CMD ["sh", "-c", "python seed.py && python run.py"]
