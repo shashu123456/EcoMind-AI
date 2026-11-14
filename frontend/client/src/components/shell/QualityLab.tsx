@@ -513,7 +513,7 @@ export function QualityLab({
 
   const avgConfidence = issues.length ? issues.reduce((s, i) => s + confOf(i), 0) / issues.length : null;
 
-  const palette = ["#7ef0c0", "#6aa8ff", "#f0b45a", "#b28cff", "#ff8a8a", "#8fd4c4"];
+  const palette = ["#b6f36b", "#6aa8ff", "#f0b45a", "#b28cff", "#ff8a8a", "#8fd4c4"];
   const distribution = useMemo(
     () => Object.entries(typeCounts).map(([label, value], i) => ({ label, value, color: palette[i % palette.length] })),
     [typeCounts]

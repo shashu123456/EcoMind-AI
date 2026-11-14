@@ -54,7 +54,7 @@
 .rs-export-button:hover:not(:disabled) {
   border-color: var(--accent, #c6f36a);
   color: var(--accent, #c6f36a);
-  background: rgba(198, 243, 106, 0.08);
+  background: rgba(182, 243, 107, 0.08);
 }
 
 .rs-export-button:disabled {
@@ -287,7 +287,7 @@
 }
 
 .rs-table__row.is-open {
-  background: rgba(198, 243, 106, 0.05);
+  background: rgba(182, 243, 107, 0.05);
 }
 
 .rs-table__row strong {
@@ -321,7 +321,7 @@
 
 .rs-change {
   padding: 4px 9px;
-  border: 1px solid rgba(198, 243, 106, 0.3);
+  border: 1px solid rgba(182, 243, 107, 0.3);
   border-radius: 999px;
   font-size: 10.5px;
   color: var(--text-2, #cfd6dd);
