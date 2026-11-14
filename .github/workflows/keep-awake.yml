@@ -1,0 +1,26 @@
+name: Keep EcoMind awake
+
+# The Render free plan spins the service down after ~15 idle minutes, and the
+# next visitor pays a cold start that also re-seeds the demo catalog. A ten
+# minute heartbeat keeps the instance warm without any paid plan.
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping the health endpoint
+        run: |
+          for attempt in 1 2 3; do
+            if curl -fsS --max-time 90 https://ecomind-ai-432t.onrender.com/api/v1/health; then
+              echo "awake"
+              exit 0
+            fi
+            echo "attempt $attempt failed; retrying in 20s"
+            sleep 20
+          done
+          echo "service did not answer; it will wake on the next request"
+          exit 0
