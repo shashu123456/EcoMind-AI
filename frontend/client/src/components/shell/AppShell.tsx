@@ -2708,90 +2708,31 @@ function OverviewView({
         </article>
       </div>
 
-      <div className="blk-launch">
-        <button
-          type="button"
-          className="blk-launch__card"
-          onClick={onAuto}
-          disabled={busy || rowsTooFew}
-          title="Runs the remaining stages and opens each page as its stage completes"
-        >
-          <span className="blk-launch__icon">
-            <Play size={16} />
-          </span>
-          <span className="blk-launch__copy">
-            <strong>Guided run</strong>
-            <span>Step through the pipeline page by page — each stage opens its own screen as it completes.</span>
-          </span>
-          <span className="blk-launch__cta">
-            {autoRunning ? "Running" : "Start"}
-            <ArrowRight size={12} />
-          </span>
-        </button>
-        <button
-          type="button"
-          className="blk-launch__card blk-launch__card--primary"
-          onClick={onRunAll}
-          disabled={busy || rowsTooFew}
-          title="Runs every remaining stage, then lands on the executive report"
-        >
-          <span className="blk-launch__icon">
-            <Sparkles size={16} />
-          </span>
-          <span className="blk-launch__copy">
-            <strong>Auto run</strong>
-            <span>Run all remaining stages in one pass and finish on the executive report.</span>
-          </span>
-          <span className="blk-launch__cta">
-            {autoRunning ? "Running" : allDone ? "Open report" : "Run all"}
-            <ArrowRight size={12} />
-          </span>
-        </button>
-      </div>
-
-      <section className="blk">
-        <div className="blk-head">
-          <div className="blk-head__copy">
-            <span className="blk-head__eyebrow">INTELLIGENCE PIPELINE</span>
-            <h2 className="blk-head__title">Ten stages, one dataset, no black boxes.</h2>
-            <p className="blk-head__note">
-              {liveRunId
-                ? `Run ${liveRunId.slice(0, 12)} · ${completedStages} of ${totalStages} stages recorded`
-                : "No run yet — a guided or auto run starts one on the active dataset."}
-            </p>
-          </div>
-          <div className="blk-head__action">
-            <button type="button" className="pipeline-control" onClick={onStep} disabled={busy || rowsTooFew}>
-              <Play size={12} />
-              {stageBusy && !autoRunning ? `Running ${stageBusy}` : "Step one stage"}
-            </button>
-          </div>
+      <div className="blk-launch blk-launch--actions">
+        <div className="blk-launch__intro">
+          <span className="blk-launch__eyebrow">RUN THE PIPELINE</span>
+          <strong>{allDone ? "Every stage is recorded" : "Two ways to run this dataset"}</strong>
+          <p>
+            {rowsTooFew
+              ? "This dataset is below the 50-row training minimum."
+              : "Guided opens each stage as it completes. Auto runs everything and lands on the handover report."}
+          </p>
         </div>
-        <ol className="blk-rail">
-          {pipelineStages.map(stage => {
-            const Icon = stage.icon;
-            const ls = liveStages.find(s => s.id === (STAGE_KEY_BY_VIEW[stage.id] ?? stage.id));
-            const done = ls?.status === "completed";
-            const active = ls?.status === "pending" && stageBusy === (STAGE_KEY_BY_VIEW[stage.id] ?? stage.id);
-            return (
-              <li key={stage.id}>
-                <button
-                  type="button"
-                  className={`blk-rail__step ${done ? "blk-rail__step--done" : ""} ${active ? "blk-rail__step--active" : ""}`}
-                  onClick={() => onNavigate(stage.id)}
-                >
-                  <span className="blk-rail__top">
-                    <span className="blk-rail__num">{stage.short}</span>
-                    {done ? <CheckCircle2 size={13} /> : <Icon size={13} />}
-                  </span>
-                  <strong>{stage.label}</strong>
-                  <span className="blk-rail__meta">{done && ls ? fmtLiveDuration(ls) : ls ? ls.status : "pending"}</span>
-                </button>
-              </li>
-            );
-          })}
-        </ol>
-      </section>
+        <div className="blk-launch__buttons">
+          <button type="button" className="blk-btn blk-btn--ghost" onClick={onStep} disabled={busy || rowsTooFew}>
+            <Play size={15} />
+            {stageBusy && !autoRunning ? `Running ${stageBusy}` : "Step one stage"}
+          </button>
+          <button type="button" className="blk-btn blk-btn--ghost" onClick={onAuto} disabled={busy || rowsTooFew}>
+            <ArrowRight size={15} />
+            {autoRunning ? "Running…" : "Guided run"}
+          </button>
+          <button type="button" className="blk-btn blk-btn--primary" onClick={onRunAll} disabled={busy || rowsTooFew}>
+            <Sparkles size={15} />
+            {autoRunning ? "Running…" : allDone ? "Open report" : "Auto run all"}
+          </button>
+        </div>
+      </div>
 
       <div className="blk-grid blk-grid--main">
         <section className="blk">

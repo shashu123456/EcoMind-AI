@@ -397,3 +397,31 @@
     color: #11161c;
   }
 }
+/* Charts drawn from the report's own stored figures (anomalies, projection,
+   cost bands, recommendable savings) so the preview reads as a handover. */
+.rs-chart {
+  margin-top: 14px;
+  padding: 10px 10px 4px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.16);
+}
+
+/* The empty preview states what the handover will contain and offers the
+   generation action in place, so the panel is never a dead end. */
+.report-pdf-empty--plan {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 22px;
+}
+.report-pdf-empty--plan strong { font-size: 13px; color: var(--eco-text, #ecf6ee); }
+.rs-plan { display: flex; flex-wrap: wrap; gap: 6px; }
+.rs-plan__chip {
+  font-size: 10px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  border: 1px solid rgba(182, 243, 107, 0.22);
+  background: rgba(182, 243, 107, 0.06);
+  color: var(--eco-text-soft, #b5c6ba);
+}

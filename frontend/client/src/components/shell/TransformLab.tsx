@@ -693,31 +693,8 @@ export function TransformLab({
         </div>
       </div>
 
-      {/* Dataset summary --------------------------------------------- */}
-      <section className="panel tl-summary">
-        <div className="tl-head">
-          <div>
-            <span className="section-eyebrow">DATASET SUMMARY</span>
-            <h2>Model-ready shape</h2>
-          </div>
-          <Tag tone="lime">{readiness >= 90 ? "model ready" : "partial"}</Tag>
-        </div>
-        <div className="tl-summary__grid">
-          <Kpi label="ROWS" value={fmt(Math.round(animRows), 0)} />
-          <Kpi label="COLUMNS" value={String(dataset.columnCount ?? schema.length)} />
-          <Kpi label="NUMERIC FEATURES" value={String(numericFeatures)} />
-          <Kpi label="CATEGORICAL" value={String(categoricalFeatures)} />
-          <Kpi label="GENERATED FEATURES" value={String(generated)} />
-          <Kpi label="REMOVED FEATURES" value="0" hint="source never mutated" />
-          <Kpi label="MEMORY" value={memoryMb == null ? "—" : `${memoryMb.toFixed(1)} MB`} hint="8 bytes / cell" />
-          <Kpi label="DATASET SIZE" value={`${dataset.columnCount ?? schema.length} × ${fmt(rows, 0)}`} />
-          <Kpi label="MISSING VALUES" value={fmt(missing, 0)} />
-          <Kpi label="READINESS" value={`${Math.round(animReadiness)}%`} hint={`${steps.filter(s => s.status === "done").length}/${steps.length} steps done`} />
-        </div>
-      </section>
-
       {/* Pipeline + explainer ---------------------------------------- */}
-      <div className="tl-layout">
+      <div className="tl-layout tl-layout--single">
         <section className="panel tl-pipeline">
           <div className="tl-head">
             <div>
@@ -761,51 +738,10 @@ export function TransformLab({
           </div>
         </section>
 
-        <div className="tl-side">
-          <section className="panel tl-explain">
-            <div className="tl-head">
-              <div>
-                <span className="section-eyebrow">TRANSFORMATION EXPLAINER</span>
-                <h2>Why each step was applied</h2>
-              </div>
-              <Sparkles size={15} />
-            </div>
-            {decision ? <p className="tl-explain__decision">{decision}</p> : null}
-            <ul className="tl-explain__list">
-              {steps.slice(0, 4).map(s => (
-                <li key={s.key}>
-                  <strong>{s.label}</strong>
-                  <span>{s.purpose || `Applied to ${s.columns.length} columns so later stages see a consistent shape.`}</span>
-                </li>
-              ))}
-              {!steps.length ? <li><strong>Nothing recorded yet</strong><span>Explanations are generated from the steps the stage actually ran.</span></li> : null}
-            </ul>
-          </section>
-
-          <section className="panel tl-stats">
-            <div className="tl-head">
-              <span className="section-eyebrow">FEATURE STATISTICS</span>
-              <Tag tone="blue">{targetName}</Tag>
-            </div>
-            <div className="tl-stats__tabs">
-              {METRICS.map(m => (
-                <button type="button" key={m.key} className={`tl-mini ${metric === m.key ? "tl-mini--on" : ""}`} onClick={() => setMetric(m.key)}>
-                  {m.label}
-                </button>
-              ))}
-            </div>
-            <div className="tl-stats__value" key={metric}>
-              <strong>{METRICS.find(m => m.key === metric)?.value}</strong>
-              <span>{METRICS.find(m => m.key === metric)?.label} · recorded target</span>
-            </div>
-            <p className="mono-note">Baseline statistics come from the adaptive baseline; variance, correlation, skew and kurtosis are computed from the recorded signal.</p>
-          </section>
-        </div>
       </div>
 
-      {/* Importance + distribution ----------------------------------- */}
-      <div className="tl-grid2">
-        <section className="panel tl-importance">
+      {/* Feature importance ---------------------------------------- */}
+      <section className="panel tl-importance">
           <div className="tl-head">
             <div>
               <span className="section-eyebrow">FEATURE IMPORTANCE</span>
@@ -827,17 +763,6 @@ export function TransformLab({
           <p className="mono-note">{weights.length ? "Weights as recorded by the winning model." : "Derived from the features each transformation wrote."}</p>
         </section>
 
-        <section className="panel tl-dist-card">
-          <div className="tl-head">
-            <div>
-              <span className="section-eyebrow">BEFORE / AFTER DISTRIBUTION</span>
-              <h2>{targetName}</h2>
-            </div>
-            <span className="mono-note">{signal.length} readings</span>
-          </div>
-          <Distribution values={signal.map(p => p.baseline)} after={signal.map(p => p.energy)} unit={unit} />
-        </section>
-      </div>
 
       {/* Signal graph ------------------------------------------------- */}
       <section className="panel tl-signal">
@@ -855,23 +780,8 @@ export function TransformLab({
         )}
       </section>
 
-      {/* Heatmap + lineage ------------------------------------------- */}
-      <div className="tl-grid2">
-        <section className="panel tl-heat-card">
-          <div className="tl-head">
-            <div>
-              <span className="section-eyebrow">NORMAL BEHAVIOUR</span>
-              <h2>When this dataset behaves normally</h2>
-            </div>
-            <span className="mono-note">hour of week · {baseline?.target || "target"}</span>
-          </div>
-          {cells.length ? (
-            <Heat cells={cells} unit={unit} target={baseline?.target || "target"} />
-          ) : (
-            <p className="mono-note">Run the adaptive baseline stage to learn this dataset's own normal behaviour.</p>
-          )}
-        </section>
-
+      {/* Lineage — how it was created ------------------------------- */}
+      <div className="tl-grid2 tl-grid2--single">
         <section className="panel tl-lineage">
           <div className="tl-head">
             <div>
@@ -915,66 +825,6 @@ export function TransformLab({
         </section>
       </div>
 
-      {/* Timeline + logs --------------------------------------------- */}
-      <div className="tl-grid2">
-        <section className="panel tl-timeline">
-          <div className="tl-head">
-            <div>
-              <span className="section-eyebrow">TRANSFORMATION TIMELINE</span>
-              <h2>Stage by stage</h2>
-            </div>
-            <button type="button" className="tl-mini" onClick={() => { setStep(0); timeline.forEach((_, i) => timers.current.push(window.setTimeout(() => setStep(i + 1), 240 * (i + 1)))); }}>
-              <RotateCcw size={11} /> replay
-            </button>
-          </div>
-          <ol className="tl-tl">
-            {timeline.map((t, i) => (
-              <li key={t.key} className={i < step ? "tl-tl__item tl-tl__item--done" : "tl-tl__item"}>
-                <button type="button" onClick={() => setNodeKey(nodeKey === t.key ? null : t.key)}>
-                  <span className="tl-tl__bead">{i < step ? <Check size={9} /> : null}</span>
-                  <span className="tl-tl__label">{t.label}</span>
-                </button>
-              </li>
-            ))}
-          </ol>
-          {activeNode ? (
-            <div className="tl-tl__detail">
-              <strong>{activeNode.label}</strong>
-              <p>{activeNode.detail}</p>
-              <span className="mono-note">rows {fmt(rows, 0)} · version {baselineName || "—"}</span>
-            </div>
-          ) : null}
-        </section>
-
-        <section className="panel tl-logs">
-          <div className="tl-head">
-            <div>
-              <span className="section-eyebrow">PROCESSING LOG</span>
-              <h2>{steps.length} entries</h2>
-            </div>
-            <button type="button" className="tl-mini" onClick={() => setShowLogs(v => !v)}>{showLogs ? "collapse" : "expand all"}</button>
-          </div>
-          {steps.length ? steps.map(s => (
-            <div className="tl-log" key={s.key}>
-              <div className="tl-log__head">
-                <span className="mono-note">{s.appliedAt ? new Date(s.appliedAt).toLocaleTimeString() : "—"}</span>
-                <strong>{s.label}</strong>
-                <Tag tone={s.status === "done" ? "lime" : "blue"}>{s.status || "recorded"}</Tag>
-                <span className="mono-note">{s.rowsChanged.toLocaleString("en-IN")} rows</span>
-              </div>
-              {showLogs ? (
-                <div className="tl-log__body">
-                  <code>$ stage transform --step {s.key}</code>
-                  <code>{`  purpose="${s.purpose || "not recorded"}"`}</code>
-                  <code>{`  columns=[${s.columns.slice(0, 4).join(", ")}] rows=${s.rowsChanged}`}</code>
-                  {s.note ? <code>  note: {s.note}</code> : null}
-                  <code>  status={s.status || "recorded"} · warnings=0 · errors=0</code>
-                </div>
-              ) : null}
-            </div>
-          )) : <p className="mono-note">No transformation log recorded yet.</p>}
-        </section>
-      </div>
 
       <div className="tl-trace">
         <div className="tl-trace__label"><Database size={15} /><span>VERSIONED DATABASE TRACE</span></div>

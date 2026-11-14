@@ -27,6 +27,16 @@ import {
   ZoomOut,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 
 import {
   downloadReport,
@@ -39,6 +49,53 @@ import {
   type ReportSection,
 } from "../../lib/reports";
 import "./report-studio.css";
+
+/** Sections whose stored figures are drawn as a chart, not just numbered. */
+const CHART_SECTIONS = ["critical_anomalies", "predicted_consumption", "predicted_cost", "recommendations"];
+
+/**
+ * The stored numeric figures of a section, drawn as bars. Anomaly counts,
+ * projected consumption per horizon, cost by period and recoverable savings all
+ * arrive as figures; a reader who is handed this report should see the shape of
+ * them, not a list of numbers.
+ */
+function SectionChart({ section }: { section: { key: string; figures: Record<string, unknown> } }) {
+  if (!CHART_SECTIONS.includes(section.key)) return null;
+  const entries = Object.entries(section.figures || {})
+    .filter(([, value]) => typeof value === "number" && Number.isFinite(value as number))
+    .slice(0, 8) as [string, number][];
+  if (entries.length < 2) return null;
+  const data = entries.map(([key, value]) => ({
+    label: key.replace(/_/g, " ").replace(/\w/g, c => c.toUpperCase()).slice(0, 18),
+    value,
+  }));
+  return (
+    <div className="rs-chart" role="img" aria-label={`${section.key} figures`}>
+      <ResponsiveContainer width="100%" height={190}>
+        <BarChart data={data} margin={{ top: 8, right: 8, bottom: 4, left: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" vertical={false} />
+          <XAxis
+            dataKey="label"
+            tick={{ fontSize: 9, fill: "#9fb3a6" }}
+            interval={0}
+            angle={-18}
+            textAnchor="end"
+            height={50}
+          />
+          <YAxis tick={{ fontSize: 9, fill: "#9fb3a6" }} width={52} />
+          <Tooltip
+            contentStyle={{ background: "#0e1813", border: "1px solid #253a2e", borderRadius: 8, fontSize: 11 }}
+          />
+          <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+            {data.map((entry, index) => (
+              <Cell key={entry.label} fill={index === 0 ? "#b6f36b" : "rgba(182,243,107,0.42)"} />
+            ))}
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
 
 /** The upstream modules a report draws from, in pipeline order. */
 const STAGES = [
@@ -481,9 +538,25 @@ export function ReportStudio({
         </div>
 
         {!document ? (
-          <div className="report-pdf-empty">
+          <div className="report-pdf-empty report-pdf-empty--plan">
             <FileText size={18} />
-            <span>Generate a report to preview every section here.</span>
+            <strong>Nothing generated yet — the preview will hold the full handover.</strong>
+            <div className="rs-plan">
+              {STAGES.map(stage => (
+                <span key={stage.key} className="rs-plan__chip">{stage.label}</span>
+              ))}
+              <span className="rs-plan__chip">Cost & savings</span>
+              <span className="rs-plan__chip">Maintenance plan</span>
+              <span className="rs-plan__chip">Priority actions</span>
+            </div>
+            <button
+              type="button"
+              className="report-preview-button"
+              onClick={() => void generate()}
+              disabled={busy === "generate"}
+            >
+              {busy === "generate" ? <Loader2 size={14} className="rs-spin" /> : <RefreshCw size={14} />} Generate the report
+            </button>
           </div>
         ) : (
           <div className="rs-document" ref={pageRef}>
@@ -509,7 +582,8 @@ export function ReportStudio({
                   <span className="section-eyebrow">{document.organization ?? "EcoMind"}</span>
                   <h1>{document.title}</h1>
                   <p className="rs-lead">
-                    {datasetName} — {document.sections.length} sections assembled from the analytical pipeline.
+                    A handover on {datasetName}: what the estate spent, where energy is being wasted, and which
+                    actions are worth funding first.
                   </p>
                   <div className="rs-kpis">
                     <div className="rs-kpi">
@@ -548,8 +622,8 @@ export function ReportStudio({
                     </div>
                   </div>
                   <p className="rs-footnote">
-                    Generated {document.generated_at ? new Date(document.generated_at).toLocaleString("en-IN") : "—"} · report{" "}
-                    {document.id.slice(0, 8)}
+                    Prepared for {document.organization ?? "the organisation"} ·{" "}
+                    {document.generated_at ? new Date(document.generated_at).toLocaleString("en-IN") : "—"}
                   </p>
                 </article>
               ) : (
@@ -602,6 +676,7 @@ export function ReportStudio({
                             ))}
                           </div>
                         )}
+                        <SectionChart section={page} />
                       </article>
                     );
                   })
