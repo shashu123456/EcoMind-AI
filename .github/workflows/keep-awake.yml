@@ -2,10 +2,13 @@ name: Keep EcoMind awake
 
 # The Render free plan spins the service down after ~15 idle minutes, and the
 # next visitor pays a cold start that also re-seeds the demo catalog. A ten
-# minute heartbeat keeps the instance warm without any paid plan.
+# five minute heartbeat keeps the instance warm without any paid plan.
+# GitHub's scheduler is best-effort and can drift a few minutes, so the
+# zero-cost guarantee is really the in-image seed: if it does sleep, waking up
+# is a uvicorn start rather than a data generation run.
 on:
   schedule:
-    - cron: "*/10 * * * *"
+    - cron: "*/5 * * * *"
   workflow_dispatch:
 
 jobs:

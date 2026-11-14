@@ -14,6 +14,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends build-essential
 COPY backend/requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 COPY backend/ ./
+# Generate the demo catalog at build time, not at container start. The seed is
+# deterministic and idempotent — it skips any dataset already registered — so
+# this bakes the SQLite database and both campus CSVs into the image and a cold
+# start only has to start uvicorn. Left out of the runtime CMD, a boot spent
+# minutes regenerating 440k rows before the port opened.
+RUN python seed.py
 COPY --from=fe /src/frontend/dist /app/frontend/dist
 ENV ECOMIND_PORT=8000
 EXPOSE 8000
