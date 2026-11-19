@@ -1052,7 +1052,16 @@ def latest_row(db: Session, dataset_id: str, horizon: str | None = None) -> Fore
         # the KPI cards can use, and picking it by timestamp alone is what made
         # the page render an empty series while a forecast existed.
         q = q.filter(Forecast.tier == "short")
-    return q.order_by(Forecast.generated_at.desc()).limit(1).scalar()
+    # Newest first, but only rows that actually carry a series. A build shipped
+    # 30-day rows with `points == []` and a real-looking total beside them, and
+    # because "latest" was decided by timestamp alone those rows won forever:
+    # the page showed "457 kWh projected" above an empty chart and the horizon
+    # could never recover, since regenerating only adds another row on top.
+    # An empty series is not a forecast, so it is not a candidate.
+    for row in q.order_by(Forecast.generated_at.desc()).limit(12).all():
+        if any(isinstance(p, dict) for p in (row.points or [])):
+            return row
+    return None
 
 
 def _row_points(row: Forecast) -> List[dict]:
@@ -1209,7 +1218,12 @@ def detail(db: Session, dataset_id: str, horizon: str = DEFAULT_HORIZON) -> dict
             "peaks": _peaks(points),
             "generated_at": row.generated_at.isoformat() if row.generated_at else None,
             "exogenous_assumption": snap.get("exogenous_assumption"),
-            "devices": snap.get("devices") or [],
+            # The stage writes the device list inside the forecast block; reading
+            # only the snapshot root reported "0 devices" beside a curve built
+            # from every one of them.
+            "devices": snap.get("devices")
+            or (snap.get("forecast") or {}).get("devices")
+            or [],
         },
         "kpis": kpis,
         "model": (

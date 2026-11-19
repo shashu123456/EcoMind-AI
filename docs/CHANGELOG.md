@@ -18,6 +18,44 @@ Legend: `FIX` correctness · `FEAT` new capability · `PERF` performance · `A11
 
 ---
 
+## [2026-11-19] — The 30-day horizon could never show a series
+
+### FIX — An empty forecast row won its horizon on recency alone
+
+On the seeded campus dataset, 24h and 7d plotted and 30d printed "No points in
+this horizon" underneath a confident "457 kWh projected". The header was read
+from `forecasts.total_energy_kwh` of the newest row for the horizon; the chart
+was read from that same row's `points`, which was `[]`. Those rows were written
+by an older build on 2026-10-02 — `length(points) = 2` — and `latest_row()`
+selected by `generated_at` alone, so the empty row outranked every later one.
+Regenerating could not clear it either: a new row is only *newer*, and the empty
+row was already newest when the page loaded, so the horizon looked permanently
+broken.
+
+`latest_row()` now walks the newest rows for a horizon and returns the first one
+that actually carries a series; when every stored row is empty it returns
+`None`, which `detail()` already turns into an honest "no forecast recorded"
+payload instead of a total with no projection behind it. `detail()` also reads
+the device list from `forecast.devices`, where the stage writes it — the page
+said "0 devices" beside a curve built from thirty of them.
+
+The dataset itself was put back on real footing by running the pipeline end to
+end, which had never completed for it: `model_selection` held no row, so
+`generate()` refused ("No model has been selected"), and the ten stages had been
+left at `import` by a failed run on 2026-11-11. The run now completes and writes
+all seven short horizons.
+
+**Verified:** `latest_row` returns 720 points for `30d`; `GET
+/datasets/{id}/forecast?horizon=30d` → `status ready`, 720 points, 109,540 kWh,
+366.3 kW peak, 168 history points, window 31 Jan → 01 Mar. In the browser on the
+Prediction page with 30 d selected: no empty state, two line paths (observed +
+forecast, the forecast path 11,369 characters of `d`), two band areas, 30
+devices, x-axis 31 Jan → 01 Mar. `tests/test_forecast_latest_row.py` (3 new
+tests) plus `tests/test_forecast_projection.py` and `tests/test_api.py` all
+exit 0.
+
+---
+
 ## [2026-11-10] — Release pass: backend imports, tests green, demo deployable
 
 ### FIX — The app could not start: a half-finished report rewrite had removed the entry points
