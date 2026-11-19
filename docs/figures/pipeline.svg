@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="470" viewBox="0 0 1200 470" role="img" aria-label="The EcoMind ten-stage pipeline: six gated preparation stages, then four decision stages.">
+  <title>The EcoMind ten-stage pipeline</title>
+
+  <rect x="0.75" y="0.75" width="1198.5" height="468.5" rx="18" fill="#FFFFFF" stroke="#DCE5E0" stroke-width="1.5"/>
+
+  <text x="60" y="64" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="25" font-weight="700" fill="#0F2A22">The EcoMind ten-stage pipeline</text>
+  <text x="60" y="94" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="13.5" fill="#5B6B65">Preparation is gated. No decision stage is reachable until all six preparation stages pass, and every stage is executed once and recorded.</text>
+
+  <text x="95" y="132" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="11" font-weight="600" letter-spacing="1.7" fill="#7B8A84">PREPARATION</text>
+  <text x="238" y="132" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="11" letter-spacing="1.2" fill="#A7B5AF">STAGES 01–06</text>
+
+  <g font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif">
+    <rect x="95" y="146" width="150" height="78" rx="12" fill="#F3F8F5" stroke="#CFE0D7" stroke-width="1.2"/>
+    <text x="113" y="172" font-size="11" font-weight="700" fill="#245B49">01</text>
+    <text x="113" y="196" font-size="15" font-weight="600" fill="#10241D">Library</text>
+    <text x="113" y="214" font-size="10.5" fill="#6B7F78">catalogue + provenance</text>
+
+    <rect x="267" y="146" width="150" height="78" rx="12" fill="#F3F8F5" stroke="#CFE0D7" stroke-width="1.2"/>
+    <text x="285" y="172" font-size="11" font-weight="700" fill="#245B49">02</text>
+    <text x="285" y="196" font-size="15" font-weight="600" fill="#10241D">Import</text>
+    <text x="285" y="214" font-size="10.5" fill="#6B7F78">estate census</text>
+
+    <rect x="439" y="146" width="150" height="78" rx="12" fill="#F3F8F5" stroke="#CFE0D7" stroke-width="1.2"/>
+    <text x="457" y="172" font-size="11" font-weight="700" fill="#245B49">03</text>
+    <text x="457" y="196" font-size="15" font-weight="600" fill="#10241D">Schema</text>
+    <text x="457" y="214" font-size="10.5" fill="#6B7F78">column roles + evidence</text>
+
+    <rect x="611" y="146" width="150" height="78" rx="12" fill="#F3F8F5" stroke="#CFE0D7" stroke-width="1.2"/>
+    <text x="629" y="172" font-size="11" font-weight="700" fill="#245B49">04</text>
+    <text x="629" y="196" font-size="15" font-weight="600" fill="#10241D">Quality</text>
+    <text x="629" y="214" font-size="10.5" fill="#6B7F78">five dimensions</text>
+
+    <rect x="783" y="146" width="150" height="78" rx="12" fill="#F3F8F5" stroke="#CFE0D7" stroke-width="1.2"/>
+    <text x="801" y="172" font-size="11" font-weight="700" fill="#245B49">05</text>
+    <text x="801" y="196" font-size="15" font-weight="600" fill="#10241D">Transform</text>
+    <text x="801" y="214" font-size="10.5" fill="#6B7F78">before / after per field</text>
+
+    <rect x="955" y="146" width="150" height="78" rx="12" fill="#F3F8F5" stroke="#CFE0D7" stroke-width="1.2"/>
+    <text x="973" y="172" font-size="11" font-weight="700" fill="#245B49">06</text>
+    <text x="973" y="196" font-size="15" font-weight="600" fill="#10241D">Model</text>
+    <text x="973" y="214" font-size="10.5" fill="#6B7F78">one split, one rationale</text>
+  </g>
+
+  <line x1="600" y1="236" x2="600" y2="288" stroke="#B9CCC3" stroke-width="1.6"/>
+  <path d="M600 296 L595 285 L605 285 Z" fill="#B9CCC3"/>
+
+  <text x="267" y="322" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="11" font-weight="600" letter-spacing="1.7" fill="#7B8A84">DECISION</text>
+  <text x="366" y="322" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="11" letter-spacing="1.2" fill="#A7B5AF">STAGES 07–10</text>
+
+  <g font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif">
+    <rect x="267" y="336" width="150" height="78" rx="12" fill="#EFF8F3" stroke="#A9D4BE" stroke-width="1.2"/>
+    <text x="285" y="362" font-size="11" font-weight="700" fill="#1F7A5C">07</text>
+    <text x="285" y="386" font-size="15" font-weight="600" fill="#10241D">Anomalies</text>
+    <text x="285" y="404" font-size="10.5" fill="#6B7F78">hour-of-week baseline</text>
+
+    <rect x="439" y="336" width="150" height="78" rx="12" fill="#EFF8F3" stroke="#A9D4BE" stroke-width="1.2"/>
+    <text x="457" y="362" font-size="11" font-weight="700" fill="#1F7A5C">08</text>
+    <text x="457" y="386" font-size="15" font-weight="600" fill="#10241D">Forecast</text>
+    <text x="457" y="404" font-size="10.5" fill="#6B7F78">uncertainty band</text>
+
+    <rect x="611" y="336" width="150" height="78" rx="12" fill="#EFF8F3" stroke="#A9D4BE" stroke-width="1.2"/>
+    <text x="629" y="362" font-size="11" font-weight="700" fill="#1F7A5C">09</text>
+    <text x="629" y="386" font-size="15" font-weight="600" fill="#10241D">Actions</text>
+    <text x="629" y="404" font-size="10.5" fill="#6B7F78">priority + payback</text>
+
+    <rect x="783" y="336" width="150" height="78" rx="12" fill="#EFF8F3" stroke="#A9D4BE" stroke-width="1.2"/>
+    <text x="801" y="362" font-size="11" font-weight="700" fill="#1F7A5C">10</text>
+    <text x="801" y="386" font-size="15" font-weight="600" fill="#10241D">Report</text>
+    <text x="801" y="404" font-size="10.5" fill="#6B7F78">locked section order</text>
+  </g>
+
+  <text x="60" y="446" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="11.5" fill="#8A9993">Every screen reads the recorded output of the run that produced it, so no page can disagree with what actually ran.</text>
+</svg>

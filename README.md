@@ -1,70 +1,73 @@
 <div align="center">
 
-# ⚡ EcoMind AI
+<img src="frontend/client/public/ecomind-mark.svg" width="76" height="76" alt="EcoMind AI mark" />
 
-**Adaptive, Explainable Energy Intelligence Platform**
+# EcoMind AI
+
+**Adaptive, explainable energy intelligence — from a raw meter file to a
+board-ready report, in ten recorded stages.**
 
 *Trustworthy AI begins with trustworthy data.*
 
+[![CI](https://github.com/shashu123456/EcoMind-AI/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/shashu123456/EcoMind-AI/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.111-009688?style=flat-square&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![React](https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react&logoColor=white)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green?style=flat-square)](./LICENSE)
 
+**[Live demo](https://ecomind-ai-432t.onrender.com)** ·
+[Quick start](#-quick-start) ·
+[The ten stages](#-the-ten-stages) ·
+[Project report](docs/PROJECT_REPORT.md) ·
+[Status](docs/STATUS.md)
+
 </div>
 
-EcoMind AI transforms raw organizational energy datasets into **trusted,
-explainable, actionable** decisions through a transparent, end-to-end workflow —
-for universities, hospitals, offices, manufacturing, hotels, airports, malls and
-data centers.
+---
 
-Unlike black-box prediction engines, every prediction, recommendation and
-benchmark is **traceable** through a ten-stage pipeline. Users see not only
-*what* the system predicts, but *why* — and *how much to trust it*.
+## Contents
+
+- [Why EcoMind](#-why-ecomind)
+- [The ten stages](#-the-ten-stages)
+- [What makes it different](#-what-makes-it-different)
+- [Architecture](#-architecture)
+- [Quick start](#-quick-start)
+- [Built-in datasets](#-built-in-datasets)
+- [Project structure](#-project-structure)
+- [Tests & CI](#-tests--ci)
+- [Documentation](#-documentation)
+- [Security](#-security)
+- [Troubleshooting](#-troubleshooting)
+- [Contributing](#-contributing)
+- [License](#-license)
 
 ---
 
-## 🚀 Quick Start
+## ⚡ Why EcoMind
 
-**One click. From a bare clone:**
+Most energy dashboards stop at a chart. They show a spike and leave the reader to
+decide whether it is a fault, a festival, or a meter with a flat battery — and
+they show it next to a prediction with no way to check whether the model that
+produced it was any good.
 
-| Platform | Command |
-|---|---|
-| Windows | double-click **`ecomind.bat`** |
-| macOS / Linux | `./ecomind.sh` |
+EcoMind AI closes that gap with a **ten-stage pipeline in which every stage is
+executed once and recorded**. A dataset is profiled, quality-scored, transformed,
+used to race candidate models on one identical split, mined for anomalies
+against each device's own hour-of-week baseline, projected forward with an
+uncertainty band, priced into prioritised actions with payback verdicts, and
+assembled into a report — built from the same snapshots the earlier screens
+displayed.
 
-The launcher installs anything missing (Python 3.10+, Node 18+, `.venv`,
-backend requirements, `pnpm install`), generates `backend/.env` with a random
-secret key, seeds the database with the built-in dataset catalogue, starts the
-backend, waits until it is healthy, and opens your browser.
+The result is a platform for universities, hospitals, offices, manufacturing,
+hotels, airports, malls and data centres where the answer to *"where did this
+number come from?"* is always a run, a stage, and a version — never a shrug.
 
-Then open **http://127.0.0.1:8000** and sign in:
+## 🔟 The ten stages
 
-```
-Email:    admin@ecomind.ai
-Password: admin123
-```
-
-Other commands (same entry point):
-
-```
-ecomind start     start the app (default)
-ecomind stop      stop every service
-ecomind check     report on the machine without changing it
-ecomind verify    install everything, prove it worked, exit
-```
-
-The first run takes a few minutes while dependencies download; later runs
-start in seconds. Steps are idempotent and keyed on file hashes.
-
-> **If Python was just installed**, close the window and run it again — the
-> launcher cannot swap the interpreter it is itself running under, and it says
-> so rather than pretending otherwise.
-
----
-
-## ✨ The ten stages
+<p align="center">
+  <img src="docs/figures/pipeline.svg" alt="The EcoMind ten-stage pipeline: six gated preparation stages followed by four decision stages" width="100%" />
+</p>
 
 Preparation must all pass before any decision stage is reachable.
 
@@ -85,74 +88,116 @@ A stage is executed once and recorded. Every screen reads that stage's own
 recorded output, so no page can disagree with what actually ran. Adaptive
 baselines, artifact versions and audit events are persisted and browsable.
 
-## 🏗️ Architecture
+## 🎯 What makes it different
+
+| Principle | How it shows up in the product |
+|---|---|
+| **One split, no exceptions** | Every model candidate is trained and scored on the same held-out window; the winner is chosen on measured results, not on reputation. Near-ties are labelled as near-ties. |
+| **A baseline per device** | Anomalies are judged against that device's own hour-of-week behaviour, not a site-wide average — so a canteen at 08:00 is never compared with a server room at 03:00. |
+| **Rationale is stored, not implied** | Each candidate's `selection_rationale`, each baseline's version and each anomaly's evidence are written to the database with the run. |
+| **The report states figures in prose** | Any number that appears in a table also appears in the sentence around it, so a screenshot of one paragraph cannot be quoted out of context. |
+| **Honest payback** | When an action's payback is poor, the report says the payback is poor. A recommendation that cannot justify itself is not dressed up as one that can. |
+| **Vocabulary that follows the field** | Load a solar plant and the UI speaks in generation; load a cement kiln and it speaks in clinker, not in kWh. |
+
+## 🧱 Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                      EcoMind AI Platform                     │
+│                      EcoMind AI Platform                    │
 ├────────────────────────────┬────────────────────────────────┤
-│  React 19 + TypeScript     │   FastAPI + SQLAlchemy          │
-│  Vite · TanStack Query     │   JWT auth · SSE streaming      │
-│  Recharts · lucide icons   │   pandas · scikit-learn         │
-│  serves from frontend/dist │   hour-of-week baselines        │
+│  React 19 + TypeScript     │   FastAPI + SQLAlchemy         │
+│  Vite · TanStack Query     │   JWT auth · SSE streaming     │
+│  Recharts · lucide icons   │   pandas · scikit-learn        │
+│  serves from frontend/dist │   hour-of-week baselines       │
 └────────────────────────────┴────────────────────────────────┘
 ```
 
-- **`backend/`** — FastAPI REST + SSE API, JWT auth, SQLAlchemy, one service
-  per stage; also serves the built SPA from `frontend/dist/` on **:8000**
+- **`backend/`** — FastAPI REST + SSE API, JWT auth, SQLAlchemy, one service per
+  stage; also serves the built SPA from `frontend/dist/` on **:8000**
 - **`frontend/`** — Vite + React SPA (`client/src/`), pnpm, builds to `frontend/dist/`
 - **`launcher/`** — the one start path (bootstrap, checks, spawn, stop, monitor)
-- **`docs/`** — [`STATUS.md`](docs/STATUS.md) (what is built, broken, next) + IEEE paper & research
+- **`docs/`** — [`STATUS.md`](docs/STATUS.md) (what is built, broken, next) plus the
+  IEEE paper, the project report, design decisions and release evidence
 
----
+## 🚀 Quick start
 
-## 🧪 Tests & checks
+**One click. From a bare clone:**
 
-```bash
-# Backend — pytest
-.\/.venv/Scripts/python.exe -m pytest -q
+| Platform | Command |
+|---|---|
+| Windows | double-click **`ecomind.bat`** |
+| macOS / Linux | `./ecomind.sh` |
 
-# Frontend — typecheck + production build
-cd frontend
-pnpm check
-pnpm build:static
+The launcher installs anything missing (Python 3.10+, Node 18+, `.venv`,
+backend requirements, `pnpm install`), generates `backend/.env` with a random
+secret key, seeds the database with the built-in dataset catalogue, starts the
+backend, waits until it is healthy, and opens your browser.
+
+Then open **<http://127.0.0.1:8000>** and sign in:
+
 ```
+Email:    admin@ecomind.ai
+Password: admin123
+```
+
+Other commands (same entry point):
+
+```
+ecomind start     start the app (default)
+ecomind stop      stop every service
+ecomind check     report on the machine without changing it
+ecomind verify    install everything, prove it worked, exit
+```
+
+The first run takes a few minutes while dependencies download; later runs start
+in seconds. Steps are idempotent and keyed on file hashes.
+
+> **If Python was just installed**, close the window and run it again — the
+> launcher cannot swap the interpreter it is itself running under, and it says
+> so rather than pretending otherwise.
 
 ### Manual setup (developers)
 
 ```bash
 # Backend — the virtualenv lives at the repository root (.venv)
 python -m venv .venv
-.venv/Scripts/activate                       # Windows (source .venv/bin/activate on macOS/Linux)
-pip install -r backend/requirements.txt
-python backend/seed.py                       # generate the catalogue + admin user
-.venv/Scripts/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
-# → http://127.0.0.1:8000 (serves the built SPA from frontend/dist/)
+.venv/Scripts/activate          # Windows
+source .venv/bin/activate        # macOS / Linux
 
-# Frontend (optional — only for vite HMR; proxies /api to :8000)
-cd frontend
-pnpm install
-pnpm dev:static                              # → http://127.0.0.1:5173
+pip install -r backend/requirements.txt
+python backend/seed.py           # generate the catalogue + admin user
+python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+# → http://127.0.0.1:8000 (serves the built SPA from frontend/dist/)
 ```
 
-### Built-in dataset catalogue
+```bash
+# Frontend — only needed for vite HMR; proxies /api to :8000
+cd frontend
+pnpm install
+pnpm dev:static                  # → http://127.0.0.1:5173
+```
+
+`make help` lists the same commands as targets (`install`, `seed`, `backend`,
+`frontend`, `dev`, `test`, `demo`, `clean`).
+
+## 📦 Built-in datasets
 
 A fresh clone needs no downloads — setup generates and registers:
 
 | Dataset | What it is |
 |---|---|
 | **EcoMind Healthy Campus** | 2 buildings · 26 rooms · 102 devices · 90 days hourly — clean baseline with only trace noise |
-| **EcoMind Fault Simulation Campus** | Same estate with injected faults: stuck meters, an HVAC failure, sensor dropouts, spikes and occupancy mismatches |
+| **EcoMind Fault Simulation Campus** | The same estate with injected faults: stuck meters, an HVAC failure, sensor dropouts, spikes and occupancy mismatches |
 | **BDG2 Electricity Meters** | 3-year hourly **open data** (UCI ElectricityLoadDiagrams20112014 via Zenodo 3898439), 9 building meters |
 
 Regenerate them without the launcher:
-`.venv\Scripts\python.exe scripts\build_datasets.py` (`--dataset healthy|faulty|reference|all`).
+`python scripts/build_datasets.py` (`--dataset healthy|faulty|reference|all`).
 
-### Twenty more fields — EcoMind is not a buildings-only tool
+### Twenty more fields — not a buildings-only tool
 
-`scripts/build_field_datasets.py` generates and registers **twenty energy domains**, each with its own
-hierarchy codes, equipment, cadence and target column, and each deterministic so a re-run reproduces
-the same file:
+`scripts/build_field_datasets.py` generates and registers **twenty energy
+domains**, each with its own hierarchy codes, equipment, cadence and target
+column, and each deterministic so a re-run reproduces the same file:
 
 | Field | Target | Field | Target |
 |---|---|---|---|
@@ -168,20 +213,20 @@ the same file:
 | Railway station | `energy_kwh` | Cement plant | `energy_kwh` |
 
 ```bash
-.venv\Scripts\python.exe scripts\build_field_datasets.py            # write + register
-.venv\Scripts\python.exe scripts\build_field_datasets.py --prune    # replace its own earlier uploads
-.venv\Scripts\python.exe scripts\build_field_datasets.py --no-upload --days 30
+python scripts/build_field_datasets.py            # write + register
+python scripts/build_field_datasets.py --prune    # replace its own earlier uploads
+python scripts/build_field_datasets.py --no-upload --days 30
 ```
 
-Each file carries a planted fault window (so anomaly detection has something real to find) and one
-malformed row (so the quality stage has a real defect to repair). The CSVs land in `sample-datasets/`,
-which is gitignored — re-run the script to recreate them.
+Each file carries a planted fault window (so anomaly detection has something
+real to find) and one malformed row (so the quality stage has a real defect to
+repair). The CSVs land in `sample-datasets/`, which is gitignored — re-run the
+script to recreate them.
 
-The frontend adapts to whichever field is loaded: the domain vocabulary, the unit vocabulary and the
-signal-family vocabulary all cover generation, transport, telecom and water quantities, so a solar
-plant is not labelled a manufacturing plant and `clinker_tonnes` is not labelled `kWh`.
-
----
+The frontend adapts to whichever field is loaded: the domain vocabulary, the
+unit vocabulary and the signal-family vocabulary all cover generation,
+transport, telecom and water quantities, so a solar plant is not labelled a
+manufacturing plant and `clinker_tonnes` is not labelled `kWh`.
 
 ## 📁 Project structure
 
@@ -189,52 +234,80 @@ plant is not labelled a manufacturing plant and `clinker_tonnes` is not labelled
 EcoMind-AI/
 ├── backend/
 │   ├── app/
-│   │   ├── core/          # config, security (JWT)
+│   │   ├── core/          # config, security (JWT), execution runtime
 │   │   ├── db/            # SQLAlchemy models & session
 │   │   ├── domain/        # one service per stage + baselines, snapshots
 │   │   ├── routes/        # auth, datasets, workflow, baseline, activity
 │   │   └── workflow/      # ten-stage orchestration + SSE event bus
-│   ├── data/              # runtime data (gitignored, regenerated)
 │   ├── requirements.txt
-│   └── seed.py            # demo data generator
+│   ├── seed.py            # demo data generator
+│   └── tests/             # pytest suite (API, detectors, launcher, exports)
 ├── frontend/
 │   ├── client/src/        # the SPA: shell, views, lib (api, workspace loader)
 │   ├── shared/            # shared constants
 │   ├── vite.config.ts     # builds to frontend/dist (served by FastAPI)
 │   └── package.json       # pnpm (packageManager: pnpm@10.18.0)
 ├── launcher/              # bootstrap, checks, spawn, stop — one start path
-├── ecomind.bat / .sh      # the single entry point per platform
+├── scripts/               # dataset builders, demo run, paper measurements
 ├── docs/                  # report, changelog, decisions, status, IEEE paper
-└── .venv/                 # Python virtualenv (repository root)
+├── ecomind.bat / .sh      # the single entry point per platform
+├── Dockerfile             # single-image deployment (seeds at build time)
+└── Makefile               # the same commands as targets
 ```
+
+## 🧪 Tests & CI
+
+```bash
+# Backend — pytest
+python -m pytest -q
+
+# Frontend — typecheck + production build
+cd frontend
+pnpm check
+pnpm build:static
+```
+
+Three CI jobs run on every push and pull request
+([`.github/workflows/ci.yml`](.github/workflows/ci.yml)):
+
+1. **Frontend** — `pnpm check`, `pnpm build:static`, plus a hard 1000 kB ceiling
+   on the entry chunk.
+2. **Backend** — seed the database, then the full pytest suite.
+3. **One-click bootstrap** — a bare checkout runs `./ecomind.sh verify` and then
+   proves the seeded admin user authenticates, which is the regression that a
+   pinned `passlib` once shipped past every ordinary test run.
 
 ## 📚 Documentation
 
 | Document | Description |
 |---|---|
 | [`docs/PROJECT_REPORT.md`](docs/PROJECT_REPORT.md) | **End-to-end report** — architecture, the stage-by-stage pipeline, API surface, verified status, demo script |
+| [`docs/STATUS.md`](docs/STATUS.md) | Backend truth: what is implemented, what is deliberately absent |
 | [`docs/CHANGELOG.md`](docs/CHANGELOG.md) | Every change, with the evidence it was verified against |
 | [`docs/DESIGN_DECISIONS.md`](docs/DESIGN_DECISIONS.md) | The design system and the reasoning behind each decision |
-| [`docs/STATUS.md`](docs/STATUS.md) | Backend truth: what is implemented, what is deliberately absent |
 | [`docs/EcoMind_IEEE_Paper.tex`](docs/EcoMind_IEEE_Paper.tex) | IEEE-format technical paper (+ `docs/research/` assets) |
+| [`docs/open-source-credits.md`](docs/open-source-credits.md) | Vendored components and their licences |
 
-## 🔒 Security Notes
+## 🔒 Security
 
 - **Passwords** are hashed with [`bcrypt`](https://pypi.org/project/bcrypt/) at
   cost 12, called directly rather than through `passlib`. `passlib` 1.7.4 —
-  which was pinned until 2026-10-04 — raises `ValueError` against `bcrypt`
-  4.1+, so a fresh install could not create a user at all. It is gone for
-  that reason, not for style. Existing password hashes still verify.
-- `ECOMIND_SECRET_KEY` is **generated randomly on first launch** and written
-  to `backend/.env`. If it is ever missing, too short, or still the
-  placeholder from `.env.example`, the launcher replaces it on the next
-  start. Never commit `backend/.env`; it is gitignored.
-- Demo credentials (`admin@ecomind.ai` / `admin123`) are for local
-  evaluation only. Change or disable them before exposing the API.
+  pinned until 2026-10-04 — raises `ValueError` against `bcrypt` 4.1+, so a fresh
+  install could not create a user at all. It is gone for that reason, not for
+  style. Existing password hashes still verify.
+- `ECOMIND_SECRET_KEY` is **generated randomly on first launch** and written to
+  `backend/.env`. If it is ever missing, too short, or still the placeholder from
+  `.env.example`, the launcher replaces it on the next start. Never commit
+  `backend/.env`; it is gitignored.
+- Demo credentials (`admin@ecomind.ai` / `admin123`) are for local evaluation
+  only. Change or disable them before exposing the API.
 - JWTs expire in 24 h and every protected route requires `Authorization: Bearer`.
 - SSE uses a **60-second, single-purpose stream token** minted by
-  `POST /api/v1/workflows/{run_id}/stream-token` — ordinary session tokens
-  are rejected there, so a 24-hour credential can never land in access logs.
+  `POST /api/v1/workflows/{run_id}/stream-token` — ordinary session tokens are
+  rejected there, so a 24-hour credential can never land in access logs.
+
+To report a vulnerability, read [`SECURITY.md`](SECURITY.md) instead of opening a
+public issue.
 
 ## 🩺 Troubleshooting
 
@@ -251,8 +324,8 @@ Useful logs: `logs/launcher.log` (bootstrap), `logs/backend.log`.
 
 ## 🎬 Running a demonstration
 
-The run controls live in the bar under the topbar, on **every** page, so a walkthrough never has to
-hunt for them:
+The run controls live in the bar under the topbar, on **every** page, so a
+walkthrough never has to hunt for them:
 
 | Control | What it does |
 |---|---|
@@ -261,16 +334,23 @@ hunt for them:
 | **Stop** | Aborts the active run; everything recorded before the stop is kept |
 | **New run** | Starts a fresh run for the active dataset from stage 01 |
 
-Every one of these works on a dataset that has never been analysed — they start a run when none
-exists rather than sitting disabled. **Guided tour** on Mission control additionally opens each page
-as its stage completes, so the pipeline can be narrated. A short chime marks the start of a run and
-another marks its completion.
+All four work on a dataset that has never been analysed — they start a run when
+none exists rather than sitting disabled. **Guided tour** on Mission control
+additionally opens each page as its stage completes, so the pipeline can be
+narrated. A short chime marks the start of a run and another marks its
+completion. A ten-minute script is in
+[`docs/PROJECT_REPORT.md`](docs/PROJECT_REPORT.md) §10.
 
-A ten-minute script is in [`docs/PROJECT_REPORT.md`](docs/PROJECT_REPORT.md) §10.
+## 🤝 Contributing
+
+Issues and pull requests are welcome. Start with
+[`CONTRIBUTING.md`](CONTRIBUTING.md) for the setup, the commit convention and the
+checks that must be green before a pull request is reviewed, and
+[`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) for how we work together.
 
 ## 🗺️ Roadmap
 
-- [ ] Archive the orphaned/failed workflow runs so the library and run history stay clean
+- [ ] Archive orphaned/failed workflow runs so the library and run history stay clean
 - [ ] Docker Compose for one-command full-stack startup
 - [ ] Multi-tenant workspaces with role-based access
 - [ ] Live meter integrations (MQTT / Modbus / BACnet)

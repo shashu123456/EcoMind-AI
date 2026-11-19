@@ -1,0 +1,97 @@
+name: Bug report
+description: Something rendered wrong, computed wrong, or failed to run.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. The more of this you can fill in, the faster the
+        fix — a pipeline bug is usually a specific stage on a specific dataset,
+        not a general failure.
+
+        **Security issues: do not use this form.** See [SECURITY.md](../blob/main/SECURITY.md).
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you saw, and what you expected instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Start with ecomind.bat
+        2. Open the Fault Simulation Campus dataset
+        3. Press Run
+        4. Open Anomalies
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Where does it show up
+      options:
+        - Launcher / startup
+        - Library or Import
+        - Schema
+        - Data Quality
+        - Transformation
+        - Model Selection
+        - Anomalies
+        - Forecast
+        - Recommendations
+        - Report
+        - Auth / session
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: dataset
+    attributes:
+      label: Dataset and run
+      description: Which dataset, and the run id if the page shows one.
+      placeholder: EcoMind Fault Simulation Campus · run 41
+
+  - type: input
+    id: commit
+    attributes:
+      label: Commit
+      description: Output of `git rev-parse --short HEAD`.
+      placeholder: 82276db
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - Windows
+        - macOS
+        - Linux
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: |
+        `logs/launcher.log` for startup problems, `logs/backend.log` for API
+        problems. Paste the relevant part — the first error, not the whole file.
+      render: shell
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues for the same problem.
+          required: true
+        - label: This is not a security report.
+          required: true

@@ -1,0 +1,57 @@
+name: Feature request
+description: Propose a capability, or a change to one that exists.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        EcoMind's stage contract is deliberately fixed: a stage runs once, and
+        every screen reads that stage's recorded output. Proposals that add a
+        field to a snapshot, a new route, or a new stage are welcome — they just
+        need the shape agreed before the code lands.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What can't you do today, and who is blocked by it?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: What should happen instead. Sketches and fake screenshots are welcome.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Where would this live
+      options:
+        - A new stage
+        - An existing stage (say which in the next box)
+        - The report
+        - The API
+        - The launcher / deployment
+        - Documentation
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: data
+    attributes:
+      label: Data implications
+      description: |
+        Does this need a new field in a snapshot, a new table, a new model
+        artefact? If it changes what a stage records, every screen reading that
+        snapshot is affected — worth saying so here.
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Including "do nothing, and why that is not enough".
