@@ -22,12 +22,19 @@ board-ready report, in ten recorded stages.**
 [Project report](docs/PROJECT_REPORT.md) ·
 [Status](docs/STATUS.md)
 
+<sub>Captured from a real run of the seeded campus dataset — no mock-ups.</sub>
+
 </div>
+
+<p align="center">
+  <img src="docs/figures/screenshot-entry.png" alt="The EcoMind AI front page: a dark energy-intelligence sign-in screen reading From raw signal to resilient operations" width="100%" />
+</p>
 
 ---
 
 ## Contents
 
+- [Screenshots](#-screenshots)
 - [Why EcoMind](#-why-ecomind)
 - [The ten stages](#-the-ten-stages)
 - [What makes it different](#-what-makes-it-different)
@@ -35,12 +42,27 @@ board-ready report, in ten recorded stages.**
 - [Quick start](#-quick-start)
 - [Built-in datasets](#-built-in-datasets)
 - [Project structure](#-project-structure)
-- [Tests & CI](#-tests--ci)
+- [Tests and CI](#-tests-and-ci)
 - [Documentation](#-documentation)
 - [Security](#-security)
 - [Troubleshooting](#-troubleshooting)
 - [Contributing](#-contributing)
 - [License](#-license)
+
+---
+
+## 📸 Screenshots
+
+Every frame below is a real run of **EcoMind Synthetic Campus (30-day hourly)**, captured
+from the app at 1500×940 — nothing staged, nothing redrawn.
+
+| Mission control | Transformation |
+|---|---|
+| ![Mission control: ten stages recorded, quality score, anomalies and the selected baseline](docs/figures/screenshot-mission-control.png) | ![Transformation: five recorded steps, feature importance and feature lineage](docs/figures/screenshot-transformation.png) |
+| **Mission control** — stage completion, data-quality score, anomaly count, baseline version and the chosen model, all read from the recorded run. | **Transformation** — five recorded steps with field-level before/after, the winning model's feature weights, and the lineage from raw column to prediction. |
+| **Recommendations** | **Prediction** |
+| ![Recommendations: 33 ranked actions with energy, cost, carbon and payback, beside a priority matrix](docs/figures/screenshot-recommendations.png) | ![Prediction: observed history, projected load and the confidence band for a seven-day horizon](docs/figures/screenshot-prediction.png) |
+| **Recommendations** — ranked actions with their own energy, cost, carbon and payback, plus the impact-versus-effort matrix. | **Prediction** — observed history, projected load and the confidence band, with the naive hour-of-week baseline to compare against. |
 
 ---
 
@@ -255,7 +277,7 @@ EcoMind-AI/
 └── Makefile               # the same commands as targets
 ```
 
-## 🧪 Tests & CI
+## 🧪 Tests and CI
 
 ```bash
 # Backend — pytest
