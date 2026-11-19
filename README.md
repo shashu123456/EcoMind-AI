@@ -58,8 +58,8 @@ from the app at 1500×940 — nothing staged, nothing redrawn.
 
 | Mission control | Transformation |
 |---|---|
-| ![Mission control: ten stages recorded, quality score, anomalies and the selected baseline](docs/figures/screenshot-mission-control.png) | ![Transformation: five recorded steps, feature importance and feature lineage](docs/figures/screenshot-transformation.png) |
-| **Mission control** — stage completion, data-quality score, anomaly count, baseline version and the chosen model, all read from the recorded run. | **Transformation** — five recorded steps with field-level before/after, the winning model's feature weights, and the lineage from raw column to prediction. |
+| ![Mission control: ten stages recorded, quality score, anomalies and the selected baseline](docs/figures/screenshot-mission-control.png) | ![Transformation: five recorded steps, the green hour-of-week normal-behaviour heatmap and feature importance](docs/figures/screenshot-transformation.png) |
+| **Mission control** — stage completion, data-quality score, anomaly count, baseline version and the chosen model, all read from the recorded run. | **Transformation** — five recorded steps with field-level before/after, the hour-of-week normal-behaviour heatmap, the winning model's feature weights, and the lineage from raw column to prediction. |
 | **Recommendations** | **Prediction** |
 | ![Recommendations: 33 ranked actions with energy, cost, carbon and payback, beside a priority matrix](docs/figures/screenshot-recommendations.png) | ![Prediction: observed history, projected load and the confidence band for a seven-day horizon](docs/figures/screenshot-prediction.png) |
 | **Recommendations** — ranked actions with their own energy, cost, carbon and payback, plus the impact-versus-effort matrix. | **Prediction** — observed history, projected load and the confidence band, with the naive hour-of-week baseline to compare against. |

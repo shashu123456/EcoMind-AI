@@ -740,6 +740,27 @@ export function TransformLab({
 
       </div>
 
+      {/* Normal behaviour ------------------------------------------- */}
+      <section className="panel tl-behaviour">
+        <div className="tl-head">
+          <div>
+            <span className="section-eyebrow">NORMAL BEHAVIOUR</span>
+            <h2>When this dataset behaves normally</h2>
+          </div>
+          <span className="mono-note">
+            hour of week · {cells.length ? `${cells.length} cells` : "no baseline"}
+          </span>
+        </div>
+        {cells.length ? (
+          <Heat cells={cells} unit={unit} target={baseline?.target || targetName} />
+        ) : (
+          <p className="mono-note">
+            No hour-of-week baseline has been recorded for this dataset yet — run the baseline stage and this
+            profile fills in from the recorded medians.
+          </p>
+        )}
+      </section>
+
       {/* Feature importance ---------------------------------------- */}
       <section className="panel tl-importance">
           <div className="tl-head">
