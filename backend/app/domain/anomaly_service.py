@@ -972,6 +972,14 @@ def get_anomaly_chart_data(db, dataset_id, filters=None):
         if col not in frame.columns:
             frame[col] = ''
 
+    # `_distinct` runs a Python pass per group, and the three counts below cost
+    # ~20 s on a 21k-row export — enough for the chart to miss the client's
+    # response budget and leave the signal graph empty. Blanking the keys once
+    # and counting with `nunique` applies the same "non-empty" rule, vectorised.
+    for col in ('device_code', 'floor_no', 'building_code'):
+        key = frame[col].astype('string').str.strip()
+        frame[f'_{col}_key'] = key.mask(key.isna() | key.eq(''))
+
     # Baseline: a median that is shrunk toward the hour-of-day profile, so a
     # sparse dataset still has a baseline that means something.
     frame['_hod'] = frame['timestamp'].dt.hour
@@ -998,9 +1006,9 @@ def get_anomaly_chart_data(db, dataset_id, filters=None):
             # number cannot describe several appliances at once, so the consumer
             # needs the counts to know whether the identity beside it belongs to
             # the bucket or merely to whichever row sorted first.
-            device_count=('device_code', _distinct),
-            floor_count=('floor_no', _distinct),
-            building_count=('building_code', _distinct),
+            device_count=('_device_code_key', 'nunique'),
+            floor_count=('_floor_no_key', 'nunique'),
+            building_count=('_building_code_key', 'nunique'),
             timestamp=('timestamp', 'min'),
         )
         .reset_index()

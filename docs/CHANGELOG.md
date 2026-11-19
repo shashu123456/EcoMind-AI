@@ -18,6 +18,61 @@ Legend: `FIX` correctness · `FEAT` new capability · `PERF` performance · `A11
 
 ---
 
+## [2026-11-19] — Transformation: the full record, and a graph that could not load
+
+### FIX — The signal graph was empty because the endpoint took 33 s
+
+The transformation page asked for `/datasets/{id}/anomalies/chart` to draw
+"Model-ready signal" and "Before / after distribution". That route spent 20 s of
+its 33 s in `_distinct`, called twice per aggregated bucket (720 buckets), each
+call rebuilding a pandas `string` copy just to count distinct non-empty keys.
+The client races every workspace call against a 15 s timeout, so the chart
+resolved to `null`, `energy` stayed empty, and both panels printed "no recorded
+series" on a dataset whose stage records were complete. The counts are now
+pre-computed as blanked key columns and aggregated with `nunique`; the route
+answers in ~3 s and both panels draw 720 points.
+
+### FEAT — Restored the panels the rebuild dropped
+
+The 2026-11-17 shell rebuild reduced this page to five panels and left the
+component code for the rest in place but never mounted: dataset summary,
+transformation explainer, feature statistics, before/after distribution,
+processing log and the stage-by-stage timeline. All are mounted again, in the
+order the story reads: shape → pipeline and reasons → statistics → importance
+and distribution → signal → normal behaviour and lineage → timeline and log →
+trace. A footer call to action ("Continue to data quality") ends the page; the
+run controls' Next is hidden below 1240 px, which left narrow viewports with no
+forward exit at all.
+
+### FIX — Progress now shows what was recorded, not what the timer reached
+
+The pipeline flow cycled a spinner through every chip every 2.2 s and the
+timeline ticked all seven nodes green, so a ledger reading "1 of 5 done" sat
+above five completed ticks and a running-looking stage. Both animations now
+stop at the number of steps the stage actually marked `done`.
+
+### FIX — Charts that were unreadable when they finally drew
+
+* Histogram: before and after were binned over their own ranges and overlaid,
+  so bar 3 of one distribution was compared with bar 3 of another. One shared
+  domain, paired bars, and a caption that says which is which.
+* Signal x-axis: every tick printed a full ISO timestamp and collided into
+  `2026-01-0?1T00:00:00`. Ticks are now `01 Jan` (or `HH:MM` for intraday).
+* Dataset summary: ten cards in a nine-up auto-fit grid left READINESS alone in
+  a second row; five fixed columns give two even rows at desktop.
+* Two-column panel rows now align to the start, so a short heat card no longer
+  stretches to match the lineage beside it.
+* The hero's PROCESSING TIME card read `— / durations not recorded`; it now
+  carries the recorded signal count, which the page actually has.
+
+**Verified:** `tsc --noEmit` and `vite build` clean; the page measured at
+1500×940, 1024×900 and 760×900 with no horizontal overflow; 168 heat cells, 720
+signal readings, 14 paired histogram bins; the Next CTA navigates to Data
+quality; `docs/figures/screenshot-transformation.png` refreshed from the running
+app.
+
+---
+
 ## [2026-11-19] — The 30-day horizon could never show a series
 
 ### FIX — An empty forecast row won its horizon on recency alone

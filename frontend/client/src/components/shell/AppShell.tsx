@@ -1600,6 +1600,7 @@ export function AppShell() {
             baseline={workspace?.baseline}
             dataset={activeDataset}
             baselineName={baselineName}
+            onNext={() => setActiveView("quality")}
             onOpenBaselinePreview={() => {
               setPreview({ dataset: activeDataset, rows: [], loading: true, error: "" });
               domain
@@ -3268,12 +3269,14 @@ function TransformView({
   dataset,
   baselineName,
   onOpenBaselinePreview,
+  onNext,
 }: {
   transform?: LiveTransform;
   baseline?: LiveBaseline;
   dataset: Dataset;
   baselineName: string;
   onOpenBaselinePreview?: () => void;
+  onNext?: () => void;
 }) {
   // Presentation moved into TransformLab. The stage records, the baseline and
   // the preview callback are passed through untouched.
@@ -3305,6 +3308,7 @@ function TransformView({
       weights={liveCompetition?.weights ?? []}
       versions={liveBaselineVersions}
       onOpenBaselinePreview={onOpenBaselinePreview}
+      onNext={onNext}
     />
   );
 }

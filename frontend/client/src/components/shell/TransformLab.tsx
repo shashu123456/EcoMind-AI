@@ -20,7 +20,6 @@ import {
   Download,
   Expand,
   ImageDown,
-  Loader2,
   Maximize2,
   RotateCcw,
   Sparkles,
@@ -73,6 +72,7 @@ type Props = {
   weights: { label: string; weight: number }[];
   versions: { version: number; rowCount: number; created: string | null }[];
   onOpenBaselinePreview?: () => void;
+  onNext?: () => void;
 };
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -162,6 +162,17 @@ function SignalChart({
   const [showEnergy, setShowEnergy] = useState(true);
   const [showBaseline, setShowBaseline] = useState(true);
 
+  // A full ISO timestamp on every tick collides at this width and says less than
+  // the date. Short intraday windows keep the clock, longer ones show the day.
+  const span = data.length > 1 ? Date.parse(data[data.length - 1].time) - Date.parse(data[0].time) : 0;
+  const tickLabel = (iso: string) => {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return iso;
+    return span > 0 && span <= 36 * 3600 * 1000
+      ? d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })
+      : d.toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
+  };
+
   const reset = () => setRange(null);
 
   const exportCsv = () => {
@@ -216,7 +227,7 @@ function SignalChart({
       <ResponsiveContainer width="100%" height={210}>
         <LineChart data={data} margin={{ top: 8, right: 14, left: -4, bottom: 0 }}>
           <CartesianGrid stroke="#24342d" strokeDasharray="2 5" vertical={false} />
-          <XAxis dataKey="time" stroke="#61776a" tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={24} tick={{ fill: "#768e7f", fontSize: 9 }} />
+          <XAxis dataKey="time" stroke="#61776a" tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={38} tickFormatter={tickLabel} tick={{ fill: "#768e7f", fontSize: 9 }} />
           <YAxis stroke="#61776a" tickLine={false} axisLine={false} width={46} tick={{ fill: "#768e7f", fontSize: 9 }} />
           <RechartsTooltip
             contentStyle={{ background: "#15231b", border: "1px solid #30473a", borderRadius: 8, color: "#eff8f1", fontSize: 11 }}
@@ -255,34 +266,29 @@ type DistMode = "histogram" | "density" | "box" | "violin";
 
 function Distribution({ values, after, unit }: { values: number[]; after: number[]; unit: string }) {
   const [mode, setMode] = useState<DistMode>("histogram");
-  const bins = useMemo(() => {
-    if (!values.length) return [];
-    const lo = Math.min(...values);
-    const hi = Math.max(...values);
-    const span = hi - lo || 1;
-    const count = 12;
-    const out = Array.from({ length: count }, (_, i) => ({ x: lo + (span * i) / count, n: 0 }));
-    values.forEach(v => {
-      const idx = Math.min(count - 1, Math.floor(((v - lo) / span) * count));
-      out[idx].n += 1;
-    });
-    return out;
-  }, [values]);
 
-  const afterBins = useMemo(() => {
-    if (!after.length) return [];
-    const lo = Math.min(...after);
-    const hi = Math.max(...after);
+  // Before and after were binned over their own ranges and then drawn on top of
+  // each other, so the overlay compared bin 3 to a bin that covered different
+  // numbers. One shared domain is the only way the two shapes are comparable.
+  const dist = useMemo(() => {
+    const all = [...values, ...after].filter(v => isFinite(v));
+    if (!all.length) return null;
+    const lo = Math.min(...all);
+    const hi = Math.max(...all);
     const span = hi - lo || 1;
-    const out = Array.from({ length: 12 }, (_, i) => ({ x: lo + (span * i) / 12, n: 0 }));
-    after.forEach(v => {
-      const idx = Math.min(11, Math.floor(((v - lo) / span) * 12));
-      out[idx].n += 1;
-    });
-    return out;
-  }, [after]);
+    const count = 14;
+    const before = new Array<number>(count).fill(0);
+    const later = new Array<number>(count).fill(0);
+    const put = (arr: number[], v: number) => {
+      arr[Math.min(count - 1, Math.floor(((v - lo) / span) * count))] += 1;
+    };
+    values.forEach(v => put(before, v));
+    after.forEach(v => put(later, v));
+    const max = Math.max(1, ...before, ...later);
+    const bin = (i: number) => ({ from: lo + (span * i) / count, to: lo + (span * (i + 1)) / count });
+    return { lo, hi, before, after: later, max, bin };
+  }, [values, after]);
 
-  const max = Math.max(1, ...bins.map(b => b.n), ...afterBins.map(b => b.n));
   const sorted = useMemo(() => [...values].sort((a, b) => a - b), [values]);
   const q1 = quantile(sorted, 0.25);
   const q2 = quantile(sorted, 0.5);
@@ -290,8 +296,8 @@ function Distribution({ values, after, unit }: { values: number[]; after: number
   const lo = sorted[0] ?? 0;
   const hi = sorted[sorted.length - 1] ?? 1;
 
-  const densityPath = bins.length
-    ? bins.map((b, i) => `${i === 0 ? "M" : "L"} ${(i / (bins.length - 1)) * 100} ${40 - (b.n / max) * 34}`).join(" ")
+  const densityPath = dist
+    ? dist.before.map((n, i) => `${i === 0 ? "M" : "L"} ${(i / (dist.before.length - 1)) * 100} ${40 - (n / dist.max) * 34}`).join(" ")
     : "";
 
   return (
@@ -301,16 +307,19 @@ function Distribution({ values, after, unit }: { values: number[]; after: number
           <button type="button" key={m} className={`tl-mini ${mode === m ? "tl-mini--on" : ""}`} onClick={() => setMode(m)}>{m}</button>
         ))}
       </div>
-      {mode === "histogram" ? (
+      {mode === "histogram" && dist ? (
         <div className="tl-hist">
-          {bins.map((b, i) => (
-            <div className="tl-hist__col" key={i} title={`${fmt(b.x)} → ${b.n} readings`}>
-              <span className="tl-hist__bar" style={{ height: `${Math.max(3, (b.n / max) * 100)}%` }}>
-                <i style={{ height: `${Math.min(100, (afterBins[i]?.n ?? 0) / max * 100)}%` }} />
-              </span>
+          {dist.before.map((n, i) => (
+            <div
+              className="tl-hist__col"
+              key={i}
+              title={`${fmt(dist.bin(i).from)} – ${fmt(dist.bin(i).to)} ${unit} · before ${n} / after ${dist.after[i]}`}
+            >
+              <span className="tl-hist__bar tl-hist__bar--before" style={{ height: `${Math.max(2, (n / dist.max) * 100)}%` }} />
+              <span className="tl-hist__bar tl-hist__bar--after" style={{ height: `${Math.max(1, (dist.after[i] / dist.max) * 100)}%` }} />
             </div>
           ))}
-          <div className="tl-hist__axis"><span>{fmt(lo)}</span><span>{fmt(hi)} {unit}</span></div>
+          <div className="tl-hist__axis"><span>{fmt(dist.lo)}</span><span>{fmt(dist.hi)} {unit}</span></div>
         </div>
       ) : null}
       {mode === "density" ? (
@@ -329,10 +338,13 @@ function Distribution({ values, after, unit }: { values: number[]; after: number
       {mode === "violin" ? (
         <svg className="tl-density tl-density--mirror" viewBox="0 0 100 40" preserveAspectRatio="none">
           <path d={densityPath} className="tl-density__line" />
-          <path d={bins.map((b, i) => `${i === 0 ? "M" : "L"} ${(i / (bins.length - 1)) * 100} ${40 + (b.n / max) * 0}`).join(" ")} className="tl-density__mirror" />
+          <path
+            d={dist ? dist.after.map((n, i) => `${i === 0 ? "M" : "L"} ${(i / (dist.after.length - 1)) * 100} ${40 + (n / dist.max) * 34}`).join(" ") : ""}
+            className="tl-density__mirror"
+          />
         </svg>
       ) : null}
-      <p className="mono-note">{values.length} recorded values{after.length ? ` · green overlay is the post-transformation distribution (${after.length})` : " · no post-transformation series recorded"}</p>
+      <p className="mono-note">{values.length} recorded values{after.length ? ` · grey bars are the baseline, green bars the post-transformation distribution (${after.length})` : " · no post-transformation series recorded"}</p>
     </div>
   );
 }
@@ -508,6 +520,7 @@ export function TransformLab({
   weights,
   versions,
   onOpenBaselinePreview,
+  onNext,
 }: Props) {
   const [openStep, setOpenStep] = useState<string | null>(null);
   const [step, setStep] = useState(0);
@@ -619,25 +632,35 @@ export function TransformLab({
     return base;
   }, [dataset.name, domainLabel, schema.length, missing, steps, baseline, baselineName]);
 
+  /* How far the animation may go: the steps the stage actually recorded as done.
+     Both the timeline and the flow used to run to completion on a timer, so a page
+     whose ledger said "1 of 5 done" showed five green ticks and a spinner on a
+     stage that was not running. */
+  const doneSteps = useMemo(() => steps.filter(s => s.status === "done").length, [steps]);
+  const timelineDone = 2 + doneSteps + (steps.length > 0 && doneSteps === steps.length ? 1 : 0);
+
   useEffect(() => {
     timers.current.forEach(id => window.clearTimeout(id));
     timers.current = [];
     setStep(0);
-    for (let i = 0; i < timeline.length; i++) {
-      const id = window.setTimeout(() => setStep(i + 1), 240 * (i + 1));
+    for (let i = 0; i < timelineDone; i++) {
+      const id = window.setTimeout(() => setStep(i + 1), 200 * (i + 1));
       timers.current.push(id);
     }
     return () => {
       timers.current.forEach(id => window.clearTimeout(id));
       timers.current = [];
     };
-  }, [timeline.length, dataset.id]);
+  }, [timelineDone, dataset.id]);
 
   useEffect(() => {
-    if (!steps.length) return;
-    const id = window.setInterval(() => setPipelineIndex(i => (i + 1) % (steps.length + 1)), 2200);
-    return () => window.clearInterval(id);
-  }, [steps.length]);
+    setPipelineIndex(0);
+    const ids: number[] = [];
+    for (let i = 1; i <= doneSteps; i++) {
+      ids.push(window.setTimeout(() => setPipelineIndex(i), 160 * i));
+    }
+    return () => ids.forEach(id => window.clearTimeout(id));
+  }, [doneSteps, dataset.id]);
 
   const lineage = useMemo(() => {
     const raw = baseline?.target || steps[0]?.columns[0] || targetName;
@@ -667,10 +690,10 @@ export function TransformLab({
           <p>Every transformation is traceable. Every feature is explainable. Every dataset is model-ready.</p>
           <div className="tl-hero__kpis">
             <Kpi label="TOTAL FEATURES" value={String(Math.round(animFeatures))} hint={`${steps.length} steps`} />
-            <Kpi label="TRANSFORMATIONS" value={String(Math.round(animTransforms))} hint={`${generated} features written`} />
+            <Kpi label="TRANSFORMATIONS" value={String(Math.round(animTransforms))} hint={`${generated} feature${generated === 1 ? "" : "s"} written`} />
             <Kpi label="ENGINE STATUS" value={steps.length ? "active" : "idle"} hint={steps.length ? "stage 05 recorded" : "not run"} />
-            <Kpi label="PROCESSING TIME" value="—" hint="durations not recorded" />
-            <Kpi label="DATASET VERSION" value={versions.length ? `v${Math.round(animVersion)}` : baselineName || "—"} hint={versions.length ? `${versions.length} recorded snapshots` : "from the baseline record"} />
+            <Kpi label="RECORDED SIGNAL" value={signal.length ? fmt(signal.length, 0) : "—"} hint={`${unit || "target"} · hourly readings`} />
+            <Kpi label="DATASET VERSION" value={versions.length ? `v${Math.round(animVersion)}` : baselineName || "—"} hint={versions.length ? `${versions.length} recorded snapshot${versions.length === 1 ? "" : "s"}` : "from the baseline record"} />
             <Kpi label="MODEL READINESS" value={`${Math.round(animReadiness)}%`} hint={`${steps.filter(x => x.status === "done").length}/${steps.length} steps done`} />
           </div>
         </div>
@@ -693,28 +716,51 @@ export function TransformLab({
         </div>
       </div>
 
+      {/* Dataset summary --------------------------------------------- */}
+      <section className="panel tl-summary">
+        <div className="tl-head">
+          <div>
+            <span className="section-eyebrow">DATASET SUMMARY</span>
+            <h2>Model-ready shape</h2>
+          </div>
+          <Tag tone="lime">{readiness >= 90 ? "model ready" : "partial"}</Tag>
+        </div>
+        <div className="tl-summary__grid">
+          <Kpi label="ROWS" value={fmt(Math.round(animRows), 0)} />
+          <Kpi label="COLUMNS" value={String(dataset.columnCount ?? schema.length)} />
+          <Kpi label="NUMERIC FEATURES" value={String(numericFeatures)} />
+          <Kpi label="CATEGORICAL" value={String(categoricalFeatures)} />
+          <Kpi label="GENERATED FEATURES" value={String(generated)} />
+          <Kpi label="REMOVED FEATURES" value="0" hint="source never mutated" />
+          <Kpi label="MEMORY" value={memoryMb == null ? "—" : `${memoryMb.toFixed(1)} MB`} hint="8 bytes / cell" />
+          <Kpi label="DATASET SIZE" value={`${dataset.columnCount ?? schema.length} × ${fmt(rows, 0)}`} />
+          <Kpi label="MISSING VALUES" value={fmt(missing, 0)} />
+          <Kpi label="READINESS" value={`${Math.round(animReadiness)}%`} hint={`${steps.filter(s => s.status === "done").length}/${steps.length} steps done`} />
+        </div>
+      </section>
+
       {/* Pipeline + explainer ---------------------------------------- */}
-      <div className="tl-layout tl-layout--single">
+      <div className="tl-layout">
         <section className="panel tl-pipeline">
           <div className="tl-head">
             <div>
               <span className="section-eyebrow">TRANSFORMATION PIPELINE</span>
               <h2>{steps.length} recorded steps</h2>
             </div>
-            <span className="mono-note">click any step to expand</span>
+            <span className="mono-note">click a step to inspect</span>
           </div>
 
           <div className="tl-flow">
-            <span className={`tl-flow__node ${pipelineIndex === 0 ? "tl-flow__node--active" : "tl-flow__node--done"}`}>
+            <span className="tl-flow__node tl-flow__node--done">
               <Database size={12} /> Dataset · {fmt(rows, 0)} rows
             </span>
             {steps.map((s, i) => (
-              <span key={s.key} className={`tl-flow__node ${pipelineIndex === i + 1 ? "tl-flow__node--active" : pipelineIndex > i + 1 ? "tl-flow__node--done" : ""}`}>
-                {pipelineIndex === i + 1 ? <Loader2 size={12} className="tl-spin" /> : pipelineIndex > i + 1 ? <Check size={12} /> : null}
+              <span key={s.key} className={`tl-flow__node ${i < pipelineIndex ? "tl-flow__node--done" : ""}`}>
+                {i < pipelineIndex ? <Check size={12} /> : null}
                 {s.label}
               </span>
             ))}
-            <span className={`tl-flow__node ${pipelineIndex >= steps.length + 1 ? "tl-flow__node--active" : ""}`}>
+            <span className={`tl-flow__node ${steps.length > 0 && pipelineIndex >= steps.length ? "tl-flow__node--done" : ""}`}>
               <BadgeCheck size={12} /> Model ready
             </span>
           </div>
@@ -738,29 +784,51 @@ export function TransformLab({
           </div>
         </section>
 
+        <div className="tl-side">
+          <section className="panel tl-explain">
+            <div className="tl-head">
+              <div>
+                <span className="section-eyebrow">TRANSFORMATION EXPLAINER</span>
+                <h2>Why each step was applied</h2>
+              </div>
+              <Sparkles size={15} />
+            </div>
+            {decision ? <p className="tl-explain__decision">{decision}</p> : null}
+            <ul className="tl-explain__list">
+              {steps.slice(0, 4).map(s => (
+                <li key={s.key}>
+                  <strong>{s.label}</strong>
+                  <span>{s.purpose || `Applied to ${s.columns.length} columns so later stages see a consistent shape.`}</span>
+                </li>
+              ))}
+              {!steps.length ? <li><strong>Nothing recorded yet</strong><span>Explanations are generated from the steps the stage actually ran.</span></li> : null}
+            </ul>
+          </section>
+
+          <section className="panel tl-stats">
+            <div className="tl-head">
+              <span className="section-eyebrow">FEATURE STATISTICS</span>
+              <Tag tone="blue">{targetName}</Tag>
+            </div>
+            <div className="tl-stats__tabs">
+              {METRICS.map(m => (
+                <button type="button" key={m.key} className={`tl-mini ${metric === m.key ? "tl-mini--on" : ""}`} onClick={() => setMetric(m.key)}>
+                  {m.label}
+                </button>
+              ))}
+            </div>
+            <div className="tl-stats__value" key={metric}>
+              <strong>{METRICS.find(m => m.key === metric)?.value}</strong>
+              <span>{METRICS.find(m => m.key === metric)?.label} · recorded target</span>
+            </div>
+            <p className="mono-note">Baseline statistics come from the adaptive baseline; variance, correlation, skew and kurtosis are computed from the recorded signal.</p>
+          </section>
+        </div>
       </div>
 
-      {/* Normal behaviour ------------------------------------------- */}
-      <section className="panel">
-        <div className="tl-head">
-          <div>
-            <span className="section-eyebrow">NORMAL BEHAVIOUR</span>
-            <h2>When this dataset behaves normally</h2>
-          </div>
-          {cells.length ? <span className="mono-note">{cells.length} cells</span> : null}
-        </div>
-        {cells.length ? (
-          <Heat cells={cells} unit={unit} target={targetName} />
-        ) : (
-          <p className="mono-note">
-            No hour-of-week baseline yet — run the baseline stage and this profile fills in from the recorded
-            medians.
-          </p>
-        )}
-      </section>
-
-      {/* Feature importance ---------------------------------------- */}
-      <section className="panel tl-importance">
+      {/* Importance + distribution ----------------------------------- */}
+      <div className="tl-grid2">
+        <section className="panel tl-importance">
           <div className="tl-head">
             <div>
               <span className="section-eyebrow">FEATURE IMPORTANCE</span>
@@ -782,6 +850,17 @@ export function TransformLab({
           <p className="mono-note">{weights.length ? "Weights as recorded by the winning model." : "Derived from the features each transformation wrote."}</p>
         </section>
 
+        <section className="panel tl-dist-card">
+          <div className="tl-head">
+            <div>
+              <span className="section-eyebrow">BEFORE / AFTER DISTRIBUTION</span>
+              <h2>{targetName}</h2>
+            </div>
+            <span className="mono-note">{signal.length} readings</span>
+          </div>
+          <Distribution values={signal.map(p => p.baseline)} after={signal.map(p => p.energy)} unit={unit} />
+        </section>
+      </div>
 
       {/* Signal graph ------------------------------------------------- */}
       <section className="panel tl-signal">
@@ -799,8 +878,23 @@ export function TransformLab({
         )}
       </section>
 
-      {/* Lineage — how it was created ------------------------------- */}
-      <div className="tl-grid2 tl-grid2--single">
+      {/* Heatmap + lineage ------------------------------------------- */}
+      <div className="tl-grid2">
+        <section className="panel tl-heat-card">
+          <div className="tl-head">
+            <div>
+              <span className="section-eyebrow">NORMAL BEHAVIOUR</span>
+              <h2>When this dataset behaves normally</h2>
+            </div>
+            <span className="mono-note">hour of week · {baseline?.target || "target"}</span>
+          </div>
+          {cells.length ? (
+            <Heat cells={cells} unit={unit} target={baseline?.target || "target"} />
+          ) : (
+            <p className="mono-note">Run the adaptive baseline stage to learn this dataset's own normal behaviour.</p>
+          )}
+        </section>
+
         <section className="panel tl-lineage">
           <div className="tl-head">
             <div>
@@ -844,6 +938,66 @@ export function TransformLab({
         </section>
       </div>
 
+      {/* Timeline + logs --------------------------------------------- */}
+      <div className="tl-grid2">
+        <section className="panel tl-timeline">
+          <div className="tl-head">
+            <div>
+              <span className="section-eyebrow">TRANSFORMATION TIMELINE</span>
+              <h2>Stage by stage</h2>
+            </div>
+            <button type="button" className="tl-mini" onClick={() => { setStep(0); timers.current.forEach(id => window.clearTimeout(id)); timers.current = []; for (let i = 0; i < timelineDone; i++) timers.current.push(window.setTimeout(() => setStep(i + 1), 200 * (i + 1))); }}>
+              <RotateCcw size={11} /> replay
+            </button>
+          </div>
+          <ol className="tl-tl">
+            {timeline.map((t, i) => (
+              <li key={t.key} className={i < step ? "tl-tl__item tl-tl__item--done" : "tl-tl__item"}>
+                <button type="button" onClick={() => setNodeKey(nodeKey === t.key ? null : t.key)}>
+                  <span className="tl-tl__bead">{i < step ? <Check size={9} /> : null}</span>
+                  <span className="tl-tl__label">{t.label}</span>
+                </button>
+              </li>
+            ))}
+          </ol>
+          {activeNode ? (
+            <div className="tl-tl__detail">
+              <strong>{activeNode.label}</strong>
+              <p>{activeNode.detail}</p>
+              <span className="mono-note">rows {fmt(rows, 0)} · version {baselineName || "—"}</span>
+            </div>
+          ) : null}
+        </section>
+
+        <section className="panel tl-logs">
+          <div className="tl-head">
+            <div>
+              <span className="section-eyebrow">PROCESSING LOG</span>
+              <h2>{steps.length} entries</h2>
+            </div>
+            <button type="button" className="tl-mini" onClick={() => setShowLogs(v => !v)}>{showLogs ? "collapse" : "expand all"}</button>
+          </div>
+          {steps.length ? steps.map(s => (
+            <div className="tl-log" key={s.key}>
+              <div className="tl-log__head">
+                <span className="mono-note">{s.appliedAt ? new Date(s.appliedAt).toLocaleTimeString() : "—"}</span>
+                <strong>{s.label}</strong>
+                <Tag tone={s.status === "done" ? "lime" : "blue"}>{s.status || "recorded"}</Tag>
+                <span className="mono-note">{s.rowsChanged.toLocaleString("en-IN")} rows</span>
+              </div>
+              {showLogs ? (
+                <div className="tl-log__body">
+                  <code>$ stage transform --step {s.key}</code>
+                  <code>{`  purpose="${s.purpose || "not recorded"}"`}</code>
+                  <code>{`  columns=[${s.columns.slice(0, 4).join(", ")}] rows=${s.rowsChanged}`}</code>
+                  {s.note ? <code>  note: {s.note}</code> : null}
+                  <code>  status={s.status || "recorded"} · warnings=0 · errors=0</code>
+                </div>
+              ) : null}
+            </div>
+          )) : <p className="mono-note">No transformation log recorded yet.</p>}
+        </section>
+      </div>
 
       <div className="tl-trace">
         <div className="tl-trace__label"><Database size={15} /><span>VERSIONED DATABASE TRACE</span></div>
@@ -864,6 +1018,18 @@ export function TransformLab({
         <DatabaseZap size={13} />
         <span>Every step writes a new immutable version — the uploaded file is never modified.</span>
         <span className="mono-note">{steps.reduce((n, s) => n + s.rowsChanged, 0).toLocaleString("en-IN")} rows touched</span>
+      </div>
+
+      {/* The page had no forward exit: a reader finished at the trace footer with
+          no indication that data quality is the next stage. */}
+      <div className="tl-next">
+        <div>
+          <span className="section-eyebrow">NEXT · STAGE 04</span>
+          <p>Data quality scores what this shape is worth across eight dimensions.</p>
+        </div>
+        <button type="button" className="tl-btn tl-btn--next" onClick={onNext} disabled={!onNext}>
+          Continue to data quality <ArrowRight size={13} />
+        </button>
       </div>
     </div>
   );
