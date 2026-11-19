@@ -18,6 +18,59 @@
   gap: 18px;
 }
 
+/* The stage list is a checklist of short labels, not prose. In one column it ran
+   the full 1150px of the panel for seven rows of label-plus-status, pushing the
+   document preview a screen and a half down and leaving each row mostly empty.
+   Two columns halve the height and let the rows read as a set. */
+.report-sections {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 30px;
+}
+
+/* The footer's meta block is a grid of two lines; the export buttons are a row
+   of six. Without this they were caught by the same `> div` rule, so the
+   formats stacked into a 212px column at the far right and left a well of
+   empty panel beneath the stage list. */
+.report-export-panel__footer .rs-exports {
+  justify-content: flex-end;
+}
+
+/* The panel's only call to action had no rule behind it and rendered as a bare
+   icon above a line of text, in the corner of a 455px panel. */
+.report-preview-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  padding: 8px 13px;
+  border: 1px solid rgba(182, 243, 107, 0.35);
+  border-radius: 8px;
+  background: rgba(182, 243, 107, 0.09);
+  color: var(--eco-mint, #b6f36b);
+  font-size: 11px;
+  font-weight: 550;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.16s ease, border-color 0.16s ease;
+}
+
+.report-preview-button:hover:not(:disabled) {
+  border-color: rgba(182, 243, 107, 0.55);
+  background: rgba(182, 243, 107, 0.16);
+}
+
+.report-preview-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+@media (max-width: 1024px) {
+  .report-sections {
+    grid-template-columns: 1fr;
+  }
+}
+
 .rs-error {
   display: flex;
   align-items: center;
@@ -333,6 +386,144 @@
 
 .rs-delta--down {
   color: var(--accent, #c6f36a);
+}
+
+/* The preview shipped only width-conditional rules — the desktop base was
+   missing, so the thumbnail rail collapsed into a run of inline text
+   ("1Cover2Organisation Summary3Building Portfolio…") and the page itself had
+   no frame, sitting in the panel as loose paragraphs. These are the rules the
+   media queries below already assume. */
+.rs-document {
+  display: grid;
+  grid-template-columns: 196px minmax(0, 1fr);
+  gap: 16px;
+  padding: 14px 18px 18px;
+  max-height: min(62vh, 620px);
+  overflow: auto;
+}
+
+.rs-thumbs {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  position: sticky;
+  top: 0;
+  align-self: start;
+  max-height: 100%;
+  overflow: auto;
+}
+
+.rs-thumb {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  padding: 6px 8px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--eco-text-muted, #8b98a5);
+  font-size: 10.5px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.rs-thumb:hover {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--eco-text-soft, #b5c6ba);
+}
+
+.rs-thumb.is-active {
+  border-color: rgba(182, 243, 107, 0.28);
+  background: rgba(182, 243, 107, 0.07);
+  color: var(--eco-text, #ecf6ee);
+}
+
+.rs-thumb.is-hit .rs-thumb__title {
+  color: var(--eco-mint, #b6f36b);
+}
+
+.rs-thumb__no {
+  flex: none;
+  font: 9px ui-monospace, monospace;
+  color: var(--eco-text-muted, #8b98a5);
+}
+
+.rs-thumb__title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rs-pages {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+.rs-page {
+  min-height: 420px;
+  padding: 20px 22px;
+  border: 1px solid var(--eco-line);
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent), rgba(0, 0, 0, 0.18);
+}
+
+.rs-page__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.rs-page h1 {
+  margin: 10px 0 8px;
+  font-size: 24px;
+  letter-spacing: -0.03em;
+}
+
+.rs-page h2 {
+  margin: 2px 0 8px;
+  font-size: 16px;
+  letter-spacing: -0.02em;
+}
+
+.rs-page p {
+  margin: 0 0 9px;
+  font-size: 11.5px;
+  line-height: 1.62;
+  color: var(--eco-text-soft, #b5c6ba);
+}
+
+.rs-page p.is-hit {
+  background: rgba(182, 243, 107, 0.12);
+}
+
+.rs-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.rs-figures {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.rs-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--eco-mint, #b6f36b);
+  font-size: 10px;
+  cursor: pointer;
 }
 
 @media (max-width: 1100px) {
