@@ -54,15 +54,42 @@ board-ready report, in ten recorded stages.**
 ## 📸 Screenshots
 
 Every frame below is a real run of **EcoMind Synthetic Campus (30-day hourly)**, captured
-from the app at 1500×940 — nothing staged, nothing redrawn.
+from the app at 1500×940 — nothing staged, nothing redrawn. The gallery covers the entry
+screen, all ten pipeline stages, and the runtime health endpoint.
 
-| Mission control | Transformation |
+| Entry | Mission control |
 |---|---|
-| ![Mission control: ten stages recorded, quality score, anomalies and the selected baseline](docs/figures/screenshot-mission-control.png) | ![Transformation: five recorded steps, the green hour-of-week normal-behaviour heatmap and feature importance](docs/figures/screenshot-transformation.png) |
-| **Mission control** — stage completion, data-quality score, anomaly count, baseline version and the chosen model, all read from the recorded run. | **Transformation** — five recorded steps with field-level before/after, the hour-of-week normal-behaviour heatmap, the winning model's feature weights, and the lineage from raw column to prediction. |
-| **Recommendations** | **Prediction** |
-| ![Recommendations: 33 ranked actions with energy, cost, carbon and payback, beside a priority matrix](docs/figures/screenshot-recommendations.png) | ![Prediction: observed history, projected load and the confidence band for a seven-day horizon](docs/figures/screenshot-prediction.png) |
-| **Recommendations** — ranked actions with their own energy, cost, carbon and payback, plus the impact-versus-effort matrix. | **Prediction** — observed history, projected load and the confidence band, with the naive hour-of-week baseline to compare against. |
+| ![Entry: the branded sign-in screen](docs/figures/screenshot-entry.png) | ![Mission control: ten stages recorded, quality score, anomalies and the selected baseline](docs/figures/screenshot-mission-control.png) |
+| **Entry** — secure workspace sign-in with the seeded demo account. | **Mission control** — stage completion, data-quality score, anomaly count, baseline version and the chosen model, all read from the recorded run. |
+
+| Library | Import |
+|---|---|
+| ![Dataset library: provenance, row and column counts for every registered dataset](docs/figures/screenshot-library.png) | ![Import: file dropzone and ingestion controls](docs/figures/screenshot-import.png) |
+| **Library** — registered datasets with provenance, row/field counts and defect rates. | **Import** — upload a CSV or Excel file; raw source is preserved and repairs create new versions. |
+
+| Schema | Data quality |
+|---|---|
+| ![Schema discovery: detected column types, roles and evidence](docs/figures/screenshot-schema.png) | ![Data quality: five scored dimensions and severity-ranked rules](docs/figures/screenshot-data-quality.png) |
+| **Schema** — every column, its detected type, the role it plays and the evidence for trusting it. | **Data quality** — structural rules across five dimensions, severity-scored; a critical rule passes only with zero violations. |
+
+| Transformation | Model competition |
+|---|---|
+| ![Transformation: five recorded steps and the hour-of-week heatmap](docs/figures/screenshot-transformation.png) | ![Model competition: candidates scored on one identical split](docs/figures/screenshot-model-competition.png) |
+| **Transformation** — five recorded steps with field-level before/after, the hour-of-week normal-behaviour heatmap and feature importance. | **Model competition** — candidates on one held-out window, each with a written selection rationale; near-ties are labelled. |
+
+| Anomalies | Prediction |
+|---|---|
+| ![Anomaly detection: ranked events against per-device baselines](docs/figures/screenshot-anomalies.png) | ![Prediction: observed history, projected load and confidence band](docs/figures/screenshot-prediction.png) |
+| **Anomalies** — waste events measured against each device's own hour-of-week baseline, with the baseline version recorded. | **Prediction** — observed history, projected load and the confidence band, with the naive hour-of-week baseline for comparison. |
+
+| Recommendations | Reports |
+|---|---|
+| ![Recommendations: ranked actions with energy, cost, carbon and payback](docs/figures/screenshot-recommendations.png) | ![Reports: twelve sections assembled from recorded stage outputs](docs/figures/screenshot-reports.png) |
+| **Recommendations** — ranked actions with their own energy, cost, carbon and payback, plus the impact-versus-effort matrix. | **Reports** — twelve sections in locked order, assembled from the same snapshots the earlier screens displayed. |
+
+Runtime health is exposed locally at `GET /api/v1/health`; the recorded response is shown below.
+
+![Health endpoint: status ok, service ecomind-ai, uptime and system metrics](docs/figures/screenshot-health.png)
 
 ---
 
