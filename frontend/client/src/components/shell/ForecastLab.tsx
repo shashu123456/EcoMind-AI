@@ -62,6 +62,7 @@ const HORIZONS = [
   { key: "2d", label: "2 d" },
   { key: "7d", label: "7 d" },
   { key: "30d", label: "30 d" },
+  { key: "12m", label: "12 m" },
 ];
 
 const num = (v: number | string | null | undefined, digits = 0) => {

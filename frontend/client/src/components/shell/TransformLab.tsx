@@ -637,7 +637,7 @@ export function TransformLab({
      whose ledger said "1 of 5 done" showed five green ticks and a spinner on a
      stage that was not running. */
   const doneSteps = useMemo(() => steps.filter(s => s.status === "done").length, [steps]);
-  const timelineDone = 2 + doneSteps + (steps.length > 0 && doneSteps === steps.length ? 1 : 0);
+  const timelineDone = doneSteps + (steps.length > 0 && doneSteps === steps.length ? 1 : 0);
 
   useEffect(() => {
     timers.current.forEach(id => window.clearTimeout(id));
