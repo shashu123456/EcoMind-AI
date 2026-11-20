@@ -1024,11 +1024,11 @@ export function TransformLab({
           no indication that data quality is the next stage. */}
       <div className="tl-next">
         <div>
-          <span className="section-eyebrow">NEXT · STAGE 04</span>
-          <p>Data quality scores what this shape is worth across eight dimensions.</p>
+          <span className="section-eyebrow">NEXT</span>
+          <p>Model competition evaluates multiple algorithms on this processed signal.</p>
         </div>
         <button type="button" className="tl-btn tl-btn--next" onClick={onNext} disabled={!onNext}>
-          Continue to data quality <ArrowRight size={13} />
+          Continue to model competition <ArrowRight size={13} />
         </button>
       </div>
     </div>

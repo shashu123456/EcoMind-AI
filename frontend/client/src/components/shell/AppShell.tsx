@@ -1600,7 +1600,7 @@ export function AppShell() {
             baseline={workspace?.baseline}
             dataset={activeDataset}
             baselineName={baselineName}
-            onNext={() => setActiveView("quality")}
+            onNext={() => setActiveView("models")}
             onOpenBaselinePreview={() => {
               setPreview({ dataset: activeDataset, rows: [], loading: true, error: "" });
               domain
