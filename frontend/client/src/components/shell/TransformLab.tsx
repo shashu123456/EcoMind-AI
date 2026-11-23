@@ -70,7 +70,7 @@ type Props = {
   unitLabel: string;
   model: { name: string; r2: number; mae: number; rmse: number } | null;
   weights: { label: string; weight: number }[];
-  versions: { version: number; rowCount: number; created: string | null }[];
+  versions: { version: number; rowCount: number | null; created: string | null }[];
   onOpenBaselinePreview?: () => void;
   onNext?: () => void;
 };

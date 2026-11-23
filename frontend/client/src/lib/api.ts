@@ -221,6 +221,7 @@ export type RecSummary = {
   implementation_cost_inr: number | null;
   avg_roi_pct: number | null;
   avg_payback_months: number | null;
+  programme_payback_months?: number | null;
   currency: string;
   currency_symbol: string;
 };

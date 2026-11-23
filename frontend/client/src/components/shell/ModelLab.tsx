@@ -50,7 +50,7 @@ type Props = {
   signal: LivePoint[];
   unit: string;
   target: string;
-  versions: { version: number; rowCount: number; created: string | null }[];
+  versions: { version: number; rowCount: number | null; created: string | null }[];
   datasetName: string;
   rowCount: number | null;
 };
@@ -365,13 +365,12 @@ export function ModelLab({
         {!models.length ? <p className="mono-note">No model competition has been recorded for this dataset yet.</p> : null}
 
         <div className="ml-cards">
-          {ranked.map(model => {
-            const index = models.findIndex(m => m.name === model.name);
+          {ranked.map((model, index) => {
             const isOpen = expanded === model.name;
             return (
               <article key={model.name} className={`ml-card ${model.selected ? "ml-card--winner" : ""} ${selectedModel === model.name ? "ml-card--active" : ""}`} style={{ animationDelay: `${index * 60}ms` }}>
                 <button type="button" className="ml-card__head" onClick={() => { setSelectedModel(model.name); setExpanded(isOpen ? null : model.name); }}>
-                  <span className={`ml-rank ${model.selected ? "ml-rank--win" : ""}`}>{model.selected ? <Trophy size={12} /> : `0${index + 1}`}</span>
+                  <span className={`ml-rank ${model.selected ? "ml-rank--win" : ""}`} title={`Rank ${index + 1}`}>{model.selected ? <Trophy size={12} /> : String(index + 1).padStart(2, "0")}</span>
                   <span className="ml-card__name">
                     <strong>{model.name}</strong>
                     <small>{model.family ?? model.short}{model.selected ? " · selected" : ""}</small>

@@ -46,7 +46,7 @@ export type QualityDataset = {
 };
 
 export type QualityMeta = { score: number; passed: number; failed: number } | null;
-export type QualityVersion = { version: number; rowCount: number; created: string | null };
+export type QualityVersion = { version: number; rowCount: number | null; created: string | null };
 
 type Props = {
   dataset: QualityDataset;
@@ -699,7 +699,7 @@ export function QualityLab({
             <MetricBar label="Outliers" value={null} note="preserved for the anomaly stage" />
             <MetricBar label="Invalid formats" value={validity} note={`${invalidFindings} format findings`} />
             <MetricBar label="Consistency" value={consistency} note={`${passedCount} of ${ruleTotal} rules passed`} />
-            <MetricBar label="Completeness" value={structural} note={`${schema.length} columns in schema`} />
+            <MetricBar label="Structural integrity" value={structural} note={`${schema.filter(f => f.role && !/generic|field/i.test(f.role)).length} of ${schema.length} roles resolved`} />
           </div>
         </section>
 

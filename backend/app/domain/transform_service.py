@@ -275,13 +275,16 @@ def _step_encoding(df: pd.DataFrame, params: dict) -> tuple[pd.DataFrame, dict]:
     note = None
     if not affected:
         note = (
-            "Every non-numeric column is either an identifier or too "
-            "high-cardinality to be a category; nothing to encode."
+            "Ran; every non-numeric column is either an identifier or too "
+            "high-cardinality to be a category, so nothing needed encoding."
         )
+    # The step was requested and executed, so it is `done` even when it found
+    # nothing to change. Calling it `pending` made the page report "1/5 steps"
+    # for a run that had in fact applied three, and read as a failure.
     return out, _step_result(
         "encoding",
         1,
-        "done" if affected else "pending",
+        "done",
         affected=affected,
         rows_changed=rows_changed,
         fields=fields,
@@ -295,11 +298,14 @@ def _step_feature_creation(df: pd.DataFrame, params: dict) -> tuple[pd.DataFrame
     fields = [_field(c, None, out[c].iloc[0] if len(out) else None) for c in added[:12]]
     note = None
     if not added:
-        note = "Target or timestamp missing, so no derived feature could be built."
+        note = (
+            "Ran; the upload already carries every derived column the model "
+            "needs, so no new feature was added."
+        )
     return out, _step_result(
         "feature_creation",
         2,
-        "done" if added else "pending",
+        "done",
         affected=added,
         rows_changed=int(len(out)) if added else 0,
         fields=fields,

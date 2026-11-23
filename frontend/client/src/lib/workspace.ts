@@ -448,7 +448,8 @@ export type LiveSchemaField = {
 
 export type LiveBaselineVersion = {
   version: number;
-  rowCount: number;
+  /** null when the ledger row never recorded a row count — not "zero rows". */
+  rowCount: number | null;
   created: string | null;
 };
 
@@ -1057,7 +1058,7 @@ const mapBaselineVersions = (res: { versions?: Record<string, unknown>[] } | und
   const list = res?.versions ?? [];
   return list.map(v => ({
     version: Number(v.version ?? 0),
-    rowCount: Number(v.row_count ?? 0),
+    rowCount: v.row_count == null || v.row_count === "" ? null : Number(v.row_count),
     created: (typeof v.created_at === "string" && v.created_at) ||
       (typeof v.computed_at === "string" && v.computed_at) || null,
   }));
@@ -1293,14 +1294,18 @@ const pickRun = (runs: RunPayload[], datasetId: string): RunPayload | null => {
   // name, which is exactly the kind of borrowed number the product forbids.
   const relevant = runs.filter(r => r.dataset_id === datasetId);
   if (!relevant.length) return null;
-  return (
-    [...relevant].sort((a, b) => {
-      const aDone = a.status === "completed" ? 1 : 0;
-      const bDone = b.status === "completed" ? 1 : 0;
-      if (aDone !== bDone) return bDone - aDone;
-      return Date.parse(String(b.started_at ?? "")) - Date.parse(String(a.started_at ?? ""));
-    })[0] ?? null
-  );
+  const newestFirst = (a: RunPayload, b: RunPayload) =>
+    Date.parse(String(b.started_at ?? "")) - Date.parse(String(a.started_at ?? ""));
+  // A run that is still going *is* the active run — "New run" starts one, and
+  // preferring the older completed run made the control look dead: the shell
+  // re-attached to the finished run, so Run reported "all ten stages complete"
+  // without ever executing the new one. Running wins, then completed, then the
+  // newest by start time.
+  const running = relevant.filter(r => r.status === "running").sort(newestFirst);
+  if (running.length) return running[0] ?? null;
+  const completed = relevant.filter(r => r.status === "completed").sort(newestFirst);
+  if (completed.length) return completed[0] ?? null;
+  return [...relevant].sort(newestFirst)[0] ?? null;
 };
 
 /**

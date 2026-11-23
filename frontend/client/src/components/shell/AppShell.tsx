@@ -275,6 +275,10 @@ const fmtRunDuration = (started: string | null, completed: string | null): strin
   if (!isFinite(ms) || ms < 0) return "—";
   if (ms < 1000) return `${Math.round(ms)}ms`;
   if (ms < 60_000) return `${(ms / 1000).toFixed(1)}s`;
+  // A run that sat unfinished for days produced "4180m 20s", which reads as a
+  // broken number. Above a day, state the days.
+  const days = Math.floor(ms / 86_400_000);
+  if (days >= 1) return `${days}d ${Math.floor((ms % 86_400_000) / 3_600_000)}h`;
   return `${Math.floor(ms / 60_000)}m ${Math.round((ms % 60_000) / 1000)}s`;
 };
 
@@ -392,8 +396,17 @@ function HistoryView({ runs, onReplay }: { runs: LiveRun[]; onReplay: (datasetId
 }
 
 function NotificationsView() {
+  // The recorded `operation` is always the audit action ("execute"), so the
+  // stage or resource that actually happened lives in the service/result
+  // columns. Matching only `operation` hid every recorded event.
   const alerts = activityEvents
-    .filter(e => e.severity === "warning" || e.status === "WARN" || /generat|promot|complet|upload|detect/i.test(e.operation))
+    .filter(e =>
+      e.severity === "warning" ||
+      e.status === "WARN" ||
+      /generat|promot|complet|upload|detect|forecast|anomal|model|report|recommend|transform/i.test(
+        `${e.service} ${e.operation} ${e.result}`
+      )
+    )
     .slice(0, 24);
   const criticals = (liveAnomalyMeta?.severity?.critical ?? 0) + (liveAnomalyMeta?.severity?.high ?? 0);
   if (!alerts.length && !criticals) {
@@ -505,7 +518,7 @@ function SettingsView({
               {liveBaselineVersions.slice(0, 8).map(v => (
                 <div className="data-table__row" key={v.version}>
                   <strong>v{v.version}</strong>
-                  <span className="mono-note">{fmtCount(v.rowCount)}</span>
+                  <span className="mono-note">{fmtCount(v.rowCount ?? undefined)}</span>
                   <span className="mono-note">{fmtRunClock(v.created ?? undefined)}</span>
                   <span />
                 </div>
@@ -1733,6 +1746,8 @@ export function AppShell() {
                       sound.play({ volume: 0.08, rate: 0.9 });
                     }}
                     title={!sidebarExpanded ? item.label : undefined}
+                    aria-label={item.label}
+                    aria-current={active ? "page" : undefined}
                   >
                     <span className="nav-item__icon">
                       <Icon size={16} strokeWidth={active ? 2.1 : 1.8} />

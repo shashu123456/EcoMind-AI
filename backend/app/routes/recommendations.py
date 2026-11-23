@@ -173,7 +173,18 @@ def _savings_summary(rows: List[Recommendation]) -> dict:
     buildings = {r.building_code for r in active if r.building_code}
     p1 = [r for r in active if r.priority == "P1"]
     total_cost = sum(costs)
-    roi = round((rupees - total_cost) / total_cost * 100.0, 1) if total_cost else None
+    # Programme cost follows the recorded programme method: one mobilisation
+    # per building, priced at that building's most expensive distinct action.
+    # Summing every action's cost instead would charge the same mobilisation
+    # once per device and inflate the payback by an order of magnitude.
+    per_building: dict[str, float] = {}
+    for r in active:
+        code = r.building_code or r.device_code or r.id
+        per_building[code] = max(per_building.get(code, 0.0), float(r.estimated_cost_inr or 0.0))
+    programme_cost = sum(per_building.values()) or total_cost
+    # Priced against the same programme cost the payback KPI uses, so the two
+    # headline figures describe one plan rather than two.
+    roi = round((rupees - programme_cost) / programme_cost * 100.0, 1) if programme_cost else None
     return {
         "total": len(rows),
         "active": len(active),
@@ -190,6 +201,11 @@ def _savings_summary(rows: List[Recommendation]) -> dict:
         "implementation_cost_inr": round(total_cost, 2) if costs else None,
         "avg_roi_pct": roi,
         "avg_payback_months": round(sum(paybacks) / len(paybacks), 2) if paybacks else None,
+        # Cost-weighted payback for the whole programme: what the estate pays
+        # back once, against what it recovers each month. The plain mean above
+        # is dominated by a handful of very long per-action paybacks, so the
+        # headline figure is this one.
+        "programme_payback_months": round(programme_cost / rupees, 1) if programme_cost and rupees else None,
         "currency": CURRENCY,
         "currency_symbol": CURRENCY_SYMBOL,
     }

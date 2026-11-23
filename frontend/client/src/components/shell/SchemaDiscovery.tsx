@@ -52,7 +52,7 @@ export type SchemaDataset = {
 };
 
 export type SchemaQuality = { score: number; passed: number; failed: number } | null;
-export type SchemaVersion = { version: number; rowCount: number; created: string | null };
+export type SchemaVersion = { version: number; rowCount: number | null; created: string | null };
 
 type Props = {
   dataset: SchemaDataset;

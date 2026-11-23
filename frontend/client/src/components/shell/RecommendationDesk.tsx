@@ -258,7 +258,7 @@ export function RecommendationDesk({ datasetId, datasetName, baselineName }: Pro
           { label: "CRITICAL", value: num(summary?.critical), note: "P1 band", tip: "Top-ranked recoverable value in this dataset." },
           { label: "CONFIDENCE", value: summary?.avg_confidence_pct != null ? `${summary.avg_confidence_pct}%` : "—", note: "average", tip: "Mean of the recorded per-recommendation confidence." },
           { label: "ROI", value: summary?.avg_roi_pct != null ? `${summary.avg_roi_pct}%` : "—", note: "cost vs recovery", tip: "(Recoverable value − implementation cost) ÷ implementation cost." },
-          { label: "PAYBACK", value: summary?.avg_payback_months != null ? `${summary.avg_payback_months} mo` : "—", note: "average", tip: "Implementation cost ÷ window-normalised monthly recovery." },
+          { label: "PAYBACK", value: (summary?.programme_payback_months ?? summary?.avg_payback_months) != null ? `${summary?.programme_payback_months ?? summary?.avg_payback_months} mo` : "—", note: "programme · cost-weighted", tip: "Programme implementation cost ÷ window-normalised monthly recovery." },
         ].map(kpi => (
           <div className="desk-kpi" key={kpi.label} title={kpi.tip}>
             <span>{kpi.label}</span>

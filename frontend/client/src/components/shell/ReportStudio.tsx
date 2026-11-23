@@ -600,7 +600,7 @@ export function ReportStudio({
                     </div>
                     <div className="rs-kpi">
                       <small>RECOVERABLE / YR</small>
-                      <strong>{formatNumber(opportunity.annual_recoverable_inr)}</strong>
+                      <strong>₹{formatNumber(opportunity.annual_recoverable_inr)}</strong>
                     </div>
                   </div>
                   <div className="rs-kpis">
@@ -610,7 +610,7 @@ export function ReportStudio({
                     </div>
                     <div className="rs-kpi">
                       <small>30-DAY COST</small>
-                      <strong>{formatNumber(spend.projected_30d_inr)}</strong>
+                      <strong>₹{formatNumber(spend.projected_30d_inr)}</strong>
                     </div>
                     <div className="rs-kpi">
                       <small>CO₂</small>
