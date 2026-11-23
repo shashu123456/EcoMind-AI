@@ -337,7 +337,7 @@ export function ModelLab({
           <div className="ml-hero__kpis">
             <Kpi label="MODELS EVALUATED" value={String(Math.round(animModels))} hint={`${models.filter(m => m.selected).length} selected`} />
             <Kpi label="BEST R²" value={bestR2 == null ? "—" : fmt(animBest, 3)} hint="held-out split" />
-            <Kpi label="SELECTED ALGORITHM" value={comp?.winner ?? winner?.name ?? "—"} hint={comp?.nearTie ? "near tie" : "on measured results"} />
+            <Kpi label="SELECTED MODEL" value={comp?.winner ?? winner?.name ?? "—"} hint={comp?.nearTie ? "near tie" : "on measured results"} />
           </div>
         </div>
         <div className="ml-hero__actions">
