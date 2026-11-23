@@ -1,4 +1,4 @@
-"""Data Quality Engine routes. Prefix /api/v1/datasets/{dataset_id}/dq."""
+"""Data Quality Engine routes. Prefix /api/v1/datasets/{dataset_id}/dq.
 
 from __future__ import annotations
 
@@ -11,6 +11,12 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 router = APIRouter()
+
+
+@router.post("/{dataset_id}/dq/repairs")
+def dq_repairs_post(dataset_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    from app.domain.dq_service import record_repairs
+    return json_safe(record_repairs(db, dataset_id))
 
 
 @router.get("/{dataset_id}/dq")
@@ -37,4 +43,3 @@ def dq_run(dataset_id: str, db: Session = Depends(get_db), user: User = Depends(
 def dq_three_panel_get(id: str, db: Session = Depends(get_db)):
     from app.domain import dq_service
     return dq_service.dq_three_panel(db, id)
-

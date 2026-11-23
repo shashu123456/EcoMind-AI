@@ -661,7 +661,7 @@ export function QualityLab({
           <button type="button" className="ql-btn" onClick={() => { runScan(); onToast?.(`Rescanned ${issues.length} structural rules for ${dataset.name}.`); }}>
             <RefreshCw size={14} className={scanning ? "ql-spin" : ""} /> Rescan issues
           </button>
-          <button type="button" className="ql-btn ql-btn--primary" onClick={onRepair}>
+          <button type="button" className="ql-btn ql-btn--primary" onClick={() => { window.fetch(`/api/v1/datasets/${dataset.id}/dq/repairs`, {method: "POST"}).then(res => { if (res.ok) { onRepair(); } else { onToast?.("Failed to record repairs"); } }).catch(() => onToast?.("Error recording repairs")); }}>
             <ShieldCheck size={14} /> {repaired ? "Repairs applied" : "Apply repairs"}
           </button>
           <button type="button" className="ql-btn" onClick={onSave} disabled={!repaired}>

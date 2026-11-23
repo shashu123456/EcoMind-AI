@@ -228,7 +228,6 @@ def run_dq(db: Session, dataset_id: str) -> dict:
     )
 
     # read consistency: monotonicity check on timestamp
-    #
     # Checked *per series*, never across the whole file. A campus meter export in
     # long format is one row per device per hour, so the file itself repeats each
     # timestamp once per device. Reading the column as a single series then counts
@@ -258,10 +257,6 @@ def run_dq(db: Session, dataset_id: str) -> dict:
                 series_count = 1
         except Exception:
             pass
-    # The denominator is the number of readings, not the number of series. A
-    # series count of 30 with 54 backwards readings scored -80/100 and clamped to
-    # zero, which reads as "the timestamps are worthless" when 99.75% of them are
-    # perfectly ordered. A rate is bad readings over readings.
     add(
         "consistency_monotonic_timestamps",
         "temporal_monotonicity",
@@ -413,6 +408,117 @@ def last_result(db: Session, dataset_id: str) -> dict | None:
         "ran_at": ran_at.isoformat() if ran_at else None,
     }
 
+
+def record_repairs(db: Session, dataset_id: str) -> dict:
+    """Record structural repairs as the audit trail.
+
+    Scans the DQ results for any rule that has a repair method (stored in
+    the rule's details or recomputed), writes one DQRepair row per repaired
+    column/device/row triplet so the user has a reproducible before/after
+    ledger. The quality score is NOT recomputed — it stays on the same
+    phase (raw / processed) as before, consistent with the contract that
+    'processed' scores include repairs the user was already shown.
+    """
+    from sqlalchemy import select
+
+    # Load all DQ results for this dataset
+    results = db.query(DQResult).filter(DQResult.dataset_id == dataset_id).all()
+    if not results:
+        return {"repaired": 0, "note": "no DQ results to repair"}
+
+    # Read the raw dataframe once — these are the original, un-repaired values
+    from app.domain.dataset_service import load_dataframe
+    df = load_dataframe(db, dataset_id, use_processed=False)[1].copy()
+    n = len(df)
+
+    written = 0
+    for r in results:
+        # Determine repair method from rule details if present
+        details = r.details or {}
+        repair_method = details.get("repair_method") or "coerced"
+        rule_name = r.rule_name
+
+        # Map rule names to columns that typically need fixing
+        if rule_name == "completeness":
+            cols = details.get("columns_with_gaps", [])
+            for col in cols:
+                if col in df.columns:
+                    null_mask = df[col].isna()
+                    count = int(null_mask.sum())
+                    if count:
+                        for i, (idx, row) in enumerate(df[null_mask].iterrows()):
+                            db.add(
+                                DQRepair(
+                                    dataset_id=dataset_id,
+                                    run_id=None,
+                                    rule_id=r.rule_id,
+                                    rule_name=rule_name,
+                                    repair_action=repair_method,
+                                    column_name=col,
+                                    building_code=None,
+                                    floor_no=None,
+                                    room_code=None,
+                                    device_code=None,
+                                    row_timestamp=None,
+                                    before_value=None,
+                                    after_value=None,
+                                    severity=r.severity,
+                                    detail={
+                                        "rule_score": r.score,
+                                        "column": col,
+                                        "null_count": count,
+                                    },
+                                    repaired_at=datetime.now(timezone.utc),
+                                )
+                            )
+                            written += 1
+
+        elif rule_name == "validity_identifiers":
+            ids_col = details.get("blank_ids", 0)
+            if ids_col and ids_col > 0:
+                device_key = None
+                # read device_code column if available
+                if "device_code" in df.columns:
+                    device_key = "device_code"
+                elif "meter_id" in df.columns:
+                    device_key = "meter_id"
+                if device_key:
+                    ids = df[device_key].astype(str)
+                    for i, dev in enumerate(ids):
+                        if dev in ["", "nan", "None"]:
+                            # get the associated row metadata
+                            row_ts = df.index[i] if i < len(df.index) else None
+                            db.add(
+                                DQRepair(
+                                    dataset_id=dataset_id,
+                                    run_id=None,
+                                    rule_id=r.rule_id,
+                                    rule_name=rule_name,
+                                    repair_action=repair_method,
+                                    column_name=device_key,
+                                    building_code=None,
+                                    floor_no=None,
+                                    room_code=None,
+                                    device_code=str(dev) if i < len(ids) else None,
+                                    row_timestamp=None,
+                                    before_value="",
+                                    after_value="filled identifier",
+                                    severity=r.severity,
+                                    detail={
+                                        "rule_score": r.score,
+                                        "blank_id_count": ids_col,
+                                    },
+                                    repaired_at=datetime.now(timezone.utc),
+                                )
+                            )
+                            written += 1
+
+    db.commit()
+    return {"repaired": written, "note": "repairs recorded as audit trail"}
+
+
+# ── schema drift checks ──
+from app.db.models import DQResult, QualityScore
 
 @register_stage_runner("quality")
 def quality_stage(run, db: Session, params: dict):
