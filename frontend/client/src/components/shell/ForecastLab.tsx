@@ -283,6 +283,32 @@ export function ForecastLab({ datasetId, datasetName, baselineName, modelName, o
                 <strong>{k.value}</strong>
               </div>
             ))}
+                    </section>
+
+          <section className="fl-confidence" aria-label="Projection confidence">
+            <div className="fl-confidence__copy">
+              <span className="section-eyebrow">PROJECTION CONFIDENCE</span>
+              <p>
+                Measured on the held-out backtest for this model, not asserted from the fit. A wider
+                band means the projection is allowed to wander further before it is wrong.
+              </p>
+            </div>
+            <div className="fl-confidence__meters">
+              <div className="fl-confidence__row">
+                <span>Confidence</span>
+                <b>{kpis?.confidence_pct != null ? `${num(kpis.confidence_pct, 1)}%` : "—"}</b>
+                <i className="fl-confidence__track">
+                  <em style={{ width: `${Math.min(100, Math.max(0, kpis?.confidence_pct ?? 0))}%` }} />
+                </i>
+              </div>
+              <div className="fl-confidence__row">
+                <span>Residual band</span>
+                <b>±{num(kpis?.band_width_pct, 1)}%</b>
+                <i className="fl-confidence__track fl-confidence__track--band">
+                  <em style={{ width: `${Math.min(100, Math.max(0, kpis?.band_width_pct ?? 0))}%` }} />
+                </i>
+              </div>
+            </div>
           </section>
 
           <section className="panel fl-chart-panel">

@@ -652,7 +652,7 @@ export function QualityLab({
           <p>EcoMind automatically validates every sensor reading before it enters the AI pipeline.</p>
           <div className="ql-hero__counters">
             <Counter label="ROWS SCANNED" value={int(Math.round(animRows))} hint={rowsScanned ? "recorded" : "not recorded"} />
-            <Counter label="QUALITY SCORE" value={qScore == null ? "—" : String(Math.round(animScore))} suffix={qScore == null ? undefined : "/100"} hint={`${passedCount} passed · ${failedCount} failed`} />
+            <Counter label="QUALITY SCORE" value={qScore == null ? "—" : String(Math.round(animScore))} suffix={qScore == null ? undefined : "/100"} hint={`${passedCount} of ${ruleTotal} rules passed`} />
             <Counter label="ISSUES FOUND" value={int(Math.round(animIssues))} hint={`${Object.keys(typeCounts).length} issue types`} />
             <Counter label="REPAIRS APPLIED" value={int(Math.round(animRepairs))} hint={repaired ? "audit trail kept" : "awaiting apply"} />
           </div>
@@ -670,6 +670,42 @@ export function QualityLab({
         </div>
       </div>
 
+
+      {/* ── Cleaning scope ───────────────────────────────────────────── */}
+      <section className="ql-scope" aria-label="Cleaning scope">
+        {[
+          {
+            tone: "fix",
+            tag: "SCORED HERE",
+            title: `${int(missingFindings)} missing cell${missingFindings === 1 ? "" : "s"}`,
+            note: "Grouped by column so every gap is visible before it is accepted. Nothing is filled silently.",
+          },
+          {
+            tone: "fix",
+            tag: "SCORED HERE",
+            title: `${int(dupFindings)} duplicate row${dupFindings === 1 ? "" : "s"} · ${int(invalidFindings)} format issue${invalidFindings === 1 ? "" : "s"}`,
+            note: "Timestamps parsed to ISO-8601, hierarchy keys trimmed, one type per column.",
+          },
+          {
+            tone: "keep",
+            tag: "LEFT INTACT",
+            title: "Outliers and spikes",
+            note: "A statistical outlier is a signal, not a defect. Every spike survives cleaning so the anomaly stage can score it against the baseline.",
+          },
+          {
+            tone: "keep",
+            tag: "STORED APART",
+            title: `Clean snapshot v${currentVersion ?? 1}`,
+            note: "Saving writes a new version beside the source. The uploaded row is never rewritten, so every number stays reproducible.",
+          },
+        ].map(item => (
+          <article key={item.tag + item.title} className={`ql-scope__card ql-scope__card--${item.tone}`}>
+            <span className="ql-scope__tag">{item.tag}</span>
+            <strong>{item.title}</strong>
+            <p>{item.note}</p>
+          </article>
+        ))}
+      </section>
 
       {empty ? (
         <div className="ql-empty">

@@ -7,5 +7,5 @@ def run_competition(db, dataset_id, params=None):
     from app.domain import model_service
 
     params = params or {}
-    result = model_service.run_selection(db, dataset_id, params)
+    result = model_service.select_model(db, dataset_id, params)
     return result

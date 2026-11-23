@@ -421,6 +421,40 @@ export function AnomalyLab({
         ) : null}
       </div>
 
+      {/* Severity mix + headline finding ------------------------------- */}
+      {flagged.length ? (
+        <section className="al-mix" aria-label="Severity mix">
+          <div className="al-mix__top">
+            <span className="section-eyebrow">SEVERITY MIX · {num(flagged.length, 0)} FLAGGED IN WINDOW</span>
+            <div className="al-mix__legend">
+              {SEV_ORDER.map(s => {
+                const n = flagged.filter(p => p.severity === s).length;
+                return (
+                  <span key={s}>
+                    <i style={{ background: SEV_COLOR[s] }} />
+                    <strong>{num(n, 0)}</strong> {s}
+                  </span>
+                );
+              })}
+            </div>
+          </div>
+          <div className="al-mix__bar">
+            {SEV_ORDER.map(s => {
+              const n = flagged.filter(p => p.severity === s).length;
+              if (!n) return null;
+              return (
+                <i
+                  key={s}
+                  style={{ width: `${(n / flagged.length) * 100}%`, background: SEV_COLOR[s] }}
+                  title={`${n} ${s}`}
+                />
+              );
+            })}
+          </div>
+          <p className="al-mix__insight">{insight}</p>
+        </section>
+      ) : null}
+
       {/* KPIs --------------------------------------------------------- */}
       <div className="al-kpis">
         <Kpi label="TOTAL ANOMALIES" value={String(Math.round(animTotal))} hint={`${criticalHigh} critical / high`} explain="Count recorded by the anomaly stage for this dataset, across all detected readings." />

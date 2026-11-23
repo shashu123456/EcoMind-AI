@@ -160,3 +160,28 @@
   .al-filters { position: static; }
   .al-insight__facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* ── Severity mix: one bar that summarises the window ─────────────────── */
+.al-mix {
+  background: linear-gradient(120deg, rgb(255 138 138 / 0.05), rgb(182 243 107 / 0.03));
+  border: 1px solid var(--eco-line);
+  border-radius: 14px;
+  display: grid;
+  gap: 10px;
+  padding: 14px 16px 15px;
+}
+.al-mix__top { align-items: center; display: flex; flex-wrap: wrap; gap: 10px 18px; justify-content: space-between; }
+.al-mix__legend { display: flex; flex-wrap: wrap; gap: 12px; }
+.al-mix__legend span {
+  align-items: center;
+  color: var(--eco-text-muted, #93a89a);
+  display: inline-flex;
+  font-size: 10px;
+  gap: 5px;
+  text-transform: capitalize;
+}
+.al-mix__legend i { border-radius: 2px; height: 8px; width: 8px; }
+.al-mix__legend strong { color: var(--eco-text, #e8f3ea); font-size: 12px; font-variant-numeric: tabular-nums; }
+.al-mix__bar { border-radius: 99px; display: flex; gap: 2px; height: 10px; overflow: hidden; }
+.al-mix__bar i { display: block; height: 100%; }
+.al-mix__insight { color: var(--eco-text-soft, #b5c6ba); font-size: 11px; line-height: 1.6; margin: 0; }

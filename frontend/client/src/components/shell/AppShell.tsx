@@ -15,6 +15,7 @@ import { Area, AreaChart, Bar, BarChart, CartesianGrid, Line, LineChart, Referen
   ResponsiveContainer, Tooltip as RechartsTooltip, TooltipProps, XAxis, YAxis } from "recharts";
 import "./AppShell.css";
 import "./auth.css";
+import "./polish.css";
 import { useSound, playCompletionChime, playStartTone, unlockAudio } from "@/lib/useSound";
 import { auth, datasets as datasetsApi, domain, getToken, setToken, workflow, type AuthUser } from "@/lib/api";
 import { displayUnit, unitForColumn } from "@/lib/units";
@@ -880,6 +881,13 @@ export function AppShell() {
   // instead of a failed request from each independent loader.
   const [authChecked, setAuthChecked] = useState(false);
   const [activeView, setActiveView] = useState<NavId>("overview");
+  // The evidence drawer describes one selected record. Leaving the view it was
+  // opened from has to close it, otherwise it stays pinned over a page it has
+  // nothing to do with — and, being fixed, it covers that page's own controls.
+  useEffect(() => {
+    setSelectedAnomaly(null);
+    setSelectedPoint(null);
+  }, [activeView]);
   const [activeDataset, setActiveDataset] = useState<Dataset>(EMPTY_DATASET);
   // True only once the backend has returned at least one real dataset. While
   // false the shell renders an empty-state block with a Retry action instead of

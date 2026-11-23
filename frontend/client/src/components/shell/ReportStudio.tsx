@@ -28,17 +28,6 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
-
-import {
   downloadReport,
   REPORT_FORMATS,
   reportsApi,
@@ -50,50 +39,143 @@ import {
 } from "../../lib/reports";
 import "./report-studio.css";
 
-/** Sections whose stored figures are drawn as a chart, not just numbered. */
-const CHART_SECTIONS = ["critical_anomalies", "predicted_consumption", "predicted_cost", "recommendations"];
+/**
+ * Which stored figures a section should show, and what to call them.
+ * The report contract stores figures under machine keys (`projected_30d_kwh`);
+ * printing those keys at a reader is what made the old preview unreadable, so
+ * each section declares the handful of numbers worth a tile and the label,
+ * unit and currency each one needs.
+ */
+type Metric = { key: string; label: string; unit?: string; money?: boolean };
+
+const SECTION_METRICS: Record<string, Metric[]> = {
+  organization_summary: [
+    { key: "readings", label: "Readings" },
+    { key: "buildings", label: "Buildings" },
+    { key: "devices", label: "Meters" },
+    { key: "projected_30d_kwh", label: "30-day energy", unit: "kWh" },
+    { key: "projected_30d_inr", label: "30-day cost", money: true },
+    { key: "annual_recoverable_inr", label: "Recoverable / yr", money: true },
+  ],
+  data_quality: [
+    { key: "quality_score", label: "Quality score", unit: "/100" },
+    { key: "rows_scanned", label: "Rows scanned" },
+    { key: "rules_passed", label: "Rules passed" },
+    { key: "rules_failed", label: "Rules failed" },
+  ],
+  critical_anomalies: [
+    { key: "anomalous_readings", label: "Anomalies" },
+    { key: "devices_affected", label: "Meters affected" },
+    { key: "excess_kwh", label: "Excess energy", unit: "kWh" },
+    { key: "excess_inr", label: "Excess cost", money: true },
+  ],
+  predicted_cost: [
+    { key: "projected_30d_inr", label: "30-day cost", money: true },
+    { key: "blended_rate_per_kwh", label: "Blended rate", money: true },
+  ],
+  estimated_savings: [
+    { key: "estate_monthly_inr", label: "Monthly recovery", money: true },
+    { key: "estate_annual_inr", label: "Annual recovery", money: true },
+    { key: "programme_cost_inr", label: "Programme cost", money: true },
+    { key: "payback_months", label: "Payback", unit: "mo" },
+  ],
+  priority_actions: [{ key: "p1_actions", label: "P1 actions" }],
+};
+
+const HORIZON_DAYS: Record<string, number> = { "24h": 1, "7d": 7, "30d": 30, "12m": 365 };
+
+function FigureMetrics({ section }: { section: ReportSection }) {
+  const metrics = SECTION_METRICS[section.key] || [];
+  const shown = metrics.filter(metric => typeof section.figures?.[metric.key] === "number");
+  if (!shown.length) return null;
+  return (
+    <div className="rs-metrics">
+      {shown.map(metric => {
+        const value = section.figures[metric.key] as number;
+        return (
+          <div className="rs-metric" key={metric.key}>
+            <small>{metric.label}</small>
+            <strong>
+              {metric.money ? "₹" : ""}
+              {formatNumber(value)}
+              {metric.unit ? <em>{metric.unit}</em> : null}
+            </strong>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 /**
- * The stored numeric figures of a section, drawn as bars. Anomaly counts,
- * projected consumption per horizon, cost by period and recoverable savings all
- * arrive as figures; a reader who is handed this report should see the shape of
- * them, not a list of numbers.
+ * One chart per section, drawn only from figures that belong together.
+ * Anomaly class counts, per-horizon energy, building shares and per-building
+ * recovery each get their own chart; anything else stays as text.
  */
-function SectionChart({ section }: { section: { key: string; figures: Record<string, unknown> } }) {
-  if (!CHART_SECTIONS.includes(section.key)) return null;
-  const entries = Object.entries(section.figures || {})
-    .filter(([, value]) => typeof value === "number" && Number.isFinite(value as number))
-    .slice(0, 8) as [string, number][];
-  if (entries.length < 2) return null;
-  const data = entries.map(([key, value]) => ({
-    label: key.replace(/_/g, " ").replace(/\w/g, c => c.toUpperCase()).slice(0, 18),
-    value,
-  }));
+function SectionFigure({ section }: { section: ReportSection }) {
+  const figures = section.figures || {};
+  const numeric = (test: (key: string) => boolean) =>
+    Object.entries(figures)
+      .filter(([key, value]) => typeof value === "number" && Number.isFinite(value as number) && test(key))
+      .map(([key, value]) => ({ key, value: value as number }));
+
+  let rows: { label: string; value: number; caption: string }[] = [];
+  let title = "";
+  let note = "";
+
+  if (section.key === "critical_anomalies") {
+    rows = numeric(key => key.startsWith("class_") && key.endsWith("_count")).map(({ key, value }) => ({
+      label: key.replace("class_", "").replace("_count", "").replace(/_/g, " "),
+      value,
+      caption: `${formatNumber(value)} readings`,
+    }));
+    title = "Anomalous readings by class";
+  } else if (section.key === "predicted_consumption") {
+    rows = numeric(key => key.endsWith("_kwh") && HORIZON_DAYS[key.replace("_kwh", "")] != null).map(({ key, value }) => {
+      const horizon = key.replace("_kwh", "");
+      const days = HORIZON_DAYS[horizon];
+      const perDay = Math.round(value / days);
+      return { label: horizon, value: perDay, caption: `${formatNumber(perDay)} kWh/day` };
+    });
+    title = "Average energy per day at each horizon";
+    note = "The horizons cover different lengths of time, so each total is divided by its own days to be comparable.";
+  } else if (section.key === "buildings") {
+    rows = numeric(key => key.endsWith("_share_pct")).map(({ key, value }) => ({
+      label: key.replace("_share_pct", ""),
+      value,
+      caption: `${value.toFixed(1)}% of the estate`,
+    }));
+    title = "Share of projected consumption";
+  } else if (section.key === "estimated_savings") {
+    rows = numeric(key => key.endsWith("_monthly_inr") && !key.startsWith("estate_")).map(({ key, value }) => ({
+      label: key.replace("_monthly_inr", ""),
+      value,
+      caption: `₹${formatNumber(value)} / month`,
+    }));
+    title = "Monthly recovery by building";
+  }
+
+  if (rows.length < 2) return null;
+  const max = Math.max(...rows.map(row => Math.abs(row.value))) || 1;
+
   return (
-    <div className="rs-chart" role="img" aria-label={`${section.key} figures`}>
-      <ResponsiveContainer width="100%" height={190}>
-        <BarChart data={data} margin={{ top: 8, right: 8, bottom: 4, left: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" vertical={false} />
-          <XAxis
-            dataKey="label"
-            tick={{ fontSize: 9, fill: "#9fb3a6" }}
-            interval={0}
-            angle={-18}
-            textAnchor="end"
-            height={50}
-          />
-          <YAxis tick={{ fontSize: 9, fill: "#9fb3a6" }} width={52} />
-          <Tooltip
-            contentStyle={{ background: "#0e1813", border: "1px solid #253a2e", borderRadius: 8, fontSize: 11 }}
-          />
-          <Bar dataKey="value" radius={[4, 4, 0, 0]}>
-            {data.map((entry, index) => (
-              <Cell key={entry.label} fill={index === 0 ? "#b6f36b" : "rgba(182,243,107,0.42)"} />
-            ))}
-          </Bar>
-        </BarChart>
-      </ResponsiveContainer>
-    </div>
+    <figure className="rs-figure-chart">
+      <figcaption>
+        <strong>{title}</strong>
+        {note ? <span>{note}</span> : null}
+      </figcaption>
+      <div className="rs-bars">
+        {rows.map(row => (
+          <div className="rs-bar-row" key={row.label}>
+            <span className="rs-bar-row__label">{row.label}</span>
+            <span className="rs-bar-row__track">
+              <i style={{ width: `${Math.max(3, (Math.abs(row.value) / max) * 100)}%` }} />
+            </span>
+            <span className="rs-bar-row__value">{row.caption}</span>
+          </div>
+        ))}
+      </div>
+    </figure>
   );
 }
 
@@ -638,41 +720,32 @@ export function ReportStudio({
                           )}
                         </div>
                         <h2>{page.title}</h2>
-                        {page.body.split("\n\n").map((paragraph, i) => (
-                          <p key={i} className={query && paragraph.toLowerCase().includes(query.toLowerCase()) ? "is-hit" : ""}>
-                            {paragraph}
-                          </p>
-                        ))}
-                        {Object.keys(page.figures).length > 0 && (
-                          <div className="rs-figures">
-                            {Object.entries(page.figures).map(([key, value]) => (
-                              <div className="rs-figure" key={key}>
-                                <small>{key.replace(/_/g, " ").toUpperCase()}</small>
-                                <strong>{formatNumber(value)}</strong>
-                                {Array.isArray(value) && value.length > 0 && typeof value[0] === "number" && (
-                                  <svg viewBox={`0 0 ${value.length} 24`} preserveAspectRatio="none" className="rs-spark">
-                                    {(() => {
-                                      const max = Math.max(...(value as number[])) || 1;
-                                      const min = Math.min(...(value as number[]));
-                                      const span = max - min || 1;
-                                      return (
-                                        <polyline
-                                          fill="none"
-                                          stroke="currentColor"
-                                          strokeWidth="1"
-                                          points={(value as number[])
-                                            .map((v, i) => `${i},${24 - ((v - min) / span) * 22}`)
-                                            .join(" ")}
-                                        />
-                                      );
-                                    })()}
-                                  </svg>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                        <SectionChart section={page} />
+                        {page.body.split("\n\n").map((block, i) => {
+                          const lines = block.split("\n");
+                          const bullets = lines.filter(line => line.trim().startsWith("- "));
+                          const hit = (text: string) => (query && text.toLowerCase().includes(query.toLowerCase()) ? "is-hit" : "");
+                          if (bullets.length && bullets.length >= lines.length - 1) {
+                            return (
+                              <ul className="rs-list" key={i}>
+                                {bullets.map(line => {
+                                  const text = line.replace(/^\s*-\s*/, "");
+                                  return (
+                                    <li key={text} className={hit(text)}>
+                                      {text}
+                                    </li>
+                                  );
+                                })}
+                              </ul>
+                            );
+                          }
+                          return (
+                            <p key={i} className={hit(block)}>
+                              {block}
+                            </p>
+                          );
+                        })}
+                        <FigureMetrics section={page} />
+                        <SectionFigure section={page} />
                       </article>
                     );
                   })

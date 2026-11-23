@@ -224,3 +224,34 @@
   border-color: rgba(182, 243, 107, 0.3);
   box-shadow: 0 0 34px rgba(182, 243, 107, 0.07);
 }
+
+/* ── Cleaning contract: what this stage does and does not touch ───────── */
+.tl-contract {
+  background: linear-gradient(120deg, rgb(182 243 107 / 0.05), rgb(141 134 255 / 0.04));
+  border: 1px solid rgb(182 243 107 / 0.14);
+  border-radius: 16px;
+  display: grid;
+  gap: 14px;
+  padding: 16px 18px 18px;
+}
+.tl-contract__intro { display: grid; gap: 4px; }
+.tl-contract__intro p { color: var(--eco-text-muted, #93a89a); font-size: 11px; margin: 0; }
+.tl-contract__grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(215px, 1fr)); }
+.tl-contract__card {
+  background: rgb(4 10 6 / 45%);
+  border-radius: 12px;
+  display: grid;
+  gap: 5px;
+  padding: 12px 13px;
+  transition: border-color 200ms ease, transform 200ms ease;
+}
+.tl-contract__card--fix { border: 1px solid rgb(182 243 107 / 0.26); }
+.tl-contract__card--keep { border: 1px dashed rgb(141 134 255 / 0.36); }
+.tl-contract__card:hover { transform: translateY(-2px); }
+.tl-contract__tag { color: var(--eco-text-muted, #93a89a); font: 8px/1 ui-monospace, monospace; letter-spacing: 0.16em; }
+.tl-contract__card--fix .tl-contract__tag { color: #b6f36b; }
+.tl-contract__card--keep .tl-contract__tag { color: #b28cff; }
+.tl-contract__card strong { font-size: 13px; letter-spacing: -0.02em; }
+.tl-contract__card p { color: var(--eco-text-muted, #93a89a); font-size: 10px; line-height: 1.5; margin: 0; }
+.eco-app--light .tl-contract { background: linear-gradient(120deg, #f4fbee, #f6f4ff); border-color: rgb(24 90 46 / 0.16); }
+.eco-app--light .tl-contract__card { background: #fff; }

@@ -279,3 +279,24 @@
   .ql-save-row { flex-direction: column; align-items: flex-start; }
   .ql-donut { grid-template-columns: minmax(0, 1fr); justify-items: center; }
 }
+
+/* ── Cleaning scope: repaired here vs deliberately preserved ──────────── */
+.ql-scope { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
+.ql-scope__card {
+  background: linear-gradient(180deg, rgb(255 255 255 / 0.035), rgb(255 255 255 / 0.01));
+  border-radius: 14px;
+  display: grid;
+  gap: 6px;
+  padding: 14px 15px;
+  position: relative;
+  transition: transform 200ms ease, border-color 200ms ease;
+}
+.ql-scope__card--fix { border: 1px solid rgb(182 243 107 / 0.26); }
+.ql-scope__card--keep { border: 1px dashed rgb(141 134 255 / 0.4); }
+.ql-scope__card:hover { transform: translateY(-2px); }
+.ql-scope__tag { font: 8px/1 ui-monospace, monospace; letter-spacing: 0.16em; color: var(--eco-text-muted, #93a89a); }
+.ql-scope__card--fix .ql-scope__tag { color: #b6f36b; }
+.ql-scope__card--keep .ql-scope__tag { color: #b28cff; }
+.ql-scope__card strong { font-size: 14px; letter-spacing: -0.025em; }
+.ql-scope__card p { color: var(--eco-text-muted, #93a89a); font-size: 10.5px; line-height: 1.55; margin: 0; }
+.eco-app--light .ql-scope__card { background: #fff; }

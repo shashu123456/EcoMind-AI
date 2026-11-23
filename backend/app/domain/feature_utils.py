@@ -131,7 +131,6 @@ ALGORITHM_FACTORY = {
     "linear": lambda hp: _linear(hp),
     "ridge": lambda hp: _ridge(hp),
     "lasso": lambda hp: _lasso(hp),
-    "extra_trees": lambda hp: _et(hp),
 }
 
 
@@ -191,16 +190,6 @@ def _lasso(hp):
 
     return Lasso(alpha=hp.get("alpha", 0.01), max_iter=5000)
 
-
-def _et(hp):
-    from sklearn.ensemble import ExtraTreesRegressor
-
-    return ExtraTreesRegressor(
-        n_estimators=hp.get("n_estimators", 200),
-        min_samples_leaf=hp.get("min_samples_leaf", 2),
-        n_jobs=-2,
-        random_state=7,
-    )
 
 
 def build_model(algorithm: str, hyperparameters: dict | None = None):

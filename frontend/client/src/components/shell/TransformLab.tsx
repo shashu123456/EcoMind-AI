@@ -716,6 +716,48 @@ export function TransformLab({
         </div>
       </div>
 
+      {/* Cleaning contract -------------------------------------------- */}
+      <section className="tl-contract" aria-label="Cleaning contract">
+        <div className="tl-contract__intro">
+          <span className="section-eyebrow">CLEANING CONTRACT</span>
+          <p>Stage 05 reshapes the recorded rows. It never decides what is anomalous.</p>
+        </div>
+        <div className="tl-contract__grid">
+          {[
+            {
+              tone: "fix",
+              tag: "CARRIED HERE",
+              title: `${fmt(missing, 0)} missing cells`,
+              note: "Counted and left visible. No gap is filled silently, so a later stage can never mistake an estimate for a reading.",
+            },
+            {
+              tone: "fix",
+              tag: "HANDLED HERE",
+              title: "Timestamps & keys normalised",
+              note: "ISO-8601 timestamps, trimmed hierarchy keys and one dtype per column before any feature is derived.",
+            },
+            {
+              tone: "keep",
+              tag: "LEFT INTACT",
+              title: "Outliers preserved",
+              note: "No row is trimmed here — the baseline and anomaly stage need the spikes intact.",
+            },
+            {
+              tone: "keep",
+              tag: "STORED APART",
+              title: versions.length ? `Snapshot v${Math.max(...versions.map(v => v.version))}` : "Versioned output",
+              note: "Every step writes a new immutable version; the uploaded file is only ever read.",
+            },
+          ].map(item => (
+            <article key={item.tag + item.title} className={`tl-contract__card tl-contract__card--${item.tone}`}>
+              <span className="tl-contract__tag">{item.tag}</span>
+              <strong>{item.title}</strong>
+              <p>{item.note}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
       {/* Dataset summary --------------------------------------------- */}
       <section className="panel tl-summary">
         <div className="tl-head">

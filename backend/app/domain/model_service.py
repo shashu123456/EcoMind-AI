@@ -133,14 +133,12 @@ ALGORITHM_INFO = {
     "ridge": ("Ridge Regression", "linear"),
     "linear": ("Linear Regression", "linear"),
     "lasso": ("Lasso Regression", "linear"),
-    "extra_trees": ("Extra Trees", "ensemble"),
 }
 
 HYPERPARAMETERS = {
     "xgboost": {"n_estimators": 300, "max_depth": 6, "learning_rate": 0.05},
     "random_forest": {"n_estimators": 200, "min_samples_leaf": 2},
     "gradient_boosting": {"n_estimators": 150, "max_depth": 4, "learning_rate": 0.05},
-    "extra_trees": {"n_estimators": 200, "min_samples_leaf": 1},
     "ridge": {"alpha": 1.0},
     "lasso": {"alpha": 0.001},
     "linear": {},

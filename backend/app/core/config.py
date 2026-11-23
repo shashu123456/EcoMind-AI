@@ -64,14 +64,14 @@ class Settings(BaseSettings):
     ml_sample_rows: int = 60_000
 
     # --- Model selection -----------------------------------------------------
-    # The six candidates the platform races in a single pass. The workspace
-    # trains them simultaneously and auto-selects the winner, so a broader
-    # cohort is a feature rather than noise.
+    # The five candidates the platform races in a single pass: two families of
+    # trees, one boosted fallback and two linear baselines. Kept deliberately
+    # short — every entry has to earn its place in the leaderboard, because a
+    # longer roster makes the choice harder to defend, not more rigorous.
     candidate_algorithms: tuple[str, ...] = (
         "xgboost",
         "random_forest",
         "gradient_boosting",
-        "extra_trees",
         "ridge",
         "linear",
     )
