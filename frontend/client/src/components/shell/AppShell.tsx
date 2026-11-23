@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import { Star,
   Activity, AlertTriangle,  ArrowDownRight, ArrowRight, ArrowUpRight, BarChart3, Bell, Building2,
-  CalendarClock, Check, CheckCircle2, ChevronDown, ChevronRight, ChevronUp, CircleDot, Clock3, CloudUpload,
+  CalendarClock, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, CircleDot, Clock3, CloudUpload,
   Briefcase, Cpu, Database, DatabaseZap, Download, Eye, Factory, FileCheck2, FileClock, FileText, Filter,
   Gauge, GraduationCap, HardDrive, HeartPulse, History, IndianRupee, Info, Layers3, Leaf, Lightbulb, ListFilter, LockKeyhole, Mail, Moon, MousePointer2, Network,
   PanelLeftClose, PanelLeftOpen, Pause, Play, Plus, RefreshCw, Search, Server, Settings2, ShieldCheck,
@@ -392,6 +392,80 @@ function HistoryView({ runs, onReplay }: { runs: LiveRun[]; onReplay: (datasetId
         ) : null}
       </section>
     </div>
+  );
+}
+
+/**
+ * The step bar under every pipeline page.
+ *
+ * Two problems it closes: the pages dead-ended unless you went back to the
+ * sidebar, and `Step` answered a finished run with a toast and no visible
+ * change. Every pipeline page now carries previous / next and one sentence
+ * saying what this stage has recorded and what to do next.
+ */
+function StageNavBar({
+  view,
+  stageStatus,
+  allDone,
+  busy,
+  onNavigate,
+  onStep,
+}: {
+  view: NavId;
+  stageStatus: string;
+  allDone: boolean;
+  busy: boolean;
+  onNavigate: (view: NavId) => void;
+  onStep: () => void;
+}) {
+  const index = pipelineStages.findIndex(stage => stage.id === view);
+  if (index < 0) return null;
+  const previous = pipelineStages[index - 1];
+  const next = pipelineStages[index + 1];
+  const label = pipelineStages[index].label;
+  const recorded = stageStatus === "completed";
+  return (
+    <nav className="stage-nav" aria-label="Pipeline steps">
+      <button
+        type="button"
+        className="stage-nav__side"
+        onClick={() => previous && onNavigate(previous.id)}
+        disabled={!previous}
+      >
+        <ChevronLeft size={14} />
+        <span>{previous ? previous.label : "Start of pipeline"}</span>
+      </button>
+      <div className="stage-nav__mid">
+        <span className="stage-nav__step">
+          Step {index + 1} of {pipelineStages.length}
+        </span>
+        <span className="stage-nav__hint">
+          {recorded
+            ? allDone
+              ? "All ten stages are recorded. Review the report, or start a new run."
+              : `${label} is recorded. Continue to ${next?.label ?? "the report"}.`
+            : `${label} has not been recorded yet. Press Step to record it, then continue.`}
+        </span>
+        {!recorded ? (
+          <button type="button" className="stage-nav__action" onClick={onStep} disabled={busy}>
+            <Play size={12} /> {busy ? "Running…" : "Record this stage"}
+          </button>
+        ) : allDone ? (
+          <button type="button" className="stage-nav__action" onClick={() => onNavigate("reports")}>
+            Open report <ChevronRight size={12} />
+          </button>
+        ) : null}
+      </div>
+      <button
+        type="button"
+        className="stage-nav__side"
+        onClick={() => next && onNavigate(next.id)}
+        disabled={!next}
+      >
+        <span>{next ? next.label : "End of pipeline"}</span>
+        <ChevronRight size={14} />
+      </button>
+    </nav>
   );
 }
 
@@ -1330,10 +1404,16 @@ export function AppShell() {
   const execNextStage = async () => {
     const nextKey = STAGE_KEYS.find(key => !liveStages.some(s => s.id === key && s.status === "completed"));
     if (!nextKey) {
-      setToast("All ten stages are already complete for this run.");
+      // Nothing left to record in this run. Say what the next action is rather
+      // than reporting a no-op.
+      setToast("All ten stages are recorded for this run. Press New run to record the pipeline again, or open the report.");
       return;
     }
     await execStage(nextKey);
+    // Show the stage that was just recorded, so a step always ends somewhere
+    // visibly different from where it started.
+    const target = VIEW_BY_STAGE_KEY[nextKey];
+    if (target) goTo(target);
   };
 
   const execRemainingStages = async () => {
@@ -2087,7 +2167,20 @@ export function AppShell() {
               </div>
             </section>
           ) : (
-            renderView()
+            <>
+              {renderView()}
+              <StageNavBar
+                view={activeView}
+                stageStatus={
+                  liveStages.find(s => s.id === (STAGE_KEY_BY_VIEW[activeView] ?? activeView))?.status ??
+                  "not started"
+                }
+                allDone={liveStages.filter(s => s.status === "completed").length >= STAGE_KEYS.length}
+                busy={!!stageBusy}
+                onNavigate={goTo}
+                onStep={() => void execNextStage()}
+              />
+            </>
           )}
         </div>
       </main>
