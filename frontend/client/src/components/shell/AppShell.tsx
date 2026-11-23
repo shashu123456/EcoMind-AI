@@ -3,7 +3,7 @@ import type { LucideIcon } from "lucide-react";
 import { Star,
   Activity, AlertTriangle,  ArrowDownRight, ArrowRight, ArrowUpRight, BarChart3, Bell, Building2,
   CalendarClock, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, CircleDot, Clock3, CloudUpload,
-  Briefcase, Cpu, Database, DatabaseZap, Download, Eye, Factory, FileCheck2, FileClock, FileText, Filter,
+  Briefcase, Cpu, Database, DatabaseZap, Download, Eye, EyeOff, Factory, FileCheck2, FileClock, FileText, Filter,
   Gauge, GraduationCap, HardDrive, HeartPulse, History, IndianRupee, Info, Layers3, Leaf, Lightbulb, ListFilter, LockKeyhole, Mail, Moon, MousePointer2, Network,
   PanelLeftClose, PanelLeftOpen, Pause, Play, Plus, RefreshCw, Search, Server, Settings2, ShieldCheck,
   ShoppingBag, SlidersHorizontal, Sparkles, Sun, SunMedium, Table2, TrendingDown, TrendingUp, UploadCloud, UserRound,
@@ -14,6 +14,7 @@ import { useTheme } from "@/contexts/ThemeContext";
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Line, LineChart, ReferenceLine,
   ResponsiveContainer, Tooltip as RechartsTooltip, TooltipProps, XAxis, YAxis } from "recharts";
 import "./AppShell.css";
+import "./auth.css";
 import { useSound, playCompletionChime, playStartTone, unlockAudio } from "@/lib/useSound";
 import { auth, datasets as datasetsApi, domain, getToken, setToken, workflow, type AuthUser } from "@/lib/api";
 import { displayUnit, unitForColumn } from "@/lib/units";
@@ -632,10 +633,10 @@ function SignInView({ onEnter }: { onEnter: () => void }) {
   // with an unknown credential set. See docs/STATUS.md for the seed.
   const [email, setEmail] = useState("admin@ecomind.ai");
   const [password, setPassword] = useState("admin123");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [focused, setFocused] = useState<"email" | "password" | null>(null);
-  const signinSound = useSound({ onPlay: () => {} });
   /** Register a brand-new workspace account (the backend has no SSO flow). */
   const createAccount = async () => {
     if (busy) return;
@@ -677,169 +678,166 @@ function SignInView({ onEnter }: { onEnter: () => void }) {
       setBusy(false);
     }
   };
+  const stages = [
+    { no: "01", name: "Library", note: "Datasets recorded with provenance" },
+    { no: "04", name: "Quality", note: "Six rules scored across five dimensions" },
+    { no: "06", name: "Models", note: "Six candidates on one held-out split" },
+    { no: "08", name: "Prediction", note: "Hourly band against a naive baseline" },
+  ];
   return (
-    <div className="signin-screen">
-      <div className="signin-visual">
-        <div className="signin-grid" />
-        <div className="signin-visual__top">
-          <span className="brand-mini">
-            <EcoMindMark size={28} />
+    <div className="auth">
+      <section className="auth-story">
+        <div className="auth-story__grid" aria-hidden="true" />
+        <header className="auth-story__head">
+          <span className="auth-brand">
+            <EcoMindMark size={30} />
             <strong>EcoMind</strong>
+            <small>AI</small>
           </span>
-          <span className="signin-secure">
+          <span className="auth-flag">
             <span className="status-dot status-dot--lime" />
-            SECURE WORKSPACE
+            Local workspace
           </span>
-        </div>
-        <div className="signin-visual__content">
-          <div className="signin-kicker">
-            <span className="hero-kicker__line" />
-            ENERGY INTELLIGENCE OS
-          </div>
+        </header>
+
+        <div className="auth-story__body">
+          <p className="auth-eyebrow">
+            <span aria-hidden="true" />
+            Energy intelligence OS
+          </p>
           <h1>
-            From raw signal<br />
-            to <em>resilient</em><br />
-            operations.
+            Every kilowatt,
+            <br />
+            <em>explained.</em>
           </h1>
-          <p>One inspectable AI pipeline for teams turning energy data into confident operating decisions.</p>
-          <div className="signin-flow">
-            <div className="signin-flow__line" />
-            <span className="signin-flow__spark" />
-            {[
-              { label: "INGEST", icon: UploadCloud },
-              { label: "UNDERSTAND", icon: Network },
-              { label: "REPAIR", icon: ShieldCheck },
-              { label: "PREDICT", icon: TrendingUp },
-              { label: "ACT", icon: Lightbulb },
-            ].map((step, index) => {
-              const Icon = step.icon;
-              return (
-                <div className="signin-flow__step" key={step.label}>
-                  <span className="signin-flow__node">
-                    <Icon size={15} />
-                  </span>
-                  <span>{step.label}</span>
-                  {index < 4 ? <ArrowRight size={12} /> : null}
-                </div>
-              );
-            })}
-          </div>
+          <p className="auth-lede">
+            A ten-stage pipeline that turns a raw meter file into an auditable operating decision — and shows
+            its work at every step.
+          </p>
+          <ol className="auth-stages">
+            {stages.map(stage => (
+              <li key={stage.no}>
+                <b>{stage.no}</b>
+                <strong>{stage.name}</strong>
+                <span>{stage.note}</span>
+              </li>
+            ))}
+          </ol>
         </div>
-        <div className="signin-visual__footer">
+
+        <footer className="auth-story__foot">
           <span>
-            <span className="status-dot status-dot--lime" />
-            AI core online
+            <ShieldCheck size={12} />
+            Raw source never rewritten
           </span>
-          <span>EcoMind Energy OS / workspace preview</span>
-          <span>Build {__BUILD_STAMP__}</span>
-          <div className="signin-chips">
-            <span className="signin-chip">
-              <Network size={12} />
-              10-stage pipeline
-            </span>
-            <span className="signin-chip">
-              <DatabaseZap size={12} />
-              Raw data immutable
-            </span>
-            <span className="signin-chip">
-              <BarChart3 size={12} />
-              Score-ranked models
-            </span>
-          </div>
-        </div>
-        <div className="signin-radar">
-          <div className="signin-radar__ring signin-radar__ring--one" />
-          <div className="signin-radar__ring signin-radar__ring--two" />
-          <div className="signin-radar__ring signin-radar__ring--three" />
-          <span className="signin-radar__core">
-            <Leaf size={22} />
+          <span>
+            <LockKeyhole size={12} />
+            Bearer-token scoped API
           </span>
-        </div>
-      </div>
-      <div className="signin-card-wrap">
-        <div className="signin-card">
-          <div className="signin-card__brand">
-            <span className="signin-card__mark">
-              <EcoMindMark size={31} />
+          <span>
+            <DatabaseZap size={12} />
+            Build {__BUILD_STAMP__}
+          </span>
+        </footer>
+      </section>
+
+      <section className="auth-panel">
+        <div className="auth-card">
+          <header className="auth-card__head">
+            <span className="auth-card__mark">
+              <EcoMindMark size={22} />
             </span>
             <div>
-              <strong>Welcome back</strong>
-              <span>Sign in to your intelligence workspace</span>
+              <h2>Sign in</h2>
+              <p>Continue to your workspace</p>
             </div>
-          </div>
+          </header>
+
           <form
             onSubmit={event => {
               event.preventDefault();
               void submit();
             }}
           >
-            <label className={focused === "email" ? "is-focused" : ""}>
-              <Mail size={15} />
-              <span>
-                <small>WORK EMAIL</small>
+            <div className="auth-field">
+              <label htmlFor="auth-email">Work email</label>
+              <div className={`auth-input ${focused === "email" ? "is-focused" : ""}`}>
+                <Mail size={15} />
                 <input
+                  id="auth-email"
                   value={email}
                   onFocus={() => setFocused("email")}
                   onBlur={() => setFocused(null)}
                   onChange={event => setEmail(event.target.value)}
                   type="email"
+                  autoComplete="username"
+                  placeholder="you@company.com"
                 />
-              </span>
-            </label>
-            <label className={focused === "password" ? "is-focused" : ""}>
-              <LockKeyhole size={15} />
-              <span>
-                <small>PASSWORD</small>
+              </div>
+            </div>
+
+            <div className="auth-field">
+              <label htmlFor="auth-password">Password</label>
+              <div className={`auth-input ${focused === "password" ? "is-focused" : ""}`}>
+                <LockKeyhole size={15} />
                 <input
+                  id="auth-password"
                   value={password}
                   onFocus={() => setFocused("password")}
                   onBlur={() => setFocused(null)}
                   onChange={event => setPassword(event.target.value)}
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   autoComplete="current-password"
                 />
-              </span>
-            </label>
-            <div className="signin-options">
-              <span className="signin-demo-note">
-                <CircleDot size={11} />
-                Seeded workspace account — replace before deploying
-              </span>
+                <button
+                  type="button"
+                  className="auth-reveal"
+                  onClick={() => setShowPassword(value => !value)}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                >
+                  {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                </button>
+              </div>
             </div>
-            {error ? <p className="signin-error" role="alert">{error}</p> : null}
-            <button className="signin-submit" type="submit" disabled={busy}>
-              <span>{busy ? "Connecting…" : "Sign in to workspace"}</span>
+
+            {error ? (
+              <p className="auth-error" role="alert">
+                {error}
+              </p>
+            ) : null}
+
+            <button className="auth-submit" type="submit" disabled={busy}>
+              <span>{busy ? "Signing in…" : "Sign in to workspace"}</span>
               <ArrowRight size={16} />
             </button>
           </form>
-          <div className="signin-divider">
-            <span>New workspace</span>
+
+          <div className="auth-demo">
+            <div>
+              <strong>Demo workspace</strong>
+              <span>admin@ecomind.ai · admin123</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setEmail("admin@ecomind.ai");
+                setPassword("admin123");
+                setError("");
+              }}
+            >
+              Use
+            </button>
           </div>
-          <button
-            className="sso-button"
-            type="button"
-            disabled={busy}
-            onClick={() => void createAccount()}
-          >
-            <Plus size={14} />{" "}
+
+          <button className="auth-secondary" type="button" disabled={busy} onClick={() => void createAccount()}>
+            <Plus size={13} />
             Create an account with this email
           </button>
-          <p className="signin-legal">
-            Every pipeline run stays scoped to this project.<br />
-            Uploaded datasets are never modified — repairs create new versions.
-          </p>
         </div>
-        <div className="signin-card__meta">
-          <span>
-            <LockKeyhole size={12} />
-            Bearer-token scoped API
-          </span>
-          <span>
-            <ShieldCheck size={12} />
-            Raw source is never rewritten
-          </span>
-        </div>
-      </div>
+        <p className="auth-note">
+          Uploaded files are read once and never rewritten — every repair becomes a new version.
+        </p>
+      </section>
     </div>
   );
 }
@@ -1008,7 +1006,7 @@ export function AppShell() {
       list.push({
         id: "dq-attention",
         tone: "orange",
-        title: `${failedChecks} data quality check${failedChecks === 1 ? "" : "s"} need attention`,
+        title: `${failedChecks} data quality check${failedChecks === 1 ? " needs" : "s need"} attention`,
         detail: "Review the quality stage before trusting the numbers downstream of it.",
       });
     }
@@ -2972,8 +2970,23 @@ function DatasetPreviewModal({
   onExport: () => void;
 }) {
   const columns = rows.length ? Object.keys(rows[0]) : [];
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onClose]);
   return (
-    <div className="modal-scrim" role="dialog" aria-modal="true" aria-label={`Preview of ${dataset.name}`}>
+    <div
+      className="modal-scrim"
+      role="dialog"
+      aria-modal="true"
+      aria-label={`Preview of ${dataset.name}`}
+      onMouseDown={event => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
       <div className="modal">
         <div className="modal__head">
           <div>

@@ -136,6 +136,14 @@ export function ModelLab({
 }: Props) {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [drawer, setDrawer] = useState<string | null>(null);
+  useEffect(() => {
+    if (!drawer) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setDrawer(null);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [drawer]);
   const [metric, setMetric] = useState("mae");
   const [search, setSearch] = useState("");
   const [sortKey, setSortKey] = useState<"rank" | "r2" | "mae" | "time">("rank");

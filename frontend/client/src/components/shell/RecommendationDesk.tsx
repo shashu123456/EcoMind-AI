@@ -88,6 +88,14 @@ export function RecommendationDesk({ datasetId, datasetName, baselineName }: Pro
   const [sort, setSort] = useState("priority");
 
   const [openId, setOpenId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!openId) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpenId(null);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [openId]);
   const [detail, setDetail] = useState<RecDetail | null>(null);
   const [detailBusy, setDetailBusy] = useState(false);
 

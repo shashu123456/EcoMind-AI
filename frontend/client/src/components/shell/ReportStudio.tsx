@@ -171,7 +171,6 @@ export function ReportStudio({
   const [phase, setPhase] = useState<"idle" | "collecting" | "rendering" | "ready">("idle");
   const [activePage, setActivePage] = useState(0);
   const [zoom, setZoom] = useState(1);
-  const [lightPaper, setLightPaper] = useState(false);
   const [query, setQuery] = useState("");
   const [compareSelection, setCompareSelection] = useState<string[]>([]);
   const [comparison, setComparison] = useState<ReportComparison | null>(null);
@@ -496,9 +495,6 @@ export function ReportStudio({
             <span className="mono-note">{Math.round(zoom * 100)}%</span>
             <button type="button" className="rs-icon-button" onClick={() => setZoom(z => Math.min(1.8, +(z + 0.1).toFixed(2)))} aria-label="Zoom in">
               <ZoomIn size={14} />
-            </button>
-            <button type="button" className="rs-icon-button" onClick={() => setLightPaper(v => !v)} aria-label="Toggle paper mode" title="Paper mode">
-              <Layers size={14} />
             </button>
             <button type="button" className="rs-icon-button" onClick={printDocument} aria-label="Print" disabled={!document}>
               <Printer size={14} />
