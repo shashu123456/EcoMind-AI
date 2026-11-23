@@ -134,7 +134,10 @@ function SectionFigure({ section }: { section: ReportSection }) {
     rows = numeric(key => key.endsWith("_kwh") && HORIZON_DAYS[key.replace("_kwh", "")] != null).map(({ key, value }) => {
       const horizon = key.replace("_kwh", "");
       const days = HORIZON_DAYS[horizon];
-      const perDay = Math.round(value / days);
+      // Use stored per-day value if available, otherwise compute from total
+      const perDayKey = horizon + "_kwh_per_day";
+      const storedPerDay = figures?.[perDayKey] as number | undefined;
+      const perDay = storedPerDay != null ? Math.round(storedPerDay) : Math.round(value / days);
       return { label: horizon, value: perDay, caption: `${formatNumber(perDay)} kWh/day` };
     });
     title = "Average energy per day at each horizon";

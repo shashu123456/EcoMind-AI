@@ -352,6 +352,11 @@ def _section_consumption(forecast: dict | None) -> dict:
             f"{h.get('confidence_note', '')}"
         )
         figures[f"{h.get('horizon')}_kwh"] = round(float(h.get("total_kwh") or 0.0), 2)
+        # Per-day kWh for cross-horizon comparability
+        horizon_days = HORIZON_DAYS_MAP.get(h.get("horizon"))
+        if horizon_days:
+            figures[f"{h.get("horizon")}_kwh_per_day"] = round(float(h.get("total_kwh") or 0.0) / horizon_days, 2)
+
     hist = forecast.get("monthly_history") or []
     if hist:
         lines += ["", "Monthly history, for context against the projection:"]
