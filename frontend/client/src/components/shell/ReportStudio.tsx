@@ -58,10 +58,8 @@ const SECTION_METRICS: Record<string, Metric[]> = {
     { key: "annual_recoverable_inr", label: "Recoverable / yr", money: true },
   ],
   data_quality: [
-    { key: "quality_score", label: "Quality score", unit: "/100" },
-    { key: "rows_scanned", label: "Rows scanned" },
-    { key: "rules_passed", label: "Rules passed" },
-    { key: "rules_failed", label: "Rules failed" },
+    { key: "overall_score", label: "Quality score", unit: "/100" },
+    { key: "checks", label: "Checks run" },
   ],
   critical_anomalies: [
     { key: "anomalous_readings", label: "Anomalies" },
@@ -91,14 +89,16 @@ function FigureMetrics({ section }: { section: ReportSection }) {
   return (
     <div className="rs-metrics">
       {shown.map(metric => {
-        const value = section.figures[metric.key] as number;
+        const raw = section.figures[metric.key] as number;
+        // Counts and totals read as whole numbers; a rate keeps its decimals.
+        const value = Math.abs(raw) >= 100 ? Math.round(raw) : Number(raw.toFixed(2));
         return (
           <div className="rs-metric" key={metric.key}>
             <small>{metric.label}</small>
             <strong>
               {metric.money ? "₹" : ""}
               {formatNumber(value)}
-              {metric.unit ? <em>{metric.unit}</em> : null}
+              {metric.unit ? <em> {metric.unit}</em> : null}
             </strong>
           </div>
         );
