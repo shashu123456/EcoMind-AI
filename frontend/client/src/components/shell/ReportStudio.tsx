@@ -808,7 +808,15 @@ export function ReportStudio({
                 <span>{row.model_version ?? "—"}</span>
                 <span>
                   {row.accuracy_r2 != null ? `R² ${row.accuracy_r2.toFixed(3)}` : "—"}
-                  {row.accuracy_mape != null && <small>MAPE {row.accuracy_mape.toFixed(2)}%</small>}
+                  {/* A percentage in the billions is not an accuracy figure; it means the
+                      target has near-zero values and the ratio exploded. Hiding it is
+                      honest — printing it invites the reader to trust a number that
+                      describes arithmetic, not the forecast. */}
+                  {row.accuracy_mape != null &&
+                    Number.isFinite(row.accuracy_mape) &&
+                    Math.abs(row.accuracy_mape) <= 1000 && (
+                      <small>MAPE {row.accuracy_mape.toFixed(2)}%</small>
+                    )}
                 </span>
                 <span>
                   baseline {row.baseline_version ?? "—"}
