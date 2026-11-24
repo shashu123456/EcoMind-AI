@@ -326,6 +326,24 @@ Three CI jobs run on every push and pull request
    proves the seeded admin user authenticates, which is the regression that a
    pinned `passlib` once shipped past every ordinary test run.
 
+## ☁️ Deploying on Render
+
+The repository ships a [`render.yaml`](render.yaml) blueprint and a multi-stage
+[`Dockerfile`](Dockerfile). In Render, choose **New → Blueprint**, point it at
+this repository, and apply. The image builds the SPA and seeds the catalog at
+build time, so a cold start only has to start uvicorn.
+
+The blueprint sets `ECOMIND_ENV=production`, generates `ECOMIND_SECRET_KEY`, and
+caps training rows with `ECOMIND_ML_SAMPLE_ROWS`. Set that cap higher on a plan
+with more RAM and CPU when you need to train on larger datasets.
+
+Deployment storage is the part that used to fail mid-run: a model race wrote
+five uncompressed estimators, some over a gigabyte, into `backend/data/models`
+until the instance disk filled. Now artifacts are compressed, only the selected
+model's file is kept, and any stale artifacts are pruned at startup, so a normal
+run stays well inside a small disk. For durable data across deploys, attach a
+persistent disk mounted at `/app/backend/data`.
+
 ## 📚 Documentation
 
 | Document | Description |

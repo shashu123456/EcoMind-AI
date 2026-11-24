@@ -44,6 +44,11 @@ from app.workflow.events import emit
 from app.workflow.stages import register_stage_runner
 from sqlalchemy.orm import Session
 
+#: Days each forecast horizon covers, used to express its total as a daily
+#: average. Stored beside the total so the chart reads a recorded figure rather
+#: than recomputing one at render time.
+HORIZON_DAYS: dict[str, int] = {"24h": 1, "7d": 7, "30d": 30, "12m": 365}
+
 #: Keys that must never appear anywhere in the assembled report, and the reason
 #: each is banned. Checked as substrings of lower-cased key names, so
 #: `selected_r2` and `R2Value` are both caught.
@@ -351,11 +356,15 @@ def _section_consumption(forecast: dict | None) -> dict:
             f"{_inr(h.get('total_cost_inr'))}. Method: {h.get('method')}. "
             f"{h.get('confidence_note', '')}"
         )
-        figures[f"{h.get('horizon')}_kwh"] = round(float(h.get("total_kwh") or 0.0), 2)
-        # Per-day kWh for cross-horizon comparability
-        horizon_days = HORIZON_DAYS_MAP.get(h.get("horizon"))
+        horizon = h.get("horizon")
+        total_kwh = float(h.get("total_kwh") or 0.0)
+        figures[f"{horizon}_kwh"] = round(total_kwh, 2)
+        # Per-day kWh for cross-horizon comparability. The chart plots this, and
+        # it lives in the report record so the page cannot show a number the
+        # report never stated.
+        horizon_days = HORIZON_DAYS.get(horizon)
         if horizon_days:
-            figures[f"{h.get("horizon")}_kwh_per_day"] = round(float(h.get("total_kwh") or 0.0) / horizon_days, 2)
+            figures[f"{horizon}_kwh_per_day"] = round(total_kwh / horizon_days, 2)
 
     hist = forecast.get("monthly_history") or []
     if hist:

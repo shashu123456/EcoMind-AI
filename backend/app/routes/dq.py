@@ -1,4 +1,4 @@
-"""Data Quality Engine routes. Prefix /api/v1/datasets/{dataset_id}/dq.
+"""Data Quality Engine routes. Prefix /api/v1/datasets/{dataset_id}/dq."""
 
 from __future__ import annotations
 
@@ -14,8 +14,14 @@ router = APIRouter()
 
 
 @router.post("/{dataset_id}/dq/repairs")
-def dq_repairs_post(dataset_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+def dq_repairs_post(
+    dataset_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Record the structural repairs the quality page shows as the audit trail."""
     from app.domain.dq_service import record_repairs
+
     return json_safe(record_repairs(db, dataset_id))
 
 

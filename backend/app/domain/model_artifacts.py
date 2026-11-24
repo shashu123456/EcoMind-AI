@@ -63,7 +63,11 @@ def save_artifact(
 
     settings.models_dir.mkdir(parents=True, exist_ok=True)
     path = artifact_path(model_id)
-    joblib.dump(estimator, path)
+    # Compress on the way out. An uncompressed deep-tree ensemble was over 1 GB
+    # per candidate, and five candidates exhausted a small deployment disk
+    # before the pipeline finished. Compression costs a second on save and
+    # makes the artifact several times smaller and faster to load.
+    joblib.dump(estimator, path, compress=3)
     meta = {
         "model_id": model_id,
         "algorithm": algorithm,
@@ -114,3 +118,33 @@ def delete_artifact(model_id: str) -> None:
             p.unlink()
         except FileNotFoundError:
             pass
+
+
+def prune_artifacts(keep_ids: set[str]) -> int:
+    """Delete every estimator and sidecar whose model id is not in ``keep_ids``.
+
+    Called at startup and after model selection so artifacts from earlier runs
+    — which nothing loads, because only the selected model is ever read back —
+    do not accumulate until the deployment's disk is full. Returns the number
+    of estimator files removed. Missing or unreadable files are skipped rather
+    than raised: pruning is housekeeping and must never block a run.
+    """
+    if not settings.models_dir.exists():
+        return 0
+    removed = 0
+    for path in list(settings.models_dir.glob("*.joblib")):
+        if path.stem in keep_ids:
+            continue
+        try:
+            path.unlink()
+            removed += 1
+        except OSError:
+            continue
+    for path in list(settings.models_dir.glob("*.meta.json")):
+        if path.name[: -len(".meta.json")] in keep_ids:
+            continue
+        try:
+            path.unlink()
+        except OSError:
+            continue
+    return removed

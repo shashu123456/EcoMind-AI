@@ -32,7 +32,7 @@ import pandas as pd
 from app.core.config import settings
 from app.db.models import Model, ModelSelection
 from app.domain import snapshots
-from app.domain.model_artifacts import save_artifact
+from app.domain.model_artifacts import delete_artifact, save_artifact
 from app.domain.data import json_safe
 from app.domain.dataset_service import audit, load_dataframe
 from app.domain.feature_service import TARGET_CANDIDATES, target_column
@@ -135,10 +135,18 @@ ALGORITHM_INFO = {
     "lasso": ("Lasso Regression", "linear"),
 }
 
+#: Bounded on purpose. The defaults used to be 300 boosted rounds and 200
+#: unlimited-depth forests, which took minutes to train on a small instance and
+#: wrote models over a gigabyte each. These settings keep a full five-candidate
+#: race within the time, memory and disk a basic deployment plan provides.
 HYPERPARAMETERS = {
-    "xgboost": {"n_estimators": 300, "max_depth": 6, "learning_rate": 0.05},
-    "random_forest": {"n_estimators": 200, "min_samples_leaf": 2},
-    "gradient_boosting": {"n_estimators": 150, "max_depth": 4, "learning_rate": 0.05},
+    "xgboost": {"n_estimators": 200, "max_depth": 6, "learning_rate": 0.05},
+    "random_forest": {
+        "n_estimators": 120,
+        "max_depth": 16,
+        "min_samples_leaf": 4,
+    },
+    "gradient_boosting": {"n_estimators": 120, "max_depth": 4, "learning_rate": 0.05},
     "ridge": {"alpha": 1.0},
     "lasso": {"alpha": 0.001},
     "linear": {},
@@ -421,6 +429,21 @@ def train_candidates(db: Session, dataset_id: str, params: dict | None = None) -
         row.selection_rationale = next(
             (c.get("selection_rationale") for c in candidates if c["id"] == row.id), None
         )
+
+    # Only the winner's estimator stays on disk. Nothing ever loads a losing
+    # candidate — the forecast reads the selected model and retrains if its file
+    # is missing — so keeping all five was hundreds of MB per run of dead weight
+    # that filled the deployment disk mid-pipeline. The losers keep their metrics
+    # and ranks in the database; `model_path` is cleared so the row does not
+    # point at a file that is gone.
+    for c in candidates:
+        if c["id"] == winner["id"]:
+            continue
+        try:
+            delete_artifact(c["id"])
+        except Exception:
+            pass
+        db.query(Model).filter(Model.id == c["id"]).update({"model_path": None})
 
     snapshots.snapshot(
         db,

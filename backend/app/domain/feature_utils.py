@@ -144,6 +144,10 @@ def _xgboost(hp):
         subsample=0.9,
         colsample_bytree=0.9,
         objective="reg:squarederror",
+        # `hist` builds the same trees with a histogram split finder: several
+        # times faster and far smaller in memory than the exact method, which
+        # matters on the single-core, small-RAM instances the app deploys to.
+        tree_method="hist",
         n_jobs=-2,
         random_state=7,
         verbosity=0,
@@ -154,9 +158,14 @@ def _rf(hp):
     from sklearn.ensemble import RandomForestRegressor
 
     return RandomForestRegressor(
-        n_estimators=hp.get("n_estimators", 250),
-        max_depth=hp.get("max_depth", None),
-        min_samples_leaf=hp.get("min_samples_leaf", 2),
+        n_estimators=hp.get("n_estimators", 120),
+        # A depth cap is what keeps the artifact small. Unlimited depth grows a
+        # leaf per training row, so the pickle stores the training set back to
+        # you: 200 full-depth trees were over 1 GB for 60k rows. 16 levels still
+        # models hourly load well and keeps each model tens of MB.
+        max_depth=hp.get("max_depth", 16),
+        min_samples_leaf=hp.get("min_samples_leaf", 4),
+        max_features="sqrt",
         n_jobs=-2,
         random_state=7,
     )
@@ -166,7 +175,7 @@ def _gb(hp):
     from sklearn.ensemble import GradientBoostingRegressor
 
     return GradientBoostingRegressor(
-        n_estimators=hp.get("n_estimators", 150),
+        n_estimators=hp.get("n_estimators", 120),
         learning_rate=hp.get("learning_rate", 0.05),
         max_depth=hp.get("max_depth", 4),
         random_state=7,

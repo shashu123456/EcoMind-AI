@@ -1,0 +1,31 @@
+# Render blueprint for EcoMind AI.
+#
+# Deploy: Render Dashboard -> New -> Blueprint -> point at this repository.
+# The image builds the SPA and seeds the SQLite catalog at build time, so a cold
+# start only starts uvicorn.
+#
+# Why the memory/disk settings below matter: the pipeline trains five model
+# candidates per run. It used to keep every artifacts file (1 GB+ each), which
+# filled the instance disk midway through a run. Artifacts are now compressed,
+# only the selected model is kept, and stale ones are pruned at startup, so a
+# free instance has enough room. `ECOMIND_ML_SAMPLE_ROWS` caps training rows to
+# fit the free plan's RAM; raise it on a paid plan for larger datasets.
+services:
+  - type: web
+    name: ecomind-ai
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    healthCheckPath: /api/v1/health
+    autoDeploy: true
+    envVars:
+      - key: ECOMIND_ENV
+        value: production
+      # Generated once by Render and kept stable across deploys. The app refuses
+      # to start in production without a real key (>= 32 chars), by design.
+      - key: ECOMIND_SECRET_KEY
+        generateValue: true
+      - key: ECOMIND_ML_SAMPLE_ROWS
+        value: "30000"
+      - key: PYTHONUNBUFFERED
+        value: "1"

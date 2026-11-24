@@ -1,11 +1,30 @@
 .git
+.github
+docs
+logs
+.pytest_cache
+.ruff_cache
 **/__pycache__
 **/*.pyc
-backend/data
+# Local Python env and Node modules are installed inside the image; sending the
+# host copies made the Render build upload multi-GB contexts before it compiled
+# anything, which is where the deploy appeared to stop halfway.
+.venv
+venv
+node_modules
 frontend/node_modules
-frontend/dist
 frontend/client/node_modules
+frontend/dist
+frontend/client/dist
+backend/data
+# Local secrets never belong in an image; the platform supplies them at runtime.
+backend/.env
+frontend/.env
+.env
+# Local databases and generated data are rebuilt by `python seed.py` in the
+# image, never copied from the machine that built it.
+*.db
+*.db-journal
 .cloud-attachments
 *.bak
 *.log
-docs/

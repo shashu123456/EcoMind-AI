@@ -22,8 +22,38 @@ from .events.event_bus import event_bus
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    _prune_model_artifacts()
     event_bus.bind_loop(asyncio.get_running_loop())
     yield
+
+
+def _prune_model_artifacts() -> None:
+    """Drop estimator files no active/selected model points at.
+
+    Artifacts are the one thing this app writes that can grow without bound:
+    every model race saves a candidate, and only the selected model is ever
+    loaded again. On a deployment with a small disk that backlog is what stops
+    a later run halfway through. Housekeeping at startup reclaims it, and a
+    failure here is logged by omission rather than allowed to block boot.
+    """
+    try:
+        from .db.base import SessionLocal
+        from .db.models import Model, ModelSelection
+        from .domain.model_artifacts import prune_artifacts
+
+        db = SessionLocal()
+        try:
+            keep = {row.id for row in db.query(Model).filter(Model.is_active.is_(True)).all()}
+            keep |= {
+                row.selected_model_id
+                for row in db.query(ModelSelection).all()
+                if row.selected_model_id
+            }
+        finally:
+            db.close()
+        prune_artifacts(keep)
+    except Exception:
+        pass
 
 
 app = FastAPI(
