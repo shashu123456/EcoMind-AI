@@ -6,11 +6,12 @@ Checks: completeness, accuracy, consistency, timeliness, validity. Returns 0-100
 
 from __future__ import annotations
 
+import json
 import time
 from datetime import datetime, timezone
 
 import pandas as pd
-from app.db.models import Dataset, DQResult
+from app.db.models import Dataset, DQRepair, DQResult
 from app.domain.dataset_service import audit
 from app.workflow.stages import register_stage_runner
 from sqlalchemy.orm import Session
@@ -429,8 +430,12 @@ def record_repairs(db: Session, dataset_id: str) -> dict:
     # Read the raw dataframe once — these are the original, un-repaired values
     from app.domain.dataset_service import load_dataframe
     df = load_dataframe(db, dataset_id, use_processed=False)[1].copy()
-    n = len(df)
 
+    # A repair ledger row per bad cell is useful; one per bad cell across a
+    # quarter-million-row export is not, and writing it in a single request is
+    # how a small instance runs out of room. The cap keeps the audit trail
+    # useful and the request bounded; the response says when it was hit.
+    max_rows = 5000
     written = 0
     for r in results:
         # Determine repair method from rule details if present
@@ -463,15 +468,19 @@ def record_repairs(db: Session, dataset_id: str) -> dict:
                                     before_value=None,
                                     after_value=None,
                                     severity=r.severity,
-                                    detail={
-                                        "rule_score": r.score,
-                                        "column": col,
-                                        "null_count": count,
-                                    },
+                                    detail=json.dumps(
+                                        {
+                                            "rule_score": r.score,
+                                            "column": col,
+                                            "null_count": count,
+                                        }
+                                    ),
                                     repaired_at=datetime.now(timezone.utc),
                                 )
                             )
                             written += 1
+                            if written >= max_rows:
+                                break
 
         elif rule_name == "validity_identifiers":
             ids_col = details.get("blank_ids", 0)
@@ -504,21 +513,30 @@ def record_repairs(db: Session, dataset_id: str) -> dict:
                                     before_value="",
                                     after_value="filled identifier",
                                     severity=r.severity,
-                                    detail={
-                                        "rule_score": r.score,
-                                        "blank_id_count": ids_col,
-                                    },
+                                    detail=json.dumps(
+                                        {
+                                            "rule_score": r.score,
+                                            "blank_id_count": ids_col,
+                                        }
+                                    ),
                                     repaired_at=datetime.now(timezone.utc),
                                 )
                             )
                             written += 1
+                            if written >= max_rows:
+                                break
+
+        if written >= max_rows:
+            break
 
     db.commit()
-    return {"repaired": written, "note": "repairs recorded as audit trail"}
+    return {
+        "repaired": written,
+        "note": "repairs recorded as audit trail",
+        "truncated": written >= max_rows,
+    }
 
 
-# ── schema drift checks ──
-from app.db.models import DQResult, QualityScore
 
 @register_stage_runner("quality")
 def quality_stage(run, db: Session, params: dict):
